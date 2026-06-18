@@ -103,7 +103,7 @@ dependencies {
     ksp("androidx.hilt:hilt-compiler:1.2.0")
 
     // Encrypted SharedPreferences (stores the DB passphrase)
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.security:security-crypto:1.0.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
