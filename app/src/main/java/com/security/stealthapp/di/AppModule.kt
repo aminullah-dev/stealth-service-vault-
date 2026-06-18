@@ -1,16 +1,13 @@
 package com.security.stealthapp.di
 
 import android.content.Context
-import com.security.stealthapp.data.DatabaseSeeder
 import com.security.stealthapp.data.db.AppDatabase
-import com.security.stealthapp.data.db.dao.AppointmentDao
 import com.security.stealthapp.data.db.dao.BookingDao
 import com.security.stealthapp.data.db.dao.MessageDao
-import com.security.stealthapp.data.db.dao.SalonDao
 import com.security.stealthapp.data.db.dao.SecureLogDao
-import com.security.stealthapp.data.db.dao.UserDao
-import com.security.stealthapp.data.repository.AppointmentRepository
-import com.security.stealthapp.data.repository.SalonRepository
+import com.security.stealthapp.data.firebase.FirebaseAuthManager
+import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.FirestoreSeeder
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.security.DatabaseKeyManager
 import com.security.stealthapp.security.PinHasher
@@ -38,8 +35,6 @@ object AppModule {
         keyManager: DatabaseKeyManager
     ): AppDatabase = AppDatabase.create(ctx, keyManager)
 
-    // ── DAO bindings ──────────────────────────────────────────────────────────
-
     @Provides @Singleton
     fun provideSecureLogDao(db: AppDatabase): SecureLogDao = db.secureLogDao()
 
@@ -50,17 +45,6 @@ object AppModule {
     fun provideBookingDao(db: AppDatabase): BookingDao = db.bookingDao()
 
     @Provides @Singleton
-    fun provideUserDao(db: AppDatabase): UserDao = db.userDao()
-
-    @Provides @Singleton
-    fun provideSalonDao(db: AppDatabase): SalonDao = db.salonDao()
-
-    @Provides @Singleton
-    fun provideAppointmentDao(db: AppDatabase): AppointmentDao = db.appointmentDao()
-
-    // ── Repository bindings ───────────────────────────────────────────────────
-
-    @Provides @Singleton
     fun provideVaultRepository(
         logDao: SecureLogDao,
         msgDao: MessageDao,
@@ -68,20 +52,15 @@ object AppModule {
     ): VaultRepository = VaultRepository(logDao, msgDao, bookDao)
 
     @Provides @Singleton
-    fun provideSalonRepository(dao: SalonDao): SalonRepository = SalonRepository(dao)
+    fun provideFirebaseAuthManager(): FirebaseAuthManager = FirebaseAuthManager()
 
     @Provides @Singleton
-    fun provideAppointmentRepository(
-        dao: AppointmentDao,
-        userDao: UserDao
-    ): AppointmentRepository = AppointmentRepository(dao, userDao)
-
-    // ── Seeder ────────────────────────────────────────────────────────────────
+    fun provideFirestoreRepository(): FirestoreRepository = FirestoreRepository()
 
     @Provides @Singleton
-    fun provideDatabaseSeeder(
-        userDao: UserDao,
-        salonDao: SalonDao,
+    fun provideFirestoreSeeder(
+        repo: FirestoreRepository,
+        auth: FirebaseAuthManager,
         pinHasher: PinHasher
-    ): DatabaseSeeder = DatabaseSeeder(userDao, salonDao, pinHasher)
+    ): FirestoreSeeder = FirestoreSeeder(repo, auth, pinHasher)
 }

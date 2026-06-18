@@ -38,4 +38,12 @@ class PinHasher @Inject constructor() {
 
     fun verify(pin: String, saltBase64: String, storedHash: String): Boolean =
         hash(pin, saltBase64) == storedHash
+
+    /**
+     * Derives a separate Firebase Auth password from the same PIN.
+     * Uses a different input prefix so it cannot be reverse-engineered from the
+     * verification hash stored in Firestore, even if Firestore is read by an attacker.
+     */
+    fun deriveAuthPassword(pin: String, saltBase64: String): String =
+        hash("AUTH:$pin", saltBase64)
 }

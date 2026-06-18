@@ -6,10 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.security.stealthapp.data.db.entities.Appointment
-import com.security.stealthapp.data.db.entities.Salon
-import com.security.stealthapp.data.repository.AppointmentRepository
-import com.security.stealthapp.data.repository.SalonRepository
+import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,18 +22,13 @@ import javax.inject.Inject
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val salonRepository: SalonRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val firestoreRepository: FirestoreRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
-    // Injected from the navigation back-stack entry.
     private val customerId: String = checkNotNull(savedStateHandle["userId"])
 
-    // ── Static filter options ─────────────────────────────────────────────────
-
-    val categories = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
-
+    val categories    = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
     val neighborhoods = listOf(
         "All Neighborhoods",
         "District 1 – Kabul Center",
@@ -45,24 +39,15 @@ class DashboardViewModel @Inject constructor(
         "District 13 – Afshar"
     )
 
-    // ── Filter state — backed by MutableStateFlow so combine() can react ─────
-
-    private val _selectedCategory    = MutableStateFlow("All")
+    private val _selectedCategory     = MutableStateFlow("All")
     private val _selectedNeighborhood = MutableStateFlow("All Neighborhoods")
 
     val selectedCategory: StateFlow<String>     = _selectedCategory
     val selectedNeighborhood: StateFlow<String> = _selectedNeighborhood
 
-    // ── Live data from Room/SQLCipher ─────────────────────────────────────────
-
-    /**
-     * Reactive triple-combine: emits a new filtered list whenever
-     *  (a) a provider toggles their availability,
-     *  (b) the customer changes the category chip, or
-     *  (c) the customer changes the neighborhood dropdown.
-     */
-    val filteredSalons: StateFlow<List<Salon>> = combine(
-        salonRepository.availableSalons,
+    /** Triple-combine: re-filters whenever provider toggles availability, or customer changes filters. */
+    val filteredSalons: StateFlow<List<SalonDocument>> = combine(
+        firestoreRepository.observeAvailableSalons(),
         _selectedCategory,
         _selectedNeighborhood
     ) { salons, category, neighborhood ->
@@ -75,12 +60,9 @@ class DashboardViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** The current customer's own booking history. */
-    val myAppointments: StateFlow<List<Appointment>> =
-        appointmentRepository.observeForCustomer(customerId)
+    val myAppointments: StateFlow<List<AppointmentDocument>> =
+        firestoreRepository.observeForCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // ── UI state ──────────────────────────────────────────────────────────────
 
     var bookingConfirmation by mutableStateOf<String?>(null)
         private set
@@ -88,37 +70,40 @@ class DashboardViewModel @Inject constructor(
     var lockTriggered by mutableStateOf(false)
         private set
 
-    // ── Actions ───────────────────────────────────────────────────────────────
+    fun selectCategory(cat: String) { _selectedCategory.value = cat }
+    fun selectNeighborhood(hood: String) { _selectedNeighborhood.value = hood }
 
-    fun selectCategory(category: String) { _selectedCategory.value = category }
-
-    fun selectNeighborhood(neighborhood: String) { _selectedNeighborhood.value = neighborhood }
-
-    fun bookService(salon: Salon, serviceName: String) {
+    /**
+     * Creates an appointment in Firestore with the selected date+time.
+     * [appointmentDateMs] is the epoch millis chosen via the date/time picker.
+     */
+    fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long) {
         viewModelScope.launch {
-            appointmentRepository.createAppointment(
-                Appointment(
-                    customerId      = customerId,
-                    salonId         = salon.id,
-                    serviceName     = serviceName,
-                    appointmentDate = System.currentTimeMillis() + 24L * 60 * 60 * 1000
+            runCatching {
+                firestoreRepository.createAppointment(
+                    AppointmentDocument(
+                        customerId      = customerId,
+                        salonId         = salon.id,
+                        salonName       = salon.salonName,
+                        serviceName     = serviceName,
+                        appointmentDate = appointmentDateMs,
+                        createdAt       = System.currentTimeMillis()
+                    )
                 )
-            )
-            vaultRepository.log(
-                "APPOINTMENT_CREATED",
-                "salonId=${salon.id} service=$serviceName"
-            )
-            bookingConfirmation =
-                "Request sent to ${salon.salonName}. She will contact you discreetly."
+                vaultRepository.log(
+                    "APPOINTMENT_CREATED",
+                    "salonId=${salon.id} service=$serviceName"
+                )
+                bookingConfirmation =
+                    "Request sent to ${salon.salonName}. She will contact you discreetly."
+            }
         }
     }
 
     fun dismissConfirmation() { bookingConfirmation = null }
 
     fun triggerLock() {
-        viewModelScope.launch {
-            vaultRepository.log("VAULT_LOCK", "Customer locked vault")
-        }
+        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer locked vault") }
         lockTriggered = true
     }
 

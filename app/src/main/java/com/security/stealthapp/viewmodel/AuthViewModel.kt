@@ -5,58 +5,66 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.security.stealthapp.data.db.dao.UserDao
-import com.security.stealthapp.data.db.entities.User
+import com.security.stealthapp.data.firebase.FirebaseAuthManager
+import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.model.LoggedInUser
+import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * Handles PIN authentication against the encrypted Room database.
- *
- * Flow:
- *  1. DisguiseScreen calls [authenticate] when the search field contains 4 digits.
- *  2. This VM iterates over all stored users and applies PBKDF2 verification.
- *  3. On match: [authState] becomes [AuthState.Success] and carries the [User].
- *  4. On no-match: [authState] silently resets to [Idle] — no visible feedback
- *     so the app continues to look like a plain notepad.
- */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val userDao: UserDao,
+    private val firestoreRepository: FirestoreRepository,
+    private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
     sealed class AuthState {
-        object Idle          : AuthState()
+        object Idle           : AuthState()
         object Authenticating : AuthState()
-        data class Success(val user: User) : AuthState()
-        object Failure       : AuthState()   // consumed internally, never shown in UI
+        data class Success(val user: LoggedInUser) : AuthState()
+        object Failure        : AuthState()
     }
 
     var authState: AuthState by mutableStateOf(AuthState.Idle)
         private set
 
     fun authenticate(pin: String) {
-        if (authState is AuthState.Authenticating) return // prevent re-entrant calls
+        if (authState is AuthState.Authenticating) return
 
         viewModelScope.launch {
             authState = AuthState.Authenticating
 
-            val users = userDao.getAllUsersSync()
-            val matched = users.firstOrNull { user ->
-                pinHasher.verify(pin, user.salt, user.pinHash)
-            }
+            runCatching {
+                val users   = firestoreRepository.getAllUsersForAuth()
+                val matched = users.firstOrNull { u ->
+                    u.status == "APPROVED" &&
+                    pinHasher.verify(pin, u.salt, u.pinHash)
+                }
 
-            authState = if (matched != null) {
-                vaultRepository.log("AUTH_SUCCESS", "userId=${matched.id} role=${matched.role}")
-                AuthState.Success(matched)
-            } else {
-                // Silently return to Idle — do NOT display any error message.
-                AuthState.Idle
+                if (matched != null) {
+                    // Sign in to Firebase with derived auth password
+                    val authPassword = pinHasher.deriveAuthPassword(pin, matched.salt)
+                    firebaseAuth.signIn(matched.firebaseEmail, authPassword)
+                        .getOrThrow()
+
+                    val role = when (matched.role) {
+                        "PROVIDER" -> UserRole.PROVIDER
+                        "ADMIN"    -> UserRole.ADMIN
+                        else       -> UserRole.CUSTOMER
+                    }
+                    val user = LoggedInUser(uid = matched.uid, name = matched.name, role = role)
+                    vaultRepository.log("AUTH_SUCCESS", "uid=${matched.uid} role=${matched.role}")
+                    authState = AuthState.Success(user)
+                } else {
+                    authState = AuthState.Idle // silent fail
+                }
+            }.onFailure {
+                authState = AuthState.Idle // network error → silent fail
             }
         }
     }

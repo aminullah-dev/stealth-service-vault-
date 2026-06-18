@@ -69,8 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.security.stealthapp.data.db.entities.AppointmentStatus
-import com.security.stealthapp.data.repository.AppointmentDetail
+import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.CardBorder
@@ -307,7 +306,7 @@ private fun AvailabilityCard(
 
 @Composable
 private fun BookingRequestsTab(
-    appointments: List<AppointmentDetail>,
+    appointments: List<AppointmentDocument>,
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit
 ) {
@@ -360,7 +359,7 @@ private fun BookingRequestsTab(
 
 @Composable
 private fun BookingRequestCard(
-    appointment: AppointmentDetail,
+    appointment: AppointmentDocument,
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
@@ -417,7 +416,7 @@ private fun BookingRequestCard(
                 color    = Color(0xFF888888)
             )
 
-            if (appointment.status == AppointmentStatus.PENDING) {
+            if (appointment.status == "PENDING") {
                 Spacer(Modifier.height(12.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -448,11 +447,11 @@ private fun BookingRequestCard(
 }
 
 @Composable
-private fun AppointmentStatusBadge(status: AppointmentStatus) {
-    val (bg, fg) = when (status) {
-        AppointmentStatus.CONFIRMED -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
-        AppointmentStatus.CANCELLED -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
-        AppointmentStatus.PENDING   -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
+private fun AppointmentStatusBadge(status: String) {
+    val (bg, fg) = when (status.uppercase()) {
+        "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+        "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
+        else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     Box(
         modifier = Modifier
@@ -461,7 +460,7 @@ private fun AppointmentStatusBadge(status: AppointmentStatus) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
-            text       = status.name.lowercase().replaceFirstChar { it.uppercaseChar() },
+            text       = status.lowercase().replaceFirstChar { it.uppercaseChar() },
             fontSize   = 11.sp,
             color      = fg,
             fontWeight = FontWeight.SemiBold

@@ -6,10 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.security.stealthapp.data.db.entities.Salon
-import com.security.stealthapp.data.repository.AppointmentDetail
-import com.security.stealthapp.data.repository.AppointmentRepository
-import com.security.stealthapp.data.repository.SalonRepository
+import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,117 +25,86 @@ import javax.inject.Inject
 @HiltViewModel
 class ProviderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val salonRepository: SalonRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val firestoreRepository: FirestoreRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
     private val providerId: String = checkNotNull(savedStateHandle["userId"])
 
-    // ── Live salon data from Room ─────────────────────────────────────────────
+    val salon: StateFlow<SalonDocument?> =
+        firestoreRepository.observeSalonByProvider(providerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val salon: StateFlow<Salon?> = salonRepository.observeSalonByProvider(providerId)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    /**
-     * Derived from [salon] so it always reflects the DB truth.
-     * When [toggleAvailability] writes to Room, this updates automatically.
-     */
     val isAvailable: StateFlow<Boolean> = salon
-        .map { it?.isAvailable ?: true }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+        .map { it?.isAvailable ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /**
-     * Switches the appointment query whenever the salon ID changes.
-     * [flatMapLatest] cancels the upstream collector when a new salon emits.
-     */
-    val pendingAppointments: StateFlow<List<AppointmentDetail>> = salon
+    val pendingAppointments: StateFlow<List<AppointmentDocument>> = salon
         .flatMapLatest { s ->
-            if (s != null) {
-                appointmentRepository.observePendingDetailsForSalon(s.id)
-            } else {
-                flowOf(emptyList())
-            }
+            if (s != null) firestoreRepository.observePendingForSalon(s.id)
+            else flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 
-    var editDistrict by mutableStateOf("")
-        private set
-
-    var editServices by mutableStateOf<List<String>>(emptyList())
-        private set
-
-    var newServiceDraft by mutableStateOf("")
-        private set
-
-    var showSaveSuccess by mutableStateOf(false)
-        private set
-
-    var lockTriggered by mutableStateOf(false)
-        private set
+    var editDistrict     by mutableStateOf("")
+    var editServices     by mutableStateOf<List<String>>(emptyList())
+    var newServiceDraft  by mutableStateOf("")
+    var showSaveSuccess  by mutableStateOf(false)
+    var lockTriggered    by mutableStateOf(false)
 
     init {
-        // Populate editable fields as soon as the salon loads.
         viewModelScope.launch {
             salon.collect { s ->
                 if (s != null && editDistrict.isEmpty()) {
-                    editDistrict  = s.district
-                    editServices  = s.services
+                    editDistrict = s.district
+                    editServices = s.services
                 }
             }
         }
     }
 
-    // ── Actions ───────────────────────────────────────────────────────────────
-
-    /**
-     * Atomic single-column DB update; Room Flow re-emits [isAvailable] and
-     * [SalonRepository.availableSalons] propagates the change to every
-     * CustomerDashboard that is currently collecting it.
-     */
     fun toggleAvailability() {
+        val current = salon.value ?: return
         val next = !isAvailable.value
         viewModelScope.launch {
-            salonRepository.setAvailability(providerId, next)
+            firestoreRepository.setAvailability(current.id, next)
             vaultRepository.log("PROVIDER_TOGGLE", "isAvailable=$next")
         }
     }
 
-    fun acceptAppointment(appointmentId: String) {
+    fun acceptAppointment(apptId: String) {
         viewModelScope.launch {
-            appointmentRepository.confirm(appointmentId)
-            vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$appointmentId")
+            firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
+            vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
         }
     }
 
-    fun declineAppointment(appointmentId: String) {
+    fun declineAppointment(apptId: String) {
         viewModelScope.launch {
-            appointmentRepository.cancel(appointmentId)
-            vaultRepository.log("APPOINTMENT_CANCELLED", "id=$appointmentId")
+            firestoreRepository.updateAppointmentStatus(apptId, "CANCELLED")
+            vaultRepository.log("APPOINTMENT_CANCELLED", "id=$apptId")
         }
     }
 
-    fun onDistrictChanged(value: String)  { editDistrict = value }
+    fun onDistrictChanged(v: String)      { editDistrict = v }
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
 
     fun addService() {
-        val trimmed = newServiceDraft.trim()
-        if (trimmed.isNotBlank() && !editServices.contains(trimmed)) {
-            editServices    = editServices + trimmed
+        val s = newServiceDraft.trim()
+        if (s.isNotBlank() && !editServices.contains(s)) {
+            editServices   = editServices + s
             newServiceDraft = ""
         }
     }
 
-    fun removeService(service: String) {
-        editServices = editServices.filter { it != service }
-    }
+    fun removeService(s: String) { editServices = editServices.filter { it != s } }
 
     fun saveProfile() {
         val current = salon.value ?: return
         viewModelScope.launch {
-            salonRepository.updateSalon(
+            firestoreRepository.updateSalon(
                 current.copy(district = editDistrict, services = editServices)
             )
             vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")

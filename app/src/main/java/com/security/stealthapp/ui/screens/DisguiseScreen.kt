@@ -57,7 +57,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.security.stealthapp.data.db.entities.User
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import com.security.stealthapp.data.model.LoggedInUser
 import com.security.stealthapp.ui.theme.NotepadBg
 import com.security.stealthapp.ui.theme.NotepadLines
 import com.security.stealthapp.ui.theme.NotepadPrimary
@@ -85,7 +87,8 @@ private val MOCK_NOTES = listOf(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DisguiseScreen(
-    onAuthSuccess: (User) -> Unit,
+    onAuthSuccess: (LoggedInUser) -> Unit,
+    onRegisterTapped: () -> Unit,
     noteViewModel: DisguiseViewModel = hiltViewModel(),
     authViewModel: AuthViewModel     = hiltViewModel()
 ) {
@@ -102,6 +105,7 @@ fun DisguiseScreen(
     var selectedNoteId by remember { mutableStateOf(MOCK_NOTES.first().id) }
     var showAddDialog  by remember { mutableStateOf(false) }
     var showEditor     by remember { mutableStateOf(false) }
+    var showMenu       by remember { mutableStateOf(false) }
 
     val selectedNote  = MOCK_NOTES.find { it.id == selectedNoteId } ?: MOCK_NOTES.first()
     val visibleNotes  = remember(searchQuery) {
@@ -133,8 +137,24 @@ fun DisguiseScreen(
                         IconButton(onClick = { showAddDialog = true }) {
                             Icon(Icons.Default.Add, null, tint = NotepadPrimary)
                         }
-                        IconButton(onClick = {}) {
-                            Icon(Icons.Default.MoreVert, null, tint = NotepadPrimary)
+                        // Stealth entry for registration — looks like a standard overflow menu
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(Icons.Default.MoreVert, null, tint = NotepadPrimary)
+                            }
+                            DropdownMenu(
+                                expanded         = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text    = { Text("Sort by date", fontSize = 14.sp, color = NotepadPrimary) },
+                                    onClick = { showMenu = false }
+                                )
+                                DropdownMenuItem(
+                                    text    = { Text("New account", fontSize = 14.sp, color = NotepadPrimary) },
+                                    onClick = { showMenu = false; onRegisterTapped() }
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = NotepadBg)
@@ -161,7 +181,8 @@ fun DisguiseScreen(
                         // Attempt auth on every 4-digit numeric entry.
                         // PBKDF2 is fast at low iteration count; the device
                         // never shows any error on non-matching input.
-                        if (q.length == 4 && q.all { it.isDigit() }) {
+                        // Attempt auth on any 4-8 digit numeric string (supports variable-length PINs)
+                        if (q.length in 4..8 && q.all { it.isDigit() }) {
                             authViewModel.authenticate(q)
                         }
                     },

@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -105,8 +106,14 @@ dependencies {
     // Encrypted SharedPreferences (stores the DB passphrase)
     implementation("androidx.security:security-crypto:1.0.0")
 
-    // Coroutines
+    // Firebase BOM — aligns all Firebase library versions
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
+
+    // Coroutines (play-services .await() support is transitive from firebase-firestore-ktx)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
