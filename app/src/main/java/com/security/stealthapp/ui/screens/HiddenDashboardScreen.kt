@@ -172,12 +172,6 @@ fun HiddenDashboardScreen(
                                 selectedLabelColor        = Color.White,
                                 containerColor            = ChipInactive,
                                 labelColor                = DeepRose
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled          = true,
-                                selected         = selected,
-                                borderColor      = ChipInactive,
-                                selectedBorderColor = ChipActive
                             )
                         )
                     }
