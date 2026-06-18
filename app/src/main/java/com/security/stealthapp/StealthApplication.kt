@@ -7,18 +7,21 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.security.stealthapp.data.DatabaseSeeder
 import com.security.stealthapp.workers.DataErasureWorker
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
 class StealthApplication : Application(), Configuration.Provider {
 
-    @Inject
-    lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var databaseSeeder: DatabaseSeeder
 
-    // Hilt needs to own WorkManager initialisation; provide the custom config here.
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -27,19 +30,19 @@ class StealthApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Seed the encrypted database with demo accounts on first launch.
+        // Runs on IO to avoid blocking the main thread.
+        CoroutineScope(Dispatchers.IO).launch {
+            databaseSeeder.seedIfEmpty()
+        }
+
         schedulePeriodicErasure()
     }
 
     private fun schedulePeriodicErasure() {
-        val constraints = Constraints.Builder()
-            .setRequiresBatteryNotLow(false)
-            .build()
-
-        val request = PeriodicWorkRequestBuilder<DataErasureWorker>(
-            repeatInterval = 24,
-            repeatIntervalTimeUnit = TimeUnit.HOURS
-        )
-            .setConstraints(constraints)
+        val request = PeriodicWorkRequestBuilder<DataErasureWorker>(24, TimeUnit.HOURS)
+            .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(false).build())
             .setInitialDelay(1, TimeUnit.HOURS)
             .build()
 
