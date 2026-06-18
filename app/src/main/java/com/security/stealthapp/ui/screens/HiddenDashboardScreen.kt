@@ -61,12 +61,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.security.stealthapp.data.db.entities.BookingEntry
+import com.security.stealthapp.data.db.entities.Appointment
+import com.security.stealthapp.data.db.entities.AppointmentStatus
+import com.security.stealthapp.data.db.entities.Salon
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.CardBorder
@@ -80,7 +83,6 @@ import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
 import com.security.stealthapp.viewmodel.DashboardViewModel
-import com.security.stealthapp.viewmodel.ServiceProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -100,9 +102,14 @@ fun HiddenDashboardScreen(
         }
     }
 
-    val activeBookings by viewModel.activeBookings.collectAsStateWithLifecycle()
-    var showNeighborhoodMenu by remember { mutableStateOf(false) }
-    var showBookingsSheet    by remember { mutableStateOf(false) }
+    val filteredSalons     by viewModel.filteredSalons.collectAsStateWithLifecycle()
+    val myAppointments     by viewModel.myAppointments.collectAsStateWithLifecycle()
+    val selectedCategory   by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val selectedNeighborhood by viewModel.selectedNeighborhood.collectAsStateWithLifecycle()
+
+    var showNeighborhoodMenu      by remember { mutableStateOf(false) }
+    var showBookingsSheet         by remember { mutableStateOf(false) }
+    var selectedSalonForBooking   by remember { mutableStateOf<Salon?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     DashboardTheme {
@@ -126,21 +133,27 @@ fun HiddenDashboardScreen(
                         }
                     },
                     actions = {
-                        // Bookings badge
                         IconButton(onClick = { showBookingsSheet = true }) {
                             BadgedBox(
                                 badge = {
-                                    if (activeBookings.isNotEmpty()) {
+                                    if (myAppointments.isNotEmpty()) {
                                         Badge(containerColor = DeepRose) {
-                                            Text("${activeBookings.size}", color = Color.White, fontSize = 10.sp)
+                                            Text(
+                                                "${myAppointments.size}",
+                                                color    = Color.White,
+                                                fontSize = 10.sp
+                                            )
                                         }
                                     }
                                 }
                             ) {
-                                Icon(Icons.Default.CalendarMonth, contentDescription = "My Bookings", tint = DeepRose)
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = "My Bookings",
+                                    tint = DeepRose
+                                )
                             }
                         }
-                        // Lock — returns to Disguise screen
                         IconButton(onClick = { viewModel.triggerLock() }) {
                             Icon(Icons.Default.Lock, contentDescription = "Lock vault", tint = DeepRose)
                         }
@@ -158,20 +171,19 @@ fun HiddenDashboardScreen(
 
                 // ── Category filter chips ─────────────────────────────────
                 LazyRow(
-                    contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding        = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(viewModel.categories) { cat ->
-                        val selected = viewModel.selectedCategory == cat
                         FilterChip(
-                            selected = selected,
+                            selected = selectedCategory == cat,
                             onClick  = { viewModel.selectCategory(cat) },
                             label    = { Text(cat, fontSize = 13.sp) },
                             colors   = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor    = ChipActive,
-                                selectedLabelColor        = Color.White,
-                                containerColor            = ChipInactive,
-                                labelColor                = DeepRose
+                                selectedContainerColor = ChipActive,
+                                selectedLabelColor     = Color.White,
+                                containerColor         = ChipInactive,
+                                labelColor             = DeepRose
                             )
                         )
                     }
@@ -184,16 +196,20 @@ fun HiddenDashboardScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { showNeighborhoodMenu = true },
+                        onClick  = { showNeighborhoodMenu = true },
                         modifier = Modifier.fillMaxWidth(),
                         shape    = RoundedCornerShape(10.dp),
                         border   = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
                     ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text     = viewModel.selectedNeighborhood,
+                            text     = selectedNeighborhood,
                             fontSize = 13.sp,
                             modifier = Modifier.weight(1f)
                         )
@@ -201,7 +217,7 @@ fun HiddenDashboardScreen(
                     }
 
                     DropdownMenu(
-                        expanded        = showNeighborhoodMenu,
+                        expanded         = showNeighborhoodMenu,
                         onDismissRequest = { showNeighborhoodMenu = false },
                         modifier         = Modifier.background(ElegantCream)
                     ) {
@@ -220,49 +236,93 @@ fun HiddenDashboardScreen(
                 HorizontalDivider(color = BlushPink, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(Modifier.height(4.dp))
 
-                // ── Results count ─────────────────────────────────────────
                 Text(
-                    text     = "${viewModel.filteredProviders.size} providers found",
+                    text     = "${filteredSalons.size} providers found",
                     fontSize = 12.sp,
                     color    = RoseGold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                 )
 
-                // ── Provider cards list ───────────────────────────────────
+                // ── Salon cards ───────────────────────────────────────────
                 LazyColumn(
-                    contentPadding        = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement   = Arrangement.spacedBy(12.dp),
-                    modifier              = Modifier.fillMaxSize()
+                    contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier            = Modifier.fillMaxSize()
                 ) {
-                    items(viewModel.filteredProviders, key = { it.id }) { provider ->
-                        ProviderCard(
-                            provider = provider,
-                            onBook   = { viewModel.bookProvider(provider) }
+                    items(filteredSalons, key = { it.id }) { salon ->
+                        SalonCard(
+                            salon  = salon,
+                            onBook = { selectedSalonForBooking = salon }
                         )
                     }
                 }
             }
         }
 
+        // ── Service selection dialog ───────────────────────────────────────
+        selectedSalonForBooking?.let { salon ->
+            AlertDialog(
+                onDismissRequest = { selectedSalonForBooking = null },
+                title = {
+                    Text(
+                        "Choose a service",
+                        fontWeight = FontWeight.Bold,
+                        color      = DeepRose
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        salon.services.forEach { service ->
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.bookService(salon, service)
+                                    selectedSalonForBooking = null
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape    = RoundedCornerShape(10.dp),
+                                colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                            ) {
+                                Text(service, fontSize = 14.sp)
+                            }
+                        }
+                        if (salon.services.isEmpty()) {
+                            Text(
+                                "No services listed yet.",
+                                fontSize  = 13.sp,
+                                color     = Color(0xFFAAAAAA),
+                                textAlign = TextAlign.Center,
+                                modifier  = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { selectedSalonForBooking = null }) {
+                        Text("Cancel", color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         // ── Booking confirmation dialog ────────────────────────────────────
         viewModel.bookingConfirmation?.let { message ->
             AlertDialog(
                 onDismissRequest = { viewModel.dismissConfirmation() },
-                icon  = {
+                icon = {
                     Icon(
                         Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = AvailableGreen,
+                        tint     = AvailableGreen,
                         modifier = Modifier.size(40.dp)
                     )
                 },
-                title = { Text("Booking Request Sent", fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = {
-                    Text(
-                        text     = message,
-                        fontSize = 14.sp,
-                        color    = Color(0xFF555555)
-                    )
+                title = {
+                    Text("Booking Request Sent", fontWeight = FontWeight.Bold, color = DeepRose)
+                },
+                text = {
+                    Text(text = message, fontSize = 14.sp, color = Color(0xFF555555))
                 },
                 confirmButton = {
                     Button(
@@ -277,38 +337,37 @@ fun HiddenDashboardScreen(
         // ── My Bookings bottom sheet ───────────────────────────────────────
         if (showBookingsSheet) {
             ModalBottomSheet(
-                onDismissRequest  = { showBookingsSheet = false },
-                sheetState        = sheetState,
-                containerColor    = ElegantCream
+                onDismissRequest = { showBookingsSheet = false },
+                sheetState       = sheetState,
+                containerColor   = ElegantCream
             ) {
                 BookingsSheetContent(
-                    bookings  = activeBookings,
-                    onDismiss = { showBookingsSheet = false }
+                    appointments = myAppointments,
+                    onDismiss    = { showBookingsSheet = false }
                 )
             }
         }
     }
 }
 
-// ── Provider card ─────────────────────────────────────────────────────────────
+// ── Salon card ────────────────────────────────────────────────────────────────
 
 @Composable
-private fun ProviderCard(
-    provider: ServiceProvider,
+private fun SalonCard(
+    salon: Salon,
     onBook: () -> Unit
 ) {
     ElevatedCard(
-        shape    = RoundedCornerShape(16.dp),
-        colors   = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-        modifier = Modifier
+        modifier  = Modifier
             .fillMaxWidth()
             .border(1.dp, CardBorder, RoundedCornerShape(16.dp))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // Avatar circle with first letter
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -317,7 +376,7 @@ private fun ProviderCard(
                         .background(BlushPink)
                 ) {
                     Text(
-                        text       = provider.name.first().toString(),
+                        text       = salon.salonName.first().toString(),
                         fontSize   = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color      = DeepRose
@@ -328,7 +387,7 @@ private fun ProviderCard(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text       = provider.name,
+                        text       = salon.salonName,
                         fontWeight = FontWeight.Bold,
                         fontSize   = 16.sp,
                         color      = DeepRose,
@@ -336,20 +395,26 @@ private fun ProviderCard(
                         overflow   = TextOverflow.Ellipsis
                     )
                     Text(
-                        text     = provider.speciality,
+                        text     = salon.services.firstOrNull() ?: "Beauty Services",
                         fontSize = 12.sp,
                         color    = RoseGold
                     )
                 }
 
-                // Category badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(ChipInactive)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(provider.category, fontSize = 11.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
+                if (salon.services.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ChipInactive)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text       = "${salon.services.size} services",
+                            fontSize   = 11.sp,
+                            color      = DeepRose,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
 
@@ -364,7 +429,7 @@ private fun ProviderCard(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text     = provider.neighborhood,
+                    text     = salon.district,
                     fontSize = 12.sp,
                     color    = Color(0xFF888888),
                     maxLines = 1,
@@ -376,11 +441,10 @@ private fun ProviderCard(
             Spacer(Modifier.height(6.dp))
 
             Row(
-                verticalAlignment    = Alignment.CenterVertically,
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier              = Modifier.fillMaxWidth()
             ) {
-                // Star rating
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Default.Star,
@@ -390,33 +454,31 @@ private fun ProviderCard(
                     )
                     Spacer(Modifier.width(3.dp))
                     Text(
-                        text     = "%.1f".format(provider.rating),
-                        fontSize = 13.sp,
-                        color    = Color(0xFF555555),
+                        text       = "%.1f".format(salon.rating),
+                        fontSize   = 13.sp,
+                        color      = Color(0xFF555555),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                // Availability dot + label
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(if (provider.isAvailable) AvailableGreen else UnavailableGrey)
+                            .background(if (salon.isAvailable) AvailableGreen else UnavailableGrey)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        text     = if (provider.isAvailable) "Available" else "Busy",
+                        text  = if (salon.isAvailable) "Available" else "Busy",
                         fontSize = 12.sp,
-                        color    = if (provider.isAvailable) AvailableGreen else UnavailableGrey
+                        color = if (salon.isAvailable) AvailableGreen else UnavailableGrey
                     )
                 }
 
-                // Book button
                 Button(
                     onClick  = onBook,
-                    enabled  = provider.isAvailable,
+                    enabled  = salon.isAvailable,
                     shape    = RoundedCornerShape(10.dp),
                     colors   = ButtonDefaults.buttonColors(
                         containerColor         = RoseGold,
@@ -424,11 +486,7 @@ private fun ProviderCard(
                     ),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
-                    Text(
-                        text     = "Book",
-                        fontSize = 13.sp,
-                        color    = Color.White
-                    )
+                    Text(text = "Book", fontSize = 13.sp, color = Color.White)
                 }
             }
         }
@@ -439,7 +497,7 @@ private fun ProviderCard(
 
 @Composable
 private fun BookingsSheetContent(
-    bookings: List<BookingEntry>,
+    appointments: List<Appointment>,
     onDismiss: () -> Unit
 ) {
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -469,7 +527,7 @@ private fun BookingsSheetContent(
         HorizontalDivider(color = BlushPink)
         Spacer(Modifier.height(8.dp))
 
-        if (bookings.isEmpty()) {
+        if (appointments.isEmpty()) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
@@ -477,17 +535,17 @@ private fun BookingsSheetContent(
                     .padding(vertical = 32.dp)
             ) {
                 Text(
-                    text     = "No bookings yet.\nDiscover a provider and tap Book.",
-                    fontSize = 14.sp,
-                    color    = Color(0xFFAAAAAA),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    text      = "No bookings yet.\nDiscover a provider and tap Book.",
+                    fontSize  = 14.sp,
+                    color     = Color(0xFFAAAAAA),
+                    textAlign = TextAlign.Center
                 )
             }
         } else {
-            bookings.forEach { booking ->
+            appointments.forEach { appt ->
                 Card(
-                    shape  = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = DashboardSurface),
+                    shape    = RoundedCornerShape(12.dp),
+                    colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
@@ -498,22 +556,18 @@ private fun BookingsSheetContent(
                             modifier              = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text       = booking.providerName,
+                                text       = appt.serviceName,
                                 fontWeight = FontWeight.SemiBold,
                                 color      = DeepRose,
-                                fontSize   = 14.sp
+                                fontSize   = 14.sp,
+                                modifier   = Modifier.weight(1f)
                             )
-                            BookingStatusChip(booking.status)
+                            Spacer(Modifier.width(8.dp))
+                            AppointmentStatusChip(appt.status)
                         }
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text     = "${booking.serviceCategory} · ${booking.neighborhood}",
-                            fontSize = 12.sp,
-                            color    = RoseGold
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text     = "Scheduled: ${dateFmt.format(Date(booking.scheduledTime))}",
+                            text     = "Scheduled: ${dateFmt.format(Date(appt.appointmentDate))}",
                             fontSize = 11.sp,
                             color    = Color(0xFFAAAAAA)
                         )
@@ -525,12 +579,11 @@ private fun BookingsSheetContent(
 }
 
 @Composable
-private fun BookingStatusChip(status: String) {
+private fun AppointmentStatusChip(status: AppointmentStatus) {
     val (bg, fg) = when (status) {
-        "CONFIRMED"  -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
-        "COMPLETED"  -> Pair(Color(0xFF1976D2).copy(alpha = 0.12f), Color(0xFF1976D2))
-        "CANCELLED"  -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
-        else         -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold) // PENDING
+        AppointmentStatus.CONFIRMED -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+        AppointmentStatus.CANCELLED -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
+        AppointmentStatus.PENDING   -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     Box(
         modifier = Modifier
@@ -539,7 +592,7 @@ private fun BookingStatusChip(status: String) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(
-            text       = status.lowercase().replaceFirstChar { it.uppercaseChar() },
+            text       = status.name.lowercase().replaceFirstChar { it.uppercaseChar() },
             fontSize   = 11.sp,
             color      = fg,
             fontWeight = FontWeight.SemiBold

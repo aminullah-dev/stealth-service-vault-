@@ -3,38 +3,35 @@ package com.security.stealthapp.viewmodel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.security.stealthapp.data.db.entities.BookingEntry
-import com.security.stealthapp.data.db.entities.BookingStatus
+import com.security.stealthapp.data.db.entities.Appointment
+import com.security.stealthapp.data.db.entities.Salon
+import com.security.stealthapp.data.repository.AppointmentRepository
+import com.security.stealthapp.data.repository.SalonRepository
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-// ── Domain model ─────────────────────────────────────────────────────────────
-
-data class ServiceProvider(
-    val id: String,
-    val name: String,
-    val category: String,
-    val neighborhood: String,
-    val rating: Float,
-    val isAvailable: Boolean,
-    val speciality: String
-)
-
-// ── ViewModel ─────────────────────────────────────────────────────────────────
-
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    private val repository: VaultRepository
+    savedStateHandle: SavedStateHandle,
+    private val salonRepository: SalonRepository,
+    private val appointmentRepository: AppointmentRepository,
+    private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
-    // ── Static reference data ─────────────────────────────────────────────────
+    // Injected from the navigation back-stack entry.
+    private val customerId: String = checkNotNull(savedStateHandle["userId"])
+
+    // ── Static filter options ─────────────────────────────────────────────────
 
     val categories = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
 
@@ -48,28 +45,42 @@ class DashboardViewModel @Inject constructor(
         "District 13 – Afshar"
     )
 
-    private val allProviders: List<ServiceProvider> = listOf(
-        ServiceProvider("p01", "Maryam Studio",    "Hair",     "District 3 – Khair Khana",   4.9f, true,  "Cuts & Colour"),
-        ServiceProvider("p02", "Zahra Beauty",     "Makeup",   "District 6 – Karte Seh",     4.8f, true,  "Bridal & Party"),
-        ServiceProvider("p03", "Fatima Nails",     "Nails",    "District 9 – Dasht-e Barchi",4.7f, false, "Gel & Acrylic"),
-        ServiceProvider("p04", "Hana Skin Care",   "Skincare", "District 1 – Kabul Center",  4.6f, true,  "Facials & Peels"),
-        ServiceProvider("p05", "Parisa Brows",     "Eyebrows", "District 11 – Qala-e Wahed", 4.9f, true,  "Threading & Henna"),
-        ServiceProvider("p06", "Leyla Hair Art",   "Hair",     "District 9 – Dasht-e Barchi",4.8f, true,  "Braids & Keratin"),
-        ServiceProvider("p07", "Sana Glam Studio", "Makeup",   "District 13 – Afshar",       4.5f, false, "Natural & HD"),
-        ServiceProvider("p08", "Neda Nails Pro",   "Nails",    "District 3 – Khair Khana",   4.7f, true,  "Nail Art"),
-        ServiceProvider("p09", "Rosa Skin Clinic", "Skincare", "District 6 – Karte Seh",     4.8f, true,  "Hydra & Laser"),
-        ServiceProvider("p10", "Darya Brows",      "Eyebrows", "District 1 – Kabul Center",  4.6f, true,  "Micro-blading"),
-        ServiceProvider("p11", "Shirin Hair",      "Hair",     "District 13 – Afshar",       4.7f, true,  "Highlights"),
-        ServiceProvider("p12", "Noora Beauty",     "Makeup",   "District 9 – Dasht-e Barchi",4.9f, true,  "Airbrush Makeup")
-    )
+    // ── Filter state — backed by MutableStateFlow so combine() can react ─────
 
-    // ── Observable state ──────────────────────────────────────────────────────
+    private val _selectedCategory    = MutableStateFlow("All")
+    private val _selectedNeighborhood = MutableStateFlow("All Neighborhoods")
 
-    var selectedCategory by mutableStateOf("All")
-        private set
+    val selectedCategory: StateFlow<String>     = _selectedCategory
+    val selectedNeighborhood: StateFlow<String> = _selectedNeighborhood
 
-    var selectedNeighborhood by mutableStateOf("All Neighborhoods")
-        private set
+    // ── Live data from Room/SQLCipher ─────────────────────────────────────────
+
+    /**
+     * Reactive triple-combine: emits a new filtered list whenever
+     *  (a) a provider toggles their availability,
+     *  (b) the customer changes the category chip, or
+     *  (c) the customer changes the neighborhood dropdown.
+     */
+    val filteredSalons: StateFlow<List<Salon>> = combine(
+        salonRepository.availableSalons,
+        _selectedCategory,
+        _selectedNeighborhood
+    ) { salons, category, neighborhood ->
+        salons.filter { salon ->
+            val catMatch  = category == "All" ||
+                salon.services.any { it.contains(category, ignoreCase = true) }
+            val hoodMatch = neighborhood == "All Neighborhoods" ||
+                salon.district == neighborhood
+            catMatch && hoodMatch
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The current customer's own booking history. */
+    val myAppointments: StateFlow<List<Appointment>> =
+        appointmentRepository.observeForCustomer(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ── UI state ──────────────────────────────────────────────────────────────
 
     var bookingConfirmation by mutableStateOf<String?>(null)
         private set
@@ -77,55 +88,39 @@ class DashboardViewModel @Inject constructor(
     var lockTriggered by mutableStateOf(false)
         private set
 
-    val activeBookings: StateFlow<List<BookingEntry>> = repository.activeBookings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    val filteredProviders: List<ServiceProvider>
-        get() = allProviders.filter { p ->
-            (selectedCategory    == "All"              || p.category     == selectedCategory) &&
-            (selectedNeighborhood == "All Neighborhoods" || p.neighborhood == selectedNeighborhood)
-        }
-
     // ── Actions ───────────────────────────────────────────────────────────────
 
-    fun selectCategory(category: String) {
-        selectedCategory = category
-    }
+    fun selectCategory(category: String) { _selectedCategory.value = category }
 
-    fun selectNeighborhood(neighborhood: String) {
-        selectedNeighborhood = neighborhood
-    }
+    fun selectNeighborhood(neighborhood: String) { _selectedNeighborhood.value = neighborhood }
 
-    fun bookProvider(provider: ServiceProvider) {
+    fun bookService(salon: Salon, serviceName: String) {
         viewModelScope.launch {
-            repository.createBooking(
-                BookingEntry(
-                    serviceCategory = provider.category,
-                    providerName    = provider.name,
-                    neighborhood    = provider.neighborhood,
-                    scheduledTime   = System.currentTimeMillis() + 24 * 60 * 60 * 1000L,
-                    status          = BookingStatus.PENDING.name
+            appointmentRepository.createAppointment(
+                Appointment(
+                    customerId      = customerId,
+                    salonId         = salon.id,
+                    serviceName     = serviceName,
+                    appointmentDate = System.currentTimeMillis() + 24L * 60 * 60 * 1000
                 )
             )
-            repository.log(
-                "BOOKING_CREATED",
-                "provider=${provider.name} category=${provider.category}"
+            vaultRepository.log(
+                "APPOINTMENT_CREATED",
+                "salonId=${salon.id} service=$serviceName"
             )
             bookingConfirmation =
-                "Request sent to ${provider.name}. She will contact you discreetly within 24 h."
+                "Request sent to ${salon.salonName}. She will contact you discreetly."
         }
     }
 
-    fun dismissConfirmation() {
-        bookingConfirmation = null
-    }
+    fun dismissConfirmation() { bookingConfirmation = null }
 
     fun triggerLock() {
-        viewModelScope.launch { repository.log("VAULT_LOCK", "Returned to disguise screen") }
+        viewModelScope.launch {
+            vaultRepository.log("VAULT_LOCK", "Customer locked vault")
+        }
         lockTriggered = true
     }
 
-    fun resetLockTrigger() {
-        lockTriggered = false
-    }
+    fun resetLockTrigger() { lockTriggered = false }
 }
