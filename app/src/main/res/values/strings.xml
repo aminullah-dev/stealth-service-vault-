@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Displayed in the launcher — looks like a generic note app -->
+    <string name="app_name">Notes</string>
+</resources>
