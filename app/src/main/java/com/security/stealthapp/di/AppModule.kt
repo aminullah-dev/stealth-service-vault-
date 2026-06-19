@@ -3,12 +3,14 @@ package com.security.stealthapp.di
 import android.content.Context
 import com.security.stealthapp.data.db.AppDatabase
 import com.security.stealthapp.data.db.dao.BookingDao
+import com.security.stealthapp.data.db.dao.FavoriteSalonDao
 import com.security.stealthapp.data.db.dao.MessageDao
 import com.security.stealthapp.data.db.dao.SalonCacheDao
 import com.security.stealthapp.data.db.dao.SecureLogDao
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.FirestoreSeeder
+import com.security.stealthapp.data.repository.FavoritesRepository
 import com.security.stealthapp.data.repository.LanguageRepository
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.security.DatabaseKeyManager
@@ -50,6 +52,9 @@ object AppModule {
     fun provideSalonCacheDao(db: AppDatabase): SalonCacheDao = db.salonCacheDao()
 
     @Provides @Singleton
+    fun provideFavoriteSalonDao(db: AppDatabase): FavoriteSalonDao = db.favoriteSalonDao()
+
+    @Provides @Singleton
     fun provideVaultRepository(
         logDao: SecureLogDao,
         msgDao: MessageDao,
@@ -66,6 +71,10 @@ object AppModule {
     @Provides @Singleton
     fun provideFirestoreRepository(salonCacheDao: SalonCacheDao): FirestoreRepository =
         FirestoreRepository(salonCacheDao)
+
+    @Provides @Singleton
+    fun provideFavoritesRepository(favoriteSalonDao: FavoriteSalonDao): FavoritesRepository =
+        FavoritesRepository(favoriteSalonDao)
 
     @Provides @Singleton
     fun provideFirestoreSeeder(

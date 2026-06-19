@@ -31,11 +31,16 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -174,6 +179,8 @@ fun HiddenDashboardScreen(
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
     val currentUserName           by viewModel.currentUserName.collectAsStateWithLifecycle()
+    val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
+    val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
 
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
@@ -199,6 +206,15 @@ fun HiddenDashboardScreen(
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val timePickerState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
 
+    // Reschedule + review flow state
+    var rescheduleTarget    by remember { mutableStateOf<AppointmentDocument?>(null) }
+    var reschedulePickedDate by remember { mutableStateOf<Long?>(null) }
+    var showRescheduleDate  by remember { mutableStateOf(false) }
+    var showRescheduleTime  by remember { mutableStateOf(false) }
+    val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
+    val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
+    var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
+
     DashboardTheme {
         Scaffold(
             containerColor = ElegantCream,
@@ -211,6 +227,13 @@ fun HiddenDashboardScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { viewModel.toggleFavoritesOnly() }) {
+                            Icon(
+                                imageVector        = if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = strings.favorites,
+                                tint               = if (showFavoritesOnly) DeepRose else RoseGold
+                            )
+                        }
                         IconButton(onClick = { showBookingsSheet = true }) {
                             BadgedBox(badge = {
                                 if (myAppointments.isNotEmpty()) {
@@ -324,7 +347,10 @@ fun HiddenDashboardScreen(
 
                 // ── Salon list / empty state ──────────────────────────────────
                 if (filteredSalons.isEmpty()) {
-                    SalonEmptyState(modifier = Modifier.fillMaxSize())
+                    SalonEmptyState(
+                        favoritesOnly = showFavoritesOnly,
+                        modifier      = Modifier.fillMaxSize()
+                    )
                 } else {
                     LazyColumn(
                         contentPadding      = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
@@ -333,8 +359,10 @@ fun HiddenDashboardScreen(
                     ) {
                         items(filteredSalons, key = { it.id }) { salon ->
                             SalonCard(
-                                salon  = salon,
-                                onBook = { bookingIntent = BookingIntent(salon, ""); showServiceDialog = true }
+                                salon            = salon,
+                                isFavorite       = favoriteIds.contains(salon.id),
+                                onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
+                                onBook           = { bookingIntent = BookingIntent(salon, ""); showServiceDialog = true }
                             )
                         }
                     }
@@ -485,18 +513,190 @@ fun HiddenDashboardScreen(
                             )
                         )
                     },
-                    onCancelClick = { appt -> viewModel.cancelAppointment(appt.id) }
+                    onCancelClick     = { appt -> viewModel.cancelAppointment(appt.id) },
+                    onRescheduleClick = { appt ->
+                        showBookingsSheet    = false
+                        rescheduleTarget     = appt
+                        reschedulePickedDate = null
+                        showRescheduleDate   = true
+                    },
+                    onReviewClick     = { appt ->
+                        showBookingsSheet = false
+                        reviewTarget      = appt
+                    }
                 )
             }
         }
+
+        // ── Reschedule: date picker ───────────────────────────────────────────
+        if (showRescheduleDate) {
+            DatePickerDialog(
+                onDismissRequest = { showRescheduleDate = false; rescheduleTarget = null },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showRescheduleDate   = false
+                            reschedulePickedDate = rescheduleDateState.selectedDateMillis
+                            showRescheduleTime   = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.next, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRescheduleDate = false; rescheduleTarget = null }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                }
+            ) {
+                DatePicker(state = rescheduleDateState)
+            }
+        }
+
+        // ── Reschedule: time picker ───────────────────────────────────────────
+        if (showRescheduleTime) {
+            AlertDialog(
+                onDismissRequest = { showRescheduleTime = false; rescheduleTarget = null },
+                title = { Text(strings.rescheduleTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                        TimePicker(state = rescheduleTimeState)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showRescheduleTime = false
+                            val target = rescheduleTarget
+                            val dateMs = reschedulePickedDate
+                            if (target != null && dateMs != null) {
+                                val cal = Calendar.getInstance().apply {
+                                    timeInMillis = dateMs
+                                    set(Calendar.HOUR_OF_DAY, rescheduleTimeState.hour)
+                                    set(Calendar.MINUTE,      rescheduleTimeState.minute)
+                                    set(Calendar.SECOND,      0)
+                                }
+                                viewModel.rescheduleAppointment(target.id, cal.timeInMillis)
+                            }
+                            rescheduleTarget = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.reschedule, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRescheduleTime = false; rescheduleTarget = null }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Review dialog ─────────────────────────────────────────────────────
+        reviewTarget?.let { appt ->
+            ReviewDialog(
+                salonName = appt.salonName,
+                onSubmit  = { rating, comment ->
+                    viewModel.submitReview(appt.salonId, rating, comment)
+                    reviewTarget = null
+                },
+                onDismiss = { reviewTarget = null }
+            )
+        }
+
+        // ── Review thanks confirmation ────────────────────────────────────────
+        if (viewModel.reviewThanksShown) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissReviewThanks() },
+                icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
+                title = { Text(strings.reviewThanks, fontWeight = FontWeight.Bold, color = DeepRose, textAlign = TextAlign.Center) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissReviewThanks() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
     }
+}
+
+// ── Review dialog ───────────────────────────────────────────────────────────
+
+@Composable
+private fun ReviewDialog(
+    salonName: String,
+    onSubmit: (Int, String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings    = LocalStrings.current
+    var rating     by remember { mutableStateOf(0) }
+    var comment    by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(strings.rateExperience, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose)
+                if (salonName.isNotBlank()) {
+                    Text(salonName, fontSize = 13.sp, color = RoseGold)
+                }
+            }
+        },
+        text = {
+            Column {
+                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                    (1..5).forEach { star ->
+                        IconButton(onClick = { rating = star }, modifier = Modifier.size(44.dp)) {
+                            Icon(
+                                imageVector        = if (star <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$star",
+                                tint               = WarmGold,
+                                modifier           = Modifier.size(34.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value         = comment,
+                    onValueChange = { comment = it },
+                    placeholder   = { Text(strings.reviewCommentHint, fontSize = 13.sp) },
+                    modifier      = Modifier.fillMaxWidth(),
+                    shape         = RoundedCornerShape(12.dp),
+                    minLines      = 2,
+                    colors        = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = RoseGold,
+                        unfocusedBorderColor = ChipInactive,
+                        cursorColor          = RoseGold
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(rating, comment) },
+                enabled = rating >= 1,
+                colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+            ) { Text(strings.submit, color = Color.White) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }
+        },
+        containerColor = ElegantCream
+    )
 }
 
 // ── Salon card ────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
+private fun SalonCard(
+    salon: SalonDocument,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onBook: () -> Unit
+) {
     val strings = LocalStrings.current
     val color   = remember(salon.salonName) { avatarColor(salon.salonName) }
 
@@ -556,6 +756,14 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
                     Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                }
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(34.dp)) {
+                    Icon(
+                        imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = strings.favorites,
+                        tint               = if (isFavorite) DeepRose else RoseGold,
+                        modifier           = Modifier.size(20.dp)
+                    )
                 }
             }
 
@@ -617,7 +825,7 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun SalonEmptyState(modifier: Modifier = Modifier) {
+private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier = Modifier) {
     val strings = LocalStrings.current
     Box(contentAlignment = Alignment.Center, modifier = modifier.padding(40.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -628,24 +836,43 @@ private fun SalonEmptyState(modifier: Modifier = Modifier) {
                     .clip(CircleShape)
                     .background(BlushPink.copy(alpha = 0.5f))
             ) {
-                Icon(Icons.Default.SearchOff, null, tint = RoseGold, modifier = Modifier.size(44.dp))
+                Icon(
+                    imageVector = if (favoritesOnly) Icons.Default.FavoriteBorder else Icons.Default.SearchOff,
+                    contentDescription = null,
+                    tint = RoseGold,
+                    modifier = Modifier.size(44.dp)
+                )
             }
             Spacer(Modifier.height(20.dp))
-            Text(strings.noProvidersTitle, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = DeepRose, textAlign = TextAlign.Center)
+            Text(
+                text       = if (favoritesOnly) strings.noFavoritesTitle else strings.noProvidersTitle,
+                fontSize   = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color      = DeepRose,
+                textAlign  = TextAlign.Center
+            )
             Spacer(Modifier.height(8.dp))
-            Text(strings.noProvidersSubtext, fontSize = 13.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+            Text(
+                text      = if (favoritesOnly) strings.noFavoritesSubtext else strings.noProvidersSubtext,
+                fontSize  = 13.sp,
+                color     = Color(0xFFAAAAAA),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
 
 // ── Bookings bottom sheet ─────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookingsSheetContent(
     appointments: List<AppointmentDocument>,
     onDismiss: () -> Unit,
     onChatClick: (AppointmentDocument) -> Unit = {},
-    onCancelClick: (AppointmentDocument) -> Unit = {}
+    onCancelClick: (AppointmentDocument) -> Unit = {},
+    onRescheduleClick: (AppointmentDocument) -> Unit = {},
+    onReviewClick: (AppointmentDocument) -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -722,16 +949,49 @@ private fun BookingsSheetContent(
                             }
                             StatusChip(appt.status)
                         }
-                        if (appt.status == "PENDING") {
+                        val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
+                        val canReview     = appt.status == "CONFIRMED"
+                        val canCancel     = appt.status == "PENDING"
+                        if (canReschedule || canReview || canCancel) {
                             Spacer(Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick  = { cancelTarget = appt },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape    = RoundedCornerShape(8.dp),
-                                border   = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
-                                colors   = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B))
-                            ) {
-                                Text(strings.cancelAppointment, fontSize = 12.sp)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (canReschedule) {
+                                    OutlinedButton(
+                                        onClick        = { onRescheduleClick(appt) },
+                                        shape          = RoundedCornerShape(8.dp),
+                                        border         = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(strings.reschedule, fontSize = 12.sp)
+                                    }
+                                }
+                                if (canReview) {
+                                    OutlinedButton(
+                                        onClick        = { onReviewClick(appt) },
+                                        shape          = RoundedCornerShape(8.dp),
+                                        border         = androidx.compose.foundation.BorderStroke(1.dp, WarmGold),
+                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = WarmGold),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Default.RateReview, null, modifier = Modifier.size(15.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(strings.leaveReview, fontSize = 12.sp)
+                                    }
+                                }
+                                if (canCancel) {
+                                    OutlinedButton(
+                                        onClick        = { cancelTarget = appt },
+                                        shape          = RoundedCornerShape(8.dp),
+                                        border         = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
+                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B)),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(strings.cancelAppointment, fontSize = 12.sp)
+                                    }
+                                }
                             }
                         }
                     }

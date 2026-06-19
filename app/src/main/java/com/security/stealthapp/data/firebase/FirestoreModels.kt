@@ -46,3 +46,13 @@ data class AppointmentDocument(
     val status: String = "PENDING",         // "PENDING" | "CONFIRMED" | "CANCELLED"
     val createdAt: Long = 0L
 )
+
+data class ReviewDocument(
+    val id: String = "",                    // Firestore document ID
+    val salonId: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val rating: Int = 0,                    // 1–5 stars
+    val comment: String = "",
+    val createdAt: Long = 0L
+)

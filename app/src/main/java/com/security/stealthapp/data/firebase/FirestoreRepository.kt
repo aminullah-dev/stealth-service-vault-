@@ -36,6 +36,7 @@ class FirestoreRepository @Inject constructor(
     private val salonsCol       = db.collection("salons")
     private val appointmentsCol = db.collection("appointments")
     private val chatCol         = db.collection("chat_messages")
+    private val reviewsCol      = db.collection("reviews")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -185,6 +186,16 @@ class FirestoreRepository @Inject constructor(
         appointmentsCol.document(appointmentId).update("status", status).await()
     }
 
+    /**
+     * Move an appointment to a new time. The booking returns to PENDING so the
+     * provider re-confirms the new slot.
+     */
+    suspend fun rescheduleAppointment(appointmentId: String, newDateMs: Long) {
+        appointmentsCol.document(appointmentId)
+            .update(mapOf("appointmentDate" to newDateMs, "status" to "PENDING"))
+            .await()
+    }
+
     suspend fun sweepOldAppointments(windowMs: Long) {
         val cutoff = System.currentTimeMillis() - windowMs
         val cancelled = appointmentsCol
@@ -213,6 +224,36 @@ class FirestoreRepository @Inject constructor(
 
     suspend fun sendChatMessage(message: ChatMessage) {
         chatCol.add(message).await()
+    }
+
+    // ── Reviews ─────────────────────────────────────────────────────────────────
+
+    fun observeReviewsForSalon(salonId: String): Flow<List<ReviewDocument>> = callbackFlow {
+        val listener = reviewsCol
+            .whereEqualTo("salonId", salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(ReviewDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * Adds a review, then recomputes the salon's average rating from all of its
+     * reviews and writes it back so salon cards stay in sync.
+     */
+    suspend fun addReview(review: ReviewDocument) {
+        reviewsCol.add(review).await()
+        val all = reviewsCol.whereEqualTo("salonId", review.salonId).get().await()
+            .documents.mapNotNull { it.toObject(ReviewDocument::class.java) }
+        if (all.isNotEmpty()) {
+            val avg = all.map { it.rating }.average()
+            runCatching { salonsCol.document(review.salonId).update("rating", avg).await() }
+        }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────

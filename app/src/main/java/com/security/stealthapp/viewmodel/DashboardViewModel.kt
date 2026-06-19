@@ -15,7 +15,9 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.repository.FavoritesRepository
 import com.security.stealthapp.data.repository.LanguageRepository
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.ui.theme.StringResources
@@ -53,6 +55,7 @@ class DashboardViewModel @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val vaultRepository: VaultRepository,
     private val languageRepository: LanguageRepository,
+    private val favoritesRepository: FavoritesRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -65,6 +68,7 @@ class DashboardViewModel @Inject constructor(
     private val _selectedNeighborhoodIndex = MutableStateFlow(0)
     private val _currentUserName           = MutableStateFlow("")
     private val _isOffline                 = MutableStateFlow(false)
+    private val _showFavoritesOnly         = MutableStateFlow(false)
     private val _bookingStatusChange       = MutableSharedFlow<BookingStatusChange>(extraBufferCapacity = 4)
     private var previousStatuses: Map<String, String> = emptyMap()
 
@@ -72,7 +76,14 @@ class DashboardViewModel @Inject constructor(
     val selectedNeighborhoodIndex: StateFlow<Int>      = _selectedNeighborhoodIndex
     val currentUserName: StateFlow<String>             = _currentUserName
     val isOffline: StateFlow<Boolean>                  = _isOffline
+    val showFavoritesOnly: StateFlow<Boolean>          = _showFavoritesOnly
     val bookingStatusChange: SharedFlow<BookingStatusChange> = _bookingStatusChange
+
+    val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    var reviewThanksShown by mutableStateOf(false)
+        private set
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -85,8 +96,10 @@ class DashboardViewModel @Inject constructor(
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
         firestoreRepository.observeAvailableSalons(),
         _selectedCategoryIndex,
-        _selectedNeighborhoodIndex
-    ) { salons, catIdx, hoodIdx ->
+        _selectedNeighborhoodIndex,
+        favoriteIds,
+        _showFavoritesOnly
+    ) { salons, catIdx, hoodIdx, favorites, favOnly ->
         val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
         val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
         salons.filter { salon ->
@@ -94,7 +107,8 @@ class DashboardViewModel @Inject constructor(
                 salon.services.any { it.contains(category, ignoreCase = true) }
             val hoodMatch = neighborhood == "All Neighborhoods" ||
                 salon.district == neighborhood
-            catMatch && hoodMatch
+            val favMatch  = !favOnly || favorites.contains(salon.id)
+            catMatch && hoodMatch && favMatch
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -147,6 +161,11 @@ class DashboardViewModel @Inject constructor(
 
     fun selectCategory(index: Int)     { _selectedCategoryIndex.value = index }
     fun selectNeighborhood(index: Int) { _selectedNeighborhoodIndex.value = index }
+    fun toggleFavoritesOnly()          { _showFavoritesOnly.value = !_showFavoritesOnly.value }
+
+    fun toggleFavorite(salonId: String) {
+        viewModelScope.launch { runCatching { favoritesRepository.toggle(salonId) } }
+    }
 
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
@@ -156,6 +175,37 @@ class DashboardViewModel @Inject constructor(
             }
         }
     }
+
+    fun rescheduleAppointment(appointmentId: String, newDateMs: Long) {
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.rescheduleAppointment(appointmentId, newDateMs)
+                vaultRepository.log("APPOINTMENT_RESCHEDULED", "id=$appointmentId date=$newDateMs")
+            }
+        }
+    }
+
+    fun submitReview(salonId: String, rating: Int, comment: String) {
+        if (rating < 1) return
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.addReview(
+                    ReviewDocument(
+                        salonId      = salonId,
+                        customerId   = customerId,
+                        customerName = _currentUserName.value,
+                        rating       = rating,
+                        comment      = comment.trim(),
+                        createdAt    = System.currentTimeMillis()
+                    )
+                )
+                vaultRepository.log("REVIEW_SUBMITTED", "salonId=$salonId rating=$rating")
+                reviewThanksShown = true
+            }
+        }
+    }
+
+    fun dismissReviewThanks() { reviewThanksShown = false }
 
     private fun scheduleReminders(appt: AppointmentDocument) {
         val strings = StringResources.forLanguage(languageRepository.language.value)
