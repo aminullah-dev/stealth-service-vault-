@@ -106,8 +106,10 @@ dependencies {
     // Encrypted SharedPreferences (stores the DB passphrase)
     implementation("androidx.security:security-crypto:1.0.0")
 
-    // Firebase BOM — aligns all Firebase library versions
-    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+    // Firebase BOM — aligns all Firebase library versions.
+    // 33.1.0 is the last line compatible with compileSdk 34 AND still ships
+    // the -ktx artifacts. (BOM 34.x dropped firebase-*-ktx and needs sdk 35.)
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
 
