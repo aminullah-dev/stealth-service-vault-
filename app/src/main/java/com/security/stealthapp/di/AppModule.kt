@@ -8,6 +8,7 @@ import com.security.stealthapp.data.db.dao.SecureLogDao
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.FirestoreSeeder
+import com.security.stealthapp.data.repository.LanguageRepository
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.security.DatabaseKeyManager
 import com.security.stealthapp.security.PinHasher
@@ -50,6 +51,10 @@ object AppModule {
         msgDao: MessageDao,
         bookDao: BookingDao
     ): VaultRepository = VaultRepository(logDao, msgDao, bookDao)
+
+    @Provides @Singleton
+    fun provideLanguageRepository(@ApplicationContext ctx: Context): LanguageRepository =
+        LanguageRepository(ctx)
 
     @Provides @Singleton
     fun provideFirebaseAuthManager(): FirebaseAuthManager = FirebaseAuthManager()

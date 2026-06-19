@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -36,6 +37,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,15 +57,18 @@ import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
 import com.security.stealthapp.ui.theme.ElegantCream
+import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.viewmodel.AdminViewModel
+import com.security.stealthapp.viewmodel.LanguageViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
     onLockTriggered: () -> Unit,
-    viewModel: AdminViewModel = hiltViewModel()
+    viewModel: AdminViewModel = hiltViewModel(),
+    langVm: LanguageViewModel = hiltViewModel()
 ) {
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
@@ -70,7 +77,10 @@ fun AdminDashboardScreen(
         }
     }
 
+    val strings          = LocalStrings.current
+    val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()
+    var showLangPicker   by remember { mutableStateOf(false) }
 
     DashboardTheme {
         Scaffold(
@@ -80,13 +90,13 @@ fun AdminDashboardScreen(
                     title = {
                         Column {
                             Text(
-                                text       = "Admin Panel",
+                                text       = strings.adminPanelTitle,
                                 fontWeight = FontWeight.Bold,
                                 fontSize   = 20.sp,
                                 color      = DeepRose
                             )
                             Text(
-                                text     = "Provider approval queue",
+                                text     = strings.approvalQueueSubtitle,
                                 fontSize = 11.sp,
                                 color    = RoseGold
                             )
@@ -101,8 +111,11 @@ fun AdminDashboardScreen(
                         )
                     },
                     actions = {
+                        IconButton(onClick = { showLangPicker = true }) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
+                        }
                         IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, "Lock", tint = DeepRose)
+                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -133,14 +146,14 @@ fun AdminDashboardScreen(
                         }
                         Spacer(Modifier.height(20.dp))
                         Text(
-                            "No pending applications",
+                            strings.noPendingAppsTitle,
                             fontSize   = 18.sp,
                             fontWeight = FontWeight.SemiBold,
                             color      = DeepRose
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "New provider registrations\nwill appear here for approval.",
+                            strings.noPendingAppsSubtext,
                             fontSize  = 13.sp,
                             color     = Color(0xFFAAAAAA),
                             textAlign = TextAlign.Center
@@ -163,6 +176,14 @@ fun AdminDashboardScreen(
                 }
             }
         }
+
+        if (showLangPicker) {
+            LanguagePickerDialog(
+                current   = currentLanguage,
+                onPick    = { langVm.setLanguage(it); showLangPicker = false },
+                onDismiss = { showLangPicker = false }
+            )
+        }
     }
 }
 
@@ -172,6 +193,7 @@ private fun PendingProviderCard(
     onApprove: () -> Unit,
     onReject: () -> Unit
 ) {
+    val strings = LocalStrings.current
     ElevatedCard(
         shape     = RoundedCornerShape(16.dp),
         colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
@@ -209,7 +231,7 @@ private fun PendingProviderCard(
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        "Pending",
+                        strings.pending,
                         fontSize   = 11.sp,
                         color      = UnavailableGrey,
                         fontWeight = FontWeight.SemiBold
@@ -232,7 +254,7 @@ private fun PendingProviderCard(
                     colors         = ButtonDefaults.buttonColors(containerColor = AvailableGreen),
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Text("Approve", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(strings.approve, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick        = onReject,
@@ -241,7 +263,7 @@ private fun PendingProviderCard(
                     colors         = ButtonDefaults.buttonColors(containerColor = UnavailableGrey.copy(alpha = 0.8f)),
                     contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Text("Reject", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(strings.reject, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

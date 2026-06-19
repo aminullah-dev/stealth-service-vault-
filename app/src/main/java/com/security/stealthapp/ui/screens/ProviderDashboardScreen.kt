@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
@@ -51,13 +52,13 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -79,9 +80,11 @@ import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
 import com.security.stealthapp.ui.theme.ElegantCream
+import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
+import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.ProviderViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -93,7 +96,8 @@ import java.util.Locale
 @Composable
 fun ProviderDashboardScreen(
     onLockTriggered: () -> Unit,
-    viewModel: ProviderViewModel = hiltViewModel()
+    viewModel: ProviderViewModel = hiltViewModel(),
+    langVm: LanguageViewModel    = hiltViewModel()
 ) {
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
@@ -102,10 +106,13 @@ fun ProviderDashboardScreen(
         }
     }
 
+    val strings             = LocalStrings.current
+    val currentLanguage     by langVm.language.collectAsStateWithLifecycle()
     val salon               by viewModel.salon.collectAsStateWithLifecycle()
     val isAvailable         by viewModel.isAvailable.collectAsStateWithLifecycle()
     val pendingAppointments by viewModel.pendingAppointments.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
+    var showLangPicker      by remember { mutableStateOf(false) }
 
     val salonName = salon?.salonName ?: "My Salon"
 
@@ -123,15 +130,18 @@ fun ProviderDashboardScreen(
                                 color      = DeepRose
                             )
                             Text(
-                                text     = "Provider · Private · Discreet",
+                                text     = strings.taglineProvider,
                                 fontSize = 11.sp,
                                 color    = RoseGold
                             )
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showLangPicker = true }) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
+                        }
                         IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, contentDescription = "Lock vault", tint = DeepRose)
+                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -170,7 +180,7 @@ fun ProviderDashboardScreen(
                         onClick  = { selectedTab = 0 },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Requests", fontSize = 14.sp)
+                                Text(strings.tabRequests, fontSize = 14.sp)
                                 if (pendingAppointments.isNotEmpty()) {
                                     Spacer(Modifier.width(6.dp))
                                     Box(
@@ -181,9 +191,9 @@ fun ProviderDashboardScreen(
                                             .background(DeepRose)
                                     ) {
                                         Text(
-                                            text     = "${pendingAppointments.size}",
-                                            fontSize = 10.sp,
-                                            color    = Color.White,
+                                            text       = "${pendingAppointments.size}",
+                                            fontSize   = 10.sp,
+                                            color      = Color.White,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -194,7 +204,7 @@ fun ProviderDashboardScreen(
                     Tab(
                         selected = selectedTab == 1,
                         onClick  = { selectedTab = 1 },
-                        text     = { Text("My Profile", fontSize = 14.sp) }
+                        text     = { Text(strings.tabMyProfile, fontSize = 14.sp) }
                     )
                 }
 
@@ -210,7 +220,7 @@ fun ProviderDashboardScreen(
             }
         }
 
-        // ── Save success snackbar-style dialog ────────────────────────────
+        // ── Save success dialog ───────────────────────────────────────────
         if (viewModel.showSaveSuccess) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.dismissSaveSuccess() },
@@ -222,15 +232,23 @@ fun ProviderDashboardScreen(
                         modifier = Modifier.size(36.dp)
                     )
                 },
-                title = { Text("Profile Saved", fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text("Your salon details have been updated.", fontSize = 14.sp, color = Color(0xFF555555)) },
+                title = { Text(strings.profileSavedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.profileSavedText, fontSize = 14.sp, color = Color(0xFF555555)) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissSaveSuccess() },
                         colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text("OK", color = Color.White) }
+                    ) { Text(strings.ok, color = Color.White) }
                 },
                 containerColor = ElegantCream
+            )
+        }
+
+        if (showLangPicker) {
+            LanguagePickerDialog(
+                current   = currentLanguage,
+                onPick    = { langVm.setLanguage(it); showLangPicker = false },
+                onDismiss = { showLangPicker = false }
             )
         }
     }
@@ -239,10 +257,8 @@ fun ProviderDashboardScreen(
 // ── Availability toggle card ───────────────────────────────────────────────────
 
 @Composable
-private fun AvailabilityCard(
-    isAvailable: Boolean,
-    onToggle: () -> Unit
-) {
+private fun AvailabilityCard(isAvailable: Boolean, onToggle: () -> Unit) {
+    val strings = LocalStrings.current
     val statusColor by animateColorAsState(
         targetValue   = if (isAvailable) AvailableGreen else UnavailableGrey,
         animationSpec = tween(durationMillis = 400),
@@ -287,14 +303,14 @@ private fun AvailabilityCard(
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(
-                        text       = if (isAvailable) "Accepting Bookings" else "Closed for Bookings",
+                        text       = if (isAvailable) strings.acceptingBookings else strings.closedForBookings,
                         fontWeight = FontWeight.Bold,
                         fontSize   = 15.sp,
                         color      = DeepRose
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text     = if (isAvailable) "Customers can see and book you" else "You are hidden from customers",
+                        text     = if (isAvailable) strings.customersCanSeeYou else strings.youAreHidden,
                         fontSize = 12.sp,
                         color    = statusColor
                     )
@@ -322,6 +338,7 @@ private fun BookingRequestsTab(
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit
 ) {
+    val strings = LocalStrings.current
     if (appointments.isEmpty()) {
         Box(
             contentAlignment = Alignment.Center,
@@ -346,14 +363,14 @@ private fun BookingRequestsTab(
                 }
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text       = "No pending requests",
+                    text       = strings.noPendingRequests,
                     fontSize   = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                     color      = DeepRose
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text      = "New booking requests from customers\nwill appear here.",
+                    text      = strings.noPendingRequestsSubtext,
                     fontSize  = 13.sp,
                     color     = Color(0xFFAAAAAA),
                     textAlign = TextAlign.Center
@@ -383,6 +400,7 @@ private fun BookingRequestCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
+    val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
 
     ElevatedCard(
@@ -392,7 +410,6 @@ private fun BookingRequestCard(
         modifier  = Modifier.fillMaxWidth()
     ) {
         Row {
-            // Accent strip
             Box(
                 modifier = Modifier
                     .width(5.dp)
@@ -436,7 +453,7 @@ private fun BookingRequestCard(
                             color    = RoseGold
                         )
                     }
-                    AppointmentStatusBadge(appointment.status)
+                    ProviderStatusBadge(appointment.status)
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -444,7 +461,7 @@ private fun BookingRequestCard(
                 Spacer(Modifier.height(8.dp))
 
                 Text(
-                    text     = "Requested: ${dateFmt.format(Date(appointment.appointmentDate))}",
+                    text     = "${strings.requestedAt} ${dateFmt.format(Date(appointment.appointmentDate))}",
                     fontSize = 12.sp,
                     color    = Color(0xFF888888)
                 )
@@ -462,7 +479,7 @@ private fun BookingRequestCard(
                             colors         = ButtonDefaults.buttonColors(containerColor = AvailableGreen),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("Accept", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(strings.accept, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                         Button(
                             onClick        = onDecline,
@@ -471,7 +488,7 @@ private fun BookingRequestCard(
                             colors         = ButtonDefaults.buttonColors(containerColor = UnavailableGrey.copy(alpha = 0.8f)),
                             contentPadding = PaddingValues(vertical = 8.dp)
                         ) {
-                            Text("Decline", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(strings.decline, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -481,11 +498,17 @@ private fun BookingRequestCard(
 }
 
 @Composable
-private fun AppointmentStatusBadge(status: String) {
+private fun ProviderStatusBadge(status: String) {
+    val strings = LocalStrings.current
     val (bg, fg) = when (status.uppercase()) {
         "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
         "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
         else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
+    }
+    val label = when (status.uppercase()) {
+        "CONFIRMED" -> strings.accept
+        "CANCELLED" -> strings.decline
+        else        -> strings.pending
     }
     Box(
         modifier = Modifier
@@ -493,12 +516,7 @@ private fun AppointmentStatusBadge(status: String) {
             .background(bg)
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(
-            text       = status.lowercase().replaceFirstChar { it.uppercaseChar() },
-            fontSize   = 11.sp,
-            color      = fg,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(label, fontSize = 11.sp, color = fg, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -507,6 +525,7 @@ private fun AppointmentStatusBadge(status: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileTab(viewModel: ProviderViewModel) {
+    val strings     = LocalStrings.current
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor   = RoseGold,
         unfocusedBorderColor = ChipInactive,
@@ -531,17 +550,12 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                 modifier            = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text       = "Location",
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 13.sp,
-                    color      = RoseGold
-                )
+                Text(strings.sectionLocation, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
                 HorizontalDivider(color = BlushPink)
                 OutlinedTextField(
                     value         = viewModel.editDistrict,
                     onValueChange = viewModel::onDistrictChanged,
-                    label         = { Text("District / Area", fontSize = 13.sp) },
+                    label         = { Text(strings.districtArea, fontSize = 13.sp) },
                     singleLine    = true,
                     modifier      = Modifier.fillMaxWidth(),
                     shape         = RoundedCornerShape(12.dp),
@@ -559,12 +573,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                 modifier            = Modifier.fillMaxWidth().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text       = "Services Offered",
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 13.sp,
-                    color      = RoseGold
-                )
+                Text(strings.sectionServices, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
                 HorizontalDivider(color = BlushPink)
 
                 if (viewModel.editServices.isNotEmpty()) {
@@ -600,11 +609,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                         }
                     }
                 } else {
-                    Text(
-                        text     = "No services added yet.",
-                        fontSize = 13.sp,
-                        color    = Color(0xFFAAAAAA)
-                    )
+                    Text(strings.noServicesAdded, fontSize = 13.sp, color = Color(0xFFAAAAAA))
                 }
 
                 Row(
@@ -614,7 +619,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                     OutlinedTextField(
                         value         = viewModel.newServiceDraft,
                         onValueChange = viewModel::onNewServiceDraftChanged,
-                        label         = { Text("Add service…", fontSize = 12.sp) },
+                        label         = { Text(strings.addServiceLabel, fontSize = 12.sp) },
                         singleLine    = true,
                         modifier      = Modifier.weight(1f),
                         shape         = RoundedCornerShape(10.dp),
@@ -627,7 +632,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                             .clip(CircleShape)
                             .background(if (viewModel.newServiceDraft.isNotBlank()) RoseGold else ChipInactive)
                     ) {
-                        Icon(Icons.Default.Add, "Add service", tint = Color.White)
+                        Icon(Icons.Default.Add, contentDescription = strings.addServiceLabel, tint = Color.White)
                     }
                 }
             }
@@ -642,12 +647,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
             shape    = RoundedCornerShape(16.dp),
             colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
         ) {
-            Text(
-                text       = "Save Profile",
-                fontSize   = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color      = Color.White
-            )
+            Text(strings.saveProfile, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
 
         Spacer(Modifier.height(16.dp))

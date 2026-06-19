@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
@@ -52,6 +53,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,27 +68,34 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
-import com.security.stealthapp.ui.theme.ChipActive
 import com.security.stealthapp.ui.theme.ChipInactive
 import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
 import com.security.stealthapp.ui.theme.ElegantCream
+import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
+import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.RegisterViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun RegisterScreen(
     onBack: () -> Unit,
-    viewModel: RegisterViewModel = hiltViewModel()
+    viewModel: RegisterViewModel = hiltViewModel(),
+    langVm: LanguageViewModel    = hiltViewModel()
 ) {
     LaunchedEffect(viewModel.state) {
         // Navigation is handled via dialog dismiss
     }
+
+    val strings         = LocalStrings.current
+    val currentLanguage by langVm.language.collectAsStateWithLifecycle()
+    var showLangPicker  by remember { mutableStateOf(false) }
 
     DashboardTheme {
         Scaffold(
@@ -93,13 +105,13 @@ fun RegisterScreen(
                     title = {
                         Column {
                             Text(
-                                text       = "Create Account",
+                                text       = strings.createAccount,
                                 fontWeight = FontWeight.Bold,
                                 fontSize   = 20.sp,
                                 color      = DeepRose
                             )
                             Text(
-                                text     = "Private · Secure · Discreet",
+                                text     = strings.taglineRegister,
                                 fontSize = 11.sp,
                                 color    = RoseGold
                             )
@@ -107,7 +119,12 @@ fun RegisterScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, "Back", tint = DeepRose)
+                            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = DeepRose)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showLangPicker = true }) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -158,17 +175,14 @@ fun RegisterScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text       = if (viewModel.isProvider) "Service Provider" else "Customer",
+                                text       = if (viewModel.isProvider) strings.roleProvider else strings.roleCustomer,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize   = 15.sp,
                                 color      = DeepRose
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text     = if (viewModel.isProvider)
-                                    "Register your salon — pending admin approval"
-                                else
-                                    "Find and book beauty services",
+                                text     = if (viewModel.isProvider) strings.roleProviderDesc else strings.roleCustomerDesc,
                                 fontSize = 12.sp,
                                 color    = RoseGold
                             )
@@ -188,24 +202,24 @@ fun RegisterScreen(
                 }
 
                 // ── Personal information card ──────────────────────────────────
-                SectionCard(title = "Personal Information") {
+                SectionCard(title = strings.sectionPersonalInfo) {
                     FormField(
                         value         = viewModel.name,
                         onValueChange = { viewModel.name = it },
-                        label         = "Full Name",
+                        label         = strings.fullName,
                         leadingIcon   = Icons.Default.Person
                     )
                     FormField(
                         value         = viewModel.phone,
                         onValueChange = { viewModel.phone = it },
-                        label         = "Phone Number",
+                        label         = strings.phoneNumber,
                         leadingIcon   = Icons.Default.Phone,
                         keyboard      = KeyboardType.Phone
                     )
                     FormField(
                         value         = viewModel.pin,
                         onValueChange = { viewModel.pin = it },
-                        label         = "Secret PIN (4+ digits)",
+                        label         = strings.secretPin,
                         leadingIcon   = Icons.Default.Lock,
                         keyboard      = KeyboardType.NumberPassword,
                         password      = true
@@ -213,7 +227,7 @@ fun RegisterScreen(
                     FormField(
                         value         = viewModel.confirmPin,
                         onValueChange = { viewModel.confirmPin = it },
-                        label         = "Confirm PIN",
+                        label         = strings.confirmPin,
                         leadingIcon   = Icons.Default.Lock,
                         keyboard      = KeyboardType.NumberPassword,
                         password      = true
@@ -222,21 +236,20 @@ fun RegisterScreen(
 
                 // ── Provider-only: salon details card ─────────────────────────
                 if (viewModel.isProvider) {
-                    SectionCard(title = "Salon Details") {
+                    SectionCard(title = strings.sectionSalonDetails) {
                         FormField(
                             value         = viewModel.salonName,
                             onValueChange = { viewModel.salonName = it },
-                            label         = "Salon Name",
+                            label         = strings.salonName,
                             leadingIcon   = Icons.Default.Storefront
                         )
                         FormField(
                             value         = viewModel.district,
                             onValueChange = { viewModel.district = it },
-                            label         = "District / Area",
+                            label         = strings.districtArea,
                             leadingIcon   = Icons.Default.LocationOn
                         )
 
-                        // Services chip list
                         if (viewModel.services.isNotEmpty()) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -266,7 +279,6 @@ fun RegisterScreen(
                             }
                         }
 
-                        // Add service row
                         Row(
                             verticalAlignment     = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -274,7 +286,7 @@ fun RegisterScreen(
                             OutlinedTextField(
                                 value         = viewModel.serviceInput,
                                 onValueChange = { viewModel.serviceInput = it },
-                                label         = { Text("Add a service (e.g. Hair)", fontSize = 12.sp) },
+                                label         = { Text(strings.addServiceHint, fontSize = 12.sp) },
                                 leadingIcon   = { Icon(Icons.Default.ContentCut, null, tint = RoseGold, modifier = Modifier.size(18.dp)) },
                                 singleLine    = true,
                                 modifier      = Modifier.weight(1f),
@@ -290,7 +302,7 @@ fun RegisterScreen(
                                         if (viewModel.serviceInput.isNotBlank()) RoseGold else ChipInactive
                                     )
                             ) {
-                                Icon(Icons.Default.Add, "Add service", tint = Color.White)
+                                Icon(Icons.Default.Add, contentDescription = strings.addServiceHint, tint = Color.White)
                             }
                         }
                     }
@@ -310,8 +322,8 @@ fun RegisterScreen(
                 ) {
                     Text(
                         text = when (viewModel.state) {
-                            is RegisterViewModel.RegisterState.Loading -> "Creating account…"
-                            else -> "Create Account"
+                            is RegisterViewModel.RegisterState.Loading -> strings.creatingAccount
+                            else -> strings.createAccount
                         },
                         fontSize   = 16.sp,
                         fontWeight = FontWeight.Bold,
@@ -331,13 +343,13 @@ fun RegisterScreen(
                     icon = {
                         Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp))
                     },
-                    title = { Text("Welcome, ${s.name}!", fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text("Your account is ready. Return to the notepad and enter your PIN to sign in.", fontSize = 14.sp, color = Color(0xFF555555)) },
+                    title = { Text(strings.welcomeTitle(s.name), fontWeight = FontWeight.Bold, color = DeepRose) },
+                    text  = { Text(strings.accountReadyText, fontSize = 14.sp, color = Color(0xFF555555)) },
                     confirmButton = {
                         Button(
                             onClick = { viewModel.dismissState(); onBack() },
                             colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                        ) { Text("Go to app", color = Color.White) }
+                        ) { Text(strings.goToApp, color = Color.White) }
                     },
                     containerColor = ElegantCream
                 )
@@ -348,13 +360,13 @@ fun RegisterScreen(
                     icon = {
                         Icon(Icons.Default.CheckCircle, null, tint = RoseGold, modifier = Modifier.size(40.dp))
                     },
-                    title = { Text("Registration Submitted", fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text("Your salon is under review. Once approved by our team, your PIN will activate and you can sign in.", fontSize = 14.sp, color = Color(0xFF555555)) },
+                    title = { Text(strings.registrationSubmittedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                    text  = { Text(strings.salonUnderReviewText, fontSize = 14.sp, color = Color(0xFF555555)) },
                     confirmButton = {
                         Button(
                             onClick = { viewModel.dismissState(); onBack() },
                             colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                        ) { Text("Got it", color = Color.White) }
+                        ) { Text(strings.gotIt, color = Color.White) }
                     },
                     containerColor = ElegantCream
                 )
@@ -362,17 +374,25 @@ fun RegisterScreen(
             is RegisterViewModel.RegisterState.Error -> {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState() },
-                    title = { Text("Please check your details", fontWeight = FontWeight.Bold, color = DeepRose) },
+                    title = { Text(strings.pleaseCheckTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                     text  = { Text(s.message, fontSize = 14.sp, color = Color(0xFF555555)) },
                     confirmButton = {
                         TextButton(onClick = { viewModel.dismissState() }) {
-                            Text("OK", color = RoseGold)
+                            Text(strings.ok, color = RoseGold)
                         }
                     },
                     containerColor = ElegantCream
                 )
             }
             else -> Unit
+        }
+
+        if (showLangPicker) {
+            LanguagePickerDialog(
+                current   = currentLanguage,
+                onPick    = { langVm.setLanguage(it); showLangPicker = false },
+                onDismiss = { showLangPicker = false }
+            )
         }
     }
 }
@@ -390,12 +410,7 @@ private fun SectionCard(
             modifier            = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text       = title,
-                fontWeight = FontWeight.Bold,
-                fontSize   = 13.sp,
-                color      = RoseGold
-            )
+            Text(text = title, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
             HorizontalDivider(color = BlushPink)
             content()
         }

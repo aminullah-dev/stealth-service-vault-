@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -57,9 +59,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.model.LoggedInUser
+import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.NotepadBg
 import com.security.stealthapp.ui.theme.NotepadLines
 import com.security.stealthapp.ui.theme.NotepadPrimary
@@ -68,6 +70,7 @@ import com.security.stealthapp.ui.theme.NotepadSurface
 import com.security.stealthapp.ui.theme.NotepadTheme
 import com.security.stealthapp.viewmodel.AuthViewModel
 import com.security.stealthapp.viewmodel.DisguiseViewModel
+import com.security.stealthapp.viewmodel.LanguageViewModel
 
 // ── Static mock data ──────────────────────────────────────────────────────────
 
@@ -90,9 +93,9 @@ fun DisguiseScreen(
     onAuthSuccess: (LoggedInUser) -> Unit,
     onRegisterTapped: () -> Unit,
     noteViewModel: DisguiseViewModel = hiltViewModel(),
-    authViewModel: AuthViewModel     = hiltViewModel()
+    authViewModel: AuthViewModel     = hiltViewModel(),
+    langVm: LanguageViewModel        = hiltViewModel()
 ) {
-    // Consume the one-shot auth success produced by AuthViewModel.
     val authState = authViewModel.authState
     LaunchedEffect(authState) {
         if (authState is AuthViewModel.AuthState.Success) {
@@ -101,14 +104,17 @@ fun DisguiseScreen(
         }
     }
 
-    var searchQuery    by remember { mutableStateOf("") }
-    var selectedNoteId by remember { mutableStateOf(MOCK_NOTES.first().id) }
-    var showAddDialog  by remember { mutableStateOf(false) }
-    var showEditor     by remember { mutableStateOf(false) }
-    var showMenu       by remember { mutableStateOf(false) }
+    val strings         = LocalStrings.current
+    val currentLanguage by langVm.language.collectAsStateWithLifecycle()
+    var searchQuery     by remember { mutableStateOf("") }
+    var selectedNoteId  by remember { mutableStateOf(MOCK_NOTES.first().id) }
+    var showAddDialog   by remember { mutableStateOf(false) }
+    var showEditor      by remember { mutableStateOf(false) }
+    var showMenu        by remember { mutableStateOf(false) }
+    var showLangPicker  by remember { mutableStateOf(false) }
 
-    val selectedNote  = MOCK_NOTES.find { it.id == selectedNoteId } ?: MOCK_NOTES.first()
-    val visibleNotes  = remember(searchQuery) {
+    val selectedNote = MOCK_NOTES.find { it.id == selectedNoteId } ?: MOCK_NOTES.first()
+    val visibleNotes = remember(searchQuery) {
         if (searchQuery.isBlank()) MOCK_NOTES
         else MOCK_NOTES.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
@@ -128,8 +134,6 @@ fun DisguiseScreen(
                             fontWeight = FontWeight.Normal,
                             fontSize   = 22.sp,
                             color      = NotepadPrimary,
-                            // Long-press falls through to auth with no-op PIN ""
-                            // (won't match any stored PIN — purely visual affordance).
                             modifier   = Modifier.combinedClickable(onClick = {}, onLongClick = {})
                         )
                     },
@@ -137,7 +141,6 @@ fun DisguiseScreen(
                         IconButton(onClick = { showAddDialog = true }) {
                             Icon(Icons.Default.Add, null, tint = NotepadPrimary)
                         }
-                        // Stealth entry for registration — looks like a standard overflow menu
                         Box {
                             IconButton(onClick = { showMenu = true }) {
                                 Icon(Icons.Default.MoreVert, null, tint = NotepadPrimary)
@@ -153,6 +156,10 @@ fun DisguiseScreen(
                                 DropdownMenuItem(
                                     text    = { Text("New account", fontSize = 14.sp, color = NotepadPrimary) },
                                     onClick = { showMenu = false; onRegisterTapped() }
+                                )
+                                DropdownMenuItem(
+                                    text    = { Text(strings.languagePickerTitle, fontSize = 14.sp, color = NotepadPrimary) },
+                                    onClick = { showMenu = false; showLangPicker = true }
                                 )
                             }
                         }
@@ -178,10 +185,6 @@ fun DisguiseScreen(
                     value         = searchQuery,
                     onValueChange = { q ->
                         searchQuery = q
-                        // Attempt auth on every 4-digit numeric entry.
-                        // PBKDF2 is fast at low iteration count; the device
-                        // never shows any error on non-matching input.
-                        // Attempt auth on any 4-8 digit numeric string (supports variable-length PINs)
                         if (q.length in 4..8 && q.all { it.isDigit() }) {
                             authViewModel.authenticate(q)
                         }
@@ -242,6 +245,14 @@ fun DisguiseScreen(
                 AddNoteDialog(onDismiss = { showAddDialog = false }, onConfirm = { showAddDialog = false })
             }
         }
+
+        if (showLangPicker) {
+            LanguagePickerDialog(
+                current   = currentLanguage,
+                onPick    = { langVm.setLanguage(it); showLangPicker = false },
+                onDismiss = { showLangPicker = false }
+            )
+        }
     }
 }
 
@@ -298,10 +309,10 @@ private fun NoteEditorPanel(
             modifier = Modifier.fillMaxWidth().background(NotepadSurface).padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
-                text       = "← Notes",
-                fontSize   = 14.sp,
-                color      = NotepadSecondary,
-                modifier   = Modifier.clickable(onClick = onBack).padding(end = 8.dp)
+                text     = "← Notes",
+                fontSize = 14.sp,
+                color    = NotepadSecondary,
+                modifier = Modifier.clickable(onClick = onBack).padding(end = 8.dp)
             )
             Spacer(Modifier.width(12.dp))
             Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = NotepadPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

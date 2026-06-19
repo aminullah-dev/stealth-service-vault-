@@ -18,12 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.SearchOff
@@ -76,6 +78,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.ui.theme.AppLanguage
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.ChipActive
@@ -84,10 +87,12 @@ import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
 import com.security.stealthapp.ui.theme.ElegantCream
+import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
 import com.security.stealthapp.viewmodel.DashboardViewModel
+import com.security.stealthapp.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -95,18 +100,17 @@ import java.util.Locale
 
 // Avatar colors cycle through the brand palette based on name's first character
 private val avatarColors = listOf(
-    Color(0xFFB76E79), // RoseGold
-    Color(0xFF9C6B8A), // SoftPurple
-    Color(0xFFD4A853), // WarmGold
-    Color(0xFF8B3A47), // DeepRose
-    Color(0xFF6D8B74), // Sage
-    Color(0xFF7B6FA0), // Lavender
+    Color(0xFFB76E79),
+    Color(0xFF9C6B8A),
+    Color(0xFFD4A853),
+    Color(0xFF8B3A47),
+    Color(0xFF6D8B74),
+    Color(0xFF7B6FA0),
 )
 
 private fun avatarColor(name: String): Color =
     avatarColors[name.first().lowercaseChar().code % avatarColors.size]
 
-// Booking flow state machine
 private data class BookingIntent(
     val salon: SalonDocument,
     val service: String,
@@ -117,8 +121,11 @@ private data class BookingIntent(
 @Composable
 fun HiddenDashboardScreen(
     onLockTriggered: () -> Unit,
-    viewModel: DashboardViewModel = hiltViewModel()
+    viewModel: DashboardViewModel     = hiltViewModel(),
+    langVm: LanguageViewModel         = hiltViewModel()
 ) {
+    val strings = LocalStrings.current
+
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
             viewModel.resetLockTrigger()
@@ -126,13 +133,25 @@ fun HiddenDashboardScreen(
         }
     }
 
-    val filteredSalons       by viewModel.filteredSalons.collectAsStateWithLifecycle()
-    val myAppointments       by viewModel.myAppointments.collectAsStateWithLifecycle()
-    val selectedCategory     by viewModel.selectedCategory.collectAsStateWithLifecycle()
-    val selectedNeighborhood by viewModel.selectedNeighborhood.collectAsStateWithLifecycle()
+    val filteredSalons           by viewModel.filteredSalons.collectAsStateWithLifecycle()
+    val myAppointments           by viewModel.myAppointments.collectAsStateWithLifecycle()
+    val selectedCategoryIndex    by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
+    val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
+
+    val categoryLabels = listOf(
+        strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
+        strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
+    )
+    val neighborhoodLabels = listOf(
+        strings.neighborhoodAll,
+        strings.neighborhood1, strings.neighborhood3,
+        strings.neighborhood6, strings.neighborhood9,
+        strings.neighborhood11, strings.neighborhood13
+    )
 
     var showNeighborhoodMenu by remember { mutableStateOf(false) }
     var showBookingsSheet    by remember { mutableStateOf(false) }
+    var showLangPicker       by remember { mutableStateOf(false) }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var bookingIntent     by remember { mutableStateOf<BookingIntent?>(null) }
@@ -151,7 +170,7 @@ fun HiddenDashboardScreen(
                     title = {
                         Column {
                             Text("SafeBeauty", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = DeepRose)
-                            Text("Private · Discreet · Trusted", fontSize = 11.sp, color = RoseGold)
+                            Text(strings.taglineCustomer, fontSize = 11.sp, color = RoseGold)
                         }
                     },
                     actions = {
@@ -163,11 +182,14 @@ fun HiddenDashboardScreen(
                                     }
                                 }
                             }) {
-                                Icon(Icons.Default.CalendarMonth, "My Bookings", tint = DeepRose)
+                                Icon(Icons.Default.CalendarMonth, strings.myBookings, tint = DeepRose)
                             }
                         }
+                        IconButton(onClick = { showLangPicker = true }) {
+                            Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
+                        }
                         IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, "Lock", tint = DeepRose)
+                            Icon(Icons.Default.Lock, strings.lock, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -181,11 +203,11 @@ fun HiddenDashboardScreen(
                     contentPadding        = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(viewModel.categories) { cat ->
+                    itemsIndexed(categoryLabels) { index, label ->
                         FilterChip(
-                            selected = selectedCategory == cat,
-                            onClick  = { viewModel.selectCategory(cat) },
-                            label    = { Text(cat, fontSize = 13.sp) },
+                            selected = selectedCategoryIndex == index,
+                            onClick  = { viewModel.selectCategory(index) },
+                            label    = { Text(label, fontSize = 13.sp) },
                             colors   = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = ChipActive,
                                 selectedLabelColor     = Color.White,
@@ -207,7 +229,12 @@ fun HiddenDashboardScreen(
                     ) {
                         Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(15.dp), tint = RoseGold)
                         Spacer(Modifier.width(6.dp))
-                        Text(selectedNeighborhood, fontSize = 13.sp, modifier = Modifier.weight(1f), color = DeepRose)
+                        Text(
+                            neighborhoodLabels.getOrElse(selectedNeighborhoodIndex) { strings.neighborhoodAll },
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f),
+                            color    = DeepRose
+                        )
                         Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
                     }
                     DropdownMenu(
@@ -215,10 +242,10 @@ fun HiddenDashboardScreen(
                         onDismissRequest = { showNeighborhoodMenu = false },
                         modifier         = Modifier.background(ElegantCream)
                     ) {
-                        viewModel.neighborhoods.forEach { hood ->
+                        neighborhoodLabels.forEachIndexed { index, label ->
                             DropdownMenuItem(
-                                text    = { Text(hood, fontSize = 13.sp, color = DeepRose) },
-                                onClick = { viewModel.selectNeighborhood(hood); showNeighborhoodMenu = false }
+                                text    = { Text(label, fontSize = 13.sp, color = DeepRose) },
+                                onClick = { viewModel.selectNeighborhood(index); showNeighborhoodMenu = false }
                             )
                         }
                     }
@@ -231,8 +258,8 @@ fun HiddenDashboardScreen(
                 ) {
                     HorizontalDivider(modifier = Modifier.weight(1f), color = BlushPink)
                     Text(
-                        text = if (filteredSalons.isEmpty()) "No providers found"
-                               else "${filteredSalons.size} provider${if (filteredSalons.size == 1) "" else "s"} found",
+                        text = if (filteredSalons.isEmpty()) strings.noProvidersTitle
+                               else strings.providersFound(filteredSalons.size),
                         fontSize = 11.sp,
                         color    = RoseGold,
                         modifier = Modifier.padding(horizontal = 10.dp)
@@ -260,19 +287,21 @@ fun HiddenDashboardScreen(
             }
         }
 
+        // ── Language picker dialog ────────────────────────────────────────────
+        if (showLangPicker) {
+            LanguagePickerDialog(
+                current  = langVm.language.value,
+                onPick   = { langVm.setLanguage(it); showLangPicker = false },
+                onDismiss = { showLangPicker = false }
+            )
+        }
+
         // ── Step 1: Service selection ─────────────────────────────────────────
         if (showServiceDialog) {
             val salon = bookingIntent?.salon
             AlertDialog(
                 onDismissRequest = { showServiceDialog = false; bookingIntent = null },
-                title = {
-                    Text(
-                        "Choose a service",
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 17.sp,
-                        color      = DeepRose
-                    )
-                },
+                title = { Text(strings.chooseService, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         salon?.services?.forEach { service ->
@@ -289,21 +318,12 @@ fun HiddenDashboardScreen(
                                 Text(service, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
                             }
                         }
-                        if (salon?.services.isNullOrEmpty()) {
-                            Text(
-                                "No services listed.",
-                                fontSize  = 13.sp,
-                                color     = Color(0xFFAAAAAA),
-                                textAlign = TextAlign.Center,
-                                modifier  = Modifier.fillMaxWidth()
-                            )
-                        }
                     }
                 },
                 confirmButton  = {},
                 dismissButton  = {
                     TextButton(onClick = { showServiceDialog = false; bookingIntent = null }) {
-                        Text("Cancel", color = RoseGold)
+                        Text(strings.cancel, color = RoseGold)
                     }
                 },
                 containerColor = ElegantCream
@@ -322,11 +342,11 @@ fun HiddenDashboardScreen(
                             showTimePicker = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text("Next →", color = Color.White) }
+                    ) { Text(strings.next, color = Color.White) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showDatePicker = false; bookingIntent = null }) {
-                        Text("Cancel", color = RoseGold)
+                        Text(strings.cancel, color = RoseGold)
                     }
                 }
             ) {
@@ -338,7 +358,7 @@ fun HiddenDashboardScreen(
         if (showTimePicker) {
             AlertDialog(
                 onDismissRequest = { showTimePicker = false; bookingIntent = null },
-                title = { Text("Select time", fontWeight = FontWeight.Bold, color = DeepRose) },
+                title = { Text(strings.selectTime, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text  = {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                         TimePicker(state = timePickerState)
@@ -361,11 +381,11 @@ fun HiddenDashboardScreen(
                             bookingIntent = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text("Confirm booking", color = Color.White) }
+                    ) { Text(strings.confirmBooking, color = Color.White) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showTimePicker = false; bookingIntent = null }) {
-                        Text("Cancel", color = RoseGold)
+                        Text(strings.cancel, color = RoseGold)
                     }
                 },
                 containerColor = ElegantCream
@@ -373,17 +393,17 @@ fun HiddenDashboardScreen(
         }
 
         // ── Booking confirmation ──────────────────────────────────────────────
-        viewModel.bookingConfirmation?.let { message ->
+        viewModel.bookingConfirmSalonName?.let { salonName ->
             AlertDialog(
                 onDismissRequest = { viewModel.dismissConfirmation() },
                 icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
-                title = { Text("Booking Request Sent", fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(message, fontSize = 14.sp, color = Color(0xFF555555)) },
+                title = { Text(strings.bookingRequestSent, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.bookingConfirmText(salonName), fontSize = 14.sp, color = Color(0xFF555555)) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissConfirmation() },
                         colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text("OK", color = Color.White) }
+                    ) { Text(strings.ok, color = Color.White) }
                 },
                 containerColor = ElegantCream
             )
@@ -410,7 +430,8 @@ fun HiddenDashboardScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
-    val color = remember(salon.salonName) { avatarColor(salon.salonName) }
+    val strings = LocalStrings.current
+    val color   = remember(salon.salonName) { avatarColor(salon.salonName) }
 
     ElevatedCard(
         shape     = RoundedCornerShape(20.dp),
@@ -420,7 +441,6 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
-            // ── Header: avatar + name + district + rating ─────────────────────
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -459,7 +479,6 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
                         )
                     }
                 }
-                // Rating pill
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -473,7 +492,6 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
                 }
             }
 
-            // ── Services chips ────────────────────────────────────────────────
             if (salon.services.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 FlowRow(
@@ -497,7 +515,6 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
             HorizontalDivider(color = BlushPink.copy(alpha = 0.6f))
             Spacer(Modifier.height(12.dp))
 
-            // ── Footer: availability + book button ────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
@@ -507,28 +524,23 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text     = if (salon.isAvailable) "Available now" else "Not available",
-                    fontSize = 12.sp,
-                    color    = if (salon.isAvailable) AvailableGreen else UnavailableGrey,
+                    text       = if (salon.isAvailable) strings.availableNow else strings.notAvailable,
+                    fontSize   = 12.sp,
+                    color      = if (salon.isAvailable) AvailableGreen else UnavailableGrey,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f)
+                    modifier   = Modifier.weight(1f)
                 )
                 Button(
-                    onClick  = onBook,
-                    enabled  = salon.isAvailable,
-                    shape    = RoundedCornerShape(12.dp),
-                    colors   = ButtonDefaults.buttonColors(
+                    onClick        = onBook,
+                    enabled        = salon.isAvailable,
+                    shape          = RoundedCornerShape(12.dp),
+                    colors         = ButtonDefaults.buttonColors(
                         containerColor         = RoseGold,
                         disabledContainerColor = UnavailableGrey.copy(alpha = 0.25f)
                     ),
                     contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        text       = "Book",
-                        fontSize   = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color      = Color.White
-                    )
+                    Text(strings.book, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
         }
@@ -539,6 +551,7 @@ private fun SalonCard(salon: SalonDocument, onBook: () -> Unit) {
 
 @Composable
 private fun SalonEmptyState(modifier: Modifier = Modifier) {
+    val strings = LocalStrings.current
     Box(contentAlignment = Alignment.Center, modifier = modifier.padding(40.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
@@ -551,20 +564,9 @@ private fun SalonEmptyState(modifier: Modifier = Modifier) {
                 Icon(Icons.Default.SearchOff, null, tint = RoseGold, modifier = Modifier.size(44.dp))
             }
             Spacer(Modifier.height(20.dp))
-            Text(
-                text       = "No providers found",
-                fontSize   = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color      = DeepRose,
-                textAlign  = TextAlign.Center
-            )
+            Text(strings.noProvidersTitle, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = DeepRose, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
-            Text(
-                text      = "Try a different category or neighborhood,\nor check back later.",
-                fontSize  = 13.sp,
-                color     = Color(0xFFAAAAAA),
-                textAlign = TextAlign.Center
-            )
+            Text(strings.noProvidersSubtext, fontSize = 13.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
         }
     }
 }
@@ -573,6 +575,7 @@ private fun SalonEmptyState(modifier: Modifier = Modifier) {
 
 @Composable
 private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDismiss: () -> Unit) {
+    val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
     Column(
         modifier = Modifier
@@ -585,8 +588,8 @@ private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDism
             horizontalArrangement = Arrangement.SpaceBetween,
             modifier              = Modifier.fillMaxWidth()
         ) {
-            Text("My Bookings", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
-            TextButton(onClick = onDismiss) { Text("Close", color = RoseGold) }
+            Text(strings.myBookings, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
+            TextButton(onClick = onDismiss) { Text(strings.close, color = RoseGold) }
         }
         HorizontalDivider(color = BlushPink)
         Spacer(Modifier.height(12.dp))
@@ -599,19 +602,9 @@ private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDism
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.CalendarMonth, null, tint = BlushPink, modifier = Modifier.size(48.dp))
                     Spacer(Modifier.height(12.dp))
-                    Text(
-                        text      = "No bookings yet.",
-                        fontSize  = 15.sp,
-                        color     = DeepRose,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(strings.noBookingsTitle, fontSize = 15.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        text      = "Find a provider and tap Book to get started.",
-                        fontSize  = 13.sp,
-                        color     = Color(0xFFAAAAAA),
-                        textAlign = TextAlign.Center
-                    )
+                    Text(strings.noBookingsSubtext, fontSize = 13.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
                 }
             }
         } else {
@@ -621,11 +614,7 @@ private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDism
                     colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(14.dp)
-                    ) {
-                        // Color accent strip
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(14.dp)) {
                         Box(
                             modifier = Modifier
                                 .width(4.dp)
@@ -656,10 +645,16 @@ private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDism
 
 @Composable
 private fun StatusChip(status: String) {
+    val strings = LocalStrings.current
     val (bg, fg) = when (status) {
         "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
         "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
         else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
+    }
+    val label = when (status) {
+        "CONFIRMED" -> strings.accept
+        "CANCELLED" -> strings.decline
+        else        -> strings.pending
     }
     Box(
         modifier = Modifier
@@ -667,11 +662,49 @@ private fun StatusChip(status: String) {
             .background(bg)
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(
-            text       = status.lowercase().replaceFirstChar { it.uppercaseChar() },
-            fontSize   = 11.sp,
-            color      = fg,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(label, fontSize = 11.sp, color = fg, fontWeight = FontWeight.SemiBold)
     }
+}
+
+// ── Language picker dialog ────────────────────────────────────────────────────
+
+@Composable
+fun LanguagePickerDialog(
+    current: AppLanguage,
+    onPick: (AppLanguage) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(strings.languagePickerTitle, fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 15.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppLanguage.entries.forEach { lang ->
+                    Button(
+                        onClick = { onPick(lang) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape    = RoundedCornerShape(12.dp),
+                        colors   = ButtonDefaults.buttonColors(
+                            containerColor = if (lang == current) RoseGold else ChipInactive
+                        )
+                    ) {
+                        Text(
+                            text       = lang.nativeName,
+                            fontSize   = 15.sp,
+                            color      = if (lang == current) Color.White else DeepRose,
+                            fontWeight = if (lang == current) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton  = {},
+        dismissButton  = {
+            TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }
+        },
+        containerColor = ElegantCream
+    )
 }
