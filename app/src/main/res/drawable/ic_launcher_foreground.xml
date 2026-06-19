@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher foreground: a plain white notepad sheet with ruled lines, kept inside
+  the adaptive-icon safe zone (centre ~30..78 of the 108 viewport). Reinforces
+  the "just a notes app" disguise.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Paper sheet -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,30 h36 a3,3 0 0 1 3,3 v42 a3,3 0 0 1 -3,3 h-36 a3,3 0 0 1 -3,-3 v-42 a3,3 0 0 1 3,-3 z" />
+
+    <!-- Ruled lines -->
+    <path android:fillColor="#F2B200" android:pathData="M42,42 h24 v3 h-24 z" />
+    <path android:fillColor="#F2B200" android:pathData="M42,52 h24 v3 h-24 z" />
+    <path android:fillColor="#F2B200" android:pathData="M42,62 h16 v3 h-16 z" />
+</vector>
