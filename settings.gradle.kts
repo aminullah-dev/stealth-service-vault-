@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "KabulSignal"
+rootProject.name = "StealthServiceVault"
 include(":app")
