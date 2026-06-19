@@ -37,6 +37,7 @@ class FirestoreRepository @Inject constructor(
     private val appointmentsCol = db.collection("appointments")
     private val chatCol         = db.collection("chat_messages")
     private val reviewsCol      = db.collection("reviews")
+    private val broadcastsCol   = db.collection("broadcasts")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -255,6 +256,45 @@ class FirestoreRepository @Inject constructor(
             runCatching { salonsCol.document(review.salonId).update("rating", avg).await() }
         }
     }
+
+    // ── Admin — all users ────────────────────────────────────────────────────
+
+    fun observeAllUsers(): Flow<List<UserDocument>> = callbackFlow {
+        val listener = usersCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
+                ?.sortedBy { it.createdAt }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    // ── Broadcasts ───────────────────────────────────────────────────────────
+
+    fun observeBroadcasts(): Flow<List<BroadcastDocument>> = callbackFlow {
+        val listener = broadcastsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(BroadcastDocument::class.java)?.copy(id = it.id) }
+                ?.sortedByDescending { it.createdAt }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun sendBroadcast(doc: BroadcastDocument) {
+        broadcastsCol.add(doc).await()
+    }
+
+    // ── Export ───────────────────────────────────────────────────────────────
+
+    suspend fun getAppointmentsForUser(userId: String): List<AppointmentDocument> =
+        appointmentsCol.whereEqualTo("customerId", userId).get().await()
+            .documents.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
+            .sortedByDescending { it.appointmentDate }
 
     // ── Seeder check ──────────────────────────────────────────────────────────
 

@@ -56,3 +56,10 @@ data class ReviewDocument(
     val comment: String = "",
     val createdAt: Long = 0L
 )
+
+data class BroadcastDocument(
+    val id: String = "",                    // Firestore document ID
+    val message: String = "",
+    val sentBy: String = "admin",
+    val createdAt: Long = 0L
+)

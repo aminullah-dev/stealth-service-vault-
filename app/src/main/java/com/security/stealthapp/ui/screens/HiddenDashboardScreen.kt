@@ -1,6 +1,7 @@
 package com.security.stealthapp.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
@@ -107,6 +109,8 @@ import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
 import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.viewmodel.DashboardViewModel
+import com.security.stealthapp.viewmodel.ExportPhase
+import com.security.stealthapp.viewmodel.ExportViewModel
 import com.security.stealthapp.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -138,7 +142,8 @@ fun HiddenDashboardScreen(
     onLockTriggered: () -> Unit,
     onNavigate: (String) -> Unit      = {},
     viewModel: DashboardViewModel     = hiltViewModel(),
-    langVm: LanguageViewModel         = hiltViewModel()
+    langVm: LanguageViewModel         = hiltViewModel(),
+    exportVm: ExportViewModel         = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
     val context     = LocalContext.current
@@ -170,6 +175,20 @@ fun HiddenDashboardScreen(
         if (viewModel.lockTriggered) {
             viewModel.resetLockTrigger()
             onLockTriggered()
+        }
+    }
+
+    // Open share sheet when CSV export completes
+    LaunchedEffect(exportVm.phase) {
+        if (exportVm.phase == ExportPhase.DONE) {
+            val uri = exportVm.shareUri ?: return@LaunchedEffect
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(shareIntent, strings.exportShareTitle))
+            exportVm.reset()
         }
     }
 
@@ -227,6 +246,16 @@ fun HiddenDashboardScreen(
                         }
                     },
                     actions = {
+                        IconButton(
+                            onClick  = { exportVm.export() },
+                            enabled  = exportVm.phase != ExportPhase.WORKING
+                        ) {
+                            Icon(
+                                Icons.Default.Download,
+                                contentDescription = strings.exportTitle,
+                                tint               = RoseGold
+                            )
+                        }
                         IconButton(onClick = { viewModel.toggleFavoritesOnly() }) {
                             Icon(
                                 imageVector        = if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
