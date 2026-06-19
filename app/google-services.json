@@ -1,13 +1,4 @@
 {
-  "_comment": "REPLACE THIS FILE with your own google-services.json from Firebase Console.",
-  "_instructions": [
-    "1. Go to https://console.firebase.google.com",
-    "2. Create a project (e.g. 'safebeauty-prod')",
-    "3. Add an Android app with package name: com.security.stealthapp",
-    "4. Download google-services.json and replace this file",
-    "5. In Firebase Console: Enable Firestore Database + Authentication (Email/Password)",
-    "6. Set Firestore security rules (see README or CLAUDE.md)"
-  ],
   "project_info": {
     "project_number": "123456789012",
     "project_id": "safebeauty-placeholder",
@@ -16,7 +7,7 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:aabbccddeeff0011",
+        "mobilesdk_app_id": "1:123456789012:android:aabbccddeeff00112233",
         "android_client_info": {
           "package_name": "com.security.stealthapp"
         }
@@ -24,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "REPLACE_WITH_YOUR_FIREBASE_API_KEY"
+          "current_key": "AIzaSyPlaceholderKeyReplaceThisWithReal0"
         }
       ],
       "services": {
