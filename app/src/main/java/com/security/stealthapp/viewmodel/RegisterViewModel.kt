@@ -63,15 +63,24 @@ class RegisterViewModel @Inject constructor(
     // ── Validation ────────────────────────────────────────────────────────────
 
     private fun validate(): String? {
-        if (name.isBlank())          return "Name is required"
-        if (phone.isBlank())         return "Phone number is required"
-        if (pin.length < 4)          return "PIN must be at least 4 digits"
+        if (name.isBlank())            return "Name is required"
+        if (phone.isBlank())           return "Phone number is required"
         if (!pin.all { it.isDigit() }) return "PIN must contain digits only"
-        if (pin != confirmPin)       return "PINs do not match"
+        if (pin.length < 6)            return "PIN must be at least 6 digits"
+        if (isWeakPin(pin))            return "PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000."
+        if (pin != confirmPin)         return "PINs do not match"
         if (isProvider && salonName.isBlank()) return "Salon name is required"
         if (isProvider && district.isBlank())  return "District is required"
         if (isProvider && services.isEmpty())  return "Add at least one service"
         return null
+    }
+
+    private fun isWeakPin(pin: String): Boolean {
+        if (pin.all { it == pin[0] }) return true
+        val digits = pin.map { it.digitToInt() }
+        if (digits.zipWithNext().all { (a, b) -> b - a == 1 }) return true
+        if (digits.zipWithNext().all { (a, b) -> a - b == 1 }) return true
+        return false
     }
 
     // ── Registration ──────────────────────────────────────────────────────────

@@ -18,17 +18,10 @@ class FirestoreSeeder @Inject constructor(
 
     suspend fun seedIfEmpty() {
         if (!repo.isUsersEmpty()) return
-
-        seed("Admin",    "0000", "ADMIN",    "APPROVED", null)
-        seed("Fatima",   "5678", "CUSTOMER", "APPROVED", null)
-        seed("Maryam",   "1234", "PROVIDER", "APPROVED",
-            SalonSeed("Maryam Studio",   "District 3 – Khair Khana",  listOf("Hair", "Makeup"), 4.8))
-        seed("Zahra",    "2345", "PROVIDER", "APPROVED",
-            SalonSeed("Zahra Beauty",    "District 6 – Karte Seh",    listOf("Skincare", "Eyebrows"), 4.6))
-        seed("Parisa",   "3456", "PROVIDER", "APPROVED",
-            SalonSeed("Parisa Brows",    "District 11 – Qala-e Wahed",listOf("Eyebrows", "Nails"), 4.9))
-        seed("Neda",     "4567", "PROVIDER", "APPROVED",
-            SalonSeed("Neda Nails Pro",  "District 9 – Dasht-e Barchi",listOf("Nails", "Makeup"), 4.7))
+        // Only the admin account is seeded. All providers and customers register
+        // themselves through the registration flow. The admin approves providers.
+        // Default admin PIN: 246813 — change this before production deployment.
+        seed("Admin", "246813", "ADMIN", "APPROVED", null)
     }
 
     private data class SalonSeed(

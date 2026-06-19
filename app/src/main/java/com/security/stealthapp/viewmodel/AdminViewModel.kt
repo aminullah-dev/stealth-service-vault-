@@ -34,7 +34,7 @@ class AdminViewModel @Inject constructor(
         firestoreRepository.observePendingProviders()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val allUsers: StateFlow<List<UserDocument>> =
+    val allUsers: StateFlow<List<UserDocument>> =
         firestoreRepository.observeAllUsers()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -66,6 +66,14 @@ class AdminViewModel @Inject constructor(
         viewModelScope.launch {
             firestoreRepository.setUserStatus(uid, "REJECTED")
             vaultRepository.log("ADMIN_REJECT", "uid=$uid")
+        }
+    }
+
+    fun deleteUser(uid: String, isProvider: Boolean) {
+        viewModelScope.launch {
+            firestoreRepository.deleteUser(uid)
+            if (isProvider) firestoreRepository.deleteSalonByProvider(uid)
+            vaultRepository.log("ADMIN_DELETE_USER", "uid=$uid")
         }
     }
 

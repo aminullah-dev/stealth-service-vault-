@@ -257,6 +257,15 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
+    suspend fun deleteUser(uid: String) {
+        usersCol.document(uid).delete().await()
+    }
+
+    suspend fun deleteSalonByProvider(providerId: String) {
+        val docs = salonsCol.whereEqualTo("providerId", providerId).get().await()
+        docs.documents.forEach { it.reference.delete().await() }
+    }
+
     // ── Admin — all users ────────────────────────────────────────────────────
 
     fun observeAllUsers(): Flow<List<UserDocument>> = callbackFlow {

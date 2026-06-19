@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
@@ -37,9 +38,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
@@ -101,12 +104,16 @@ fun AdminDashboardScreen(
     val strings          = LocalStrings.current
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()
+    val allUsers         by viewModel.allUsers.collectAsStateWithLifecycle()
     val stats            by viewModel.stats.collectAsStateWithLifecycle()
     val broadcasts       by viewModel.broadcasts.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
-    val tabs = listOf(strings.approvalQueueSubtitle, strings.tabStats, strings.tabBroadcast)
+    val tabs = listOf(
+        strings.approvalQueueSubtitle, strings.tabUsers,
+        strings.tabStats, strings.tabBroadcast
+    )
 
     DashboardTheme {
         Scaffold(
@@ -178,8 +185,9 @@ fun AdminDashboardScreen(
 
                 when (selectedTab) {
                     0 -> ApprovalsTab(pendingProviders, viewModel)
-                    1 -> StatsTab(stats)
-                    2 -> BroadcastTab(broadcasts, viewModel)
+                    1 -> UsersTab(allUsers, viewModel)
+                    2 -> StatsTab(stats)
+                    3 -> BroadcastTab(broadcasts, viewModel)
                 }
             }
         }
@@ -304,7 +312,124 @@ private fun PendingProviderCard(
     }
 }
 
-// ── Tab 1: Stats ──────────────────────────────────────────────────────────────
+// ── Tab 1: All Users ──────────────────────────────────────────────────────────
+
+@Composable
+private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
+    val strings = LocalStrings.current
+    var deleteTarget by remember { mutableStateOf<UserDocument?>(null) }
+
+    if (users.isEmpty()) {
+        CenteredEmpty(Icons.Default.Group, strings.statsTotalUsers, "")
+    } else {
+        LazyColumn(
+            contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(users, key = { it.uid }) { user ->
+                UserRow(
+                    user        = user,
+                    onDelete    = { deleteTarget = user }
+                )
+            }
+        }
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title            = { Text(strings.deleteUserConfirmTitle, color = DeepRose) },
+            text             = { Text(strings.deleteUserConfirmText, color = RoseGold) },
+            confirmButton    = {
+                TextButton(onClick = {
+                    viewModel.deleteUser(target.uid, target.role == "PROVIDER")
+                    deleteTarget = null
+                }) {
+                    Text(strings.deleteUser, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton    = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun UserRow(user: UserDocument, onDelete: () -> Unit) {
+    val strings = LocalStrings.current
+    val roleColor = when (user.role) {
+        "ADMIN"    -> Color(0xFF7B6FA0)
+        "PROVIDER" -> AvailableGreen
+        else       -> RoseGold
+    }
+    val statusColor = when (user.status) {
+        "APPROVED" -> AvailableGreen
+        "REJECTED" -> UnavailableGrey
+        else       -> Color(0xFFE67E22)
+    }
+
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment    = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier             = Modifier.padding(12.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(40.dp)
+                    .background(roleColor.copy(alpha = 0.15f), CircleShape)
+            ) {
+                Icon(Icons.Default.Person, null, tint = roleColor, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(user.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    RoleBadge(user.role, roleColor)
+                    StatusBadge(user.status, statusColor)
+                }
+            }
+            if (user.role != "ADMIN") {
+                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Delete, strings.deleteUser, tint = UnavailableGrey, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoleBadge(role: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(role, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun StatusBadge(status: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(status, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// ── Tab 2: Stats ──────────────────────────────────────────────────────────────
 
 @Composable
 private fun StatsTab(stats: SystemStats) {
