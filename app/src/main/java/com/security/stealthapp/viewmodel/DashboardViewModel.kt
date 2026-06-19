@@ -10,10 +10,16 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.repository.LanguageRepository
 import com.security.stealthapp.data.repository.VaultRepository
+import com.security.stealthapp.ui.theme.StringResources
+import com.security.stealthapp.workers.ReminderWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 // Internal English keys used for Firestore filtering — independent of display language.
@@ -45,6 +52,7 @@ class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
     private val vaultRepository: VaultRepository,
+    private val languageRepository: LanguageRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -123,6 +131,7 @@ class DashboardViewModel @Inject constructor(
                         val appt = appointments.find { it.id == id }
                         if (appt != null) {
                             _bookingStatusChange.emit(BookingStatusChange(appt.salonName, newStatus))
+                            if (newStatus == "CONFIRMED") scheduleReminders(appt)
                         }
                     }
                 }
@@ -138,6 +147,48 @@ class DashboardViewModel @Inject constructor(
 
     fun selectCategory(index: Int)     { _selectedCategoryIndex.value = index }
     fun selectNeighborhood(index: Int) { _selectedNeighborhoodIndex.value = index }
+
+    fun cancelAppointment(appointmentId: String) {
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.updateAppointmentStatus(appointmentId, "CANCELLED")
+                vaultRepository.log("APPOINTMENT_CANCELLED", "id=$appointmentId customerId=$customerId")
+            }
+        }
+    }
+
+    private fun scheduleReminders(appt: AppointmentDocument) {
+        val strings = StringResources.forLanguage(languageRepository.language.value)
+        val title   = strings.reminderTitle
+        val now     = System.currentTimeMillis()
+        val wm      = WorkManager.getInstance(context)
+
+        val delay24h = appt.appointmentDate - now - 24L * 60 * 60 * 1000
+        if (delay24h > 0) {
+            wm.enqueue(
+                OneTimeWorkRequestBuilder<ReminderWorker>()
+                    .setInitialDelay(delay24h, TimeUnit.MILLISECONDS)
+                    .setInputData(workDataOf(
+                        ReminderWorker.KEY_TITLE to title,
+                        ReminderWorker.KEY_BODY  to strings.remindedTomorrow(appt.salonName)
+                    ))
+                    .build()
+            )
+        }
+
+        val delay1h = appt.appointmentDate - now - 60L * 60 * 1000
+        if (delay1h > 0) {
+            wm.enqueue(
+                OneTimeWorkRequestBuilder<ReminderWorker>()
+                    .setInitialDelay(delay1h, TimeUnit.MILLISECONDS)
+                    .setInputData(workDataOf(
+                        ReminderWorker.KEY_TITLE to title,
+                        ReminderWorker.KEY_BODY  to strings.remindedInHour(appt.salonName)
+                    ))
+                    .build()
+            )
+        }
+    }
 
     fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long) {
         viewModelScope.launch {

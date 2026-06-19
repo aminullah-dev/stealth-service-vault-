@@ -18,9 +18,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class ProviderAnalytics(
+    val total: Int = 0,
+    val confirmed: Int = 0,
+    val pending: Int = 0,
+    val cancelled: Int = 0,
+    val byService: Map<String, Int> = emptyMap()
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -49,6 +58,25 @@ class ProviderViewModel @Inject constructor(
             else flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val allAppointments: StateFlow<List<AppointmentDocument>> = salon
+        .flatMapLatest { s ->
+            if (s != null) firestoreRepository.observeAllForSalon(s.id)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val analytics: StateFlow<ProviderAnalytics> = allAppointments
+        .map { appointments ->
+            ProviderAnalytics(
+                total      = appointments.size,
+                confirmed  = appointments.count { it.status == "CONFIRMED" },
+                pending    = appointments.count { it.status == "PENDING" },
+                cancelled  = appointments.count { it.status == "CANCELLED" },
+                byService  = appointments.groupingBy { it.serviceName }.eachCount()
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderAnalytics())
 
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 

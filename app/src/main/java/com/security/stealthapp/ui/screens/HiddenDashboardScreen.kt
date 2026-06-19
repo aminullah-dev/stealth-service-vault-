@@ -484,7 +484,8 @@ fun HiddenDashboardScreen(
                                 otherName      = appt.salonName
                             )
                         )
-                    }
+                    },
+                    onCancelClick = { appt -> viewModel.cancelAppointment(appt.id) }
                 )
             }
         }
@@ -643,10 +644,12 @@ private fun SalonEmptyState(modifier: Modifier = Modifier) {
 private fun BookingsSheetContent(
     appointments: List<AppointmentDocument>,
     onDismiss: () -> Unit,
-    onChatClick: (AppointmentDocument) -> Unit = {}
+    onChatClick: (AppointmentDocument) -> Unit = {},
+    onCancelClick: (AppointmentDocument) -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
+    var cancelTarget by remember { mutableStateOf<AppointmentDocument?>(null) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -684,43 +687,77 @@ private fun BookingsSheetContent(
                     colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(14.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .height(44.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(RoseGold)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(appt.serviceName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (appt.salonName.isNotBlank()) {
-                                Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(44.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(RoseGold)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(appt.serviceName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (appt.salonName.isNotBlank()) {
+                                    Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
+                                }
+                                Text(
+                                    "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
+                                    fontSize = 11.sp,
+                                    color    = Color(0xFFAAAAAA)
+                                )
                             }
-                            Text(
-                                "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
-                                fontSize = 11.sp,
-                                color    = Color(0xFFAAAAAA)
-                            )
+                            Spacer(Modifier.width(4.dp))
+                            IconButton(
+                                onClick  = { onChatClick(appt) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Chat,
+                                    contentDescription = strings.chat,
+                                    tint     = RoseGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            StatusChip(appt.status)
                         }
-                        Spacer(Modifier.width(4.dp))
-                        IconButton(
-                            onClick  = { onChatClick(appt) },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Chat,
-                                contentDescription = strings.chat,
-                                tint     = RoseGold,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        if (appt.status == "PENDING") {
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick  = { cancelTarget = appt },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape    = RoundedCornerShape(8.dp),
+                                border   = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
+                                colors   = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B))
+                            ) {
+                                Text(strings.cancelAppointment, fontSize = 12.sp)
+                            }
                         }
-                        StatusChip(appt.status)
                     }
                 }
             }
         }
+    }
+
+    cancelTarget?.let { appt ->
+        AlertDialog(
+            onDismissRequest = { cancelTarget = null },
+            title = { Text(strings.cancelConfirmTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+            text  = { Text(strings.cancelConfirmText, fontSize = 14.sp, color = Color(0xFF555555)) },
+            confirmButton = {
+                Button(
+                    onClick = { onCancelClick(appt); cancelTarget = null },
+                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))
+                ) { Text(strings.cancelAppointment, color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { cancelTarget = null }) {
+                    Text(strings.close, color = RoseGold)
+                }
+            },
+            containerColor = ElegantCream
+        )
     }
 }
 

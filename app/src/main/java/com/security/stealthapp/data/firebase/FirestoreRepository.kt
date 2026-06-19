@@ -162,6 +162,20 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    fun observeAllForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
+        val listener = appointmentsCol
+            .whereEqualTo("salonId", salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.appointmentDate }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun createAppointment(appt: AppointmentDocument): String {
         val ref = appointmentsCol.add(appt).await()
         return ref.id
