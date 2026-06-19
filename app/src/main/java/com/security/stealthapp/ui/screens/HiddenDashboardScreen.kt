@@ -85,7 +85,6 @@ import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
 import com.security.stealthapp.ui.theme.ElegantCream
 import com.security.stealthapp.ui.theme.RoseGold
-import com.security.stealthapp.ui.theme.SoftPurple
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
 import com.security.stealthapp.viewmodel.DashboardViewModel
@@ -246,7 +245,7 @@ fun HiddenDashboardScreen(
                     SalonEmptyState(modifier = Modifier.fillMaxSize())
                 } else {
                     LazyColumn(
-                        contentPadding      = PaddingValues(horizontal = 16.dp, bottom = 24.dp),
+                        contentPadding      = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         modifier            = Modifier.fillMaxSize()
                     ) {
