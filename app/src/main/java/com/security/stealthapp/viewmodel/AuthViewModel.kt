@@ -1,5 +1,6 @@
 package com.security.stealthapp.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,6 +13,7 @@ import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.data.repository.VaultRepository
 import com.security.stealthapp.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,7 +22,8 @@ class AuthViewModel @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher,
-    private val vaultRepository: VaultRepository
+    private val vaultRepository: VaultRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     sealed class AuthState {
@@ -59,6 +62,15 @@ class AuthViewModel @Inject constructor(
                     }
                     val user = LoggedInUser(uid = matched.uid, name = matched.name, role = role)
                     vaultRepository.log("AUTH_SUCCESS", "uid=${matched.uid} role=${matched.role}")
+
+                    // Upload the locally-cached FCM token (if any) to Firestore
+                    val fcmToken = context
+                        .getSharedPreferences("fcm_prefs", Context.MODE_PRIVATE)
+                        .getString("fcm_token", null)
+                    if (!fcmToken.isNullOrBlank()) {
+                        runCatching { firestoreRepository.updateFcmToken(matched.uid, fcmToken) }
+                    }
+
                     authState = AuthState.Success(user)
                 } else {
                     authState = AuthState.Idle // silent fail

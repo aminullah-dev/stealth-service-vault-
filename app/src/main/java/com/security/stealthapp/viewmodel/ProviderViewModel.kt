@@ -30,7 +30,7 @@ class ProviderViewModel @Inject constructor(
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
-    private val providerId: String = checkNotNull(savedStateHandle["userId"])
+    val providerId: String = checkNotNull(savedStateHandle["userId"])
 
     val salon: StateFlow<SalonDocument?> =
         firestoreRepository.observeSalonByProvider(providerId)

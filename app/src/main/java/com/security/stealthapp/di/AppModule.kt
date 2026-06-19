@@ -4,6 +4,7 @@ import android.content.Context
 import com.security.stealthapp.data.db.AppDatabase
 import com.security.stealthapp.data.db.dao.BookingDao
 import com.security.stealthapp.data.db.dao.MessageDao
+import com.security.stealthapp.data.db.dao.SalonCacheDao
 import com.security.stealthapp.data.db.dao.SecureLogDao
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
@@ -46,6 +47,9 @@ object AppModule {
     fun provideBookingDao(db: AppDatabase): BookingDao = db.bookingDao()
 
     @Provides @Singleton
+    fun provideSalonCacheDao(db: AppDatabase): SalonCacheDao = db.salonCacheDao()
+
+    @Provides @Singleton
     fun provideVaultRepository(
         logDao: SecureLogDao,
         msgDao: MessageDao,
@@ -60,7 +64,8 @@ object AppModule {
     fun provideFirebaseAuthManager(): FirebaseAuthManager = FirebaseAuthManager()
 
     @Provides @Singleton
-    fun provideFirestoreRepository(): FirestoreRepository = FirestoreRepository()
+    fun provideFirestoreRepository(salonCacheDao: SalonCacheDao): FirestoreRepository =
+        FirestoreRepository(salonCacheDao)
 
     @Provides @Singleton
     fun provideFirestoreSeeder(

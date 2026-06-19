@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.ChipActive
@@ -96,6 +98,7 @@ import java.util.Locale
 @Composable
 fun ProviderDashboardScreen(
     onLockTriggered: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     viewModel: ProviderViewModel = hiltViewModel(),
     langVm: LanguageViewModel    = hiltViewModel()
 ) {
@@ -212,8 +215,12 @@ fun ProviderDashboardScreen(
                 when (selectedTab) {
                     0 -> BookingRequestsTab(
                         appointments = pendingAppointments,
+                        salonId      = salon?.id ?: "",
+                        providerName = salon?.salonName ?: "",
+                        providerId   = viewModel.providerId,
                         onAccept     = { viewModel.acceptAppointment(it) },
-                        onDecline    = { viewModel.declineAppointment(it) }
+                        onDecline    = { viewModel.declineAppointment(it) },
+                        onNavigate   = onNavigate
                     )
                     1 -> ProfileTab(viewModel = viewModel)
                 }
@@ -335,8 +342,12 @@ private fun AvailabilityCard(isAvailable: Boolean, onToggle: () -> Unit) {
 @Composable
 private fun BookingRequestsTab(
     appointments: List<AppointmentDocument>,
+    salonId: String,
+    providerName: String,
+    providerId: String,
     onAccept: (String) -> Unit,
-    onDecline: (String) -> Unit
+    onDecline: (String) -> Unit,
+    onNavigate: (String) -> Unit
 ) {
     val strings = LocalStrings.current
     if (appointments.isEmpty()) {
@@ -387,7 +398,19 @@ private fun BookingRequestsTab(
                 BookingRequestCard(
                     appointment = appt,
                     onAccept    = { onAccept(appt.id) },
-                    onDecline   = { onDecline(appt.id) }
+                    onDecline   = { onDecline(appt.id) },
+                    onChat      = {
+                        if (salonId.isNotBlank()) {
+                            onNavigate(
+                                Screen.Chat.build(
+                                    conversationId = "${appt.customerId}_$salonId",
+                                    myUserId       = providerId,
+                                    myName         = providerName,
+                                    otherName      = appt.customerName
+                                )
+                            )
+                        }
+                    }
                 )
             }
         }
@@ -398,7 +421,8 @@ private fun BookingRequestsTab(
 private fun BookingRequestCard(
     appointment: AppointmentDocument,
     onAccept: () -> Unit,
-    onDecline: () -> Unit
+    onDecline: () -> Unit,
+    onChat: () -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -451,6 +475,17 @@ private fun BookingRequestCard(
                             text     = appointment.serviceName,
                             fontSize = 13.sp,
                             color    = RoseGold
+                        )
+                    }
+                    IconButton(
+                        onClick  = onChat,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Chat,
+                            contentDescription = null,
+                            tint     = RoseGold,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     ProviderStatusBadge(appointment.status)

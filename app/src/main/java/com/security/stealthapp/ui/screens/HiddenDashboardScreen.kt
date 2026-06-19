@@ -1,5 +1,10 @@
 package com.security.stealthapp.ui.screens
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
@@ -64,11 +70,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,6 +86,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AppLanguage
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
@@ -91,6 +100,7 @@ import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
+import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.viewmodel.DashboardViewModel
 import com.security.stealthapp.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
@@ -121,10 +131,35 @@ private data class BookingIntent(
 @Composable
 fun HiddenDashboardScreen(
     onLockTriggered: () -> Unit,
+    onNavigate: (String) -> Unit      = {},
     viewModel: DashboardViewModel     = hiltViewModel(),
     langVm: LanguageViewModel         = hiltViewModel()
 ) {
-    val strings = LocalStrings.current
+    val strings     = LocalStrings.current
+    val context     = LocalContext.current
+    val latestStrings by rememberUpdatedState(strings)
+
+    // Request POST_NOTIFICATIONS permission on Android 13+
+    val notifPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result handled by the OS */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Show a local notification when a booking status changes (PENDING → CONFIRMED/CANCELLED)
+    LaunchedEffect(Unit) {
+        viewModel.bookingStatusChange.collect { change ->
+            val title = latestStrings.bookingUpdatedTitle
+            val body  = if (change.newStatus == "CONFIRMED")
+                latestStrings.bookingConfirmedText(change.salonName)
+            else
+                latestStrings.bookingDeclinedText(change.salonName)
+            NotificationHelper.showBookingUpdate(context, title, body)
+        }
+    }
 
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
@@ -133,10 +168,12 @@ fun HiddenDashboardScreen(
         }
     }
 
-    val filteredSalons           by viewModel.filteredSalons.collectAsStateWithLifecycle()
-    val myAppointments           by viewModel.myAppointments.collectAsStateWithLifecycle()
-    val selectedCategoryIndex    by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
+    val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
+    val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
+    val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
+    val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
+    val currentUserName           by viewModel.currentUserName.collectAsStateWithLifecycle()
 
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
@@ -197,6 +234,24 @@ fun HiddenDashboardScreen(
             }
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+
+                // ── Offline banner ────────────────────────────────────────────
+                AnimatedVisibility(visible = isOffline) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFC0392B))
+                            .padding(vertical = 6.dp, horizontal = 16.dp)
+                    ) {
+                        Text(
+                            text       = strings.offlineBanner,
+                            color      = Color.White,
+                            fontSize   = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
 
                 // ── Category chips ────────────────────────────────────────────
                 LazyRow(
@@ -418,7 +473,18 @@ fun HiddenDashboardScreen(
             ) {
                 BookingsSheetContent(
                     appointments = myAppointments,
-                    onDismiss    = { showBookingsSheet = false }
+                    onDismiss    = { showBookingsSheet = false },
+                    onChatClick  = { appt ->
+                        showBookingsSheet = false
+                        onNavigate(
+                            Screen.Chat.build(
+                                conversationId = "${viewModel.customerId}_${appt.salonId}",
+                                myUserId       = viewModel.customerId,
+                                myName         = currentUserName,
+                                otherName      = appt.salonName
+                            )
+                        )
+                    }
                 )
             }
         }
@@ -574,7 +640,11 @@ private fun SalonEmptyState(modifier: Modifier = Modifier) {
 // ── Bookings bottom sheet ─────────────────────────────────────────────────────
 
 @Composable
-private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDismiss: () -> Unit) {
+private fun BookingsSheetContent(
+    appointments: List<AppointmentDocument>,
+    onDismiss: () -> Unit,
+    onChatClick: (AppointmentDocument) -> Unit = {}
+) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
     Column(
@@ -634,7 +704,18 @@ private fun BookingsSheetContent(appointments: List<AppointmentDocument>, onDism
                                 color    = Color(0xFFAAAAAA)
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick  = { onChatClick(appt) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Chat,
+                                contentDescription = strings.chat,
+                                tint     = RoseGold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         StatusChip(appt.status)
                     }
                 }

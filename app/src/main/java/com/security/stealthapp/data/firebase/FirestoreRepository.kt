@@ -1,9 +1,13 @@
 package com.security.stealthapp.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.security.stealthapp.data.db.dao.SalonCacheDao
+import com.security.stealthapp.data.db.entities.toEntity
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -22,19 +26,19 @@ import javax.inject.Singleton
  * stateIn and crash the app.
  */
 @Singleton
-class FirestoreRepository @Inject constructor() {
+class FirestoreRepository @Inject constructor(
+    private val salonCacheDao: SalonCacheDao
+) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
-
-    // ── Collections ───────────────────────────────────────────────────────────
 
     private val usersCol        = db.collection("users")
     private val salonsCol       = db.collection("salons")
     private val appointmentsCol = db.collection("appointments")
+    private val chatCol         = db.collection("chat_messages")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
-    /** Fetches all user documents once — used only during PIN login. */
     suspend fun getAllUsersForAuth(): List<UserDocument> {
         return usersCol.get().await().documents.mapNotNull { doc ->
             doc.toObject(UserDocument::class.java)?.copy(uid = doc.id)
@@ -50,12 +54,14 @@ class FirestoreRepository @Inject constructor() {
             .toObject(UserDocument::class.java)?.copy(uid = uid)
     }
 
-    /** Approves a provider (admin action). */
     suspend fun setUserStatus(uid: String, status: String) {
         usersCol.document(uid).update("status", status).await()
     }
 
-    /** Live feed of providers pending admin approval. */
+    suspend fun updateFcmToken(uid: String, token: String) {
+        runCatching { usersCol.document(uid).update("fcmToken", token).await() }
+    }
+
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("status", "PENDING")
@@ -73,22 +79,33 @@ class FirestoreRepository @Inject constructor() {
 
     // ── Salons ────────────────────────────────────────────────────────────────
 
-    /** Live stream of available salons — drives the CustomerDashboard. */
+    /**
+     * Live stream of available salons.
+     * On success: writes to local cache for offline use.
+     * On error: falls back to the local cache so the UI stays populated.
+     */
     fun observeAvailableSalons(): Flow<List<SalonDocument>> = callbackFlow {
+        val scope = this
         val listener = salonsCol
             .whereEqualTo("isAvailable", true)
             .addSnapshotListener { snap, err ->
-                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                if (err != null) {
+                    scope.launch {
+                        val cached = salonCacheDao.observeAvailable().firstOrNull() ?: emptyList()
+                        trySend(cached.map { it.toDocument() })
+                    }
+                    return@addSnapshotListener
+                }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(SalonDocument::class.java)?.copy(id = it.id) }
                     ?.sortedByDescending { it.rating }
                     ?: emptyList()
+                scope.launch { salonCacheDao.upsertAll(list.map { it.toEntity() }) }
                 trySend(list)
             }
         awaitClose { listener.remove() }
     }
 
-    /** Live stream for a single salon — drives the ProviderDashboard. */
     fun observeSalonByProvider(providerId: String): Flow<SalonDocument?> = callbackFlow {
         val listener = salonsCol
             .whereEqualTo("providerId", providerId)
@@ -116,7 +133,6 @@ class FirestoreRepository @Inject constructor() {
 
     // ── Appointments ──────────────────────────────────────────────────────────
 
-    /** Live feed of a customer's own appointments. */
     fun observeForCustomer(customerId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("customerId", customerId)
@@ -131,7 +147,6 @@ class FirestoreRepository @Inject constructor() {
         awaitClose { listener.remove() }
     }
 
-    /** Live feed of PENDING appointments for a salon — drives the provider queue. */
     fun observePendingForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
@@ -156,7 +171,6 @@ class FirestoreRepository @Inject constructor() {
         appointmentsCol.document(appointmentId).update("status", status).await()
     }
 
-    /** Sweeps cancelled appointments older than [windowMs] — called by DataErasureWorker. */
     suspend fun sweepOldAppointments(windowMs: Long) {
         val cutoff = System.currentTimeMillis() - windowMs
         val cancelled = appointmentsCol
@@ -167,9 +181,28 @@ class FirestoreRepository @Inject constructor() {
             .forEach { it.reference.delete().await() }
     }
 
+    // ── Chat ──────────────────────────────────────────────────────────────────
+
+    fun observeConversation(conversationId: String): Flow<List<ChatMessage>> = callbackFlow {
+        val listener = chatCol
+            .whereEqualTo("conversationId", conversationId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
+                    ?.sortedBy { it.timestamp }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun sendChatMessage(message: ChatMessage) {
+        chatCol.add(message).await()
+    }
+
     // ── Seeder check ──────────────────────────────────────────────────────────
 
-    /** Returns true if the users collection is empty (first launch). */
     suspend fun isUsersEmpty(): Boolean =
         usersCol.limit(1).get().await().isEmpty
 }

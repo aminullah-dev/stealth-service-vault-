@@ -16,6 +16,7 @@ data class UserDocument(
     val salt: String = "",
     val status: String = "APPROVED",        // "PENDING" | "APPROVED" | "REJECTED"
     val firebaseEmail: String = "",         // synthetic internal email for Firebase Auth
+    val fcmToken: String = "",
     val createdAt: Long = 0L
 )
 

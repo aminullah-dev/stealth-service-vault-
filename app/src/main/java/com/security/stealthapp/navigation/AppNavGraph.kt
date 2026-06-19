@@ -1,5 +1,6 @@
 package com.security.stealthapp.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.ui.screens.AdminDashboardScreen
+import com.security.stealthapp.ui.screens.ChatScreen
 import com.security.stealthapp.ui.screens.DisguiseScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
@@ -37,6 +39,14 @@ sealed class Screen(val route: String) {
     object AdminDashboard : Screen("dashboard/admin/{userId}") {
         fun build(userId: String) = "dashboard/admin/$userId"
     }
+    object Chat : Screen("chat/{conversationId}/{myUserId}/{myName}/{otherName}") {
+        fun build(
+            conversationId: String,
+            myUserId: String,
+            myName: String,
+            otherName: String
+        ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}"
+    }
 }
 
 // ── Nav graph ─────────────────────────────────────────────────────────────────
@@ -44,13 +54,12 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(navController: NavHostController) {
 
-    // Language state lives at the activity scope via the singleton repository.
     val langVm: LanguageViewModel = hiltViewModel()
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     val strings = StringResources.forLanguage(currentLanguage)
 
     CompositionLocalProvider(
-        LocalStrings       provides strings,
+        LocalStrings        provides strings,
         LocalLayoutDirection provides currentLanguage.layoutDirection()
     ) {
         val lockAndReturn: () -> Unit = {
@@ -89,14 +98,20 @@ fun AppNavGraph(navController: NavHostController) {
                 route     = Screen.CustomerDashboard.route,
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
-                HiddenDashboardScreen(onLockTriggered = lockAndReturn)
+                HiddenDashboardScreen(
+                    onLockTriggered = lockAndReturn,
+                    onNavigate      = { route -> navController.navigate(route) }
+                )
             }
 
             composable(
                 route     = Screen.ProviderDashboard.route,
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
-                ProviderDashboardScreen(onLockTriggered = lockAndReturn)
+                ProviderDashboardScreen(
+                    onLockTriggered = lockAndReturn,
+                    onNavigate      = { route -> navController.navigate(route) }
+                )
             }
 
             composable(
@@ -104,6 +119,18 @@ fun AppNavGraph(navController: NavHostController) {
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 AdminDashboardScreen(onLockTriggered = lockAndReturn)
+            }
+
+            composable(
+                route     = Screen.Chat.route,
+                arguments = listOf(
+                    navArgument("conversationId") { type = NavType.StringType },
+                    navArgument("myUserId")       { type = NavType.StringType },
+                    navArgument("myName")         { type = NavType.StringType },
+                    navArgument("otherName")      { type = NavType.StringType }
+                )
+            ) {
+                ChatScreen(onBack = { navController.popBackStack() })
             }
         }
     }

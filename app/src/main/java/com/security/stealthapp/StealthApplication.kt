@@ -8,6 +8,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.security.stealthapp.data.firebase.FirestoreSeeder
+import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.workers.DataErasureWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,8 @@ class StealthApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+
+        NotificationHelper.createChannels(this)
 
         CoroutineScope(Dispatchers.IO).launch {
             firestoreSeeder.seedIfEmpty()

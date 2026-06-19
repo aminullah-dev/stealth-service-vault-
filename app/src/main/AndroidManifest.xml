@@ -4,6 +4,9 @@
 
     <!-- No sensitive permissions are declared; the app mimics a plain notepad. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".StealthApplication"
@@ -32,6 +35,14 @@
           Remove the default WorkManager startup initializer so that Hilt's
           custom Configuration.Provider in StealthApplication takes over.
         -->
+        <service
+            android:name=".service.StealthMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
