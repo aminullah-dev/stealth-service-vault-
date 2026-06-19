@@ -31,3 +31,13 @@
 -keep class com.security.stealthapp.data.db.entities.** { *; }
 -keep class com.security.stealthapp.data.db.dao.** { *; }
 -keep class com.security.stealthapp.data.db.AppDatabase { *; }
+
+# Firebase
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.**
+
+# Firestore data models (no-arg constructors needed for deserialization)
+-keep class com.security.stealthapp.data.firebase.** { *; }
+-keep class com.security.stealthapp.data.model.** { *; }

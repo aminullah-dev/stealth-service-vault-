@@ -7,7 +7,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.security.stealthapp.data.DatabaseSeeder
+import com.security.stealthapp.data.firebase.FirestoreSeeder
 import com.security.stealthapp.workers.DataErasureWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +20,7 @@ import javax.inject.Inject
 class StealthApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
-    @Inject lateinit var databaseSeeder: DatabaseSeeder
+    @Inject lateinit var firestoreSeeder: FirestoreSeeder
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -31,10 +31,8 @@ class StealthApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
 
-        // Seed the encrypted database with demo accounts on first launch.
-        // Runs on IO to avoid blocking the main thread.
         CoroutineScope(Dispatchers.IO).launch {
-            databaseSeeder.seedIfEmpty()
+            firestoreSeeder.seedIfEmpty()
         }
 
         schedulePeriodicErasure()

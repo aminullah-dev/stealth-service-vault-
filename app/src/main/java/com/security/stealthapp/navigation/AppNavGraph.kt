@@ -6,22 +6,27 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.security.stealthapp.data.db.entities.UserRole
+import com.security.stealthapp.data.model.UserRole
+import com.security.stealthapp.ui.screens.AdminDashboardScreen
 import com.security.stealthapp.ui.screens.DisguiseScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
+import com.security.stealthapp.ui.screens.RegisterScreen
 
 // ── Route constants ────────────────────────────────────────────────────────────
 
 sealed class Screen(val route: String) {
     object Disguise  : Screen("disguise")
+    object Register  : Screen("register")
 
     object CustomerDashboard : Screen("dashboard/customer/{userId}") {
         fun build(userId: String) = "dashboard/customer/$userId"
     }
-
     object ProviderDashboard : Screen("dashboard/provider/{userId}") {
         fun build(userId: String) = "dashboard/provider/$userId"
+    }
+    object AdminDashboard : Screen("dashboard/admin/{userId}") {
+        fun build(userId: String) = "dashboard/admin/$userId"
     }
 }
 
@@ -30,7 +35,6 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(navController: NavHostController) {
 
-    // Shared lock action used by both dashboards to return to the disguise screen.
     val lockAndReturn: () -> Unit = {
         navController.navigate(Screen.Disguise.route) {
             popUpTo(Screen.Disguise.route) { inclusive = false }
@@ -43,24 +47,28 @@ fun AppNavGraph(navController: NavHostController) {
         startDestination = Screen.Disguise.route
     ) {
 
-        // ── Disguise / notepad ────────────────────────────────────────────────
         composable(Screen.Disguise.route) {
             DisguiseScreen(
                 onAuthSuccess = { user ->
                     val route = when (user.role) {
-                        UserRole.CUSTOMER ->
-                            Screen.CustomerDashboard.build(user.id)
-                        UserRole.PROVIDER ->
-                            Screen.ProviderDashboard.build(user.id)
+                        UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
+                        UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
+                        UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
                     }
-                    navController.navigate(route) {
-                        launchSingleTop = true
-                    }
+                    navController.navigate(route) { launchSingleTop = true }
+                },
+                onRegisterTapped = {
+                    navController.navigate(Screen.Register.route) { launchSingleTop = true }
                 }
             )
         }
 
-        // ── Customer: beauty marketplace ──────────────────────────────────────
+        composable(Screen.Register.route) {
+            RegisterScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(
             route     = Screen.CustomerDashboard.route,
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
@@ -68,12 +76,18 @@ fun AppNavGraph(navController: NavHostController) {
             HiddenDashboardScreen(onLockTriggered = lockAndReturn)
         }
 
-        // ── Provider: booking management ──────────────────────────────────────
         composable(
             route     = Screen.ProviderDashboard.route,
             arguments = listOf(navArgument("userId") { type = NavType.StringType })
         ) {
             ProviderDashboardScreen(onLockTriggered = lockAndReturn)
+        }
+
+        composable(
+            route     = Screen.AdminDashboard.route,
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) {
+            AdminDashboardScreen(onLockTriggered = lockAndReturn)
         }
     }
 }
