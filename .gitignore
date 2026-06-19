@@ -1,0 +1,49 @@
+# ─── Gradle ──────────────────────────────────────────────────────────────────
+.gradle/
+build/
+app/build/
+**/build/
+
+# ─── Android build artifacts ─────────────────────────────────────────────────
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+out/
+release/
+
+# Local NDK build output
+obj/
+.cxx/
+
+# ─── Local config (machine-specific — never commit) ──────────────────────────
+local.properties
+keystore.properties
+
+# ─── Android Studio / IntelliJ IDEA ──────────────────────────────────────────
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+
+# ─── Signing / secrets (keep keystores & service keys out of the repo) ───────
+*.jks
+*.keystore
+secrets.properties
+# NOTE: app/google-services.json is intentionally NOT ignored — it is already
+# committed and the build needs it. See the security note in the chat if you
+# decide to move it out of version control.
+
+# ─── Logs & temp files ───────────────────────────────────────────────────────
+*.log
+*.hprof
+.DS_Store
+Thumbs.db
+
+# ─── Kotlin ──────────────────────────────────────────────────────────────────
+.kotlin/
