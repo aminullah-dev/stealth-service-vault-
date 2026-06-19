@@ -1,7 +1,6 @@
 package com.security.stealthapp.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -9,6 +8,19 @@ import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * All live queries use AT MOST a single equality filter and then do any
+ * remaining filtering/sorting in memory. This deliberately avoids Firestore
+ * composite indexes — combining a where-filter with an orderBy on a different
+ * field requires a pre-built composite index, and a missing index surfaces as
+ * a FAILED_PRECONDITION error inside the snapshot listener. The collections in
+ * this app are small, so in-memory sorting is negligible and removes a whole
+ * class of runtime crashes.
+ *
+ * Listeners also emit an empty result on error (instead of closing the flow),
+ * so a transient permission/network error can never propagate up through
+ * stateIn and crash the app.
+ */
 @Singleton
 class FirestoreRepository @Inject constructor() {
 
@@ -16,8 +28,8 @@ class FirestoreRepository @Inject constructor() {
 
     // ── Collections ───────────────────────────────────────────────────────────
 
-    private val usersCol      = db.collection("users")
-    private val salonsCol     = db.collection("salons")
+    private val usersCol        = db.collection("users")
+    private val salonsCol       = db.collection("salons")
     private val appointmentsCol = db.collection("appointments")
 
     // ── Users ─────────────────────────────────────────────────────────────────
@@ -46,16 +58,15 @@ class FirestoreRepository @Inject constructor() {
     /** Live feed of providers pending admin approval. */
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
-            .whereEqualTo("role", "PROVIDER")
             .whereEqualTo("status", "PENDING")
-            .orderBy("createdAt", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
-                trySend(
-                    snap?.documents?.mapNotNull {
-                        it.toObject(UserDocument::class.java)?.copy(uid = it.id)
-                    } ?: emptyList()
-                )
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
+                    ?.filter { it.role == "PROVIDER" }
+                    ?.sortedBy { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
             }
         awaitClose { listener.remove() }
     }
@@ -66,14 +77,13 @@ class FirestoreRepository @Inject constructor() {
     fun observeAvailableSalons(): Flow<List<SalonDocument>> = callbackFlow {
         val listener = salonsCol
             .whereEqualTo("isAvailable", true)
-            .orderBy("rating", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
-                trySend(
-                    snap?.documents?.mapNotNull {
-                        it.toObject(SalonDocument::class.java)?.copy(id = it.id)
-                    } ?: emptyList()
-                )
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(SalonDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.rating }
+                    ?: emptyList()
+                trySend(list)
             }
         awaitClose { listener.remove() }
     }
@@ -84,7 +94,7 @@ class FirestoreRepository @Inject constructor() {
             .whereEqualTo("providerId", providerId)
             .limit(1)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
+                if (err != null) { trySend(null); return@addSnapshotListener }
                 val doc = snap?.documents?.firstOrNull()
                 trySend(doc?.toObject(SalonDocument::class.java)?.copy(id = doc.id))
             }
@@ -110,14 +120,13 @@ class FirestoreRepository @Inject constructor() {
     fun observeForCustomer(customerId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("customerId", customerId)
-            .orderBy("appointmentDate", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
-                trySend(
-                    snap?.documents?.mapNotNull {
-                        it.toObject(AppointmentDocument::class.java)?.copy(id = it.id)
-                    } ?: emptyList()
-                )
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.appointmentDate }
+                    ?: emptyList()
+                trySend(list)
             }
         awaitClose { listener.remove() }
     }
@@ -126,15 +135,14 @@ class FirestoreRepository @Inject constructor() {
     fun observePendingForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
-            .whereEqualTo("status", "PENDING")
-            .orderBy("appointmentDate", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, err ->
-                if (err != null) { close(err); return@addSnapshotListener }
-                trySend(
-                    snap?.documents?.mapNotNull {
-                        it.toObject(AppointmentDocument::class.java)?.copy(id = it.id)
-                    } ?: emptyList()
-                )
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
+                    ?.filter { it.status == "PENDING" }
+                    ?.sortedBy { it.appointmentDate }
+                    ?: emptyList()
+                trySend(list)
             }
         awaitClose { listener.remove() }
     }
@@ -148,14 +156,15 @@ class FirestoreRepository @Inject constructor() {
         appointmentsCol.document(appointmentId).update("status", status).await()
     }
 
-    /** Sweeps appointments older than [windowMs] — called by DataErasureWorker. */
+    /** Sweeps cancelled appointments older than [windowMs] — called by DataErasureWorker. */
     suspend fun sweepOldAppointments(windowMs: Long) {
         val cutoff = System.currentTimeMillis() - windowMs
-        val old = appointmentsCol
-            .whereLessThan("createdAt", cutoff)
+        val cancelled = appointmentsCol
             .whereEqualTo("status", "CANCELLED")
             .get().await()
-        old.documents.forEach { it.reference.delete().await() }
+        cancelled.documents
+            .filter { (it.getLong("createdAt") ?: 0L) < cutoff }
+            .forEach { it.reference.delete().await() }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────
