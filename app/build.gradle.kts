@@ -107,11 +107,12 @@ dependencies {
     implementation("androidx.security:security-crypto:1.0.0")
 
     // Firebase BOM — aligns all Firebase library versions
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
 
-    // Coroutines (play-services .await() support is transitive from firebase-firestore-ktx)
+    // Coroutines — play-services provides the Task.await() extension used by
+    // FirebaseAuthManager / FirestoreRepository (NOT transitive; must be explicit)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 
