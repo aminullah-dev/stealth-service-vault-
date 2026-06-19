@@ -1,7 +1,6 @@
 package com.security.stealthapp.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,7 +49,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.UserDocument
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
-import com.security.stealthapp.ui.theme.CardBorder
 import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
 import com.security.stealthapp.ui.theme.DeepRose
@@ -119,22 +118,29 @@ fun AdminDashboardScreen(
                         .padding(32.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.AdminPanelSettings,
-                            null,
-                            tint     = BlushPink,
-                            modifier = Modifier.size(72.dp)
-                        )
-                        Spacer(Modifier.height(16.dp))
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(88.dp)
+                                .background(BlushPink.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.AdminPanelSettings,
+                                null,
+                                tint     = RoseGold,
+                                modifier = Modifier.size(44.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(20.dp))
                         Text(
                             "No pending applications",
-                            fontSize   = 16.sp,
+                            fontSize   = 18.sp,
                             fontWeight = FontWeight.SemiBold,
                             color      = DeepRose
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "New provider registrations will appear here for approval.",
+                            "New provider registrations\nwill appear here for approval.",
                             fontSize  = 13.sp,
                             color     = Color(0xFFAAAAAA),
                             textAlign = TextAlign.Center
@@ -166,12 +172,11 @@ private fun PendingProviderCard(
     onApprove: () -> Unit,
     onReject: () -> Unit
 ) {
-    Card(
-        shape    = RoundedCornerShape(14.dp),
-        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(14.dp))
+    ElevatedCard(
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier  = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -179,17 +184,16 @@ private fun PendingProviderCard(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(BlushPink)
+                        .size(48.dp)
+                        .background(BlushPink, RoundedCornerShape(14.dp))
                 ) {
-                    Icon(Icons.Default.Person, null, tint = DeepRose, modifier = Modifier.size(26.dp))
+                    Icon(Icons.Default.Person, null, tint = DeepRose, modifier = Modifier.size(28.dp))
                 }
-                Spacer(Modifier.size(12.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text       = provider.name,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         fontSize   = 15.sp,
                         color      = DeepRose
                     )
@@ -201,9 +205,8 @@ private fun PendingProviderCard(
                 }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(UnavailableGrey.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .background(UnavailableGrey.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
                         "Pending",
@@ -214,31 +217,31 @@ private fun PendingProviderCard(
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = BlushPink.copy(alpha = 0.5f))
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier              = Modifier.fillMaxWidth()
             ) {
                 Button(
-                    onClick   = onApprove,
-                    modifier  = Modifier.weight(1f),
-                    shape     = RoundedCornerShape(10.dp),
-                    colors    = ButtonDefaults.buttonColors(containerColor = AvailableGreen),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    onClick        = onApprove,
+                    modifier       = Modifier.weight(1f),
+                    shape          = RoundedCornerShape(12.dp),
+                    colors         = ButtonDefaults.buttonColors(containerColor = AvailableGreen),
+                    contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Text("Approve", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Approve", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
-                    onClick   = onReject,
-                    modifier  = Modifier.weight(1f),
-                    shape     = RoundedCornerShape(10.dp),
-                    colors    = ButtonDefaults.buttonColors(containerColor = UnavailableGrey.copy(alpha = 0.8f)),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    onClick        = onReject,
+                    modifier       = Modifier.weight(1f),
+                    shape          = RoundedCornerShape(12.dp),
+                    colors         = ButtonDefaults.buttonColors(containerColor = UnavailableGrey.copy(alpha = 0.8f)),
+                    contentPadding = PaddingValues(vertical = 10.dp)
                 ) {
-                    Text("Reject", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Reject", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

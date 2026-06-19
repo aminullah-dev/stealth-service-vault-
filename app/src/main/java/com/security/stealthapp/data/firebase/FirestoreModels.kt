@@ -1,5 +1,7 @@
 package com.security.stealthapp.data.firebase
 
+import com.google.firebase.firestore.PropertyName
+
 /**
  * Firestore document representations.
  * All fields have defaults so Firestore can deserialize via the no-arg constructor.
@@ -24,7 +26,11 @@ data class SalonDocument(
     val salonName: String = "",
     val district: String = "",
     val services: List<String> = emptyList(),
-    val isAvailable: Boolean = false,
+    // @PropertyName forces Firestore to use "isAvailable" as the field name.
+    // Without it, the JavaBeans convention for Boolean getters strips the "is"
+    // prefix, storing the field as "available" instead and breaking all queries.
+    @get:PropertyName("isAvailable") @set:PropertyName("isAvailable")
+    var isAvailable: Boolean = false,
     val rating: Double = 0.0
 )
 

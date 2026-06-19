@@ -24,9 +24,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -48,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -72,10 +81,8 @@ fun RegisterScreen(
     onBack: () -> Unit,
     viewModel: RegisterViewModel = hiltViewModel()
 ) {
-    // Handle success states → navigate back to notepad after showing dialog
-    val state = viewModel.state
-    LaunchedEffect(state) {
-        // Nothing auto-navigates: user must dismiss the success dialog first
+    LaunchedEffect(viewModel.state) {
+        // Navigation is handled via dialog dismiss
     }
 
     DashboardTheme {
@@ -112,158 +119,184 @@ fun RegisterScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
 
-                // ── Role toggle ───────────────────────────────────────────────
-                Row(
-                    verticalAlignment     = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier              = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DashboardSurface)
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                // ── Hero icon ─────────────────────────────────────────────────
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
-                    Column {
-                        Text(
-                            text       = if (viewModel.isProvider) "Service Provider" else "Customer",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize   = 15.sp,
-                            color      = DeepRose
-                        )
-                        Text(
-                            text     = if (viewModel.isProvider)
-                                "Register your salon (pending admin approval)"
-                            else
-                                "Find and book beauty services",
-                            fontSize = 12.sp,
-                            color    = RoseGold
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(BlushPink)
+                    ) {
+                        Icon(
+                            imageVector        = if (viewModel.isProvider) Icons.Default.Storefront else Icons.Default.Person,
+                            contentDescription = null,
+                            tint               = DeepRose,
+                            modifier           = Modifier.size(36.dp)
                         )
                     }
-                    Switch(
-                        checked         = viewModel.isProvider,
-                        onCheckedChange = { viewModel.isProvider = it },
-                        colors          = SwitchDefaults.colors(
-                            checkedThumbColor   = Color.White,
-                            checkedTrackColor   = RoseGold,
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = UnavailableGrey.copy(alpha = 0.4f)
+                }
+
+                // ── Role toggle ───────────────────────────────────────────────
+                Card(
+                    shape  = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = DashboardSurface),
+                ) {
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier              = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text       = if (viewModel.isProvider) "Service Provider" else "Customer",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize   = 15.sp,
+                                color      = DeepRose
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text     = if (viewModel.isProvider)
+                                    "Register your salon — pending admin approval"
+                                else
+                                    "Find and book beauty services",
+                                fontSize = 12.sp,
+                                color    = RoseGold
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(
+                            checked         = viewModel.isProvider,
+                            onCheckedChange = { viewModel.isProvider = it },
+                            colors          = SwitchDefaults.colors(
+                                checkedThumbColor   = Color.White,
+                                checkedTrackColor   = RoseGold,
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = UnavailableGrey.copy(alpha = 0.4f)
+                            )
                         )
+                    }
+                }
+
+                // ── Personal information card ──────────────────────────────────
+                SectionCard(title = "Personal Information") {
+                    FormField(
+                        value         = viewModel.name,
+                        onValueChange = { viewModel.name = it },
+                        label         = "Full Name",
+                        leadingIcon   = Icons.Default.Person
+                    )
+                    FormField(
+                        value         = viewModel.phone,
+                        onValueChange = { viewModel.phone = it },
+                        label         = "Phone Number",
+                        leadingIcon   = Icons.Default.Phone,
+                        keyboard      = KeyboardType.Phone
+                    )
+                    FormField(
+                        value         = viewModel.pin,
+                        onValueChange = { viewModel.pin = it },
+                        label         = "Secret PIN (4+ digits)",
+                        leadingIcon   = Icons.Default.Lock,
+                        keyboard      = KeyboardType.NumberPassword,
+                        password      = true
+                    )
+                    FormField(
+                        value         = viewModel.confirmPin,
+                        onValueChange = { viewModel.confirmPin = it },
+                        label         = "Confirm PIN",
+                        leadingIcon   = Icons.Default.Lock,
+                        keyboard      = KeyboardType.NumberPassword,
+                        password      = true
                     )
                 }
 
-                HorizontalDivider(color = BlushPink)
-
-                // ── Common fields ─────────────────────────────────────────────
-                FormField(
-                    value         = viewModel.name,
-                    onValueChange = { viewModel.name = it },
-                    label         = "Full Name"
-                )
-                FormField(
-                    value         = viewModel.phone,
-                    onValueChange = { viewModel.phone = it },
-                    label         = "Phone Number",
-                    keyboard      = KeyboardType.Phone
-                )
-                FormField(
-                    value         = viewModel.pin,
-                    onValueChange = { viewModel.pin = it },
-                    label         = "Secret PIN (4+ digits)",
-                    keyboard      = KeyboardType.NumberPassword,
-                    password      = true
-                )
-                FormField(
-                    value         = viewModel.confirmPin,
-                    onValueChange = { viewModel.confirmPin = it },
-                    label         = "Confirm PIN",
-                    keyboard      = KeyboardType.NumberPassword,
-                    password      = true
-                )
-
-                // ── Provider-only fields ──────────────────────────────────────
+                // ── Provider-only: salon details card ─────────────────────────
                 if (viewModel.isProvider) {
-                    HorizontalDivider(color = BlushPink)
+                    SectionCard(title = "Salon Details") {
+                        FormField(
+                            value         = viewModel.salonName,
+                            onValueChange = { viewModel.salonName = it },
+                            label         = "Salon Name",
+                            leadingIcon   = Icons.Default.Storefront
+                        )
+                        FormField(
+                            value         = viewModel.district,
+                            onValueChange = { viewModel.district = it },
+                            label         = "District / Area",
+                            leadingIcon   = Icons.Default.LocationOn
+                        )
 
-                    Text(
-                        text       = "Salon Details",
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 15.sp,
-                        color      = DeepRose
-                    )
-
-                    FormField(
-                        value         = viewModel.salonName,
-                        onValueChange = { viewModel.salonName = it },
-                        label         = "Salon Name"
-                    )
-                    FormField(
-                        value         = viewModel.district,
-                        onValueChange = { viewModel.district = it },
-                        label         = "District / Area"
-                    )
-
-                    // Services chip list
-                    if (viewModel.services.isNotEmpty()) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement   = Arrangement.spacedBy(4.dp),
-                            modifier              = Modifier.fillMaxWidth()
-                        ) {
-                            viewModel.services.forEach { service ->
-                                InputChip(
-                                    selected     = false,
-                                    onClick      = {},
-                                    label        = { Text(service, fontSize = 12.sp) },
-                                    trailingIcon = {
-                                        IconButton(
-                                            onClick  = { viewModel.removeService(service) },
-                                            modifier = Modifier.size(16.dp)
-                                        ) {
-                                            Icon(Icons.Default.Close, "Remove", modifier = Modifier.size(12.dp))
-                                        }
-                                    },
-                                    colors = InputChipDefaults.inputChipColors(
-                                        containerColor = ChipInactive,
-                                        labelColor     = DeepRose,
-                                        trailingIconColor = RoseGold
+                        // Services chip list
+                        if (viewModel.services.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement   = Arrangement.spacedBy(4.dp),
+                                modifier              = Modifier.fillMaxWidth()
+                            ) {
+                                viewModel.services.forEach { service ->
+                                    InputChip(
+                                        selected     = false,
+                                        onClick      = {},
+                                        label        = { Text(service, fontSize = 12.sp) },
+                                        trailingIcon = {
+                                            IconButton(
+                                                onClick  = { viewModel.removeService(service) },
+                                                modifier = Modifier.size(16.dp)
+                                            ) {
+                                                Icon(Icons.Default.Close, "Remove", modifier = Modifier.size(12.dp))
+                                            }
+                                        },
+                                        colors = InputChipDefaults.inputChipColors(
+                                            containerColor    = ChipInactive,
+                                            labelColor        = DeepRose,
+                                            trailingIconColor = RoseGold
+                                        )
                                     )
-                                )
+                                }
+                            }
+                        }
+
+                        // Add service row
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value         = viewModel.serviceInput,
+                                onValueChange = { viewModel.serviceInput = it },
+                                label         = { Text("Add a service (e.g. Hair)", fontSize = 12.sp) },
+                                leadingIcon   = { Icon(Icons.Default.ContentCut, null, tint = RoseGold, modifier = Modifier.size(18.dp)) },
+                                singleLine    = true,
+                                modifier      = Modifier.weight(1f),
+                                shape         = RoundedCornerShape(12.dp),
+                                colors        = fieldColors()
+                            )
+                            IconButton(
+                                onClick  = { viewModel.addService() },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (viewModel.serviceInput.isNotBlank()) RoseGold else ChipInactive
+                                    )
+                            ) {
+                                Icon(Icons.Default.Add, "Add service", tint = Color.White)
                             }
                         }
                     }
-
-                    // Add service row
-                    Row(
-                        verticalAlignment     = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value         = viewModel.serviceInput,
-                            onValueChange = { viewModel.serviceInput = it },
-                            label         = { Text("Add service (e.g. Hair)", fontSize = 12.sp) },
-                            singleLine    = true,
-                            modifier      = Modifier.weight(1f),
-                            shape         = RoundedCornerShape(10.dp),
-                            colors        = fieldColors()
-                        )
-                        IconButton(
-                            onClick  = { viewModel.addService() },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (viewModel.serviceInput.isNotBlank()) RoseGold else ChipInactive
-                                )
-                        ) {
-                            Icon(Icons.Default.Add, "Add service", tint = Color.White)
-                        }
-                    }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
 
                 // ── Register button ───────────────────────────────────────────
                 Button(
@@ -271,8 +304,8 @@ fun RegisterScreen(
                     enabled  = viewModel.state !is RegisterViewModel.RegisterState.Loading,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp),
-                    shape    = RoundedCornerShape(14.dp),
+                        .height(54.dp),
+                    shape    = RoundedCornerShape(16.dp),
                     colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
                 ) {
                     Text(
@@ -280,8 +313,8 @@ fun RegisterScreen(
                             is RegisterViewModel.RegisterState.Loading -> "Creating account…"
                             else -> "Create Account"
                         },
-                        fontSize   = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 16.sp,
+                        fontWeight = FontWeight.Bold,
                         color      = Color.White
                     )
                 }
@@ -290,7 +323,7 @@ fun RegisterScreen(
             }
         }
 
-        // ── Success dialogs ───────────────────────────────────────────────────
+        // ── Success / error dialogs ───────────────────────────────────────────
         when (val s = viewModel.state) {
             is RegisterViewModel.RegisterState.CustomerSuccess -> {
                 AlertDialog(
@@ -345,6 +378,31 @@ fun RegisterScreen(
 }
 
 @Composable
+private fun SectionCard(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface),
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text       = title,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 13.sp,
+                color      = RoseGold
+            )
+            HorizontalDivider(color = BlushPink)
+            content()
+        }
+    }
+}
+
+@Composable
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor   = RoseGold,
     unfocusedBorderColor = ChipInactive,
@@ -357,19 +415,23 @@ private fun FormField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    leadingIcon: ImageVector? = null,
     keyboard: KeyboardType = KeyboardType.Text,
     password: Boolean = false
 ) {
     OutlinedTextField(
-        value                  = value,
-        onValueChange          = onValueChange,
-        label                  = { Text(label, fontSize = 13.sp) },
-        singleLine             = true,
-        keyboardOptions        = KeyboardOptions(keyboardType = keyboard),
-        visualTransformation   = if (password) PasswordVisualTransformation() else
+        value               = value,
+        onValueChange       = onValueChange,
+        label               = { Text(label, fontSize = 13.sp) },
+        leadingIcon         = if (leadingIcon != null) {
+            { Icon(leadingIcon, null, tint = RoseGold, modifier = Modifier.size(18.dp)) }
+        } else null,
+        singleLine          = true,
+        keyboardOptions     = KeyboardOptions(keyboardType = keyboard),
+        visualTransformation = if (password) PasswordVisualTransformation() else
             androidx.compose.ui.text.input.VisualTransformation.None,
-        modifier               = Modifier.fillMaxWidth(),
-        shape                  = RoundedCornerShape(12.dp),
-        colors                 = fieldColors()
+        modifier            = Modifier.fillMaxWidth(),
+        shape               = RoundedCornerShape(12.dp),
+        colors              = fieldColors()
     )
 }

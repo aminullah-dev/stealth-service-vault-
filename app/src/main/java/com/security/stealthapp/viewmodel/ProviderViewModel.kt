@@ -12,11 +12,12 @@ import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,9 +36,12 @@ class ProviderViewModel @Inject constructor(
         firestoreRepository.observeSalonByProvider(providerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    val isAvailable: StateFlow<Boolean> = salon
-        .map { it?.isAvailable ?: false }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    // Optimistic override: set immediately on toggle, cleared when Firestore confirms.
+    private val _availableOverride = MutableStateFlow<Boolean?>(null)
+
+    val isAvailable: StateFlow<Boolean> = combine(salon, _availableOverride) { s, override ->
+        override ?: (s?.isAvailable ?: false)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val pendingAppointments: StateFlow<List<AppointmentDocument>> = salon
         .flatMapLatest { s ->
@@ -68,9 +72,16 @@ class ProviderViewModel @Inject constructor(
     fun toggleAvailability() {
         val current = salon.value ?: return
         val next = !isAvailable.value
+        _availableOverride.value = next          // immediate UI feedback
         viewModelScope.launch {
-            firestoreRepository.setAvailability(current.id, next)
-            vaultRepository.log("PROVIDER_TOGGLE", "isAvailable=$next")
+            runCatching {
+                firestoreRepository.setAvailability(current.id, next)
+                vaultRepository.log("PROVIDER_TOGGLE", "isAvailable=$next")
+            }.onFailure {
+                _availableOverride.value = !next  // revert on error
+            }.onSuccess {
+                _availableOverride.value = null   // let Firestore value take over
+            }
         }
     }
 
