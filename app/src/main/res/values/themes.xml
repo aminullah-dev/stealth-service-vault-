@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base theme; Compose draws everything — this just satisfies the manifest reference -->
-    <style name="Theme.StealthApp" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Base theme; Jetpack Compose draws everything. This only needs to be a
+         no-action-bar Material theme so the system window has sane defaults. -->
+    <style name="Theme.KabulSignal" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
 </resources>
