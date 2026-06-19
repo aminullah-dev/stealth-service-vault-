@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "safebeauty-placeholder",
-    "storage_bucket": "safebeauty-placeholder.appspot.com"
+    "project_number": "238802374530",
+    "project_id": "safebeauty",
+    "storage_bucket": "safebeauty.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:aabbccddeeff00112233",
+        "mobilesdk_app_id": "1:238802374530:android:f2617130bc9a9644b3c99b",
         "android_client_info": {
           "package_name": "com.security.stealthapp"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyPlaceholderKeyReplaceThisWithReal0"
+          "current_key": "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ"
         }
       ],
       "services": {
