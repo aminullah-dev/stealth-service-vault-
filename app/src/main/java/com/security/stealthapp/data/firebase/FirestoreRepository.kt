@@ -309,4 +309,7 @@ class FirestoreRepository @Inject constructor(
 
     suspend fun isUsersEmpty(): Boolean =
         usersCol.limit(1).get().await().isEmpty
+
+    suspend fun isAdminMissing(): Boolean =
+        usersCol.whereEqualTo("role", "ADMIN").limit(1).get().await().isEmpty
 }

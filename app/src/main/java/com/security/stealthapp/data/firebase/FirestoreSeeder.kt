@@ -17,7 +17,11 @@ class FirestoreSeeder @Inject constructor(
 ) {
 
     suspend fun seedIfEmpty() {
-        if (!repo.isUsersEmpty()) return
+        // Ensure an admin account always exists. We seed when there is no ADMIN
+        // user yet — not only when the whole collection is empty — so that an
+        // admin is restored even if customers/providers registered first (e.g.
+        // after the database was wiped).
+        if (!repo.isAdminMissing()) return
         // Default admin PIN: 135790 — change via Firebase Console after first login.
         seed("Admin", "135790", "ADMIN", "APPROVED", null)
     }
