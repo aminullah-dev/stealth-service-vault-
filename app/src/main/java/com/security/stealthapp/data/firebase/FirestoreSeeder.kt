@@ -18,10 +18,8 @@ class FirestoreSeeder @Inject constructor(
 
     suspend fun seedIfEmpty() {
         if (!repo.isUsersEmpty()) return
-        // Only the admin account is seeded. All providers and customers register
-        // themselves through the registration flow. The admin approves providers.
-        // Default admin PIN: 246813 — change this before production deployment.
-        seed("Admin", "246813", "ADMIN", "APPROVED", null)
+        // Default admin PIN: 135790 — change via Firebase Console after first login.
+        seed("Admin", "135790", "ADMIN", "APPROVED", null)
     }
 
     private data class SalonSeed(
