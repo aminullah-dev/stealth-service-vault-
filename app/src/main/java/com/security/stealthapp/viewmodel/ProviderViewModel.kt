@@ -10,6 +10,7 @@ import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.WorkingHours
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -90,6 +91,10 @@ class ProviderViewModel @Inject constructor(
     var newServiceDraft  by mutableStateOf("")
     var showSaveSuccess  by mutableStateOf(false)
     var lockTriggered    by mutableStateOf(false)
+    var editWorkingHours by mutableStateOf<List<WorkingHours>>(emptyList())
+        private set
+    var editSlotDuration by mutableStateOf(60)
+        private set
 
     init {
         viewModelScope.launch {
@@ -97,6 +102,8 @@ class ProviderViewModel @Inject constructor(
                 if (s != null && editDistrict.isEmpty()) {
                     editDistrict = s.district
                     editServices = s.services
+                    editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
+                    editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
                 }
             }
         }
@@ -145,11 +152,46 @@ class ProviderViewModel @Inject constructor(
 
     fun removeService(s: String) { editServices = editServices.filter { it != s } }
 
+    fun toggleDayOpen(dayOfWeek: Int) {
+        editWorkingHours = editWorkingHours.map {
+            if (it.dayOfWeek == dayOfWeek) it.copy(isOpen = !it.isOpen) else it
+        }
+    }
+
+    fun setDayOpenTime(dayOfWeek: Int, hour: Int, minute: Int) {
+        editWorkingHours = editWorkingHours.map {
+            if (it.dayOfWeek == dayOfWeek) it.copy(openHour = hour, openMinute = minute) else it
+        }
+    }
+
+    fun setDayCloseTime(dayOfWeek: Int, hour: Int, minute: Int) {
+        editWorkingHours = editWorkingHours.map {
+            if (it.dayOfWeek == dayOfWeek) it.copy(closeHour = hour, closeMinute = minute) else it
+        }
+    }
+
+    fun setSlotDuration(minutes: Int) { editSlotDuration = minutes }
+
+    private fun defaultWorkingHours(): List<WorkingHours> = listOf(
+        WorkingHours(dayOfWeek = 7, isOpen = true,  openHour = 9, closeHour = 18),  // Saturday
+        WorkingHours(dayOfWeek = 1, isOpen = true,  openHour = 9, closeHour = 18),  // Sunday
+        WorkingHours(dayOfWeek = 2, isOpen = true,  openHour = 9, closeHour = 18),  // Monday
+        WorkingHours(dayOfWeek = 3, isOpen = true,  openHour = 9, closeHour = 18),  // Tuesday
+        WorkingHours(dayOfWeek = 4, isOpen = true,  openHour = 9, closeHour = 18),  // Wednesday
+        WorkingHours(dayOfWeek = 5, isOpen = true,  openHour = 9, closeHour = 18),  // Thursday
+        WorkingHours(dayOfWeek = 6, isOpen = false, openHour = 9, closeHour = 13),  // Friday (off)
+    )
+
     fun saveProfile() {
         val current = salon.value ?: return
         viewModelScope.launch {
             firestoreRepository.updateSalon(
-                current.copy(district = editDistrict, services = editServices)
+                current.copy(
+                    district = editDistrict,
+                    services = editServices,
+                    workingHours = editWorkingHours,
+                    slotDurationMinutes = editSlotDuration
+                )
             )
             vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")
             showSaveSuccess = true

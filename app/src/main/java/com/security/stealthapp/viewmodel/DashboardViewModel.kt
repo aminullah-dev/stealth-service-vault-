@@ -18,6 +18,8 @@ import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.WorkingHours
+import java.util.Calendar
 import com.security.stealthapp.data.repository.FavoritesRepository
 import com.security.stealthapp.data.repository.LanguageRepository
 import com.security.stealthapp.data.repository.VaultRepository
@@ -125,6 +127,13 @@ class DashboardViewModel @Inject constructor(
         private set
 
     var lockTriggered by mutableStateOf(false)
+        private set
+
+    var availableSlots by mutableStateOf<List<Long>>(emptyList())
+        private set
+    var slotsLoading by mutableStateOf(false)
+        private set
+    var noWorkingHours by mutableStateOf(false)
         private set
 
     init {
@@ -268,6 +277,57 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun dismissConfirmation() { bookingConfirmSalonName = null }
+
+    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long) {
+        viewModelScope.launch {
+            slotsLoading = true
+            noWorkingHours = false
+            val booked = runCatching {
+                firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
+            }.getOrDefault(emptyList())
+            val slots = computeSlots(salon, dateMs, booked)
+            if (salon.workingHours.isEmpty()) noWorkingHours = true
+            availableSlots = slots
+            slotsLoading = false
+        }
+    }
+
+    fun clearSlots() {
+        availableSlots = emptyList()
+        slotsLoading = false
+        noWorkingHours = false
+    }
+
+    private fun computeSlots(salon: SalonDocument, dateMs: Long, booked: List<Long>): List<Long> {
+        val cal = Calendar.getInstance().apply { timeInMillis = dateMs }
+        val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
+        val wh = salon.workingHours.find { it.dayOfWeek == dayOfWeek } ?: return emptyList()
+        if (!wh.isOpen) return emptyList()
+        val slotDuration = salon.slotDurationMinutes.coerceAtLeast(30)
+        val bookedSet = booked.toSet()
+        val slots = mutableListOf<Long>()
+        val openCal = Calendar.getInstance().apply {
+            timeInMillis = dateMs
+            set(Calendar.HOUR_OF_DAY, wh.openHour)
+            set(Calendar.MINUTE, wh.openMinute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val closeMs = Calendar.getInstance().apply {
+            timeInMillis = dateMs
+            set(Calendar.HOUR_OF_DAY, wh.closeHour)
+            set(Calendar.MINUTE, wh.closeMinute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val now = System.currentTimeMillis()
+        while (openCal.timeInMillis + slotDuration * 60_000L <= closeMs) {
+            val slotMs = openCal.timeInMillis
+            if (slotMs > now && !bookedSet.contains(slotMs)) slots.add(slotMs)
+            openCal.add(Calendar.MINUTE, slotDuration)
+        }
+        return slots
+    }
 
     fun triggerLock() {
         viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer locked vault") }

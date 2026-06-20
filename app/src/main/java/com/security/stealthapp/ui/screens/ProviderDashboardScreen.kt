@@ -34,12 +34,16 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import android.app.TimePickerDialog
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,6 +59,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -68,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -733,6 +739,9 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
             }
         }
 
+        // ── Working hours card ────────────────────────────────────────────
+        WorkingHoursSection(viewModel = viewModel)
+
         // ── Save button ───────────────────────────────────────────────────
         Button(
             onClick  = { viewModel.saveProfile() },
@@ -843,5 +852,145 @@ private fun ServiceBarRow(service: String, count: Int, total: Int) {
         }
         Spacer(Modifier.width(8.dp))
         Text("$count", fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ── Working Hours Section ─────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WorkingHoursSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+
+    // Map dayOfWeek constant → display label
+    fun dayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
+        7    -> strings.daySat
+        1    -> strings.daySun
+        2    -> strings.dayMon
+        3    -> strings.dayTue
+        4    -> strings.dayWed
+        5    -> strings.dayThu
+        6    -> strings.dayFri
+        else -> ""
+    }
+
+    // Ordered list: Sat(7), Sun(1), Mon(2), Tue(3), Wed(4), Thu(5), Fri(6)
+    val orderedDays = listOf(7, 1, 2, 3, 4, 5, 6)
+
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(strings.workingHoursTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            HorizontalDivider(color = BlushPink)
+
+            orderedDays.forEach { dow ->
+                val wh = viewModel.editWorkingHours.find { it.dayOfWeek == dow }
+                if (wh != null) {
+                    Column {
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier              = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text       = dayLabel(dow),
+                                fontSize   = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color      = DeepRose,
+                                modifier   = Modifier.weight(1f)
+                            )
+                            if (!wh.isOpen) {
+                                Text(
+                                    text     = strings.closedThisDay,
+                                    fontSize = 12.sp,
+                                    color    = Color(0xFFAAAAAA)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            Switch(
+                                checked         = wh.isOpen,
+                                onCheckedChange = { viewModel.toggleDayOpen(dow) },
+                                colors          = SwitchDefaults.colors(
+                                    checkedThumbColor   = Color.White,
+                                    checkedTrackColor   = RoseGold,
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFCCCCCC)
+                                )
+                            )
+                        }
+                        if (wh.isOpen) {
+                            Row(
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier              = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                            ) {
+                                val openLabel  = "%02d:%02d".format(wh.openHour, wh.openMinute)
+                                val closeLabel = "%02d:%02d".format(wh.closeHour, wh.closeMinute)
+
+                                Text(strings.openTime, fontSize = 12.sp, color = Color(0xFF888888))
+                                TextButton(
+                                    onClick = {
+                                        TimePickerDialog(context, { _, h, m ->
+                                            viewModel.setDayOpenTime(dow, h, m)
+                                        }, wh.openHour, wh.openMinute, true).show()
+                                    }
+                                ) {
+                                    Text(openLabel, fontSize = 14.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                                }
+
+                                Text("–", fontSize = 14.sp, color = Color(0xFF888888))
+
+                                Text(strings.closeTime, fontSize = 12.sp, color = Color(0xFF888888))
+                                TextButton(
+                                    onClick = {
+                                        TimePickerDialog(context, { _, h, m ->
+                                            viewModel.setDayCloseTime(dow, h, m)
+                                        }, wh.closeHour, wh.closeMinute, true).show()
+                                    }
+                                ) {
+                                    Text(closeLabel, fontSize = 14.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = BlushPink)
+
+            // Slot duration selector
+            Text(strings.slotDurationLabel, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = DeepRose)
+            val durations = listOf(
+                30 to strings.slotDuration30,
+                45 to strings.slotDuration45,
+                60 to strings.slotDuration60,
+                90 to strings.slotDuration90
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement   = Arrangement.spacedBy(4.dp),
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                durations.forEach { (minutes, label) ->
+                    FilterChip(
+                        selected = viewModel.editSlotDuration == minutes,
+                        onClick  = { viewModel.setSlotDuration(minutes) },
+                        label    = { Text(label, fontSize = 13.sp) },
+                        colors   = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ChipActive,
+                            selectedLabelColor     = Color.White,
+                            containerColor         = ChipInactive,
+                            labelColor             = DeepRose
+                        )
+                    )
+                }
+            }
+        }
     }
 }

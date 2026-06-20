@@ -20,6 +20,15 @@ data class UserDocument(
     val createdAt: Long = 0L
 )
 
+data class WorkingHours(
+    val dayOfWeek: Int = 2,        // java.util.Calendar constants: SUNDAY=1,MONDAY=2,...,SATURDAY=7
+    val isOpen: Boolean = false,
+    val openHour: Int = 9,
+    val openMinute: Int = 0,
+    val closeHour: Int = 18,
+    val closeMinute: Int = 0
+)
+
 data class SalonDocument(
     val id: String = "",                    // Firestore document ID (set after read)
     val providerId: String = "",
@@ -32,7 +41,9 @@ data class SalonDocument(
     // prefix, storing the field as "available" instead and breaking all queries.
     @get:PropertyName("isAvailable") @set:PropertyName("isAvailable")
     var isAvailable: Boolean = false,
-    val rating: Double = 0.0
+    val rating: Double = 0.0,
+    val workingHours: List<WorkingHours> = emptyList(),
+    val slotDurationMinutes: Int = 60
 )
 
 data class AppointmentDocument(

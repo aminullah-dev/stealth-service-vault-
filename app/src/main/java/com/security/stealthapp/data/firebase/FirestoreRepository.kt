@@ -207,6 +207,19 @@ class FirestoreRepository @Inject constructor(
             .forEach { it.reference.delete().await() }
     }
 
+    suspend fun getBookedSlotsForSalon(salonId: String, dateMs: Long): List<Long> {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = dateMs }
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
+        val startOfDay = cal.timeInMillis
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 23); cal.set(java.util.Calendar.MINUTE, 59)
+        val endOfDay = cal.timeInMillis
+        return appointmentsCol.whereEqualTo("salonId", salonId).get().await()
+            .documents.mapNotNull { it.toObject(AppointmentDocument::class.java) }
+            .filter { it.status != "CANCELLED" && it.appointmentDate in startOfDay..endOfDay }
+            .map { it.appointmentDate }
+    }
+
     // ── Chat ──────────────────────────────────────────────────────────────────
 
     fun observeConversation(conversationId: String): Flow<List<ChatMessage>> = callbackFlow {
