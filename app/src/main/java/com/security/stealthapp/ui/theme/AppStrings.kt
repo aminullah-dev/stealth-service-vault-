@@ -13,6 +13,11 @@ fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.ENGLISH) LayoutDirection.Ltr else LayoutDirection.Rtl
 
 data class AppStrings(
+    // Login screen
+    val loginTitle: String,
+    val loginTagline: String,
+    val loginWrongPin: String,
+    val loginRegisterPrompt: String,
     // Top-bar taglines
     val taglineCustomer: String,
     val taglineProvider: String,
@@ -177,6 +182,10 @@ data class AppStrings(
 object StringResources {
 
     val ENGLISH = AppStrings(
+        loginTitle                 = "SafeBeauty",
+        loginTagline               = "Private · Discreet · Trusted",
+        loginWrongPin              = "Wrong PIN. Try again.",
+        loginRegisterPrompt        = "New account? Register →",
         taglineCustomer            = "Private · Discreet · Trusted",
         taglineProvider            = "Provider · Private · Discreet",
         taglineAdmin               = "Provider approval queue",
@@ -317,6 +326,10 @@ object StringResources {
     )
 
     val DARI = AppStrings(
+        loginTitle                 = "سیف بیوتی",
+        loginTagline               = "خصوصی · محرمانه · قابل اعتماد",
+        loginWrongPin              = "رمز پین اشتباه است. دوباره امتحان کنید.",
+        loginRegisterPrompt        = "حساب جدید؟ ثبت‌نام →",
         taglineCustomer            = "خصوصی · مخفیانه · معتمد",
         taglineProvider            = "ارائه‌دهنده · خصوصی · مخفیانه",
         taglineAdmin               = "صف تایید ارائه‌دهندگان",
@@ -457,6 +470,10 @@ object StringResources {
     )
 
     val PASHTO = AppStrings(
+        loginTitle                 = "سیف بیوتي",
+        loginTagline               = "شخصي · محرمانه · د اعتماد وړ",
+        loginWrongPin              = "PIN غلط دی. بیا هڅه وکړئ.",
+        loginRegisterPrompt        = "نوی حساب؟ راجستر →",
         taglineCustomer            = "شخصي · پټ · باوروړ",
         taglineProvider            = "چمتو کوونکی · شخصي · پټ",
         taglineAdmin               = "د چمتو کوونکو د تایید کتار",
