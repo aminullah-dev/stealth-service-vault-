@@ -15,8 +15,8 @@ import androidx.navigation.navArgument
 import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.ui.screens.AdminDashboardScreen
 import com.security.stealthapp.ui.screens.ChatScreen
-import com.security.stealthapp.ui.screens.DisguiseScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
+import com.security.stealthapp.ui.screens.LoginScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
 import com.security.stealthapp.ui.screens.RegisterScreen
 import com.security.stealthapp.ui.theme.LocalStrings
@@ -27,7 +27,7 @@ import com.security.stealthapp.viewmodel.LanguageViewModel
 // ── Route constants ────────────────────────────────────────────────────────────
 
 sealed class Screen(val route: String) {
-    object Disguise  : Screen("disguise")
+    object Login     : Screen("login")
     object Register  : Screen("register")
 
     object CustomerDashboard : Screen("dashboard/customer/{userId}") {
@@ -63,19 +63,19 @@ fun AppNavGraph(navController: NavHostController) {
         LocalLayoutDirection provides currentLanguage.layoutDirection()
     ) {
         val lockAndReturn: () -> Unit = {
-            navController.navigate(Screen.Disguise.route) {
-                popUpTo(Screen.Disguise.route) { inclusive = false }
+            navController.navigate(Screen.Login.route) {
+                popUpTo(Screen.Login.route) { inclusive = false }
                 launchSingleTop = true
             }
         }
 
         NavHost(
             navController    = navController,
-            startDestination = Screen.Disguise.route
+            startDestination = Screen.Login.route
         ) {
 
-            composable(Screen.Disguise.route) {
-                DisguiseScreen(
+            composable(Screen.Login.route) {
+                LoginScreen(
                     onAuthSuccess = { user ->
                         val route = when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
