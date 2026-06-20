@@ -60,6 +60,10 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("status", status).await()
     }
 
+    suspend fun updateUserName(uid: String, name: String) {
+        usersCol.document(uid).update("name", name).await()
+    }
+
     suspend fun updateFcmToken(uid: String, token: String) {
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }

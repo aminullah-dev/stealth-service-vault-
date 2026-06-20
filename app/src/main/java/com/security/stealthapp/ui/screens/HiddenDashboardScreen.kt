@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -204,6 +206,7 @@ fun HiddenDashboardScreen(
     val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
     val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
+    val searchQuery               by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
@@ -219,6 +222,7 @@ fun HiddenDashboardScreen(
     var showNeighborhoodMenu by remember { mutableStateOf(false) }
     var showBookingsSheet    by remember { mutableStateOf(false) }
     var showLangPicker       by remember { mutableStateOf(false) }
+    var showProfileSheet     by remember { mutableStateOf(false) }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var bookingIntent     by remember { mutableStateOf<BookingIntent?>(null) }
@@ -277,6 +281,9 @@ fun HiddenDashboardScreen(
                                 Icon(Icons.Default.CalendarMonth, strings.myBookings, tint = DeepRose)
                             }
                         }
+                        IconButton(onClick = { showProfileSheet = true }) {
+                            Icon(Icons.Default.Person, strings.myProfile, tint = RoseGold)
+                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
                         }
@@ -312,6 +319,33 @@ fun HiddenDashboardScreen(
                 if (broadcasts.isNotEmpty()) {
                     BroadcastBanner(broadcasts = broadcasts)
                 }
+
+                // ── Search bar ────────────────────────────────────────────────
+                androidx.compose.material3.OutlinedTextField(
+                    value         = searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder   = { Text(strings.searchHint, fontSize = 13.sp, color = RoseGold) },
+                    leadingIcon   = {
+                        Icon(Icons.Default.Search, null, tint = RoseGold, modifier = Modifier.size(20.dp))
+                    },
+                    trailingIcon  = if (searchQuery.isNotBlank()) {
+                        {
+                            IconButton(onClick = { viewModel.setSearchQuery("") }, modifier = Modifier.size(36.dp)) {
+                                Icon(Icons.Default.CheckCircle, null, tint = ChipInactive, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    } else null,
+                    singleLine    = true,
+                    shape         = RoundedCornerShape(14.dp),
+                    modifier      = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    colors        = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = RoseGold,
+                        unfocusedBorderColor = ChipInactive,
+                        cursorColor          = RoseGold
+                    )
+                )
 
                 // ── Category chips ────────────────────────────────────────────
                 LazyRow(
@@ -413,6 +447,39 @@ fun HiddenDashboardScreen(
                 current  = langVm.language.value,
                 onPick   = { langVm.setLanguage(it); showLangPicker = false },
                 onDismiss = { showLangPicker = false }
+            )
+        }
+
+        // ── Customer profile sheet ────────────────────────────────────────────
+        if (showProfileSheet) {
+            val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
+                onDismissRequest = { showProfileSheet = false },
+                sheetState       = profileSheetState,
+                containerColor   = ElegantCream
+            ) {
+                CustomerProfileSheetContent(
+                    name        = viewModel.editName,
+                    onNameChange = { viewModel.onEditNameChanged(it) },
+                    onSave      = { viewModel.saveCustomerProfile(); showProfileSheet = false },
+                    onDismiss   = { showProfileSheet = false }
+                )
+            }
+        }
+
+        // ── Profile save success ──────────────────────────────────────────────
+        if (viewModel.profileSaveSuccess) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissProfileSaveSuccess() },
+                icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
+                title = { Text(strings.profileSavedCustomer, fontWeight = FontWeight.Bold, color = DeepRose) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissProfileSaveSuccess() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
             )
         }
 
@@ -1134,6 +1201,58 @@ private fun StatusChip(status: String) {
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
         Text(label, fontSize = 11.sp, color = fg, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// ── Customer profile sheet ────────────────────────────────────────────────────
+
+@Composable
+private fun CustomerProfileSheetContent(
+    name: String,
+    onNameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 40.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier              = Modifier.fillMaxWidth()
+        ) {
+            Text(strings.editProfileTitle, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
+            TextButton(onClick = onDismiss) { Text(strings.close, color = RoseGold) }
+        }
+        HorizontalDivider(color = BlushPink)
+        androidx.compose.material3.OutlinedTextField(
+            value         = name,
+            onValueChange = onNameChange,
+            label         = { Text(strings.fullName, fontSize = 13.sp) },
+            singleLine    = true,
+            modifier      = Modifier.fillMaxWidth(),
+            shape         = RoundedCornerShape(12.dp),
+            colors        = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedBorderColor   = RoseGold,
+                unfocusedBorderColor = ChipInactive,
+                cursorColor          = RoseGold,
+                focusedLabelColor    = RoseGold
+            )
+        )
+        Button(
+            onClick  = onSave,
+            enabled  = name.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            shape    = RoundedCornerShape(14.dp),
+            colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+        ) {
+            Text(strings.saveProfile, color = Color.White, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 

@@ -72,6 +72,7 @@ class DashboardViewModel @Inject constructor(
     private val _currentUserName           = MutableStateFlow("")
     private val _isOffline                 = MutableStateFlow(false)
     private val _showFavoritesOnly         = MutableStateFlow(false)
+    private val _searchQuery               = MutableStateFlow("")
     private val _bookingStatusChange       = MutableSharedFlow<BookingStatusChange>(extraBufferCapacity = 4)
     private var previousStatuses: Map<String, String> = emptyMap()
 
@@ -80,6 +81,7 @@ class DashboardViewModel @Inject constructor(
     val currentUserName: StateFlow<String>             = _currentUserName
     val isOffline: StateFlow<Boolean>                  = _isOffline
     val showFavoritesOnly: StateFlow<Boolean>          = _showFavoritesOnly
+    val searchQuery: StateFlow<String>                 = _searchQuery
     val bookingStatusChange: SharedFlow<BookingStatusChange> = _bookingStatusChange
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
@@ -101,22 +103,28 @@ class DashboardViewModel @Inject constructor(
     }
 
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
-        firestoreRepository.observeAvailableSalons(),
-        _selectedCategoryIndex,
-        _selectedNeighborhoodIndex,
-        favoriteIds,
-        _showFavoritesOnly
-    ) { salons, catIdx, hoodIdx, favorites, favOnly ->
-        val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
-        val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
-        salons.filter { salon ->
-            val catMatch  = category == "All" ||
-                salon.services.any { it.contains(category, ignoreCase = true) }
-            val hoodMatch = neighborhood == "All Neighborhoods" ||
-                salon.district == neighborhood
-            val favMatch  = !favOnly || favorites.contains(salon.id)
-            catMatch && hoodMatch && favMatch
-        }
+        combine(
+            firestoreRepository.observeAvailableSalons(),
+            _selectedCategoryIndex,
+            _selectedNeighborhoodIndex,
+            favoriteIds,
+            _showFavoritesOnly
+        ) { salons, catIdx, hoodIdx, favorites, favOnly ->
+            val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
+            val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
+            salons.filter { salon ->
+                val catMatch  = category == "All" ||
+                    salon.services.any { it.contains(category, ignoreCase = true) }
+                val hoodMatch = neighborhood == "All Neighborhoods" ||
+                    salon.district == neighborhood
+                val favMatch  = !favOnly || favorites.contains(salon.id)
+                catMatch && hoodMatch && favMatch
+            }
+        },
+        _searchQuery
+    ) { preFilt, query ->
+        if (query.isBlank()) preFilt
+        else preFilt.filter { it.salonName.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val myAppointments: StateFlow<List<AppointmentDocument>> =
@@ -136,6 +144,12 @@ class DashboardViewModel @Inject constructor(
     var noWorkingHours by mutableStateOf(false)
         private set
 
+    // ── Customer profile editing ──────────────────────────────────────────────
+    var editName by mutableStateOf("")
+        private set
+    var profileSaveSuccess by mutableStateOf(false)
+        private set
+
     init {
         // Check current connectivity state
         val caps = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
@@ -146,7 +160,10 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { firestoreRepository.getUserById(customerId) }
                 .getOrNull()
-                ?.let { _currentUserName.value = it.name }
+                ?.let {
+                    _currentUserName.value = it.name
+                    editName = it.name
+                }
         }
 
         // Detect appointment status changes and emit for the UI to show a notification
@@ -176,6 +193,24 @@ class DashboardViewModel @Inject constructor(
     fun selectCategory(index: Int)     { _selectedCategoryIndex.value = index }
     fun selectNeighborhood(index: Int) { _selectedNeighborhoodIndex.value = index }
     fun toggleFavoritesOnly()          { _showFavoritesOnly.value = !_showFavoritesOnly.value }
+    fun setSearchQuery(q: String)      { _searchQuery.value = q }
+
+    fun onEditNameChanged(v: String) { editName = v }
+
+    fun saveCustomerProfile() {
+        val trimmed = editName.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.updateUserName(customerId, trimmed)
+                _currentUserName.value = trimmed
+                vaultRepository.log("CUSTOMER_PROFILE_UPDATED", "name=${trimmed.take(20)}")
+                profileSaveSuccess = true
+            }
+        }
+    }
+
+    fun dismissProfileSaveSuccess() { profileSaveSuccess = false }
 
     fun toggleFavorite(salonId: String) {
         viewModelScope.launch { runCatching { favoritesRepository.toggle(salonId) } }

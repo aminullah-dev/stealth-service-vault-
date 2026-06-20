@@ -193,6 +193,12 @@ data class AppStrings(
     val selectTimeSlot: String,
     val noSlotsAvailable: String,
     val closedThisDay: String,
+    // Search
+    val searchHint: String,
+    // Customer profile
+    val myProfile: String,
+    val editProfileTitle: String,
+    val profileSavedCustomer: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -358,6 +364,10 @@ object StringResources {
         selectTimeSlot             = "Select a Time",
         noSlotsAvailable           = "No slots available for this day",
         closedThisDay              = "Closed",
+        searchHint                 = "Search salons…",
+        myProfile                  = "My Profile",
+        editProfileTitle           = "Edit Profile",
+        profileSavedCustomer       = "Profile updated!",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -520,6 +530,10 @@ object StringResources {
         selectTimeSlot             = "وقت را انتخاب کنید",
         noSlotsAvailable           = "وقت خالی برای این روز نیست",
         closedThisDay              = "تعطیل",
+        searchHint                 = "جستجوی سالون…",
+        myProfile                  = "پروفایل من",
+        editProfileTitle           = "ویرایش پروفایل",
+        profileSavedCustomer       = "پروفایل به‌روزرسانی شد!",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -682,6 +696,10 @@ object StringResources {
         selectTimeSlot             = "وخت غوره کړئ",
         noSlotsAvailable           = "د دې ورځ لپاره وخت نشته",
         closedThisDay              = "بند",
+        searchHint                 = "د سالون لټون…",
+        myProfile                  = "زما پروفایل",
+        editProfileTitle           = "پروفایل سمول",
+        profileSavedCustomer       = "پروفایل تازه شو!",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
