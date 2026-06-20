@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -126,6 +129,7 @@ fun ProviderDashboardScreen(
     val salon               by viewModel.salon.collectAsStateWithLifecycle()
     val isAvailable         by viewModel.isAvailable.collectAsStateWithLifecycle()
     val pendingAppointments by viewModel.pendingAppointments.collectAsStateWithLifecycle()
+    val allAppointments     by viewModel.allAppointments.collectAsStateWithLifecycle()
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
     val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
@@ -233,6 +237,11 @@ fun ProviderDashboardScreen(
                         onClick  = { selectedTab = 2 },
                         text     = { Text(strings.tabAnalytics, fontSize = 14.sp) }
                     )
+                    Tab(
+                        selected = selectedTab == 3,
+                        onClick  = { selectedTab = 3 },
+                        text     = { Text(strings.tabCalendar, fontSize = 14.sp) }
+                    )
                 }
 
                 // ── Tab content ───────────────────────────────────────────
@@ -248,6 +257,7 @@ fun ProviderDashboardScreen(
                     )
                     1 -> ProfileTab(viewModel = viewModel)
                     2 -> AnalyticsTab(analytics = analytics)
+                    3 -> CalendarTab(allAppointments = allAppointments)
                 }
             }
         }
@@ -1028,6 +1038,254 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                             labelColor             = DeepRose
                         )
                     )
+                }
+            }
+        }
+    }
+}
+
+// ── Provider Calendar Tab ─────────────────────────────────────────────────────
+
+@Composable
+private fun CalendarTab(allAppointments: List<AppointmentDocument>) {
+    val strings     = LocalStrings.current
+    val todayCal    = remember { java.util.Calendar.getInstance() }
+    var displayYear  by remember { mutableIntStateOf(todayCal.get(java.util.Calendar.YEAR)) }
+    var displayMonth by remember { mutableIntStateOf(todayCal.get(java.util.Calendar.MONTH)) }
+    var selectedDay  by remember { mutableStateOf<Int?>(null) }
+
+    // Group visible-month appointments by day-of-month
+    val appointmentsByDay = remember(allAppointments, displayYear, displayMonth) {
+        allAppointments
+            .filter { appt ->
+                val c = java.util.Calendar.getInstance().apply { timeInMillis = appt.appointmentDate }
+                c.get(java.util.Calendar.YEAR)  == displayYear &&
+                c.get(java.util.Calendar.MONTH) == displayMonth
+            }
+            .groupBy { appt ->
+                java.util.Calendar.getInstance()
+                    .apply { timeInMillis = appt.appointmentDate }
+                    .get(java.util.Calendar.DAY_OF_MONTH)
+            }
+    }
+
+    val selectedDayAppts = selectedDay?.let { appointmentsByDay[it] ?: emptyList() } ?: emptyList()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        // ── Calendar card ─────────────────────────────────────────────────
+        Card(
+            shape  = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+        ) {
+            Column(
+                modifier            = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Month / year header with prev–next arrows
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier              = Modifier.fillMaxWidth()
+                ) {
+                    IconButton(onClick = {
+                        selectedDay = null
+                        if (displayMonth == 0) { displayMonth = 11; displayYear-- } else displayMonth--
+                    }) {
+                        Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = RoseGold)
+                    }
+                    val monthLabel = remember(displayYear, displayMonth) {
+                        java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()).format(
+                            java.util.Calendar.getInstance().apply { set(displayYear, displayMonth, 1) }.time
+                        )
+                    }
+                    Text(monthLabel, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DeepRose)
+                    IconButton(onClick = {
+                        selectedDay = null
+                        if (displayMonth == 11) { displayMonth = 0; displayYear++ } else displayMonth++
+                    }) {
+                        Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = RoseGold)
+                    }
+                }
+
+                // Day-of-week header row
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa").forEach { d ->
+                        Text(
+                            text      = d,
+                            fontSize  = 11.sp,
+                            color     = Color(0xFF999999),
+                            textAlign = TextAlign.Center,
+                            modifier  = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                // Day cells
+                val firstCal    = remember(displayYear, displayMonth) {
+                    java.util.Calendar.getInstance().apply { set(displayYear, displayMonth, 1) }
+                }
+                val firstDow    = firstCal.get(java.util.Calendar.DAY_OF_WEEK) - 1 // 0=Sun
+                val daysInMonth = firstCal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                val todayYear   = todayCal.get(java.util.Calendar.YEAR)
+                val todayMonth  = todayCal.get(java.util.Calendar.MONTH)
+                val todayDay    = todayCal.get(java.util.Calendar.DAY_OF_MONTH)
+                val rowCount    = (firstDow + daysInMonth + 6) / 7
+
+                (0 until rowCount).forEach { row ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        (0 until 7).forEach { col ->
+                            val day = row * 7 + col - firstDow + 1
+                            if (day in 1..daysInMonth) {
+                                val hasAppts   = appointmentsByDay.containsKey(day)
+                                val isToday    = displayYear == todayYear && displayMonth == todayMonth && day == todayDay
+                                val isSelected = selectedDay == day
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier         = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .padding(2.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            when {
+                                                isSelected -> RoseGold
+                                                isToday    -> BlushPink
+                                                else       -> Color.Transparent
+                                            }
+                                        )
+                                        .clickable { selectedDay = if (selectedDay == day) null else day }
+                                ) {
+                                    Text(
+                                        text       = "$day",
+                                        fontSize   = 13.sp,
+                                        color      = when {
+                                            isSelected -> Color.White
+                                            isToday    -> DeepRose
+                                            else       -> Color(0xFF333333)
+                                        },
+                                        fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        textAlign  = TextAlign.Center
+                                    )
+                                    if (hasAppts) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .padding(bottom = 3.dp)
+                                                .size(5.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isSelected) Color.White else DeepRose)
+                                        )
+                                    }
+                                }
+                            } else {
+                                Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ── Appointment list for selected day ─────────────────────────────
+        when {
+            selectedDay == null -> {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                ) {
+                    Text(strings.calendarTapDay, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                }
+            }
+            selectedDayAppts.isEmpty() -> {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                ) {
+                    Text(strings.calendarNoAppointments, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                }
+            }
+            else -> {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    selectedDayAppts
+                        .sortedBy { it.appointmentDate }
+                        .forEach { appt -> CalendarAppointmentRow(appt) }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+private fun CalendarAppointmentRow(appt: AppointmentDocument) {
+    val timeFmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
+    val context = LocalContext.current
+
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BlushPink)
+            ) {
+                Text(
+                    text       = timeFmt.format(java.util.Date(appt.appointmentDate)),
+                    fontSize   = 11.sp,
+                    color      = DeepRose,
+                    fontWeight = FontWeight.Bold,
+                    textAlign  = TextAlign.Center
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(appt.customerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                Text(appt.serviceName,  fontSize   = 12.sp,               color = RoseGold)
+                if (appt.customerPhone.isNotBlank()) {
+                    Text(appt.customerPhone, fontSize = 11.sp, color = Color(0xFF888888))
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                ProviderStatusBadge(appt.status)
+                if (appt.customerPhone.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    IconButton(
+                        onClick  = {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_DIAL,
+                                android.net.Uri.parse("tel:${appt.customerPhone}")
+                            )
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Phone,
+                            contentDescription = null,
+                            tint     = AvailableGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }

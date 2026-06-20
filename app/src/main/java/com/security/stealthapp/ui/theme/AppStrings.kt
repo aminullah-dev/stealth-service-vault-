@@ -199,6 +199,10 @@ data class AppStrings(
     val myProfile: String,
     val editProfileTitle: String,
     val profileSavedCustomer: String,
+    // Provider calendar
+    val tabCalendar: String,
+    val calendarNoAppointments: String,
+    val calendarTapDay: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -368,6 +372,9 @@ object StringResources {
         myProfile                  = "My Profile",
         editProfileTitle           = "Edit Profile",
         profileSavedCustomer       = "Profile updated!",
+        tabCalendar                = "Calendar",
+        calendarNoAppointments     = "No appointments this day",
+        calendarTapDay             = "Tap a day to see appointments",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -534,6 +541,9 @@ object StringResources {
         myProfile                  = "پروفایل من",
         editProfileTitle           = "ویرایش پروفایل",
         profileSavedCustomer       = "پروفایل به‌روزرسانی شد!",
+        tabCalendar                = "تقویم",
+        calendarNoAppointments     = "رزروی در این روز نیست",
+        calendarTapDay             = "روی یک روز ضربه بزنید",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -700,6 +710,9 @@ object StringResources {
         myProfile                  = "زما پروفایل",
         editProfileTitle           = "پروفایل سمول",
         profileSavedCustomer       = "پروفایل تازه شو!",
+        tabCalendar                = "کلنډر",
+        calendarNoAppointments     = "د دې ورځ لپاره بکینګ نشته",
+        calendarTapDay             = "د بکینګونو لیدو لپاره یوه ورځ ووهئ",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
