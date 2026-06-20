@@ -14,6 +14,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
@@ -81,6 +82,10 @@ class DashboardViewModel @Inject constructor(
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    val broadcasts: StateFlow<List<BroadcastDocument>> =
+        firestoreRepository.observeBroadcasts()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var reviewThanksShown by mutableStateOf(false)
         private set

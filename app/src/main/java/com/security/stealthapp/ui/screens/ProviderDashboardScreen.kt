@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
@@ -118,6 +120,7 @@ fun ProviderDashboardScreen(
     val isAvailable         by viewModel.isAvailable.collectAsStateWithLifecycle()
     val pendingAppointments by viewModel.pendingAppointments.collectAsStateWithLifecycle()
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
+    val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
     var showLangPicker      by remember { mutableStateOf(false) }
 
@@ -167,6 +170,11 @@ fun ProviderDashboardScreen(
                     isAvailable = isAvailable,
                     onToggle    = { viewModel.toggleAvailability() }
                 )
+
+                // ── Broadcast announcements ───────────────────────────────
+                if (broadcasts.isNotEmpty()) {
+                    ProviderBroadcastBanner(broadcasts = broadcasts)
+                }
 
                 Spacer(Modifier.height(4.dp))
 
@@ -267,6 +275,48 @@ fun ProviderDashboardScreen(
                 onPick    = { langVm.setLanguage(it); showLangPicker = false },
                 onDismiss = { showLangPicker = false }
             )
+        }
+    }
+}
+
+// ── Broadcast banner ──────────────────────────────────────────────────────────
+
+@Composable
+private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
+    val dateFmt = remember { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFFFF8F0))
+            .padding(vertical = 8.dp)
+    ) {
+        broadcasts.forEach { broadcast ->
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(BlushPink.copy(alpha = 0.35f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text("📢", fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text       = broadcast.message,
+                        fontSize   = 13.sp,
+                        color      = DeepRose,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text     = dateFmt.format(java.util.Date(broadcast.createdAt)),
+                        fontSize = 11.sp,
+                        color    = RoseGold
+                    )
+                }
+            }
         }
     }
 }

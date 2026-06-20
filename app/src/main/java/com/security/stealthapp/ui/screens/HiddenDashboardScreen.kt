@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AppLanguage
@@ -200,6 +201,7 @@ fun HiddenDashboardScreen(
     val currentUserName           by viewModel.currentUserName.collectAsStateWithLifecycle()
     val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
+    val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
 
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
@@ -303,6 +305,11 @@ fun HiddenDashboardScreen(
                             fontWeight = FontWeight.Medium
                         )
                     }
+                }
+
+                // ── Broadcast announcements ───────────────────────────────────
+                if (broadcasts.isNotEmpty()) {
+                    BroadcastBanner(broadcasts = broadcasts)
                 }
 
                 // ── Category chips ────────────────────────────────────────────
@@ -845,6 +852,48 @@ private fun SalonCard(
                     contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp)
                 ) {
                     Text(strings.book, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ── Broadcast banner ──────────────────────────────────────────────────────────
+
+@Composable
+private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
+    val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFFFF8F0))
+            .padding(vertical = 8.dp)
+    ) {
+        broadcasts.forEach { broadcast ->
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(BlushPink.copy(alpha = 0.35f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text("📢", fontSize = 14.sp)
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text       = broadcast.message,
+                        fontSize   = 13.sp,
+                        color      = DeepRose,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text     = dateFmt.format(Date(broadcast.createdAt)),
+                        fontSize = 11.sp,
+                        color    = RoseGold
+                    )
                 }
             }
         }

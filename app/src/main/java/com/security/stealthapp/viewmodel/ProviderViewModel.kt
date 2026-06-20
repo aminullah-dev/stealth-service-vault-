@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.AppointmentDocument
+import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.repository.VaultRepository
@@ -51,6 +52,10 @@ class ProviderViewModel @Inject constructor(
     val isAvailable: StateFlow<Boolean> = combine(salon, _availableOverride) { s, override ->
         override ?: (s?.isAvailable ?: false)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val broadcasts: StateFlow<List<BroadcastDocument>> =
+        firestoreRepository.observeBroadcasts()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val pendingAppointments: StateFlow<List<AppointmentDocument>> = salon
         .flatMapLatest { s ->
