@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
 import android.app.TimePickerDialog
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -503,7 +504,7 @@ private fun BookingRequestCard(
             Box(
                 modifier = Modifier
                     .width(5.dp)
-                    .height(if (appointment.status == "PENDING") 140.dp else 90.dp)
+                    .height(if (appointment.status == "PENDING") 160.dp else 100.dp)
                     .background(
                         when (appointment.status.uppercase()) {
                             "CONFIRMED" -> AvailableGreen
@@ -542,6 +543,44 @@ private fun BookingRequestCard(
                             fontSize = 13.sp,
                             color    = RoseGold
                         )
+                        if (appointment.customerPhone.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint     = Color(0xFF888888),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text     = appointment.customerPhone,
+                                    fontSize = 12.sp,
+                                    color    = Color(0xFF666666),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    val context = LocalContext.current
+                    if (appointment.customerPhone.isNotBlank()) {
+                        IconButton(
+                            onClick  = {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_DIAL,
+                                    android.net.Uri.parse("tel:${appointment.customerPhone}")
+                                )
+                                context.startActivity(intent)
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Phone,
+                                contentDescription = "Call",
+                                tint     = AvailableGreen,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                     IconButton(
                         onClick  = onChat,

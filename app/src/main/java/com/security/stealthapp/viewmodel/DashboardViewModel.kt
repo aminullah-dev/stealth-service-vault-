@@ -70,6 +70,7 @@ class DashboardViewModel @Inject constructor(
     private val _selectedCategoryIndex     = MutableStateFlow(0)
     private val _selectedNeighborhoodIndex = MutableStateFlow(0)
     private val _currentUserName           = MutableStateFlow("")
+    private val _currentUserPhone          = MutableStateFlow("")
     private val _isOffline                 = MutableStateFlow(false)
     private val _showFavoritesOnly         = MutableStateFlow(false)
     private val _searchQuery               = MutableStateFlow("")
@@ -162,6 +163,7 @@ class DashboardViewModel @Inject constructor(
                 .getOrNull()
                 ?.let {
                     _currentUserName.value = it.name
+                    _currentUserPhone.value = it.phone
                     editName = it.name
                 }
         }
@@ -295,6 +297,8 @@ class DashboardViewModel @Inject constructor(
                 firestoreRepository.createAppointment(
                     AppointmentDocument(
                         customerId      = customerId,
+                        customerName    = _currentUserName.value,
+                        customerPhone   = _currentUserPhone.value,
                         salonId         = salon.id,
                         salonName       = salon.salonName,
                         serviceName     = serviceName,

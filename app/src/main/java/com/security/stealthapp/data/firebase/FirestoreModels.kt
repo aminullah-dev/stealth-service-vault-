@@ -52,6 +52,7 @@ data class AppointmentDocument(
     val id: String = "",                    // Firestore document ID
     val customerId: String = "",
     val customerName: String = "",
+    val customerPhone: String = "",
     val salonId: String = "",
     val salonName: String = "",
     val serviceName: String = "",
