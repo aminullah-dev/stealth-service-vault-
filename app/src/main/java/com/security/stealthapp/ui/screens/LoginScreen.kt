@@ -2,6 +2,7 @@ package com.security.stealthapp.ui.screens
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,17 +36,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.security.stealthapp.R
 import com.security.stealthapp.data.model.LoggedInUser
-import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.ChipInactive
 import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
@@ -153,19 +156,32 @@ fun LoginScreen(
                 verticalArrangement   = Arrangement.Center
             ) {
 
-                // ── App icon ──────────────────────────────────────────────────
+                // ── App logo (rose) ────────────────────────────────────────────
+                val logoAlpha = remember { Animatable(0f) }
+                LaunchedEffect(Unit) {
+                    logoAlpha.animateTo(1f, animationSpec = tween(700))
+                }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier         = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(BlushPink)
+                        .alpha(logoAlpha.value)
+                        .size(100.dp)
+                        .shadow(12.dp, RoundedCornerShape(28.dp))
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFFFFFDF9),
+                                    Color(0xFFFBEFEA),
+                                    Color(0xFFF3D8DE)
+                                )
+                            )
+                        )
                 ) {
-                    Icon(
-                        imageVector        = Icons.Default.Storefront,
+                    Image(
+                        painter            = painterResource(R.drawable.ic_launcher_foreground),
                         contentDescription = null,
-                        tint               = DeepRose,
-                        modifier           = Modifier.size(40.dp)
+                        modifier           = Modifier.size(100.dp)
                     )
                 }
 
