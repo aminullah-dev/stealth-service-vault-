@@ -81,11 +81,13 @@ class AdminViewModel @Inject constructor(
         val msg = broadcastText.trim()
         if (msg.isBlank()) return
         viewModelScope.launch {
-            firestoreRepository.sendBroadcast(
-                BroadcastDocument(message = msg, createdAt = System.currentTimeMillis())
-            )
-            broadcastText = ""
-            vaultRepository.log("ADMIN_BROADCAST", "msg=${msg.take(40)}")
+            runCatching {
+                firestoreRepository.sendBroadcast(
+                    BroadcastDocument(message = msg, createdAt = System.currentTimeMillis())
+                )
+                broadcastText = ""
+                vaultRepository.log("ADMIN_BROADCAST", "msg=${msg.take(40)}")
+            }
         }
     }
 
