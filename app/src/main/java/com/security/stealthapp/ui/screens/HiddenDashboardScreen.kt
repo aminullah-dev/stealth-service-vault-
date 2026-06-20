@@ -458,8 +458,12 @@ fun HiddenDashboardScreen(
                     Button(
                         onClick = {
                             showDatePicker = false
-                            bookingIntent  = bookingIntent?.copy(dateMs = datePickerState.selectedDateMillis)
-                            showTimePicker = true
+                            val selectedDate = datePickerState.selectedDateMillis
+                            if (selectedDate != null && bookingIntent != null) {
+                                bookingIntent = bookingIntent?.copy(dateMs = selectedDate)
+                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate)
+                            }
+                            showSlotPicker = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
                     ) { Text(strings.next, color = Color.White) }
@@ -474,37 +478,47 @@ fun HiddenDashboardScreen(
             }
         }
 
-        // ── Step 3: Time picker ───────────────────────────────────────────────
-        if (showTimePicker) {
+        // ── Step 3: Slot picker ───────────────────────────────────────────────
+        if (showSlotPicker) {
             AlertDialog(
-                onDismissRequest = { showTimePicker = false; bookingIntent = null },
-                title = { Text(strings.selectTime, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
-                        TimePicker(state = timePickerState)
+                onDismissRequest = { showSlotPicker = false; bookingIntent = null; viewModel.clearSlots() },
+                title = { Text(strings.selectTimeSlot, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                        when {
+                            viewModel.slotsLoading -> CircularProgressIndicator(color = RoseGold, modifier = Modifier.align(Alignment.Center))
+                            viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> {
+                                Text(strings.noSlotsAvailable, color = RoseGold, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center))
+                            }
+                            else -> {
+                                val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(viewModel.availableSlots) { slotMs ->
+                                        Button(
+                                            onClick = {
+                                                showSlotPicker = false
+                                                val intent = bookingIntent
+                                                if (intent != null) {
+                                                    viewModel.bookService(intent.salon, intent.service, slotMs)
+                                                }
+                                                bookingIntent = null
+                                                viewModel.clearSlots()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
+                                        ) {
+                                            Text(timeFmt.format(Date(slotMs)), color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showTimePicker = false
-                            val intent = bookingIntent
-                            if (intent != null && intent.dateMs != null) {
-                                val cal = Calendar.getInstance().apply {
-                                    timeInMillis = intent.dateMs
-                                    set(Calendar.HOUR_OF_DAY, timePickerState.hour)
-                                    set(Calendar.MINUTE,      timePickerState.minute)
-                                    set(Calendar.SECOND,      0)
-                                }
-                                viewModel.bookService(intent.salon, intent.service, cal.timeInMillis)
-                            }
-                            bookingIntent = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text(strings.confirmBooking, color = Color.White) }
-                },
+                confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { showTimePicker = false; bookingIntent = null }) {
+                    TextButton(onClick = { showSlotPicker = false; bookingIntent = null; viewModel.clearSlots() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },
