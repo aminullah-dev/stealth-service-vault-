@@ -203,6 +203,11 @@ data class AppStrings(
     val tabCalendar: String,
     val calendarNoAppointments: String,
     val calendarTapDay: String,
+    // Salon detail sheet
+    val salonDetailsTitle: String,
+    val todayHours: String,
+    val bookingsUpcoming: String,
+    val bookingsPast: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -375,6 +380,10 @@ object StringResources {
         tabCalendar                = "Calendar",
         calendarNoAppointments     = "No appointments this day",
         calendarTapDay             = "Tap a day to see appointments",
+        salonDetailsTitle          = "Salon Details",
+        todayHours                 = "Today's Hours",
+        bookingsUpcoming           = "Upcoming",
+        bookingsPast               = "Past",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -544,6 +553,10 @@ object StringResources {
         tabCalendar                = "تقویم",
         calendarNoAppointments     = "رزروی در این روز نیست",
         calendarTapDay             = "روی یک روز ضربه بزنید",
+        salonDetailsTitle          = "جزئیات سالون",
+        todayHours                 = "ساعات کاری امروز",
+        bookingsUpcoming           = "آینده",
+        bookingsPast               = "گذشته",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -713,6 +726,10 @@ object StringResources {
         tabCalendar                = "کلنډر",
         calendarNoAppointments     = "د دې ورځ لپاره بکینګ نشته",
         calendarTapDay             = "د بکینګونو لیدو لپاره یوه ورځ ووهئ",
+        salonDetailsTitle          = "د سالون توضیح",
+        todayHours                 = "د نن ورځ د کار ساعت",
+        bookingsUpcoming           = "راتلونکي",
+        bookingsPast               = "تیر شوي",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )

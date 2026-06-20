@@ -26,8 +26,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Download
@@ -97,6 +99,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AppLanguage
@@ -199,6 +202,7 @@ fun HiddenDashboardScreen(
 
     val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
+    val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -223,6 +227,7 @@ fun HiddenDashboardScreen(
     var showBookingsSheet    by remember { mutableStateOf(false) }
     var showLangPicker       by remember { mutableStateOf(false) }
     var showProfileSheet     by remember { mutableStateOf(false) }
+    var showSalonDetail      by remember { mutableStateOf<SalonDocument?>(null) }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var bookingIntent     by remember { mutableStateOf<BookingIntent?>(null) }
@@ -433,7 +438,7 @@ fun HiddenDashboardScreen(
                                 salon            = salon,
                                 isFavorite       = favoriteIds.contains(salon.id),
                                 onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
-                                onBook           = { bookingIntent = BookingIntent(salon, ""); showServiceDialog = true }
+                                onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
                             )
                         }
                     }
@@ -719,6 +724,29 @@ fun HiddenDashboardScreen(
                 },
                 onDismiss = { reviewTarget = null }
             )
+        }
+
+        // ── Salon detail sheet ────────────────────────────────────────────────
+        showSalonDetail?.let { salon ->
+            val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
+                onDismissRequest = { showSalonDetail = null },
+                sheetState       = detailSheetState,
+                containerColor   = ElegantCream
+            ) {
+                SalonDetailSheetContent(
+                    salon            = salon,
+                    reviews          = reviewsForSalon,
+                    isFavorite       = favoriteIds.contains(salon.id),
+                    onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
+                    onBook = {
+                        showSalonDetail   = null
+                        bookingIntent     = BookingIntent(salon, "")
+                        showServiceDialog = true
+                    },
+                    onDismiss = { showSalonDetail = null }
+                )
+            }
         }
 
         // ── Review thanks confirmation ────────────────────────────────────────
@@ -1068,94 +1096,37 @@ private fun BookingsSheetContent(
                 }
             }
         } else {
-            appointments.forEach { appt ->
-                Card(
-                    shape    = RoundedCornerShape(14.dp),
-                    colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .width(4.dp)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(RoseGold)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(appt.serviceName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (appt.salonName.isNotBlank()) {
-                                    Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
-                                }
-                                Text(
-                                    "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
-                                    fontSize = 11.sp,
-                                    color    = Color(0xFFAAAAAA)
-                                )
-                            }
-                            Spacer(Modifier.width(4.dp))
-                            IconButton(
-                                onClick  = { onChatClick(appt) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Chat,
-                                    contentDescription = strings.chat,
-                                    tint     = RoseGold,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            StatusChip(appt.status)
-                        }
-                        val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
-                        val canReview     = appt.status == "CONFIRMED"
-                        val canCancel     = appt.status == "PENDING"
-                        if (canReschedule || canReview || canCancel) {
-                            Spacer(Modifier.height(8.dp))
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (canReschedule) {
-                                    OutlinedButton(
-                                        onClick        = { onRescheduleClick(appt) },
-                                        shape          = RoundedCornerShape(8.dp),
-                                        border         = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
-                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(Icons.Default.Edit, null, modifier = Modifier.size(15.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(strings.reschedule, fontSize = 12.sp)
-                                    }
-                                }
-                                if (canReview) {
-                                    OutlinedButton(
-                                        onClick        = { onReviewClick(appt) },
-                                        shape          = RoundedCornerShape(8.dp),
-                                        border         = androidx.compose.foundation.BorderStroke(1.dp, WarmGold),
-                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = WarmGold),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Icon(Icons.Default.RateReview, null, modifier = Modifier.size(15.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(strings.leaveReview, fontSize = 12.sp)
-                                    }
-                                }
-                                if (canCancel) {
-                                    OutlinedButton(
-                                        onClick        = { cancelTarget = appt },
-                                        shape          = RoundedCornerShape(8.dp),
-                                        border         = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
-                                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B)),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(strings.cancelAppointment, fontSize = 12.sp)
-                                    }
-                                }
-                            }
-                        }
-                    }
+            val now      = remember { System.currentTimeMillis() }
+            val upcoming = remember(appointments) {
+                appointments.filter { it.status != "CANCELLED" && it.appointmentDate > now }
+                    .sortedBy { it.appointmentDate }
+            }
+            val past = remember(appointments) {
+                appointments.filter { it.status == "CANCELLED" || it.appointmentDate <= now }
+                    .sortedByDescending { it.appointmentDate }
+            }
+
+            if (upcoming.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+                    Box(
+                        modifier = Modifier.size(8.dp).clip(CircleShape).background(AvailableGreen)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
+                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }) }
+            }
+
+            if (past.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+                    Box(
+                        modifier = Modifier.size(8.dp).clip(CircleShape).background(UnavailableGrey)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
+                }
+                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }) }
             }
         }
     }
@@ -1178,6 +1149,108 @@ private fun BookingsSheetContent(
             },
             containerColor = ElegantCream
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BookingCard(
+    appt: AppointmentDocument,
+    dateFmt: SimpleDateFormat,
+    onChatClick: (AppointmentDocument) -> Unit,
+    onRescheduleClick: (AppointmentDocument) -> Unit,
+    onReviewClick: (AppointmentDocument) -> Unit,
+    onCancelClick: () -> Unit
+) {
+    val strings       = LocalStrings.current
+    val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
+    val canReview     = appt.status == "CONFIRMED"
+    val canCancel     = appt.status == "PENDING"
+
+    Card(
+        shape    = RoundedCornerShape(14.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(
+                            when (appt.status) {
+                                "CONFIRMED" -> AvailableGreen
+                                "CANCELLED" -> UnavailableGrey
+                                else        -> RoseGold
+                            }
+                        )
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(appt.serviceName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (appt.salonName.isNotBlank()) {
+                        Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
+                    }
+                    Text(
+                        "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
+                        fontSize = 11.sp,
+                        color    = Color(0xFFAAAAAA)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                IconButton(
+                    onClick  = { onChatClick(appt) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = strings.chat, tint = RoseGold, modifier = Modifier.size(20.dp))
+                }
+                StatusChip(appt.status)
+            }
+            if (canReschedule || canReview || canCancel) {
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (canReschedule) {
+                        OutlinedButton(
+                            onClick        = { onRescheduleClick(appt) },
+                            shape          = RoundedCornerShape(8.dp),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(strings.reschedule, fontSize = 12.sp)
+                        }
+                    }
+                    if (canReview) {
+                        OutlinedButton(
+                            onClick        = { onReviewClick(appt) },
+                            shape          = RoundedCornerShape(8.dp),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, WarmGold),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = WarmGold),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.RateReview, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(strings.leaveReview, fontSize = 12.sp)
+                        }
+                    }
+                    if (canCancel) {
+                        OutlinedButton(
+                            onClick        = onCancelClick,
+                            shape          = RoundedCornerShape(8.dp),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(strings.cancelAppointment, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1252,6 +1325,236 @@ private fun CustomerProfileSheetContent(
             colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
         ) {
             Text(strings.saveProfile, color = Color.White, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+// ── Salon detail sheet ────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SalonDetailSheetContent(
+    salon: SalonDocument,
+    reviews: List<ReviewDocument>,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onBook: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val color   = remember(salon.salonName) { avatarColor(salon.salonName) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 40.dp)
+    ) {
+        // ── Header row ────────────────────────────────────────────────
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier              = Modifier.fillMaxWidth()
+        ) {
+            Text(strings.salonDetailsTitle, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
+            TextButton(onClick = onDismiss) { Text(strings.close, color = RoseGold) }
+        }
+        HorizontalDivider(color = BlushPink)
+        Spacer(Modifier.height(16.dp))
+
+        // ── Identity block ────────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(68.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(color)
+            ) {
+                Text(
+                    text       = salon.salonName.first().toString(),
+                    fontSize   = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = Color.White
+                )
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(salon.salonName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
+                Spacer(Modifier.height(3.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text(salon.district, fontSize = 12.sp, color = Color(0xFF888888))
+                }
+                Spacer(Modifier.height(5.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier          = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(WarmGold.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                    if (reviews.isNotEmpty()) {
+                        Text("  (${reviews.size})", fontSize = 11.sp, color = Color(0xFF999999))
+                    }
+                }
+            }
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = strings.favorites,
+                    tint               = if (isFavorite) DeepRose else RoseGold,
+                    modifier           = Modifier.size(22.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ── Today's hours ─────────────────────────────────────────────
+        if (salon.workingHours.isNotEmpty()) {
+            val todayDow = remember { Calendar.getInstance().get(Calendar.DAY_OF_WEEK) }
+            val todayWh  = salon.workingHours.find { it.dayOfWeek == todayDow }
+            Card(
+                shape  = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+            ) {
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    modifier              = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Icon(Icons.Default.CalendarMonth, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(strings.todayHours, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = DeepRose, modifier = Modifier.weight(1f))
+                    if (todayWh != null && todayWh.isOpen) {
+                        val openStr  = "%02d:%02d".format(todayWh.openHour,  todayWh.openMinute)
+                        val closeStr = "%02d:%02d".format(todayWh.closeHour, todayWh.closeMinute)
+                        Text("$openStr – $closeStr", fontSize = 13.sp, color = AvailableGreen, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Text(strings.closedThisDay, fontSize = 13.sp, color = UnavailableGrey)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // ── Services ──────────────────────────────────────────────────
+        if (salon.services.isNotEmpty()) {
+            Text(strings.sectionServices, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            Spacer(Modifier.height(8.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement   = Arrangement.spacedBy(6.dp),
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                salon.services.forEach { service ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(BlushPink.copy(alpha = 0.55f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(service, fontSize = 12.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // ── Book button ───────────────────────────────────────────────
+        Button(
+            onClick  = onBook,
+            enabled  = salon.isAvailable,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            shape    = RoundedCornerShape(14.dp),
+            colors   = ButtonDefaults.buttonColors(
+                containerColor         = RoseGold,
+                disabledContainerColor = UnavailableGrey.copy(alpha = 0.25f)
+            )
+        ) {
+            Text(strings.book, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+
+        Spacer(Modifier.height(22.dp))
+
+        // ── Reviews ───────────────────────────────────────────────────
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier              = Modifier.fillMaxWidth()
+        ) {
+            Text(strings.reviews, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+            if (salon.rating > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("%.1f".format(salon.rating), fontSize = 13.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        HorizontalDivider(color = BlushPink, modifier = Modifier.padding(vertical = 8.dp))
+
+        if (reviews.isEmpty()) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier.fillMaxWidth().padding(vertical = 20.dp)
+            ) {
+                Text(strings.noReviewsYet, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                reviews.take(20).forEach { review -> ReviewCard(review) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewCard(review: ReviewDocument) {
+    val dateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
+    Card(
+        shape    = RoundedCornerShape(12.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment     = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text       = review.customerName.ifBlank { "—" },
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize   = 13.sp,
+                    color      = DeepRose
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    (1..5).forEach { star ->
+                        Icon(
+                            imageVector        = if (star <= review.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            tint               = WarmGold,
+                            modifier           = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+            if (review.comment.isNotBlank()) {
+                Spacer(Modifier.height(5.dp))
+                Text(review.comment, fontSize = 12.sp, color = Color(0xFF555555))
+            }
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text     = dateFmt.format(Date(review.createdAt)),
+                fontSize = 10.sp,
+                color    = Color(0xFFAAAAAA)
+            )
         }
     }
 }

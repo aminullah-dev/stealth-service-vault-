@@ -27,12 +27,15 @@ import com.security.stealthapp.ui.theme.StringResources
 import com.security.stealthapp.workers.ReminderWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -52,6 +55,7 @@ private val NEIGHBORHOOD_KEYS = listOf(
 
 data class BookingStatusChange(val salonName: String, val newStatus: String)
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -131,6 +135,17 @@ class DashboardViewModel @Inject constructor(
     val myAppointments: StateFlow<List<AppointmentDocument>> =
         firestoreRepository.observeForCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _activeSalonId = MutableStateFlow("")
+
+    val reviewsForSalon: StateFlow<List<ReviewDocument>> = _activeSalonId
+        .flatMapLatest { id ->
+            if (id.isEmpty()) flowOf(emptyList())
+            else firestoreRepository.observeReviewsForSalon(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setActiveSalon(id: String) { _activeSalonId.value = id }
 
     var bookingConfirmSalonName by mutableStateOf<String?>(null)
         private set
