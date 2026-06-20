@@ -21,8 +21,10 @@ data class UserDocument(
 )
 
 data class WorkingHours(
-    val dayOfWeek: Int = 2,        // java.util.Calendar constants: SUNDAY=1,MONDAY=2,...,SATURDAY=7
-    val isOpen: Boolean = false,
+    val dayOfWeek: Int = 2,
+    // Same JavaBeans issue as SalonDocument.isAvailable — must force the field name.
+    @get:PropertyName("isOpen") @set:PropertyName("isOpen")
+    var isOpen: Boolean = false,
     val openHour: Int = 9,
     val openMinute: Int = 0,
     val closeHour: Int = 18,
