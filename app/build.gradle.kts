@@ -33,7 +33,9 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile     = file(keystoreProps["storeFile"]     ?: "safebeauty-release.jks")
+            // Resolve the keystore path relative to the repo root so a value like
+            // "app/safebeauty-release.jks" doesn't double up to "app/app/...".
+            storeFile     = rootProject.file(keystoreProps["storeFile"] ?: "app/safebeauty-release.jks")
             storePassword = keystoreProps["storePassword"]      as String? ?: ""
             keyAlias      = keystoreProps["keyAlias"]           as String? ?: "safebeauty"
             keyPassword   = keystoreProps["keyPassword"]        as String? ?: ""
