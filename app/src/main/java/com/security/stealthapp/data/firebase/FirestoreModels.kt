@@ -19,8 +19,17 @@ data class UserDocument(
     val fcmToken: String = "",
     val createdAt: Long = 0L,
     val decoyPinHash: String = "",          // PBKDF2 hash of decoy PIN — shows fake notepad
-    val decoySalt: String = ""
+    val decoySalt: String = "",
+    val loyaltyPoints: Int = 0              // +10 per confirmed appointment
 )
+
+enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }
+
+fun UserDocument.loyaltyTier(): LoyaltyTier = when {
+    loyaltyPoints >= 150 -> LoyaltyTier.VIP
+    loyaltyPoints >= 50  -> LoyaltyTier.REGULAR
+    else                 -> LoyaltyTier.NEWCOMER
+}
 
 data class WorkingHours(
     val dayOfWeek: Int = 2,

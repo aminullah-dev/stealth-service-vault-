@@ -178,9 +178,13 @@ class ProviderViewModel @Inject constructor(
 
     fun acceptAppointment(apptId: String) {
         viewModelScope.launch {
+            val appt = allAppointments.value.find { it.id == apptId }
             firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
             salon.value?.id?.let { salonId ->
                 runCatching { firestoreRepository.incrementConfirmedCount(salonId) }
+            }
+            if (appt != null) {
+                runCatching { firestoreRepository.incrementLoyaltyPoints(appt.customerId) }
             }
             vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
         }

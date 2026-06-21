@@ -57,6 +57,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
@@ -106,6 +107,7 @@ import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonBadge
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.LoyaltyTier
 import com.security.stealthapp.data.firebase.WaitlistEntry
 import com.security.stealthapp.data.firebase.badge
 import com.security.stealthapp.navigation.Screen
@@ -228,6 +230,8 @@ fun HiddenDashboardScreen(
     val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
+    val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
+    val loyaltyTier               by viewModel.loyaltyTier.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
@@ -498,6 +502,11 @@ fun HiddenDashboardScreen(
                     onNameChange = { viewModel.onEditNameChanged(it) },
                     onSave      = { viewModel.saveCustomerProfile(); showProfileSheet = false },
                     onDismiss   = { showProfileSheet = false }
+                )
+                LoyaltyCard(
+                    points   = loyaltyPoints,
+                    tier     = loyaltyTier,
+                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                 )
                 DecoyPinSection(
                     uid      = viewModel.customerId,
@@ -1814,6 +1823,67 @@ private fun SalonBadgeChip(badge: SalonBadge, modifier: Modifier = Modifier) {
         Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(10.dp))
         Spacer(Modifier.width(3.dp))
         Text(label, fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ── Customer Loyalty card ─────────────────────────────────────────────────────
+
+@Composable
+private fun LoyaltyCard(points: Int, tier: LoyaltyTier, modifier: Modifier = Modifier) {
+    val strings = LocalStrings.current
+
+    val (tierLabel, tierColor, nextTarget) = when (tier) {
+        LoyaltyTier.NEWCOMER -> Triple(strings.loyaltyTierNewcomer, Color(0xFFCD7F32), 50)
+        LoyaltyTier.REGULAR  -> Triple(strings.loyaltyTierRegular,  Color(0xFF9E9E9E), 150)
+        LoyaltyTier.VIP      -> Triple(strings.loyaltyTierVIP,      WarmGold,          150)
+    }
+    val progress = when (tier) {
+        LoyaltyTier.NEWCOMER -> points / 50f
+        LoyaltyTier.REGULAR  -> (points - 50) / 100f
+        LoyaltyTier.VIP      -> 1f
+    }.coerceIn(0f, 1f)
+
+    Card(
+        modifier  = modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.cardColors(containerColor = tierColor.copy(alpha = 0.10f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                verticalAlignment    = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier             = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.Star, null, tint = tierColor, modifier = Modifier.size(20.dp))
+                    Text(strings.loyaltyTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
+                }
+                Box(
+                    modifier          = Modifier
+                        .background(tierColor, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                ) {
+                    Text(tierLabel, fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("$points", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = tierColor)
+                Text(strings.loyaltyPtsUnit, fontSize = 13.sp, color = tierColor.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(bottom = 4.dp))
+            }
+            LinearProgressIndicator(
+                progress          = { progress },
+                modifier          = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                color             = tierColor,
+                trackColor        = tierColor.copy(alpha = 0.18f),
+                strokeCap         = androidx.compose.ui.graphics.StrokeCap.Round
+            )
+            val hintText = if (tier == LoyaltyTier.VIP) "★ ${strings.loyaltyTierVIP}"
+                           else strings.loyaltyNextTier(nextTarget - points)
+            Text(hintText, fontSize = 11.sp, color = UnavailableGrey)
+            Text(strings.loyaltyEarnHint, fontSize = 10.sp, color = UnavailableGrey)
+        }
     }
 }
 

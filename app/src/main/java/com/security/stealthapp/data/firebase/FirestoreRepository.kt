@@ -78,6 +78,20 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update(mapOf("decoyPinHash" to "", "decoySalt" to "")).await()
     }
 
+    suspend fun incrementLoyaltyPoints(customerId: String) {
+        runCatching {
+            usersCol.document(customerId).update("loyaltyPoints", FieldValue.increment(10)).await()
+        }
+    }
+
+    fun observeUserLoyaltyPoints(uid: String): Flow<Int> = callbackFlow {
+        val listener = usersCol.document(uid).addSnapshotListener { snap, err ->
+            if (err != null) { trySend(0); return@addSnapshotListener }
+            trySend(snap?.getLong("loyaltyPoints")?.toInt() ?: 0)
+        }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun updateFcmToken(uid: String, token: String) {
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }

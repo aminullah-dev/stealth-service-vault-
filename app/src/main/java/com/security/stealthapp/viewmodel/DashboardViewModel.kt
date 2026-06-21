@@ -19,6 +19,7 @@ import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.LoyaltyTier
 import com.security.stealthapp.data.firebase.WaitlistEntry
 import com.security.stealthapp.data.firebase.WorkingHours
 import java.util.Calendar
@@ -38,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -144,6 +146,20 @@ class DashboardViewModel @Inject constructor(
     val myWaitlist: StateFlow<List<WaitlistEntry>> =
         firestoreRepository.observeMyWaitlist(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val loyaltyPoints: StateFlow<Int> =
+        firestoreRepository.observeUserLoyaltyPoints(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val loyaltyTier: StateFlow<LoyaltyTier> = loyaltyPoints
+        .map { pts ->
+            when {
+                pts >= 150 -> LoyaltyTier.VIP
+                pts >= 50  -> LoyaltyTier.REGULAR
+                else       -> LoyaltyTier.NEWCOMER
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LoyaltyTier.NEWCOMER)
 
     private val _activeSalonId = MutableStateFlow("")
 
