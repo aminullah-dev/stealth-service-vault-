@@ -275,6 +275,10 @@ data class AppStrings(
     // Smart Recommendations
     val recommendedTitle: String,
     val recommendedSubtitle: String,
+    // Provider review replies
+    val providerReplyHint: String,
+    val providerReplySubmit: String,
+    val providerReplied: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -509,6 +513,9 @@ object StringResources {
         loyaltyNextTier            = { n -> "$n pts to next tier" },
         recommendedTitle           = "Recommended for You",
         recommendedSubtitle        = "Based on your bookings",
+        providerReplyHint          = "Write a reply to this review…",
+        providerReplySubmit        = "Reply",
+        providerReplied            = "Our response:",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -740,6 +747,9 @@ object StringResources {
         loyaltyNextTier            = { n -> "$n امتیاز تا سطح بعدی" },
         recommendedTitle           = "پیشنهاد برای شما",
         recommendedSubtitle        = "بر اساس رزروهای شما",
+        providerReplyHint          = "پاسخ خود را بنویسید…",
+        providerReplySubmit        = "پاسخ",
+        providerReplied            = "پاسخ ما:",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -971,6 +981,9 @@ object StringResources {
         loyaltyNextTier            = { n -> "بل سطح ته $n ټکي پاتې" },
         recommendedTitle           = "ستاسو لپاره وړاندیز",
         recommendedSubtitle        = "ستاسو د بکینګونو له مخې",
+        providerReplyHint          = "دې نظر ته ځواب ولیکئ…",
+        providerReplySubmit        = "ځواب",
+        providerReplied            = "زموږ ځواب:",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )

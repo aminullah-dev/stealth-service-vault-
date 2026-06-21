@@ -8,6 +8,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -1844,6 +1845,28 @@ private fun ReviewCard(review: ReviewDocument) {
                 fontSize = 10.sp,
                 color    = Color(0xFFAAAAAA)
             )
+            if (review.providerReply.isNotBlank()) {
+                val strings = LocalStrings.current
+                Spacer(Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 3.dp,
+                            color = Color(0xFFE8A0B0),
+                            shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 8.dp,
+                                topEnd = 8.dp, bottomEnd = 8.dp)
+                        )
+                        .background(Color(0xFFFFF0F3), RoundedCornerShape(topStart = 0.dp,
+                            bottomStart = 8.dp, topEnd = 8.dp, bottomEnd = 8.dp))
+                        .padding(8.dp)
+                ) {
+                    Text(strings.providerReplied, fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold, color = RoseGold)
+                    Spacer(Modifier.height(2.dp))
+                    Text(review.providerReply, fontSize = 11.sp, color = Color(0xFF444444))
+                }
+            }
         }
     }
 }

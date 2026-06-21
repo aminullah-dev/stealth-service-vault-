@@ -7,6 +7,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -98,6 +99,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.GalleryImageDocument
+import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.util.ImageUtils
 import com.security.stealthapp.ui.theme.AvailableGreen
@@ -119,7 +121,11 @@ import com.security.stealthapp.viewmodel.ProviderViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -150,6 +156,7 @@ fun ProviderDashboardScreen(
     val allAppointments     by viewModel.allAppointments.collectAsStateWithLifecycle()
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
     val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
+    val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
     var showLangPicker      by remember { mutableStateOf(false) }
 
@@ -265,6 +272,11 @@ fun ProviderDashboardScreen(
                         onClick  = { selectedTab = 4 },
                         text     = { Text(strings.tabCalendar, fontSize = 14.sp) }
                     )
+                    Tab(
+                        selected = selectedTab == 5,
+                        onClick  = { selectedTab = 5 },
+                        text     = { Text(strings.reviews, fontSize = 14.sp) }
+                    )
                 }
 
                 // ── Tab content ───────────────────────────────────────────
@@ -282,6 +294,10 @@ fun ProviderDashboardScreen(
                     2 -> AnalyticsTab(analytics = analytics)
                     3 -> IncomeTab(viewModel = viewModel)
                     4 -> CalendarTab(allAppointments = allAppointments)
+                    5 -> ReviewsTab(
+                        reviews  = reviews,
+                        onReply  = { id, text -> viewModel.replyToReview(id, text) }
+                    )
                 }
             }
         }
@@ -1701,6 +1717,212 @@ private fun CalendarAppointmentRow(appt: AppointmentDocument) {
                             modifier = Modifier.size(18.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+// ── Provider Reviews Tab ─────────────────────────────────────────────────────
+
+@Composable
+private fun ReviewsTab(
+    reviews: List<ReviewDocument>,
+    onReply: (String, String) -> Unit
+) {
+    val strings = LocalStrings.current
+    var expandedReviewId by remember { mutableStateOf<String?>(null) }
+
+    if (reviews.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(strings.noReviewsYet, color = Color(0xFF888888), fontSize = 14.sp)
+        }
+        return
+    }
+
+    val avgRating = reviews.map { it.rating }.average()
+    val starCounts = (5 downTo 1).map { star -> star to reviews.count { it.rating == star } }
+
+    LazyColumn(
+        modifier            = Modifier.fillMaxSize(),
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Rating summary header
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(16.dp),
+                colors   = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F3))
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "%.1f".format(avgRating),
+                            fontSize   = 40.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = DeepRose
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            starCounts.forEach { (star, count) ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("$star", fontSize = 12.sp, color = RoseGold,
+                                        modifier = Modifier.width(12.dp))
+                                    Icon(Icons.Default.Star, contentDescription = null,
+                                        tint = WarmGold, modifier = Modifier.size(12.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    LinearProgressIndicator(
+                                        progress   = { if (reviews.isNotEmpty()) count.toFloat() / reviews.size else 0f },
+                                        modifier   = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color      = WarmGold,
+                                        trackColor = Color(0xFFE0C8CF)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("$count", fontSize = 11.sp, color = Color(0xFF888888),
+                                        modifier = Modifier.width(20.dp))
+                                }
+                                Spacer(Modifier.height(3.dp))
+                            }
+                        }
+                    }
+                    Text(
+                        "${reviews.size} ${strings.reviews}",
+                        fontSize = 12.sp, color = Color(0xFF888888),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+        // Review cards
+        items(reviews, key = { it.id }) { review ->
+            ProviderReviewCard(
+                review     = review,
+                isExpanded = expandedReviewId == review.id,
+                onExpand   = {
+                    expandedReviewId = if (expandedReviewId == review.id) null else review.id
+                },
+                onReply    = { text -> onReply(review.id, text) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProviderReviewCard(
+    review: ReviewDocument,
+    isExpanded: Boolean,
+    onExpand: () -> Unit,
+    onReply: (String) -> Unit
+) {
+    val strings = LocalStrings.current
+    var draftReply by remember(review.id) { mutableStateOf(review.providerReply) }
+    val dateStr = remember(review.createdAt) {
+        java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
+            .format(java.util.Date(review.createdAt))
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(16.dp),
+        colors   = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(Modifier.padding(14.dp)) {
+            // Header row: name + date
+            Row(
+                modifier       = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(review.customerName, fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp, color = DeepRose)
+                    Text(dateStr, fontSize = 11.sp, color = Color(0xFF888888))
+                }
+                // Stars
+                Row {
+                    (1..5).forEach { i ->
+                        Icon(
+                            if (i <= review.rating) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = null,
+                            tint     = WarmGold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+            // Comment
+            if (review.comment.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(review.comment, fontSize = 13.sp, color = Color(0xFF333333))
+            }
+            // Existing reply (collapsed view)
+            if (review.providerReply.isNotBlank() && !isExpanded) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 3.dp,
+                            color = Color(0xFFE8A0B0),
+                            shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 8.dp,
+                                topEnd = 8.dp, bottomEnd = 8.dp)
+                        )
+                        .background(Color(0xFFFFF0F3), RoundedCornerShape(topStart = 0.dp,
+                            bottomStart = 8.dp, topEnd = 8.dp, bottomEnd = 8.dp))
+                        .padding(10.dp)
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(strings.providerReplied, fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold, color = RoseGold)
+                        Spacer(Modifier.height(2.dp))
+                        Text(review.providerReply, fontSize = 12.sp, color = Color(0xFF444444))
+                    }
+                    IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.RateReview, contentDescription = null,
+                            tint = RoseGold, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            // Reply input (expanded)
+            if (isExpanded) {
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value         = draftReply,
+                    onValueChange = { draftReply = it },
+                    placeholder   = { Text(strings.providerReplyHint, fontSize = 13.sp) },
+                    modifier      = Modifier.fillMaxWidth(),
+                    shape         = RoundedCornerShape(12.dp),
+                    minLines      = 2
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onExpand) {
+                        Text(strings.cancel, color = Color(0xFF888888))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            onReply(draftReply)
+                            onExpand()
+                        },
+                        enabled = draftReply.isNotBlank(),
+                        colors  = ButtonDefaults.buttonColors(containerColor = DeepRose)
+                    ) {
+                        Text(strings.providerReplySubmit, color = Color.White)
+                    }
+                }
+            } else if (review.providerReply.isBlank()) {
+                // Show reply button when no reply yet
+                Spacer(Modifier.height(8.dp))
+                TextButton(
+                    onClick  = onExpand,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Icon(Icons.Default.RateReview, contentDescription = null,
+                        tint = RoseGold, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(strings.providerReplySubmit, fontSize = 12.sp, color = RoseGold)
                 }
             }
         }

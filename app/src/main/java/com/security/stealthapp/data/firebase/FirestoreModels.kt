@@ -93,7 +93,9 @@ data class ReviewDocument(
     val customerName: String = "",
     val rating: Int = 0,                    // 1–5 stars
     val comment: String = "",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val providerReply: String = "",         // Provider's response (blank = not replied)
+    val repliedAt: Long = 0L
 )
 
 /**

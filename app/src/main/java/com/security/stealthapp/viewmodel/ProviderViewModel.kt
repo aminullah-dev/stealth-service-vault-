@@ -10,6 +10,7 @@ import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
+import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.WorkingHours
 import com.security.stealthapp.data.repository.VaultRepository
@@ -71,6 +72,13 @@ class ProviderViewModel @Inject constructor(
     val allAppointments: StateFlow<List<AppointmentDocument>> = salon
         .flatMapLatest { s ->
             if (s != null) firestoreRepository.observeAllForSalon(s.id)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val reviews: StateFlow<List<ReviewDocument>> = salon
+        .flatMapLatest { s ->
+            if (s != null) firestoreRepository.observeReviewsForSalon(s.id)
             else flowOf(emptyList())
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -266,6 +274,17 @@ class ProviderViewModel @Inject constructor(
     }
 
     fun dismissSaveSuccess() { showSaveSuccess = false }
+
+    fun replyToReview(reviewId: String, reply: String) {
+        val trimmed = reply.trim()
+        if (trimmed.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.replyToReview(reviewId, trimmed)
+                vaultRepository.log("REVIEW_REPLIED", "id=$reviewId")
+            }
+        }
+    }
 
     fun triggerLock() {
         viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Provider locked vault") }

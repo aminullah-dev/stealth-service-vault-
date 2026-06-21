@@ -310,6 +310,12 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    suspend fun replyToReview(reviewId: String, reply: String) {
+        reviewsCol.document(reviewId).update(
+            mapOf("providerReply" to reply, "repliedAt" to System.currentTimeMillis())
+        ).await()
+    }
+
     /**
      * Adds a review, then recomputes the salon's average rating from all of its
      * reviews and writes it back so salon cards stay in sync.
