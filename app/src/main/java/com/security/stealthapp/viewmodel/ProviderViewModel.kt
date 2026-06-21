@@ -95,9 +95,7 @@ class ProviderViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var isUploadingPhoto by mutableStateOf(false)
-        private set
     var photoError by mutableStateOf<String?>(null)
-        private set
 
     /** Stores an already-compressed Base64 photo against the current salon. */
     fun addGalleryImage(base64: String) {
@@ -122,9 +120,6 @@ class ProviderViewModel @Inject constructor(
             runCatching { firestoreRepository.deleteGalleryImage(imageId) }
         }
     }
-
-    fun setUploading(value: Boolean) { isUploadingPhoto = value }
-    fun setPhotoError(message: String?) { photoError = message }
 
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 

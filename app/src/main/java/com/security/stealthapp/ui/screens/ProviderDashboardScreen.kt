@@ -836,18 +836,18 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        viewModel.setPhotoError(null)
-        viewModel.setUploading(true)
+        viewModel.photoError = null
+        viewModel.isUploadingPhoto = true
         scope.launch {
             when (val result = ImageUtils.uriToCompressedBase64(context, uri)) {
                 is ImageUtils.Result.Success  -> viewModel.addGalleryImage(result.base64)
                 is ImageUtils.Result.TooLarge -> {
-                    viewModel.setUploading(false)
-                    viewModel.setPhotoError(strings.photoTooLarge)
+                    viewModel.isUploadingPhoto = false
+                    viewModel.photoError = strings.photoTooLarge
                 }
                 is ImageUtils.Result.Failed   -> {
-                    viewModel.setUploading(false)
-                    viewModel.setPhotoError(strings.photoUploadFailed)
+                    viewModel.isUploadingPhoto = false
+                    viewModel.photoError = strings.photoUploadFailed
                 }
             }
         }
