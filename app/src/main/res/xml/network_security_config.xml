@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Enforces HTTPS-only traffic for all connections.
+  Firebase, Firestore, and FCM all use TLS by default so this has no
+  runtime impact; it just makes the policy explicit for Play Store's
+  Data Safety declaration and security scanners.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
