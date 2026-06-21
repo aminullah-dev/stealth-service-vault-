@@ -73,8 +73,10 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.SalonBadge
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
+import com.security.stealthapp.data.firebase.badge
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.DashboardSurface
@@ -191,7 +193,7 @@ fun AdminDashboardScreen(
                 when (selectedTab) {
                     0 -> ApprovalsTab(pendingProviders, viewModel)
                     1 -> UsersTab(allUsers, viewModel)
-                    2 -> SalonsTab(allSalons)
+                    2 -> SalonsTab(allSalons, viewModel)
                     3 -> StatsTab(stats)
                     4 -> BroadcastTab(broadcasts, viewModel)
                 }
@@ -582,7 +584,7 @@ private fun AdminStatCard(
 // ── Tab 2: Salons ─────────────────────────────────────────────────────────────
 
 @Composable
-private fun SalonsTab(salons: List<SalonDocument>) {
+private fun SalonsTab(salons: List<SalonDocument>, viewModel: AdminViewModel) {
     val strings = LocalStrings.current
     if (salons.isEmpty()) {
         CenteredEmpty(Icons.Default.Store, strings.noSalonsYet, "")
@@ -592,15 +594,20 @@ private fun SalonsTab(salons: List<SalonDocument>) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(salons, key = { it.id }) { salon ->
-                SalonAdminRow(salon)
+                SalonAdminRow(
+                    salon           = salon,
+                    onVerifyToggle  = { viewModel.verifySalon(salon.id, !salon.isVerified) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SalonAdminRow(salon: SalonDocument) {
+private fun SalonAdminRow(salon: SalonDocument, onVerifyToggle: () -> Unit) {
+    val strings    = LocalStrings.current
     val availColor = if (salon.isAvailable) AvailableGreen else UnavailableGrey
+    val badge      = salon.badge()
     ElevatedCard(
         shape     = RoundedCornerShape(14.dp),
         colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
@@ -621,17 +628,25 @@ private fun SalonAdminRow(salon: SalonDocument) {
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    salon.salonName,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize   = 14.sp,
-                    color      = DeepRose
-                )
-                Text(
-                    salon.district,
-                    fontSize = 12.sp,
-                    color    = RoseGold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(salon.salonName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                    if (badge != SalonBadge.NONE) {
+                        val (badgeLabel, badgeColor) = when (badge) {
+                            SalonBadge.VERIFIED -> Pair(strings.badgeVerified, Color(0xFF4CAF50))
+                            SalonBadge.GOLD     -> Pair(strings.badgeGold,     Color(0xFFD4A853))
+                            SalonBadge.SILVER   -> Pair(strings.badgeSilver,   Color(0xFF9E9E9E))
+                            SalonBadge.NONE     -> Pair("", Color.Transparent)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(badgeLabel, fontSize = 9.sp, color = badgeColor, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Text(salon.district, fontSize = 12.sp, color = RoseGold)
                 if (salon.services.isNotEmpty()) {
                     Text(
                         salon.services.take(3).joinToString(" · "),
@@ -640,6 +655,15 @@ private fun SalonAdminRow(salon: SalonDocument) {
                         maxLines = 1
                     )
                 }
+            }
+            // Verify toggle
+            IconButton(onClick = onVerifyToggle, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = if (salon.isVerified) strings.badgeUnverify else strings.badgeVerifyToggle,
+                    tint   = if (salon.isVerified) Color(0xFF4CAF50) else UnavailableGrey.copy(alpha = 0.4f),
+                    modifier = Modifier.size(22.dp)
+                )
             }
             Box(
                 modifier = Modifier

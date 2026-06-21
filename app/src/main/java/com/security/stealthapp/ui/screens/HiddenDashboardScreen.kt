@@ -104,7 +104,10 @@ import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
+import com.security.stealthapp.data.firebase.SalonBadge
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.WaitlistEntry
+import com.security.stealthapp.data.firebase.badge
 import com.security.stealthapp.navigation.Screen
 import com.security.stealthapp.ui.theme.AppLanguage
 import com.security.stealthapp.ui.theme.AvailableGreen
@@ -190,6 +193,17 @@ fun HiddenDashboardScreen(
         }
     }
 
+    // Show a local notification when a waitlist slot becomes available
+    LaunchedEffect(Unit) {
+        viewModel.waitlistSlotAvailable.collect { salonName ->
+            NotificationHelper.showBookingUpdate(
+                context,
+                latestStrings.waitlistSlotAvailableTitle,
+                latestStrings.waitlistSlotAvailableText(salonName)
+            )
+        }
+    }
+
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
             viewModel.resetLockTrigger()
@@ -213,6 +227,7 @@ fun HiddenDashboardScreen(
 
     val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
+    val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
@@ -590,7 +605,28 @@ fun HiddenDashboardScreen(
                         when {
                             viewModel.slotsLoading -> CircularProgressIndicator(color = RoseGold, modifier = Modifier.align(Alignment.Center))
                             viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> {
-                                Text(strings.noSlotsAvailable, color = RoseGold, textAlign = TextAlign.Center, modifier = Modifier.align(Alignment.Center))
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.align(Alignment.Center)
+                                ) {
+                                    Text(strings.noSlotsAvailable, color = RoseGold, textAlign = TextAlign.Center)
+                                    val intent = bookingIntent
+                                    if (intent != null && intent.dateMs != null) {
+                                        Spacer(Modifier.height(16.dp))
+                                        Button(
+                                            onClick = {
+                                                viewModel.joinWaitlist(intent.salon, intent.dateMs)
+                                                showSlotPicker = false
+                                                bookingIntent  = null
+                                                viewModel.clearSlots()
+                                            },
+                                            shape  = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = DeepRose)
+                                        ) {
+                                            Text(strings.waitlistJoin, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
+                                }
                             }
                             else -> {
                                 val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
@@ -628,6 +664,23 @@ fun HiddenDashboardScreen(
             )
         }
 
+        // ── Waitlist join confirmation ────────────────────────────────────────
+        viewModel.waitlistJoinedSalonName?.let { salonName ->
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissWaitlistJoined() },
+                icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
+                title = { Text(strings.waitlistJoined, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.waitlistJoinedText(salonName), fontSize = 14.sp, color = Color(0xFF555555)) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissWaitlistJoined() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         // ── Booking confirmation ──────────────────────────────────────────────
         viewModel.bookingConfirmSalonName?.let { salonName ->
             AlertDialog(
@@ -654,6 +707,7 @@ fun HiddenDashboardScreen(
             ) {
                 BookingsSheetContent(
                     appointments = myAppointments,
+                    waitlistEntries = myWaitlist,
                     onDismiss    = { showBookingsSheet = false },
                     onChatClick  = { appt ->
                         showBookingsSheet = false
@@ -676,7 +730,9 @@ fun HiddenDashboardScreen(
                     onReviewClick     = { appt ->
                         showBookingsSheet = false
                         reviewTarget      = appt
-                    }
+                    },
+                    onLeaveWaitlist   = { entryId -> viewModel.leaveWaitlist(entryId) },
+                    onDismissWaitlistSlot = { entryId -> viewModel.dismissWaitlistSlot(entryId) }
                 )
             }
         }
@@ -922,6 +978,11 @@ private fun SalonCard(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                    val cardBadge = remember(salon.id, salon.isVerified, salon.rating, salon.confirmedCount) { salon.badge() }
+                    if (cardBadge != SalonBadge.NONE) {
+                        Spacer(Modifier.height(5.dp))
+                        SalonBadgeChip(badge = cardBadge)
+                    }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1096,11 +1157,14 @@ private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier =
 @Composable
 private fun BookingsSheetContent(
     appointments: List<AppointmentDocument>,
+    waitlistEntries: List<WaitlistEntry> = emptyList(),
     onDismiss: () -> Unit,
     onChatClick: (AppointmentDocument) -> Unit = {},
     onCancelClick: (AppointmentDocument) -> Unit = {},
     onRescheduleClick: (AppointmentDocument) -> Unit = {},
-    onReviewClick: (AppointmentDocument) -> Unit = {}
+    onReviewClick: (AppointmentDocument) -> Unit = {},
+    onLeaveWaitlist: (String) -> Unit = {},
+    onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -1167,6 +1231,27 @@ private fun BookingsSheetContent(
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
                 }
                 past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }) }
+            }
+        }
+
+        // ── Waitlist entries ──────────────────────────────────────────────────
+        if (waitlistEntries.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            HorizontalDivider(color = BlushPink)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(WarmGold))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.waitlistTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
+            }
+            val dateFmtShort = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
+            waitlistEntries.forEach { entry ->
+                WaitlistCard(
+                    entry             = entry,
+                    dateFmt           = dateFmtShort,
+                    onLeave           = { onLeaveWaitlist(entry.id) },
+                    onDismissSlot     = { onDismissWaitlistSlot(entry.id) }
+                )
             }
         }
     }
@@ -1444,6 +1529,11 @@ private fun SalonDetailSheetContent(
                         Text("  (${reviews.size})", fontSize = 11.sp, color = Color(0xFF999999))
                     }
                 }
+                val detailBadge = remember(salon.id, salon.isVerified, salon.rating, salon.confirmedCount) { salon.badge() }
+                if (detailBadge != SalonBadge.NONE) {
+                    Spacer(Modifier.height(6.dp))
+                    SalonBadgeChip(badge = detailBadge)
+                }
             }
             IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
                 Icon(
@@ -1632,6 +1722,98 @@ private fun ReviewCard(review: ReviewDocument) {
                 color    = Color(0xFFAAAAAA)
             )
         }
+    }
+}
+
+// ── Waitlist card ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun WaitlistCard(
+    entry: WaitlistEntry,
+    dateFmt: SimpleDateFormat,
+    onLeave: () -> Unit,
+    onDismissSlot: () -> Unit
+) {
+    val strings        = LocalStrings.current
+    val isSlotAvail    = entry.status == "SLOT_AVAILABLE"
+    val accentColor    = if (isSlotAvail) AvailableGreen else WarmGold
+    Card(
+        shape    = RoundedCornerShape(14.dp),
+        colors   = CardDefaults.cardColors(
+            containerColor = if (isSlotAvail) AvailableGreen.copy(alpha = 0.08f) else DashboardSurface
+        ),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.padding(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp).height(40.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(accentColor)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(entry.salonName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 13.sp)
+                Text(
+                    "📅 ${dateFmt.format(Date(entry.requestedDate))}",
+                    fontSize = 11.sp, color = Color(0xFFAAAAAA)
+                )
+                if (isSlotAvail) {
+                    Text(strings.waitlistSlotAvailableTitle, fontSize = 11.sp, color = AvailableGreen, fontWeight = FontWeight.SemiBold)
+                } else {
+                    Text(strings.waitlistWaiting, fontSize = 11.sp, color = WarmGold)
+                }
+            }
+            if (isSlotAvail) {
+                OutlinedButton(
+                    onClick        = onDismissSlot,
+                    shape          = RoundedCornerShape(8.dp),
+                    border         = androidx.compose.foundation.BorderStroke(1.dp, AvailableGreen),
+                    colors         = ButtonDefaults.outlinedButtonColors(contentColor = AvailableGreen),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(strings.waitlistDismiss, fontSize = 12.sp)
+                }
+            } else {
+                OutlinedButton(
+                    onClick        = onLeave,
+                    shape          = RoundedCornerShape(8.dp),
+                    border         = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                    colors         = ButtonDefaults.outlinedButtonColors(contentColor = UnavailableGrey),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(strings.waitlistLeave, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+// ── Salon badge chip ──────────────────────────────────────────────────────────
+
+@Composable
+private fun SalonBadgeChip(badge: SalonBadge, modifier: Modifier = Modifier) {
+    if (badge == SalonBadge.NONE) return
+    val strings = LocalStrings.current
+    val (label, color) = when (badge) {
+        SalonBadge.VERIFIED -> Pair(strings.badgeVerified, Color(0xFF4CAF50))
+        SalonBadge.GOLD     -> Pair(strings.badgeGold,     Color(0xFFD4A853))
+        SalonBadge.SILVER   -> Pair(strings.badgeSilver,   Color(0xFF9E9E9E))
+        SalonBadge.NONE     -> Pair("",                    Color.Transparent)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(color)
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(10.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(label, fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
     }
 }
 

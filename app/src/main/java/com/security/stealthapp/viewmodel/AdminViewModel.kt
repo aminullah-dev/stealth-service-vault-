@@ -101,6 +101,13 @@ class AdminViewModel @Inject constructor(
         }
     }
 
+    fun verifySalon(salonId: String, verified: Boolean) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.setSalonVerified(salonId, verified) }
+            vaultRepository.log("ADMIN_VERIFY_SALON", "salonId=$salonId verified=$verified")
+        }
+    }
+
     fun sendBroadcast() {
         val msg = broadcastText.trim()
         if (msg.isBlank()) return

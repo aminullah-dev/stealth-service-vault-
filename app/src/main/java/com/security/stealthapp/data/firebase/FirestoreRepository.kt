@@ -1,5 +1,6 @@
 package com.security.stealthapp.data.firebase
 
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.security.stealthapp.data.db.dao.SalonCacheDao
 import com.security.stealthapp.data.db.entities.toEntity
@@ -39,6 +40,7 @@ class FirestoreRepository @Inject constructor(
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
+    private val waitlistCol     = db.collection("waitlist")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -159,6 +161,16 @@ class FirestoreRepository @Inject constructor(
 
     suspend fun setAvailability(salonId: String, isAvailable: Boolean) {
         salonsCol.document(salonId).update("isAvailable", isAvailable).await()
+    }
+
+    suspend fun incrementConfirmedCount(salonId: String) {
+        runCatching {
+            salonsCol.document(salonId).update("confirmedCount", FieldValue.increment(1)).await()
+        }
+    }
+
+    suspend fun setSalonVerified(salonId: String, verified: Boolean) {
+        salonsCol.document(salonId).update("isVerified", verified).await()
     }
 
     // ── Appointments ──────────────────────────────────────────────────────────
@@ -376,6 +388,56 @@ class FirestoreRepository @Inject constructor(
         appointmentsCol.whereEqualTo("customerId", userId).get().await()
             .documents.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
             .sortedByDescending { it.appointmentDate }
+
+    // ── Waitlist ──────────────────────────────────────────────────────────────────
+
+    suspend fun addToWaitlist(entry: WaitlistEntry): String {
+        val ref = waitlistCol.add(entry).await()
+        return ref.id
+    }
+
+    suspend fun removeFromWaitlist(entryId: String) {
+        waitlistCol.document(entryId).delete().await()
+    }
+
+    suspend fun dismissWaitlistEntry(entryId: String) {
+        waitlistCol.document(entryId).update("status", "EXPIRED").await()
+    }
+
+    fun observeMyWaitlist(customerId: String): Flow<List<WaitlistEntry>> = callbackFlow {
+        val listener = waitlistCol
+            .whereEqualTo("customerId", customerId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(WaitlistEntry::class.java)?.copy(id = it.id) }
+                    ?.filter { it.status == "WAITING" || it.status == "SLOT_AVAILABLE" }
+                    ?.sortedBy { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * When a slot opens for [salonId] on [dateMs], promote the earliest-waiting
+     * customer to SLOT_AVAILABLE. Uses a single equality filter + in-memory date
+     * check to avoid composite index requirements.
+     */
+    suspend fun notifyFirstWaiting(salonId: String, dateMs: Long) {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = dateMs }
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
+        val startOfDay = cal.timeInMillis
+        val entries = waitlistCol.whereEqualTo("salonId", salonId).get().await()
+        val first = entries.documents
+            .mapNotNull { it.toObject(WaitlistEntry::class.java)?.copy(id = it.id) }
+            .filter { it.requestedDate == startOfDay && it.status == "WAITING" }
+            .minByOrNull { it.createdAt }
+        if (first != null) {
+            waitlistCol.document(first.id).update("status", "SLOT_AVAILABLE").await()
+        }
+    }
 
     // ── Seeder check ──────────────────────────────────────────────────────────
 

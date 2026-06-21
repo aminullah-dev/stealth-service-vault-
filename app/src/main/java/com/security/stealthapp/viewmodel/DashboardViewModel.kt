@@ -19,6 +19,7 @@ import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.WaitlistEntry
 import com.security.stealthapp.data.firebase.WorkingHours
 import java.util.Calendar
 import com.security.stealthapp.data.repository.FavoritesRepository
@@ -72,15 +73,17 @@ class DashboardViewModel @Inject constructor(
     val categoryCount     = CATEGORY_KEYS.size
     val neighborhoodCount = NEIGHBORHOOD_KEYS.size
 
-    private val _selectedCategoryIndex     = MutableStateFlow(0)
-    private val _selectedNeighborhoodIndex = MutableStateFlow(0)
-    private val _currentUserName           = MutableStateFlow("")
-    private val _currentUserPhone          = MutableStateFlow("")
-    private val _isOffline                 = MutableStateFlow(false)
-    private val _showFavoritesOnly         = MutableStateFlow(false)
-    private val _searchQuery               = MutableStateFlow("")
-    private val _bookingStatusChange       = MutableSharedFlow<BookingStatusChange>(extraBufferCapacity = 4)
-    private var previousStatuses: Map<String, String> = emptyMap()
+    private val _selectedCategoryIndex      = MutableStateFlow(0)
+    private val _selectedNeighborhoodIndex  = MutableStateFlow(0)
+    private val _currentUserName            = MutableStateFlow("")
+    private val _currentUserPhone           = MutableStateFlow("")
+    private val _isOffline                  = MutableStateFlow(false)
+    private val _showFavoritesOnly          = MutableStateFlow(false)
+    private val _searchQuery                = MutableStateFlow("")
+    private val _bookingStatusChange        = MutableSharedFlow<BookingStatusChange>(extraBufferCapacity = 4)
+    private val _waitlistSlotAvailable      = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    private var previousStatuses: Map<String, String>         = emptyMap()
+    private var previousWaitlistStatuses: Map<String, String> = emptyMap()
 
     val selectedCategoryIndex: StateFlow<Int>          = _selectedCategoryIndex
     val selectedNeighborhoodIndex: StateFlow<Int>      = _selectedNeighborhoodIndex
@@ -89,6 +92,7 @@ class DashboardViewModel @Inject constructor(
     val showFavoritesOnly: StateFlow<Boolean>          = _showFavoritesOnly
     val searchQuery: StateFlow<String>                 = _searchQuery
     val bookingStatusChange: SharedFlow<BookingStatusChange> = _bookingStatusChange
+    val waitlistSlotAvailable: SharedFlow<String>      = _waitlistSlotAvailable
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
@@ -137,6 +141,10 @@ class DashboardViewModel @Inject constructor(
         firestoreRepository.observeForCustomer(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val myWaitlist: StateFlow<List<WaitlistEntry>> =
+        firestoreRepository.observeMyWaitlist(customerId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _activeSalonId = MutableStateFlow("")
 
     val reviewsForSalon: StateFlow<List<ReviewDocument>> = _activeSalonId
@@ -155,7 +163,9 @@ class DashboardViewModel @Inject constructor(
 
     fun setActiveSalon(id: String) { _activeSalonId.value = id }
 
-    var bookingConfirmSalonName by mutableStateOf<String?>(null)
+    var bookingConfirmSalonName  by mutableStateOf<String?>(null)
+        private set
+    var waitlistJoinedSalonName by mutableStateOf<String?>(null)
         private set
 
     var lockTriggered by mutableStateOf(false)
@@ -208,6 +218,21 @@ class DashboardViewModel @Inject constructor(
                 previousStatuses = current
             }
         }
+
+        // Detect waitlist slot-available transitions for push notifications
+        viewModelScope.launch {
+            myWaitlist.collect { entries ->
+                val current = entries.associateBy({ it.id }, { it.status })
+                previousWaitlistStatuses.forEach { (id, prevStatus) ->
+                    val newStatus = current[id]
+                    if (prevStatus == "WAITING" && newStatus == "SLOT_AVAILABLE") {
+                        val entry = entries.find { it.id == id }
+                        if (entry != null) _waitlistSlotAvailable.emit(entry.salonName)
+                    }
+                }
+                previousWaitlistStatuses = current
+            }
+        }
     }
 
     override fun onCleared() {
@@ -244,11 +269,53 @@ class DashboardViewModel @Inject constructor(
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
             runCatching {
+                val appt = myAppointments.value.find { it.id == appointmentId }
                 firestoreRepository.updateAppointmentStatus(appointmentId, "CANCELLED")
+                if (appt != null) {
+                    runCatching { firestoreRepository.notifyFirstWaiting(appt.salonId, appt.appointmentDate) }
+                }
                 vaultRepository.log("APPOINTMENT_CANCELLED", "id=$appointmentId customerId=$customerId")
             }
         }
     }
+
+    fun joinWaitlist(salon: SalonDocument, dateMs: Long) {
+        viewModelScope.launch {
+            runCatching {
+                val cal = java.util.Calendar.getInstance().apply { timeInMillis = dateMs }
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                firestoreRepository.addToWaitlist(
+                    WaitlistEntry(
+                        salonId       = salon.id,
+                        salonName     = salon.salonName,
+                        customerId    = customerId,
+                        customerName  = _currentUserName.value,
+                        requestedDate = cal.timeInMillis,
+                        createdAt     = System.currentTimeMillis()
+                    )
+                )
+                vaultRepository.log("WAITLIST_JOIN", "salonId=${salon.id}")
+                waitlistJoinedSalonName = salon.salonName
+            }
+        }
+    }
+
+    fun leaveWaitlist(entryId: String) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.removeFromWaitlist(entryId) }
+        }
+    }
+
+    fun dismissWaitlistSlot(entryId: String) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.dismissWaitlistEntry(entryId) }
+        }
+    }
+
+    fun dismissWaitlistJoined() { waitlistJoinedSalonName = null }
 
     fun rescheduleAppointment(appointmentId: String, newDateMs: Long) {
         viewModelScope.launch {

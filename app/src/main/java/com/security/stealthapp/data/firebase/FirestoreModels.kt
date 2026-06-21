@@ -48,8 +48,21 @@ data class SalonDocument(
     val rating: Double = 0.0,
     val workingHours: List<WorkingHours> = emptyList(),
     val slotDurationMinutes: Int = 60,
-    val pricePerService: Map<String, Int> = emptyMap()
+    val pricePerService: Map<String, Int> = emptyMap(),
+    val confirmedCount: Int = 0,
+    // Same JavaBeans issue — must force "isVerified" so Firestore doesn't strip "is".
+    @get:PropertyName("isVerified") @set:PropertyName("isVerified")
+    var isVerified: Boolean = false
 )
+
+enum class SalonBadge { NONE, SILVER, GOLD, VERIFIED }
+
+fun SalonDocument.badge(): SalonBadge = when {
+    isVerified                            -> SalonBadge.VERIFIED
+    rating >= 4.5 && confirmedCount >= 25 -> SalonBadge.GOLD
+    rating >= 4.0 && confirmedCount >= 10 -> SalonBadge.SILVER
+    else                                  -> SalonBadge.NONE
+}
 
 data class AppointmentDocument(
     val id: String = "",                    // Firestore document ID
@@ -90,5 +103,16 @@ data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",
     val sentBy: String = "admin",
+    val createdAt: Long = 0L
+)
+
+data class WaitlistEntry(
+    val id: String = "",
+    val salonId: String = "",
+    val salonName: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val requestedDate: Long = 0L,           // start-of-day millis for the requested date
+    val status: String = "WAITING",         // "WAITING" | "SLOT_AVAILABLE" | "EXPIRED"
     val createdAt: Long = 0L
 )

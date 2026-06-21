@@ -179,13 +179,21 @@ class ProviderViewModel @Inject constructor(
     fun acceptAppointment(apptId: String) {
         viewModelScope.launch {
             firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
+            salon.value?.id?.let { salonId ->
+                runCatching { firestoreRepository.incrementConfirmedCount(salonId) }
+            }
             vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
         }
     }
 
     fun declineAppointment(apptId: String) {
         viewModelScope.launch {
+            val appt = allAppointments.value.find { it.id == apptId }
             firestoreRepository.updateAppointmentStatus(apptId, "CANCELLED")
+            val salonId = salon.value?.id
+            if (appt != null && salonId != null) {
+                runCatching { firestoreRepository.notifyFirstWaiting(salonId, appt.appointmentDate) }
+            }
             vaultRepository.log("APPOINTMENT_CANCELLED", "id=$apptId")
         }
     }
