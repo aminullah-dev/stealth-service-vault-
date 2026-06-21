@@ -1,7 +1,11 @@
 package com.security.stealthapp.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
@@ -45,6 +50,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -73,11 +79,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -88,7 +97,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.navigation.Screen
+import com.security.stealthapp.util.ImageUtils
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
 import com.security.stealthapp.ui.theme.ChipActive
@@ -104,6 +115,7 @@ import com.security.stealthapp.ui.theme.WarmGold
 import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.ProviderAnalytics
 import com.security.stealthapp.viewmodel.ProviderViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -792,6 +804,9 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Working hours card ────────────────────────────────────────────
         WorkingHoursSection(viewModel = viewModel)
 
+        // ── Portfolio / sample-work photos ────────────────────────────────
+        PortfolioSection(viewModel = viewModel)
+
         // ── Save button ───────────────────────────────────────────────────
         Button(
             onClick  = { viewModel.saveProfile() },
@@ -805,6 +820,150 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+// ── Portfolio section ───────────────────────────────────────────────────────────
+
+@Composable
+private fun PortfolioSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
+    val gallery by viewModel.gallery.collectAsStateWithLifecycle()
+
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        viewModel.setPhotoError(null)
+        viewModel.setUploading(true)
+        scope.launch {
+            when (val result = ImageUtils.uriToCompressedBase64(context, uri)) {
+                is ImageUtils.Result.Success  -> viewModel.addGalleryImage(result.base64)
+                is ImageUtils.Result.TooLarge -> {
+                    viewModel.setUploading(false)
+                    viewModel.setPhotoError(strings.photoTooLarge)
+                }
+                is ImageUtils.Result.Failed   -> {
+                    viewModel.setUploading(false)
+                    viewModel.setPhotoError(strings.photoUploadFailed)
+                }
+            }
+        }
+    }
+
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(strings.portfolioTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            HorizontalDivider(color = BlushPink)
+
+            if (gallery.isEmpty() && !viewModel.isUploadingPhoto) {
+                Text(strings.noPhotosYet, fontSize = 13.sp, color = Color(0xFFAAAAAA))
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (viewModel.isUploadingPhoto) {
+                        item {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(BlushPink)
+                            ) {
+                                CircularProgressIndicator(
+                                    color       = RoseGold,
+                                    strokeWidth = 2.dp,
+                                    modifier    = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                    items(gallery, key = { it.id }) { image ->
+                        ProviderGalleryThumb(
+                            image    = image,
+                            onDelete = { viewModel.deleteGalleryImage(image.id) },
+                            deleteCd = strings.deletePhoto
+                        )
+                    }
+                }
+            }
+
+            viewModel.photoError?.let { err ->
+                Text(err, fontSize = 12.sp, color = Color(0xFFD32F2F))
+            }
+
+            Button(
+                onClick  = {
+                    picker.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                enabled  = !viewModel.isUploadingPhoto,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+            ) {
+                Icon(Icons.Default.AddAPhoto, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (viewModel.isUploadingPhoto) strings.uploadingPhoto else strings.addPhoto,
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderGalleryThumb(
+    image: GalleryImageDocument,
+    onDelete: () -> Unit,
+    deleteCd: String
+) {
+    val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+    Box(modifier = Modifier.size(96.dp)) {
+        if (bitmap != null) {
+            Image(
+                bitmap             = bitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale       = ContentScale.Crop,
+                modifier           = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(12.dp))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BlushPink)
+            )
+        }
+        // Delete badge
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(Color(0xCC000000))
+                .clickable { onDelete() }
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = deleteCd,
+                tint               = Color.White,
+                modifier           = Modifier.size(14.dp)
+            )
+        }
     }
 }
 

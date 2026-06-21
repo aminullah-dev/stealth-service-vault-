@@ -16,6 +16,7 @@ import androidx.work.workDataOf
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.WorkingHours
@@ -142,6 +143,13 @@ class DashboardViewModel @Inject constructor(
         .flatMapLatest { id ->
             if (id.isEmpty()) flowOf(emptyList())
             else firestoreRepository.observeReviewsForSalon(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val galleryForSalon: StateFlow<List<GalleryImageDocument>> = _activeSalonId
+        .flatMapLatest { id ->
+            if (id.isEmpty()) flowOf(emptyList())
+            else firestoreRepository.observeGalleryForSalon(id)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

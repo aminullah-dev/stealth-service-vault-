@@ -38,6 +38,7 @@ class FirestoreRepository @Inject constructor(
     private val chatCol         = db.collection("chat_messages")
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
+    private val galleryCol      = db.collection("salon_gallery")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -274,13 +275,44 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
+    // ── Salon gallery (portfolio photos) ─────────────────────────────────────
+
+    fun observeGalleryForSalon(salonId: String): Flow<List<GalleryImageDocument>> = callbackFlow {
+        val listener = galleryCol
+            .whereEqualTo("salonId", salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(GalleryImageDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun addGalleryImage(image: GalleryImageDocument) {
+        galleryCol.add(image).await()
+    }
+
+    suspend fun deleteGalleryImage(imageId: String) {
+        galleryCol.document(imageId).delete().await()
+    }
+
     suspend fun deleteUser(uid: String) {
         usersCol.document(uid).delete().await()
     }
 
     suspend fun deleteSalonByProvider(providerId: String) {
         val docs = salonsCol.whereEqualTo("providerId", providerId).get().await()
-        docs.documents.forEach { it.reference.delete().await() }
+        docs.documents.forEach { salonDoc ->
+            // Remove any portfolio photos belonging to this salon, then the salon.
+            runCatching {
+                galleryCol.whereEqualTo("salonId", salonDoc.id).get().await()
+                    .documents.forEach { it.reference.delete().await() }
+            }
+            salonDoc.reference.delete().await()
+        }
     }
 
     // ── Admin — all users ────────────────────────────────────────────────────

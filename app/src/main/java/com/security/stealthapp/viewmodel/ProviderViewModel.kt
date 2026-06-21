@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.WorkingHours
 import com.security.stealthapp.data.repository.VaultRepository
@@ -83,6 +84,47 @@ class ProviderViewModel @Inject constructor(
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderAnalytics())
+
+    // ── Portfolio gallery ─────────────────────────────────────────────────────
+
+    val gallery: StateFlow<List<GalleryImageDocument>> = salon
+        .flatMapLatest { s ->
+            if (s != null) firestoreRepository.observeGalleryForSalon(s.id)
+            else flowOf(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    var isUploadingPhoto by mutableStateOf(false)
+        private set
+    var photoError by mutableStateOf<String?>(null)
+        private set
+
+    /** Stores an already-compressed Base64 photo against the current salon. */
+    fun addGalleryImage(base64: String) {
+        val salonId = salon.value?.id ?: return
+        viewModelScope.launch {
+            isUploadingPhoto = true
+            runCatching {
+                firestoreRepository.addGalleryImage(
+                    GalleryImageDocument(
+                        salonId     = salonId,
+                        imageBase64 = base64,
+                        createdAt   = System.currentTimeMillis()
+                    )
+                )
+            }
+            isUploadingPhoto = false
+        }
+    }
+
+    fun deleteGalleryImage(imageId: String) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.deleteGalleryImage(imageId) }
+        }
+    }
+
+    fun setUploading(value: Boolean) { isUploadingPhoto = value }
+    fun setPhotoError(message: String?) { photoError = message }
 
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 

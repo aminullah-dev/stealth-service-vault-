@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,6 +90,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -99,6 +102,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.navigation.Screen
@@ -115,6 +119,7 @@ import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
+import com.security.stealthapp.util.ImageUtils
 import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.viewmodel.DashboardViewModel
 import com.security.stealthapp.viewmodel.ExportPhase
@@ -203,6 +208,7 @@ fun HiddenDashboardScreen(
     val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
+    val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -737,6 +743,7 @@ fun HiddenDashboardScreen(
                 SalonDetailSheetContent(
                     salon            = salon,
                     reviews          = reviewsForSalon,
+                    gallery          = galleryForSalon,
                     isFavorite       = favoriteIds.contains(salon.id),
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
@@ -1336,6 +1343,7 @@ private fun CustomerProfileSheetContent(
 private fun SalonDetailSheetContent(
     salon: SalonDocument,
     reviews: List<ReviewDocument>,
+    gallery: List<GalleryImageDocument>,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
@@ -1441,6 +1449,29 @@ private fun SalonDetailSheetContent(
                 }
             }
             Spacer(Modifier.height(14.dp))
+        }
+
+        // ── Portfolio / sample work ───────────────────────────────────
+        if (gallery.isNotEmpty()) {
+            Text(strings.portfolioTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(gallery, key = { it.id }) { image ->
+                    val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap             = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale       = ContentScale.Crop,
+                            modifier           = Modifier
+                                .size(140.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(BlushPink)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
 
         // ── Services ──────────────────────────────────────────────────

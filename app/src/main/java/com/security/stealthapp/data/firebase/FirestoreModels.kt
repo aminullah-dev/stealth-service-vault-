@@ -71,6 +71,18 @@ data class ReviewDocument(
     val createdAt: Long = 0L
 )
 
+/**
+ * One portfolio / sample-work photo for a salon. Stored in its own
+ * "salon_gallery" collection (one image per document) so each Base64 payload
+ * stays well under the 1 MB Firestore document limit and a salon can have many.
+ */
+data class GalleryImageDocument(
+    val id: String = "",                    // Firestore document ID
+    val salonId: String = "",
+    val imageBase64: String = "",           // downscaled, JPEG-compressed, Base64
+    val createdAt: Long = 0L
+)
+
 data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",
