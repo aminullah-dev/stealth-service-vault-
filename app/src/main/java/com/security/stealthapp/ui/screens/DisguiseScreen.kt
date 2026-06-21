@@ -90,8 +90,8 @@ private val MOCK_NOTES = listOf(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DisguiseScreen(
-    onAuthSuccess: (LoggedInUser) -> Unit,
-    onRegisterTapped: () -> Unit,
+    onAuthSuccess: (LoggedInUser) -> Unit = {},
+    onRegisterTapped: () -> Unit = {},
     noteViewModel: DisguiseViewModel = hiltViewModel(),
     authViewModel: AuthViewModel     = hiltViewModel(),
     langVm: LanguageViewModel        = hiltViewModel()

@@ -14,10 +14,12 @@ data class UserDocument(
     val role: String = "CUSTOMER",          // "CUSTOMER" | "PROVIDER" | "ADMIN"
     val pinHash: String = "",               // PBKDF2(pin, salt) — for local verification
     val salt: String = "",
-    val status: String = "APPROVED",        // "PENDING" | "APPROVED" | "REJECTED"
+    val status: String = "APPROVED",        // "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED"
     val firebaseEmail: String = "",         // synthetic internal email for Firebase Auth
     val fcmToken: String = "",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val decoyPinHash: String = "",          // PBKDF2 hash of decoy PIN — shows fake notepad
+    val decoySalt: String = ""
 )
 
 data class WorkingHours(

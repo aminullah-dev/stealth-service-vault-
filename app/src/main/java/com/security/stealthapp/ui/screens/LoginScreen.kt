@@ -67,6 +67,7 @@ private const val PIN_LENGTH = 6
 @Composable
 fun LoginScreen(
     onAuthSuccess: (LoggedInUser) -> Unit,
+    onDecoyMode: () -> Unit = {},
     onRegisterTapped: () -> Unit,
     authViewModel: AuthViewModel   = hiltViewModel(),
     langVm: LanguageViewModel      = hiltViewModel()
@@ -94,10 +95,12 @@ fun LoginScreen(
                 authViewModel.resetState()
                 onAuthSuccess(authState.user)
             }
+            is AuthViewModel.AuthState.DecoyMode -> {
+                authViewModel.resetState()
+                onDecoyMode()
+            }
             is AuthViewModel.AuthState.Failure -> {
-                // Explicit failure
                 wasAuthenticating = false
-                // Shake the dots
                 for (i in 0 until 3) {
                     shakeOffset.animateTo(12f, animationSpec = tween(60))
                     shakeOffset.animateTo(-12f, animationSpec = tween(60))
@@ -112,7 +115,6 @@ fun LoginScreen(
             is AuthViewModel.AuthState.Idle -> {
                 if (wasAuthenticating) {
                     wasAuthenticating = false
-                    // Authenticating → Idle means wrong PIN
                     for (i in 0 until 3) {
                         shakeOffset.animateTo(12f, animationSpec = tween(60))
                         shakeOffset.animateTo(-12f, animationSpec = tween(60))

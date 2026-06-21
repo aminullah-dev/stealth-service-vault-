@@ -112,6 +112,7 @@ import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
+import com.security.stealthapp.viewmodel.DecoyPinViewModel
 import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.ProviderAnalytics
 import com.security.stealthapp.viewmodel.ProviderViewModel
@@ -870,6 +871,10 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         ) {
             Text(strings.saveProfile, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
+
+        // ── Decoy PIN ─────────────────────────────────────────────────────
+        val decoyVm: DecoyPinViewModel = hiltViewModel()
+        DecoyPinSection(uid = viewModel.providerId, decoyVm = decoyVm)
 
         Spacer(Modifier.height(16.dp))
     }

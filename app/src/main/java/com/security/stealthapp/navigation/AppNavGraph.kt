@@ -15,6 +15,7 @@ import androidx.navigation.navArgument
 import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.ui.screens.AdminDashboardScreen
 import com.security.stealthapp.ui.screens.ChatScreen
+import com.security.stealthapp.ui.screens.DisguiseScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
 import com.security.stealthapp.ui.screens.LoginScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
@@ -29,6 +30,7 @@ import com.security.stealthapp.viewmodel.LanguageViewModel
 sealed class Screen(val route: String) {
     object Login     : Screen("login")
     object Register  : Screen("register")
+    object Disguise  : Screen("disguise")
 
     object CustomerDashboard : Screen("dashboard/customer/{userId}") {
         fun build(userId: String) = "dashboard/customer/$userId"
@@ -84,10 +86,21 @@ fun AppNavGraph(navController: NavHostController) {
                         }
                         navController.navigate(route) { launchSingleTop = true }
                     },
+                    onDecoyMode = {
+                        // Clear back stack so back-press from fake notepad can't return to SafeBeauty
+                        navController.navigate(Screen.Disguise.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
                     onRegisterTapped = {
                         navController.navigate(Screen.Register.route) { launchSingleTop = true }
                     }
                 )
+            }
+
+            composable(Screen.Disguise.route) {
+                DisguiseScreen()
             }
 
             composable(Screen.Register.route) {

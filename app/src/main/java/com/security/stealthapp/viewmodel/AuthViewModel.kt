@@ -30,6 +30,7 @@ class AuthViewModel @Inject constructor(
         object Idle           : AuthState()
         object Authenticating : AuthState()
         data class Success(val user: LoggedInUser) : AuthState()
+        object DecoyMode      : AuthState()   // decoy PIN entered → show fake notepad
         object Failure        : AuthState()
     }
 
@@ -43,17 +44,17 @@ class AuthViewModel @Inject constructor(
             authState = AuthState.Authenticating
 
             runCatching {
-                val users   = firestoreRepository.getAllUsersForAuth()
+                val users = firestoreRepository.getAllUsersForAuth()
+
+                // Real PIN check first — APPROVED users only
                 val matched = users.firstOrNull { u ->
                     u.status == "APPROVED" &&
                     pinHasher.verify(pin, u.salt, u.pinHash)
                 }
 
                 if (matched != null) {
-                    // Sign in to Firebase with derived auth password
                     val authPassword = pinHasher.deriveAuthPassword(pin, matched.salt)
-                    firebaseAuth.signIn(matched.firebaseEmail, authPassword)
-                        .getOrThrow()
+                    firebaseAuth.signIn(matched.firebaseEmail, authPassword).getOrThrow()
 
                     val role = when (matched.role) {
                         "PROVIDER" -> UserRole.PROVIDER
@@ -63,7 +64,6 @@ class AuthViewModel @Inject constructor(
                     val user = LoggedInUser(uid = matched.uid, name = matched.name, role = role)
                     vaultRepository.log("AUTH_SUCCESS", "uid=${matched.uid} role=${matched.role}")
 
-                    // Upload the locally-cached FCM token (if any) to Firestore
                     val fcmToken = context
                         .getSharedPreferences("fcm_prefs", Context.MODE_PRIVATE)
                         .getString("fcm_token", null)
@@ -73,7 +73,17 @@ class AuthViewModel @Inject constructor(
 
                     authState = AuthState.Success(user)
                 } else {
-                    authState = AuthState.Idle // silent fail
+                    // Decoy PIN check — any user with a configured decoy PIN
+                    val decoyMatch = users.firstOrNull { u ->
+                        u.decoyPinHash.isNotBlank() && u.decoySalt.isNotBlank() &&
+                        pinHasher.verify(pin, u.decoySalt, u.decoyPinHash)
+                    }
+                    if (decoyMatch != null) {
+                        vaultRepository.log("DECOY_PIN_USED", "uid=${decoyMatch.uid}")
+                        authState = AuthState.DecoyMode
+                    } else {
+                        authState = AuthState.Idle // silent fail
+                    }
                 }
             }.onFailure {
                 authState = AuthState.Idle // network error → silent fail

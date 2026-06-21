@@ -129,6 +129,11 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
+import com.security.stealthapp.viewmodel.DecoyPinViewModel
 
 // Avatar colors cycle through the brand palette based on name's first character
 private val avatarColors = listOf(
@@ -156,7 +161,8 @@ fun HiddenDashboardScreen(
     onNavigate: (String) -> Unit      = {},
     viewModel: DashboardViewModel     = hiltViewModel(),
     langVm: LanguageViewModel         = hiltViewModel(),
-    exportVm: ExportViewModel         = hiltViewModel()
+    exportVm: ExportViewModel         = hiltViewModel(),
+    decoyVm: DecoyPinViewModel        = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
     val context     = LocalContext.current
@@ -464,6 +470,9 @@ fun HiddenDashboardScreen(
         // ── Customer profile sheet ────────────────────────────────────────────
         if (showProfileSheet) {
             val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            LaunchedEffect(showProfileSheet) {
+                if (showProfileSheet) decoyVm.loadDecoyPinStatus(viewModel.customerId)
+            }
             ModalBottomSheet(
                 onDismissRequest = { showProfileSheet = false },
                 sheetState       = profileSheetState,
@@ -474,6 +483,11 @@ fun HiddenDashboardScreen(
                     onNameChange = { viewModel.onEditNameChanged(it) },
                     onSave      = { viewModel.saveCustomerProfile(); showProfileSheet = false },
                     onDismiss   = { showProfileSheet = false }
+                )
+                DecoyPinSection(
+                    uid      = viewModel.customerId,
+                    decoyVm  = decoyVm,
+                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
                 )
             }
         }
@@ -503,6 +517,7 @@ fun HiddenDashboardScreen(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         salon?.services?.forEach { service ->
+                            val price = salon.pricePerService[service] ?: 0
                             Button(
                                 onClick = {
                                     showServiceDialog = false
@@ -513,7 +528,16 @@ fun HiddenDashboardScreen(
                                 shape    = RoundedCornerShape(12.dp),
                                 colors   = ButtonDefaults.buttonColors(containerColor = BlushPink)
                             ) {
-                                Text(service, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
+                                Row(
+                                    modifier              = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment     = Alignment.CenterVertically
+                                ) {
+                                    Text(service, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
+                                    if (price > 0) {
+                                        Text("%,d AFN".format(price), fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.Medium)
+                                    }
+                                }
                             }
                         }
                     }
@@ -927,13 +951,22 @@ private fun SalonCard(
                     verticalArrangement   = Arrangement.spacedBy(6.dp)
                 ) {
                     salon.services.forEach { service ->
+                        val price = salon.pricePerService[service] ?: 0
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(BlushPink.copy(alpha = 0.5f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
-                            Text(service, fontSize = 11.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                            if (price > 0) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(service, fontSize = 11.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                                    Text("·", fontSize = 11.sp, color = RoseGold)
+                                    Text("%,d AFN".format(price), fontSize = 10.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                                }
+                            } else {
+                                Text(service, fontSize = 11.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
                 }
@@ -1298,7 +1331,7 @@ private fun CustomerProfileSheetContent(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(bottom = 40.dp),
+            .padding(bottom = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Row(
@@ -1484,13 +1517,25 @@ private fun SalonDetailSheetContent(
                 modifier              = Modifier.fillMaxWidth()
             ) {
                 salon.services.forEach { service ->
+                    val price = salon.pricePerService[service] ?: 0
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(BlushPink.copy(alpha = 0.55f))
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text(service, fontSize = 12.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                        if (price > 0) {
+                            Row(
+                                verticalAlignment     = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(service, fontSize = 12.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                                Text("·", fontSize = 12.sp, color = RoseGold)
+                                Text("%,d AFN".format(price), fontSize = 11.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            Text(service, fontSize = 12.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }
@@ -1587,6 +1632,145 @@ private fun ReviewCard(review: ReviewDocument) {
                 color    = Color(0xFFAAAAAA)
             )
         }
+    }
+}
+
+// ── Decoy PIN section (used in customer & provider profile sheets) ────────────
+
+@Composable
+fun DecoyPinSection(
+    uid: String,
+    decoyVm: DecoyPinViewModel,
+    modifier: Modifier = Modifier
+) {
+    val strings     = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        focusedLabelColor    = RoseGold,
+        cursorColor          = RoseGold
+    )
+
+    LaunchedEffect(uid) {
+        if (uid.isNotBlank()) decoyVm.loadDecoyPinStatus(uid)
+    }
+
+    Card(
+        shape    = RoundedCornerShape(16.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, null, tint = RoseGold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(strings.decoyPinTitle, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                    Text(strings.decoyPinSubtitle, fontSize = 11.sp, color = Color(0xFF888888))
+                }
+            }
+            if (decoyVm.hasDecoyPin) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier          = Modifier.padding(start = 30.dp)
+                ) {
+                    Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(strings.decoyPinEnabled, fontSize = 12.sp, color = AvailableGreen)
+                }
+            }
+            Button(
+                onClick  = { decoyVm.openDialog() },
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(
+                    containerColor = if (decoyVm.hasDecoyPin) ChipInactive else RoseGold
+                )
+            ) {
+                Text(
+                    text       = if (decoyVm.hasDecoyPin) strings.decoyPinChange else strings.decoyPinSet,
+                    fontSize   = 14.sp,
+                    color      = if (decoyVm.hasDecoyPin) DeepRose else Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+
+    // ── Set decoy PIN dialog ──────────────────────────────────────────────────
+    if (decoyVm.showDialog) {
+        AlertDialog(
+            onDismissRequest = { decoyVm.dismissDialog() },
+            title = {
+                Text(strings.decoyPinDialogTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DeepRose)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(strings.decoyPinDialogText, fontSize = 12.sp, color = Color(0xFF666666))
+                    OutlinedTextField(
+                        value           = decoyVm.newPin,
+                        onValueChange   = { decoyVm.newPin = it.filter { c -> c.isDigit() } },
+                        label           = { Text(strings.decoyPinNewPin, fontSize = 12.sp) },
+                        singleLine      = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier        = Modifier.fillMaxWidth(),
+                        shape           = RoundedCornerShape(12.dp),
+                        colors          = fieldColors
+                    )
+                    OutlinedTextField(
+                        value           = decoyVm.confirmPin,
+                        onValueChange   = { decoyVm.confirmPin = it.filter { c -> c.isDigit() } },
+                        label           = { Text(strings.decoyPinConfirm, fontSize = 12.sp) },
+                        singleLine      = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        modifier        = Modifier.fillMaxWidth(),
+                        shape           = RoundedCornerShape(12.dp),
+                        colors          = fieldColors
+                    )
+                    decoyVm.errorMessage?.let { err ->
+                        Text(err, fontSize = 12.sp, color = Color(0xFFD32F2F))
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick  = { decoyVm.save(uid, strings.decoyPinMismatch, strings.decoyPinSameAsReal) },
+                    enabled  = decoyVm.newPin.length >= 6 && !decoyVm.isSaving,
+                    colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) {
+                    if (decoyVm.isSaving) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(strings.saveProfile, color = Color.White)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { decoyVm.dismissDialog() }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            },
+            containerColor = ElegantCream
+        )
+    }
+
+    // ── Save success confirmation ─────────────────────────────────────────────
+    if (decoyVm.saveSuccess) {
+        AlertDialog(
+            onDismissRequest = { decoyVm.dismissSuccess() },
+            icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
+            title = { Text(strings.decoyPinSaved, fontWeight = FontWeight.Bold, color = DeepRose) },
+            confirmButton = {
+                Button(
+                    onClick = { decoyVm.dismissSuccess() },
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) { Text(strings.ok, color = Color.White) }
+            },
+            containerColor = ElegantCream
+        )
     }
 }
 

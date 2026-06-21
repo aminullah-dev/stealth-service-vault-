@@ -68,6 +68,14 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("name", name).await()
     }
 
+    suspend fun setDecoyPin(uid: String, hash: String, salt: String) {
+        usersCol.document(uid).update(mapOf("decoyPinHash" to hash, "decoySalt" to salt)).await()
+    }
+
+    suspend fun clearDecoyPin(uid: String) {
+        usersCol.document(uid).update(mapOf("decoyPinHash" to "", "decoySalt" to "")).await()
+    }
+
     suspend fun updateFcmToken(uid: String, token: String) {
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }
