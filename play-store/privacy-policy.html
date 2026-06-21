@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeBeauty — Privacy Policy / سیاست حریم خصوصی / د شخصي معلوماتو تګلاره</title>
+  <style>
+    :root {
+      --rose:      #8B3A47;
+      --rose-mid:  #C2788A;
+      --gold:      #D4A853;
+      --cream:     #FFF8F0;
+      --blush:     #F3D8DE;
+      --text:      #3A2228;
+      --muted:     #7A5560;
+      --divider:   #E8C8D0;
+      --bg:        #FFFDF9;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, 'Noto Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.75;
+    }
+
+    /* ── Language switcher ── */
+    .lang-bar {
+      background: var(--rose);
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .lang-bar button {
+      background: transparent;
+      border: 1.5px solid rgba(255,255,255,0.55);
+      border-radius: 20px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 4px 16px;
+      transition: background 0.2s;
+    }
+    .lang-bar button.active,
+    .lang-bar button:hover { background: rgba(255,255,255,0.22); }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--blush) 0%, var(--cream) 100%);
+      text-align: center;
+      padding: 48px 24px 36px;
+      border-bottom: 1px solid var(--divider);
+    }
+    .hero .logo { font-size: 42px; margin-bottom: 8px; }
+    .hero h1 { color: var(--rose); font-size: 26px; font-weight: 700; }
+    .hero .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+    /* ── Content ── */
+    .content {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .section { margin-bottom: 36px; }
+
+    h2 {
+      color: var(--rose);
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid var(--gold);
+      display: inline-block;
+    }
+
+    p { margin-bottom: 10px; }
+
+    ul { padding-left: 22px; margin-bottom: 10px; }
+    ul li { margin-bottom: 5px; }
+
+    .badge {
+      display: inline-block;
+      background: var(--blush);
+      border: 1px solid var(--divider);
+      border-radius: 12px;
+      color: var(--rose);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 10px;
+      margin-bottom: 12px;
+    }
+
+    .highlight-box {
+      background: #FFF0F3;
+      border-left: 4px solid var(--rose);
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      margin: 14px 0;
+      font-size: 14px;
+    }
+
+    .contact-card {
+      background: linear-gradient(135deg, var(--blush), var(--cream));
+      border: 1px solid var(--divider);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-top: 12px;
+    }
+    .contact-card a { color: var(--rose); text-decoration: none; font-weight: 600; }
+    .contact-card a:hover { text-decoration: underline; }
+
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 24px;
+      border-top: 1px solid var(--divider);
+    }
+
+    /* ── RTL sections ── */
+    [lang="fa"], [lang="ps"] {
+      font-family: 'Segoe UI', 'Noto Naskh Arabic', 'Tahoma', Arial, sans-serif;
+      direction: rtl;
+      text-align: right;
+    }
+    [lang="fa"] ul, [lang="ps"] ul {
+      padding-left: 0;
+      padding-right: 22px;
+    }
+    [lang="fa"] .highlight-box,
+    [lang="ps"] .highlight-box {
+      border-left: none;
+      border-right: 4px solid var(--rose);
+      border-radius: 10px 0 0 10px;
+    }
+    [lang="fa"] h2, [lang="ps"] h2 { font-size: 20px; }
+
+    /* ── Language visibility ── */
+    .lang-en, .lang-fa, .lang-ps { display: none; }
+    .lang-en.visible, .lang-fa.visible, .lang-ps.visible { display: block; }
+
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 20px; }
+      .content { padding: 28px 16px 60px; }
+      h2 { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Language bar ──────────────────────────────────────────────────── -->
+<div class="lang-bar">
+  <button id="btn-en" onclick="setLang('en')" class="active">English</button>
+  <button id="btn-fa" onclick="setLang('fa')">دری</button>
+  <button id="btn-ps" onclick="setLang('ps')">پښتو</button>
+</div>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────── -->
+<div class="hero">
+  <div class="logo">🌸</div>
+  <h1>SafeBeauty</h1>
+  <div class="sub">Privacy Policy &nbsp;·&nbsp; سیاست حریم خصوصی &nbsp;·&nbsp; د شخصي معلوماتو تګلاره</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  ENGLISH                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="content lang-en visible" lang="en">
+
+  <div class="section">
+    <span class="badge">Last updated: June 2025</span>
+    <p>
+      SafeBeauty ("we", "our", or "the app") is a private beauty-salon booking
+      platform designed for women in Kabul, Afghanistan. We take your privacy
+      extremely seriously. This policy explains what data we collect, how we
+      use it, and how we protect it.
+    </p>
+    <div class="highlight-box">
+      <strong>Short version:</strong> We collect only what is necessary to run
+      the app. We never sell your data. We never share it with advertisers.
+      All data is encrypted in transit and at rest.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>1. Data We Collect</h2>
+    <p>We collect the following information when you register or use the app:</p>
+    <ul>
+      <li><strong>Full name</strong> — to identify you to the salon provider</li>
+      <li><strong>Phone number</strong> — so providers can contact you discreetly</li>
+      <li><strong>Role</strong> — Customer or Service Provider</li>
+      <li><strong>Booking history</strong> — appointments you create or manage</li>
+      <li><strong>Reviews you write</strong> — attached to the relevant salon</li>
+      <li><strong>Loyalty points</strong> — earned automatically per confirmed booking</li>
+      <li><strong>Waitlist entries</strong> — if you join a salon's waitlist</li>
+    </ul>
+    <p>
+      For providers, we additionally store: salon name, district, services offered,
+      working hours, service prices, and portfolio photos you choose to upload.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>2. Data We Do NOT Collect</h2>
+    <ul>
+      <li>Your precise or approximate <strong>location / GPS</strong></li>
+      <li><strong>Contacts</strong> from your phone</li>
+      <li><strong>Camera or microphone</strong> access</li>
+      <li><strong>Payment or financial</strong> information</li>
+      <li><strong>Health</strong> information</li>
+      <li><strong>Device identifiers</strong> beyond what Firebase requires</li>
+      <li><strong>Browsing history</strong> outside the app</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>3. How We Use Your Data</h2>
+    <ul>
+      <li>To create and manage your account</li>
+      <li>To show your booking requests to the relevant salon provider</li>
+      <li>To send you push notifications about booking confirmations,
+          cancellations, and waitlist availability</li>
+      <li>To calculate your loyalty tier</li>
+      <li>To display reviews and provider replies to other customers</li>
+    </ul>
+    <p>We do <strong>not</strong> use your data for advertising, profiling,
+    or any purpose beyond operating the app.</p>
+  </div>
+
+  <div class="section">
+    <h2>4. Data Storage &amp; Security</h2>
+    <ul>
+      <li>All data is stored in <strong>Google Firebase</strong> (Firestore &amp;
+          Firebase Authentication) — hosted on Google Cloud infrastructure.</li>
+      <li>All connections use <strong>TLS / HTTPS</strong>. Cleartext HTTP is
+          explicitly blocked.</li>
+      <li>On-device data is encrypted with <strong>SQLCipher AES-256</strong>.</li>
+      <li><strong>Cloud backup is disabled</strong> — your app data is never
+          copied to Google's automatic backup service.</li>
+      <li>Your PIN is stored as a <strong>PBKDF2 hash</strong> (salted) — we
+          never store your raw PIN.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>5. Decoy / Safety Exit Feature</h2>
+    <p>
+      The app can be configured with a second "Safety Exit PIN". Entering this
+      PIN at the login screen opens a convincing decoy notepad, hiding the real
+      app. This feature exists solely to protect users who may be under physical
+      duress. The decoy PIN and its use are stored only on your device and are
+      never uploaded to any server.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>6. Data Sharing</h2>
+    <p>We share your data <strong>only</strong> in the following cases:</p>
+    <ul>
+      <li><strong>With the salon provider</strong> you book with — your name,
+          phone number, chosen service, and requested time are shared so they
+          can fulfil your booking.</li>
+      <li><strong>With Google Firebase</strong> — as the underlying infrastructure
+          (subject to
+          <a href="https://firebase.google.com/support/privacy" target="_blank"
+             rel="noopener">Firebase's Privacy Policy</a>).</li>
+      <li><strong>When legally required</strong> — if a valid court order compels
+          disclosure.</li>
+    </ul>
+    <p>We <strong>never</strong> sell, rent, or trade your personal data.</p>
+  </div>
+
+  <div class="section">
+    <h2>7. Data Retention</h2>
+    <p>
+      We retain your data for as long as your account is active. If you request
+      deletion, we will remove your account and all associated personal data
+      within 30 days. Booking records that also involve a provider may be
+      retained in anonymised form for up to 12 months for service-quality
+      purposes.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>8. Your Rights</h2>
+    <ul>
+      <li><strong>Access</strong> — request a copy of your data</li>
+      <li><strong>Correction</strong> — update your name or phone number</li>
+      <li><strong>Deletion</strong> — request complete removal of your account</li>
+      <li><strong>Portability</strong> — export your booking history</li>
+    </ul>
+    <p>To exercise any right, contact us using the details below.</p>
+  </div>
+
+  <div class="section">
+    <h2>9. Children's Privacy</h2>
+    <p>
+      SafeBeauty is intended for users aged 18 and above. We do not knowingly
+      collect data from anyone under 18. If you believe a minor has registered,
+      please contact us and we will remove the account promptly.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>10. Changes to This Policy</h2>
+    <p>
+      We may update this policy from time to time. The "Last updated" date at
+      the top will reflect the most recent revision. Continued use of the app
+      after changes constitutes acceptance of the updated policy.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>11. Contact Us</h2>
+    <div class="contact-card">
+      <p><strong>SafeBeauty Support</strong></p>
+      <p>Email: <a href="mailto:aminhashemi979@gmail.com">aminhashemi979@gmail.com</a></p>
+      <p>Language: English · دری · پښتو</p>
+    </div>
+  </div>
+
+</div>
+<!-- /English -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  DARI (دری)                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="content lang-fa" lang="fa">
+
+  <div class="section">
+    <span class="badge">آخرین به‌روزرسانی: جون ۲۰۲۵</span>
+    <p>
+      سیف‌بیوتی یک پلتفرم خصوصی رزرو سالن زیبایی است که برای خانم‌های کابل،
+      افغانستان طراحی شده است. ما به حریم خصوصی شما اهمیت بسیاری می‌دهیم.
+      این سیاست توضیح می‌دهد که چه داده‌هایی جمع‌آوری می‌کنیم، چطور استفاده
+      می‌کنیم و چگونه از آنها محافظت می‌کنیم.
+    </p>
+    <div class="highlight-box">
+      <strong>خلاصه:</strong> فقط اطلاعاتی که برای کارکرد اپ ضروری است جمع‌آوری
+      می‌کنیم. داده‌های شما را هرگز نمی‌فروشیم. هیچ‌گاه با تبلیغ‌دهندگان
+      به اشتراک نمی‌گذاریم. همه داده‌ها در انتقال و ذخیره رمزگذاری شده‌اند.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>۱. داده‌هایی که جمع‌آوری می‌کنیم</h2>
+    <p>هنگام ثبت‌نام یا استفاده از اپ، اطلاعات زیر را جمع‌آوری می‌کنیم:</p>
+    <ul>
+      <li><strong>نام کامل</strong> — برای معرفی شما به ارائه‌دهنده سالن</li>
+      <li><strong>شماره تلفن</strong> — تا ارائه‌دهندگان بتوانند مخفیانه با شما تماس بگیرند</li>
+      <li><strong>نقش</strong> — مشتری یا ارائه‌دهنده خدمات</li>
+      <li><strong>تاریخچه رزرو</strong> — وقت‌هایی که ایجاد یا مدیریت می‌کنید</li>
+      <li><strong>نظراتی که می‌نویسید</strong> — مرتبط با سالن مربوطه</li>
+      <li><strong>امتیاز وفاداری</strong> — برای هر رزرو تایید شده</li>
+      <li><strong>لیست انتظار</strong> — اگر به لیست انتظار سالنی بپیوندید</li>
+    </ul>
+    <p>
+      برای ارائه‌دهندگان، علاوه بر این موارد ذخیره می‌کنیم: نام سالن، ناحیه،
+      خدمات ارائه‌شده، ساعات کاری، قیمت خدمات و عکس‌های نمونه کار.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۲. داده‌هایی که جمع‌آوری نمی‌کنیم</h2>
+    <ul>
+      <li><strong>موقعیت مکانی / GPS</strong></li>
+      <li><strong>مخاطبین</strong> گوشی شما</li>
+      <li>دسترسی به <strong>دوربین یا میکروفون</strong></li>
+      <li>اطلاعات <strong>مالی یا پرداخت</strong></li>
+      <li>اطلاعات <strong>سلامتی</strong></li>
+      <li><strong>شناسه‌های دستگاه</strong></li>
+      <li><strong>تاریخچه مرور</strong> خارج از اپ</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۳. نحوه استفاده از داده‌ها</h2>
+    <ul>
+      <li>ایجاد و مدیریت حساب کاربری</li>
+      <li>نمایش درخواست رزرو به ارائه‌دهنده سالن مربوطه</li>
+      <li>ارسال اعلان‌های فشاری درباره تایید، لغو رزرو و خالی شدن لیست انتظار</li>
+      <li>محاسبه سطح وفاداری شما</li>
+      <li>نمایش نظرات و پاسخ‌های ارائه‌دهنده</li>
+    </ul>
+    <p>
+      ما از داده‌های شما برای تبلیغات، پروفایل‌سازی یا هیچ هدف دیگری
+      <strong>استفاده نمی‌کنیم</strong>.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۴. ذخیره و امنیت داده‌ها</h2>
+    <ul>
+      <li>همه داده‌ها در <strong>Google Firebase</strong> ذخیره می‌شوند.</li>
+      <li>همه اتصالات از <strong>TLS / HTTPS</strong> استفاده می‌کنند.</li>
+      <li>داده‌های روی دستگاه با <strong>SQLCipher AES-256</strong> رمزگذاری شده‌اند.</li>
+      <li><strong>پشتیبان‌گیری ابری غیرفعال است</strong> — داده‌های اپ هرگز
+          به سرویس پشتیبان‌گیری خودکار گوگل کپی نمی‌شوند.</li>
+      <li>پین شما به صورت <strong>هش PBKDF2</strong> (با نمک) ذخیره می‌شود —
+          پین خام شما هرگز ذخیره نمی‌شود.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۵. ویژگی پین فریب / خروج ایمن</h2>
+    <p>
+      اپ می‌تواند با یک پین دوم «خروج ایمن» پیکربندی شود. وارد کردن این پین
+      در صفحه ورود، یک دفترچه جعلی متقاعدکننده نشان می‌دهد و اپ واقعی را
+      پنهان می‌کند. این ویژگی صرفاً برای حمایت از کاربرانی است که ممکن است
+      تحت فشار جسمی باشند. پین فریب فقط روی دستگاه شما ذخیره می‌شود و هرگز
+      به هیچ سروری آپلود نمی‌شود.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۶. اشتراک‌گذاری داده‌ها</h2>
+    <p>داده‌های شما را <strong>فقط</strong> در موارد زیر به اشتراک می‌گذاریم:</p>
+    <ul>
+      <li><strong>با ارائه‌دهنده سالنی</strong> که رزرو می‌کنید — نام، شماره تلفن،
+          خدمت انتخابی و زمان درخواستی</li>
+      <li><strong>با Google Firebase</strong> — به عنوان زیرساخت اصلی</li>
+      <li><strong>در صورت الزام قانونی</strong></li>
+    </ul>
+    <p>داده‌های شخصی شما را هرگز <strong>نمی‌فروشیم</strong> یا اجاره نمی‌دهیم.</p>
+  </div>
+
+  <div class="section">
+    <h2>۷. نگهداری داده‌ها</h2>
+    <p>
+      داده‌های شما تا زمانی که حساب شما فعال است نگهداری می‌شود. در صورت
+      درخواست حذف، حساب و تمام داده‌های شخصی مرتبط را ظرف ۳۰ روز حذف
+      می‌کنیم.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۸. حقوق شما</h2>
+    <ul>
+      <li><strong>دسترسی</strong> — درخواست کپی داده‌های خود</li>
+      <li><strong>اصلاح</strong> — به‌روزرسانی نام یا شماره تلفن</li>
+      <li><strong>حذف</strong> — درخواست حذف کامل حساب</li>
+      <li><strong>انتقال</strong> — خروجی تاریخچه رزروها</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۹. حریم خصوصی کودکان</h2>
+    <p>
+      سیف‌بیوتی برای کاربران ۱۸ سال و بالاتر طراحی شده است. اگر می‌دانید
+      کاربری زیر ۱۸ سال ثبت‌نام کرده، لطفاً با ما تماس بگیرید.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۱۰. تغییرات در این سیاست</h2>
+    <p>
+      ممکن است این سیاست را به‌روزرسانی کنیم. تاریخ «آخرین به‌روزرسانی» بالا
+      آخرین نسخه را نشان می‌دهد.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۱۱. تماس با ما</h2>
+    <div class="contact-card">
+      <p><strong>پشتیبانی سیف‌بیوتی</strong></p>
+      <p>ایمیل: <a href="mailto:aminhashemi979@gmail.com">aminhashemi979@gmail.com</a></p>
+      <p>زبان: English · دری · پښتو</p>
+    </div>
+  </div>
+
+</div>
+<!-- /Dari -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!--  PASHTO (پښتو)                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="content lang-ps" lang="ps">
+
+  <div class="section">
+    <span class="badge">وروستي تازه‌کول: جون ۲۰۲۵</span>
+    <p>
+      سیف‌بیوتي د کابل، افغانستان ښځو لپاره یو شخصي د سالون د بکینګ پلیټفارم
+      دی. موږ ستاسو حریم خصوصي ته ډیره اهمیت ورکوو. دا تګلاره تشریح کوي چې
+      کوم ډیټا راټولوو، څنګه یې کاروو، او څنګه یې ساتو.
+    </p>
+    <div class="highlight-box">
+      <strong>لنډیز:</strong> یوازې هغه معلومات راټولوو چې د اپ د چلولو لپاره
+      اړین دي. ستاسو ډیټا هیڅکله نه پلوروو. له تبلیغ‌کوونکو سره هیڅکله
+      شریکوو نه. ټول ډیټا کوډ شوی دی.
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>۱. هغه ډیټا چې راټولوو</h2>
+    <p>کله چې راجستر کوئ یا اپ کاروئ، لاندې معلومات راټولوو:</p>
+    <ul>
+      <li><strong>بشپړ نوم</strong> — د سالون چمتو کوونکي ته ستاسو پیژندنه</li>
+      <li><strong>د تلیفون شمیره</strong> — چمتو کوونکي وکولای شي پټ اړیکه وکړي</li>
+      <li><strong>رول</strong> — پیرودونکی یا د خدماتو چمتو کوونکی</li>
+      <li><strong>د بکینګ تاریخچه</strong> — هغه وختونه چې جوړوئ یا اداره کوئ</li>
+      <li><strong>هغه نظرونه چې لیکئ</strong> — د اړوند سالون سره تړلي</li>
+      <li><strong>د وفادارۍ ټکي</strong> — د هر تایید شوي بک لپاره</li>
+      <li><strong>د انتظار لیست</strong> — که د سالون د انتظار لیست ته ورننوتئ</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۲. هغه ډیټا چې نه راټولوو</h2>
+    <ul>
+      <li><strong>ځای / GPS</strong></li>
+      <li>ستاسو د تلیفون <strong>مخاطبین</strong></li>
+      <li>د <strong>کمیرې یا مایکروفون</strong> لاسرسی</li>
+      <li><strong>مالي</strong> معلومات</li>
+      <li>د <strong>روغتیا</strong> معلومات</li>
+      <li><strong>د وسیلې پیژندونکي</strong></li>
+      <li>د اپ بهر <strong>د لټون تاریخچه</strong></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۳. د ډیټا کارول</h2>
+    <ul>
+      <li>د حساب جوړول او اداره کول</li>
+      <li>ستاسو د بکینګ غوښتنه د اړوند سالون چمتو کوونکي ته ښودل</li>
+      <li>د بکینګ تایید، لغو، او د انتظار لیست د خالي کیدو خبرتیاوې</li>
+      <li>ستاسو د وفادارۍ سطحه محاسبه کول</li>
+      <li>نظرونه او د چمتو کوونکي ځوابونه ښودل</li>
+    </ul>
+    <p>
+      موږ ستاسو ډیټا د تبلیغاتو، پروفایل‌جوړولو، یا بل هیڅ هدف لپاره
+      <strong>نه کاروو</strong>.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۴. د ډیټا ذخیره او امنیت</h2>
+    <ul>
+      <li>ټول ډیټا <strong>Google Firebase</strong> کې ذخیره کیږي.</li>
+      <li>ټولې اړیکې <strong>TLS / HTTPS</strong> کاروي.</li>
+      <li>د وسیلې ډیټا د <strong>SQLCipher AES-256</strong> سره کوډ شوی دی.</li>
+      <li><strong>د کلاوډ بیک اپ بشپړه بند دی</strong> — ستاسو د اپ ډیټا هیڅکله
+          د ګوګل د اتوماتیک بیک اپ خدمت ته نه کاپي کیږي.</li>
+      <li>ستاسو PIN د <strong>PBKDF2 هش</strong> (سولټ شوی) سره ذخیره کیږي —
+          خام PIN هیڅکله نه ذخیره کیږي.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۵. د جعلي PIN / خوندي وتلو ځانګړتیا</h2>
+    <p>
+      اپ د دویم «خوندي وتلو PIN» سره تنظیم کیدای شي. د دې PIN دننه کول د
+      ننوتلو پر مهال یو متقاعدکوونکی جعلي یادداشت اپ ښکاره کوي او اصلي اپ
+      پټوي. دا ځانګړتیا یوازې هغو کاروونکو د ملاتړ لپاره ده چې ممکن د
+      جسمي فشار لاندې وي. جعلي PIN یوازې ستاسو وسیله کې ذخیره کیږي.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۶. د ډیټا شریکول</h2>
+    <p>ستاسو ډیټا یوازې <strong>لاندې</strong> حالتونو کې شریکوو:</p>
+    <ul>
+      <li><strong>د هغه سالون چمتو کوونکي سره</strong> چې بک کوئ — نوم، شمیره،
+          غوره شوی خدمت او غوښتل شوی وخت</li>
+      <li><strong>Google Firebase سره</strong> — د اساسي زیربنا په توګه</li>
+      <li><strong>کله چې قانوني اړتیا وي</strong></li>
+    </ul>
+    <p>ستاسو شخصي ډیټا هیڅکله <strong>نه پلوروو</strong> او نه اجاره ورکوو.</p>
+  </div>
+
+  <div class="section">
+    <h2>۷. د ډیټا ساتل</h2>
+    <p>
+      ستاسو ډیټا تر هغه وخته ساتل کیږي چې ستاسو حساب فعال وي. که د حذف
+      غوښتنه وکړئ، ستاسو حساب او ټول اړوند شخصي ډیټا به د ۳۰ ورځو دننه
+      لرې کوو.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۸. ستاسو حقوق</h2>
+    <ul>
+      <li><strong>لاسرسی</strong> — ستاسو د ډیټا کاپي غوښتنه</li>
+      <li><strong>سمون</strong> — نوم یا شمیره تازه کول</li>
+      <li><strong>حذف</strong> — د حساب د بشپړ لرې کولو غوښتنه</li>
+      <li><strong>لیږد</strong> — د بکینګ تاریخچه صادرول</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>۹. د ماشومانو حریم خصوصي</h2>
+    <p>
+      سیف‌بیوتي د ۱۸ کلونو او پورته کاروونکو لپاره ده. که فکر کوئ یو کوچنی
+      راجستر شوی، مهرباني وکړئ موږ سره اړیکه ونیسئ.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۱۰. د دې تګلارې بدلونونه</h2>
+    <p>
+      موږ ممکن دا تګلاره تازه کړو. د «وروستي تازه‌کولو» نیټه پورته وروستۍ
+      نسخه ښکاره کوي.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>۱۱. موږ سره اړیکه</h2>
+    <div class="contact-card">
+      <p><strong>د سیف‌بیوتي ملاتړ</strong></p>
+      <p>بریښنالیک: <a href="mailto:aminhashemi979@gmail.com">aminhashemi979@gmail.com</a></p>
+      <p>ژبه: English · دری · پښتو</p>
+    </div>
+  </div>
+
+</div>
+<!-- /Pashto -->
+
+<div class="footer">
+  © 2025 SafeBeauty &nbsp;·&nbsp; All rights reserved
+  &nbsp;·&nbsp; خمه حقوق خوندي دي
+</div>
+
+<script>
+  function setLang(lang) {
+    ['en','fa','ps'].forEach(l => {
+      document.querySelector('.lang-' + l).classList.toggle('visible', l === lang);
+      document.getElementById('btn-' + l).classList.toggle('active', l === lang);
+    });
+  }
+</script>
+</body>
+</html>
