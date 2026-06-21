@@ -114,9 +114,13 @@ class DashboardViewModel @Inject constructor(
         override fun onLost(network: Network)      { _isOffline.value = true }
     }
 
+    private val _allAvailableSalons: StateFlow<List<SalonDocument>> =
+        firestoreRepository.observeAvailableSalons()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
         combine(
-            firestoreRepository.observeAvailableSalons(),
+            _allAvailableSalons,
             _selectedCategoryIndex,
             _selectedNeighborhoodIndex,
             favoriteIds,
@@ -146,6 +150,30 @@ class DashboardViewModel @Inject constructor(
     val myWaitlist: StateFlow<List<WaitlistEntry>> =
         firestoreRepository.observeMyWaitlist(customerId)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Salons scored by how well they match the customer's booking history.
+    // Requires ≥1 past appointment; shows up to 5 recommendations.
+    val recommendedSalons: StateFlow<List<SalonDocument>> = combine(
+        _allAvailableSalons, myAppointments
+    ) { salons, appointments ->
+        if (appointments.isEmpty()) return@combine emptyList()
+        val serviceFreq   = appointments.groupingBy { it.serviceName }.eachCount()
+        val districtFreq  = appointments
+            .mapNotNull { appt -> salons.find { it.id == appt.salonId }?.district }
+            .groupingBy { it }.eachCount()
+        val topDistrict   = districtFreq.maxByOrNull { it.value }?.key
+        salons
+            .map { salon ->
+                val serviceScore  = salon.services.sumOf { (serviceFreq[it] ?: 0) * 2 }
+                val districtScore = if (salon.district == topDistrict) 1 else 0
+                val ratingBonus   = if (salon.rating >= 4.5) 1 else 0
+                salon to (serviceScore + districtScore + ratingBonus)
+            }
+            .filter { (_, score) -> score > 0 }
+            .sortedByDescending { (_, score) -> score }
+            .take(5)
+            .map { (salon, _) -> salon }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val loyaltyPoints: StateFlow<Int> =
         firestoreRepository.observeUserLoyaltyPoints(customerId)

@@ -272,6 +272,9 @@ data class AppStrings(
     val loyaltyTierVIP: String,
     val loyaltyEarnHint: String,
     val loyaltyNextTier: (Int) -> String,
+    // Smart Recommendations
+    val recommendedTitle: String,
+    val recommendedSubtitle: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -504,6 +507,8 @@ object StringResources {
         loyaltyTierVIP             = "VIP",
         loyaltyEarnHint            = "+10 pts per confirmed booking",
         loyaltyNextTier            = { n -> "$n pts to next tier" },
+        recommendedTitle           = "Recommended for You",
+        recommendedSubtitle        = "Based on your bookings",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -733,6 +738,8 @@ object StringResources {
         loyaltyTierVIP             = "ویژه",
         loyaltyEarnHint            = "+۱۰ امتیاز به ازای هر رزرو تایید شده",
         loyaltyNextTier            = { n -> "$n امتیاز تا سطح بعدی" },
+        recommendedTitle           = "پیشنهاد برای شما",
+        recommendedSubtitle        = "بر اساس رزروهای شما",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -962,6 +969,8 @@ object StringResources {
         loyaltyTierVIP             = "ځانګړی",
         loyaltyEarnHint            = "+۱۰ ټکي د هر تایید شوي بک لپاره",
         loyaltyNextTier            = { n -> "بل سطح ته $n ټکي پاتې" },
+        recommendedTitle           = "ستاسو لپاره وړاندیز",
+        recommendedSubtitle        = "ستاسو د بکینګونو له مخې",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )

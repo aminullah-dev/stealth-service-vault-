@@ -232,6 +232,7 @@ fun HiddenDashboardScreen(
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
     val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
     val loyaltyTier               by viewModel.loyaltyTier.collectAsStateWithLifecycle()
+    val recommendedSalons         by viewModel.recommendedSalons.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
@@ -450,6 +451,19 @@ fun HiddenDashboardScreen(
                         modifier = Modifier.padding(horizontal = 10.dp)
                     )
                     HorizontalDivider(modifier = Modifier.weight(1f), color = BlushPink)
+                }
+
+                // ── Recommendations carousel ──────────────────────────────────
+                if (recommendedSalons.isNotEmpty() && searchQuery.isBlank()) {
+                    RecommendedSection(
+                        salons      = recommendedSalons,
+                        favoriteIds = favoriteIds,
+                        onToggleFav = { viewModel.toggleFavorite(it) },
+                        onBook      = { salon ->
+                            showSalonDetail = salon
+                            viewModel.setActiveSalon(salon.id)
+                        }
+                    )
                 }
 
                 // ── Salon list / empty state ──────────────────────────────────
@@ -1115,6 +1129,106 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
                         color    = RoseGold
                     )
                 }
+            }
+        }
+    }
+}
+
+// ── Recommended for You section ──────────────────────────────────────────────
+
+@Composable
+private fun RecommendedSection(
+    salons: List<SalonDocument>,
+    favoriteIds: Set<String>,
+    onToggleFav: (String) -> Unit,
+    onBook: (SalonDocument) -> Unit
+) {
+    val strings = LocalStrings.current
+    Column(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
+        Row(
+            verticalAlignment     = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier              = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+        ) {
+            Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(16.dp))
+            Column {
+                Text(strings.recommendedTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DeepRose)
+                Text(strings.recommendedSubtitle, fontSize = 10.sp, color = UnavailableGrey)
+            }
+        }
+        LazyRow(
+            contentPadding      = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(salons, key = { "rec_${it.id}" }) { salon ->
+                RecommendedSalonCard(
+                    salon       = salon,
+                    isFavorite  = favoriteIds.contains(salon.id),
+                    onToggleFav = { onToggleFav(salon.id) },
+                    onBook      = { onBook(salon) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendedSalonCard(
+    salon: SalonDocument,
+    isFavorite: Boolean,
+    onToggleFav: () -> Unit,
+    onBook: () -> Unit
+) {
+    val strings = LocalStrings.current
+    Card(
+        modifier  = Modifier.width(180.dp),
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(3.dp),
+        onClick   = onBook
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment     = Alignment.CenterVertically,
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    salon.salonName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 12.sp,
+                    color      = DeepRose,
+                    maxLines   = 2,
+                    overflow   = TextOverflow.Ellipsis,
+                    modifier   = Modifier.weight(1f)
+                )
+                IconButton(onClick = onToggleFav, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        null,
+                        tint     = if (isFavorite) DeepRose else ChipInactive,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(11.dp))
+                Text(salon.district, fontSize = 10.sp, color = UnavailableGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (salon.rating > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(11.dp))
+                    Text("%.1f".format(salon.rating), fontSize = 10.sp, color = UnavailableGrey)
+                }
+            }
+            Button(
+                onClick  = onBook,
+                modifier = Modifier.fillMaxWidth().height(28.dp),
+                shape    = RoundedCornerShape(8.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = RoseGold),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            ) {
+                Text(strings.book, fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
             }
         }
     }
