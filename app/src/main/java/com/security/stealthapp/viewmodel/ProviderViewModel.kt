@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,7 +32,8 @@ data class ProviderAnalytics(
     val confirmed: Int = 0,
     val pending: Int = 0,
     val cancelled: Int = 0,
-    val byService: Map<String, Int> = emptyMap()
+    val byService: Map<String, Int> = emptyMap(),
+    val confirmedByService: Map<String, Int> = emptyMap()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,14 +78,24 @@ class ProviderViewModel @Inject constructor(
     val analytics: StateFlow<ProviderAnalytics> = allAppointments
         .map { appointments ->
             ProviderAnalytics(
-                total      = appointments.size,
-                confirmed  = appointments.count { it.status == "CONFIRMED" },
-                pending    = appointments.count { it.status == "PENDING" },
-                cancelled  = appointments.count { it.status == "CANCELLED" },
-                byService  = appointments.groupingBy { it.serviceName }.eachCount()
+                total             = appointments.size,
+                confirmed         = appointments.count { it.status == "CONFIRMED" },
+                pending           = appointments.count { it.status == "PENDING" },
+                cancelled         = appointments.count { it.status == "CANCELLED" },
+                byService         = appointments.groupingBy { it.serviceName }.eachCount(),
+                confirmedByService = appointments
+                    .filter { it.status == "CONFIRMED" }
+                    .groupingBy { it.serviceName }.eachCount()
             )
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderAnalytics())
+
+    val estimatedRevenue: StateFlow<Int> = combine(analytics, salon) { a, s ->
+        val prices = s?.pricePerService ?: emptyMap()
+        a.confirmedByService.entries.sumOf { (service, count) ->
+            (prices[service] ?: 0) * count
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     // ── Portfolio gallery ─────────────────────────────────────────────────────
 
@@ -132,6 +144,7 @@ class ProviderViewModel @Inject constructor(
         private set
     var editSlotDuration by mutableStateOf(60)
         private set
+    var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
 
     init {
         viewModelScope.launch {
@@ -141,6 +154,7 @@ class ProviderViewModel @Inject constructor(
                     editServices = s.services
                     editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
+                    editPrices = s.pricePerService
                 }
             }
         }
@@ -176,8 +190,11 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
-    fun onDistrictChanged(v: String)      { editDistrict = v }
+    fun onDistrictChanged(v: String)        { editDistrict = v }
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
+    fun setPriceForService(service: String, price: Int) {
+        editPrices = editPrices + (service to price)
+    }
 
     fun addService() {
         val s = newServiceDraft.trim()
@@ -224,10 +241,11 @@ class ProviderViewModel @Inject constructor(
         viewModelScope.launch {
             firestoreRepository.updateSalon(
                 current.copy(
-                    district = editDistrict,
-                    services = editServices,
-                    workingHours = editWorkingHours,
-                    slotDurationMinutes = editSlotDuration
+                    district            = editDistrict,
+                    services            = editServices,
+                    workingHours        = editWorkingHours,
+                    slotDurationMinutes = editSlotDuration,
+                    pricePerService     = editPrices
                 )
             )
             vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")

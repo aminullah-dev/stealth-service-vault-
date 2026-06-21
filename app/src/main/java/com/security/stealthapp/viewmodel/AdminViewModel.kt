@@ -7,11 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -21,7 +23,9 @@ data class SystemStats(
     val totalUsers: Int = 0,
     val providers: Int = 0,
     val customers: Int = 0,
-    val pendingApprovals: Int = 0
+    val pendingApprovals: Int = 0,
+    val totalSalons: Int = 0,
+    val suspendedUsers: Int = 0
 )
 
 @HiltViewModel
@@ -38,12 +42,18 @@ class AdminViewModel @Inject constructor(
         firestoreRepository.observeAllUsers()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val stats: StateFlow<SystemStats> = allUsers.map { users ->
+    val allSalons: StateFlow<List<SalonDocument>> =
+        firestoreRepository.observeAllSalons()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val stats: StateFlow<SystemStats> = combine(allUsers, allSalons) { users, salons ->
         SystemStats(
             totalUsers       = users.size,
             providers        = users.count { it.role == "PROVIDER" },
             customers        = users.count { it.role == "CUSTOMER" },
-            pendingApprovals = users.count { it.status == "PENDING" }
+            pendingApprovals = users.count { it.status == "PENDING" },
+            totalSalons      = salons.size,
+            suspendedUsers   = users.count { it.status == "SUSPENDED" }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SystemStats())
 
@@ -54,6 +64,20 @@ class AdminViewModel @Inject constructor(
     var broadcastText by mutableStateOf("")
     var lockTriggered by mutableStateOf(false)
         private set
+
+    fun suspendUser(uid: String) {
+        viewModelScope.launch {
+            firestoreRepository.suspendUser(uid)
+            vaultRepository.log("ADMIN_SUSPEND", "uid=$uid")
+        }
+    }
+
+    fun unsuspendUser(uid: String) {
+        viewModelScope.launch {
+            firestoreRepository.unsuspendUser(uid)
+            vaultRepository.log("ADMIN_UNSUSPEND", "uid=$uid")
+        }
+    }
 
     fun approveProvider(uid: String) {
         viewModelScope.launch {

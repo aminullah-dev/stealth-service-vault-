@@ -23,8 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -70,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
 import com.security.stealthapp.ui.theme.AvailableGreen
 import com.security.stealthapp.ui.theme.BlushPink
@@ -105,6 +109,7 @@ fun AdminDashboardScreen(
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()
     val allUsers         by viewModel.allUsers.collectAsStateWithLifecycle()
+    val allSalons        by viewModel.allSalons.collectAsStateWithLifecycle()
     val stats            by viewModel.stats.collectAsStateWithLifecycle()
     val broadcasts       by viewModel.broadcasts.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
@@ -112,7 +117,7 @@ fun AdminDashboardScreen(
 
     val tabs = listOf(
         strings.approvalQueueSubtitle, strings.tabUsers,
-        strings.tabStats, strings.tabBroadcast
+        strings.tabSalons, strings.tabStats, strings.tabBroadcast
     )
 
     DashboardTheme {
@@ -186,8 +191,9 @@ fun AdminDashboardScreen(
                 when (selectedTab) {
                     0 -> ApprovalsTab(pendingProviders, viewModel)
                     1 -> UsersTab(allUsers, viewModel)
-                    2 -> StatsTab(stats)
-                    3 -> BroadcastTab(broadcasts, viewModel)
+                    2 -> SalonsTab(allSalons)
+                    3 -> StatsTab(stats)
+                    4 -> BroadcastTab(broadcasts, viewModel)
                 }
             }
         }
@@ -329,7 +335,9 @@ private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
             items(users, key = { it.uid }) { user ->
                 UserRow(
                     user        = user,
-                    onDelete    = { deleteTarget = user }
+                    onDelete    = { deleteTarget = user },
+                    onSuspend   = { viewModel.suspendUser(user.uid) },
+                    onUnsuspend = { viewModel.unsuspendUser(user.uid) }
                 )
             }
         }
@@ -358,7 +366,12 @@ private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
 }
 
 @Composable
-private fun UserRow(user: UserDocument, onDelete: () -> Unit) {
+private fun UserRow(
+    user: UserDocument,
+    onDelete: () -> Unit,
+    onSuspend: () -> Unit,
+    onUnsuspend: () -> Unit
+) {
     val strings = LocalStrings.current
     val roleColor = when (user.role) {
         "ADMIN"    -> Color(0xFF7B6FA0)
@@ -366,9 +379,10 @@ private fun UserRow(user: UserDocument, onDelete: () -> Unit) {
         else       -> RoseGold
     }
     val statusColor = when (user.status) {
-        "APPROVED" -> AvailableGreen
-        "REJECTED" -> UnavailableGrey
-        else       -> Color(0xFFE67E22)
+        "APPROVED"  -> AvailableGreen
+        "REJECTED"  -> UnavailableGrey
+        "SUSPENDED" -> Color(0xFFE67E22)
+        else        -> Color(0xFFE67E22)
     }
 
     ElevatedCard(
@@ -399,6 +413,15 @@ private fun UserRow(user: UserDocument, onDelete: () -> Unit) {
                 }
             }
             if (user.role != "ADMIN") {
+                if (user.status == "SUSPENDED") {
+                    IconButton(onClick = onUnsuspend, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.LockOpen, strings.unsuspendUser, tint = AvailableGreen, modifier = Modifier.size(20.dp))
+                    }
+                } else {
+                    IconButton(onClick = onSuspend, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.Block, strings.suspendUser, tint = Color(0xFFE67E22), modifier = Modifier.size(20.dp))
+                    }
+                }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.Delete, strings.deleteUser, tint = UnavailableGrey, modifier = Modifier.size(20.dp))
                 }
@@ -489,6 +512,27 @@ private fun StatsTab(stats: SystemStats) {
                 )
             }
         }
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier              = Modifier.fillMaxWidth()
+            ) {
+                AdminStatCard(
+                    icon    = Icons.Default.Store,
+                    label   = strings.totalSalons,
+                    value   = "${stats.totalSalons}",
+                    tint    = DeepRose,
+                    modifier = Modifier.weight(1f)
+                )
+                AdminStatCard(
+                    icon    = Icons.Default.Block,
+                    label   = strings.statsSuspended,
+                    value   = "${stats.suspendedUsers}",
+                    tint    = Color(0xFFE67E22),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 
@@ -535,7 +579,85 @@ private fun AdminStatCard(
     }
 }
 
-// ── Tab 2: Broadcast ──────────────────────────────────────────────────────────
+// ── Tab 2: Salons ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun SalonsTab(salons: List<SalonDocument>) {
+    val strings = LocalStrings.current
+    if (salons.isEmpty()) {
+        CenteredEmpty(Icons.Default.Store, strings.noSalonsYet, "")
+    } else {
+        LazyColumn(
+            contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(salons, key = { it.id }) { salon ->
+                SalonAdminRow(salon)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SalonAdminRow(salon: SalonDocument) {
+    val availColor = if (salon.isAvailable) AvailableGreen else UnavailableGrey
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.padding(12.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(44.dp)
+                    .background(BlushPink, RoundedCornerShape(12.dp))
+            ) {
+                Icon(Icons.Default.Store, null, tint = DeepRose, modifier = Modifier.size(24.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    salon.salonName,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize   = 14.sp,
+                    color      = DeepRose
+                )
+                Text(
+                    salon.district,
+                    fontSize = 12.sp,
+                    color    = RoseGold
+                )
+                if (salon.services.isNotEmpty()) {
+                    Text(
+                        salon.services.take(3).joinToString(" · "),
+                        fontSize = 11.sp,
+                        color    = RoseGold.copy(alpha = 0.7f),
+                        maxLines = 1
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .background(availColor.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    if (salon.isAvailable) "OPEN" else "CLOSED",
+                    fontSize   = 10.sp,
+                    color      = availColor,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+// ── Tab 3: Broadcast ──────────────────────────────────────────────────────────
 
 @Composable
 private fun BroadcastTab(

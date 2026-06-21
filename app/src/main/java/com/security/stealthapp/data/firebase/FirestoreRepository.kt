@@ -61,6 +61,9 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("status", status).await()
     }
 
+    suspend fun suspendUser(uid: String)   = setUserStatus(uid, "SUSPENDED")
+    suspend fun unsuspendUser(uid: String) = setUserStatus(uid, "APPROVED")
+
     suspend fun updateUserName(uid: String, name: String) {
         usersCol.document(uid).update("name", name).await()
     }
@@ -122,6 +125,18 @@ class FirestoreRepository @Inject constructor(
                 val doc = snap?.documents?.firstOrNull()
                 trySend(doc?.toObject(SalonDocument::class.java)?.copy(id = doc.id))
             }
+        awaitClose { listener.remove() }
+    }
+
+    fun observeAllSalons(): Flow<List<SalonDocument>> = callbackFlow {
+        val listener = salonsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(SalonDocument::class.java)?.copy(id = it.id) }
+                ?.sortedBy { it.salonName }
+                ?: emptyList()
+            trySend(list)
+        }
         awaitClose { listener.remove() }
     }
 

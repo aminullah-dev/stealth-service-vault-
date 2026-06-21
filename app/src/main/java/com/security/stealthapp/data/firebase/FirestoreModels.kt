@@ -45,7 +45,8 @@ data class SalonDocument(
     var isAvailable: Boolean = false,
     val rating: Double = 0.0,
     val workingHours: List<WorkingHours> = emptyList(),
-    val slotDurationMinutes: Int = 60
+    val slotDurationMinutes: Int = 60,
+    val pricePerService: Map<String, Int> = emptyMap()
 )
 
 data class AppointmentDocument(

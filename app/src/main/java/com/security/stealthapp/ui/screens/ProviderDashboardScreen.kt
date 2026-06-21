@@ -116,6 +116,10 @@ import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.ProviderAnalytics
 import com.security.stealthapp.viewmodel.ProviderViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.ui.text.input.KeyboardType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -253,6 +257,11 @@ fun ProviderDashboardScreen(
                     Tab(
                         selected = selectedTab == 3,
                         onClick  = { selectedTab = 3 },
+                        text     = { Text(strings.tabIncome, fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 4,
+                        onClick  = { selectedTab = 4 },
                         text     = { Text(strings.tabCalendar, fontSize = 14.sp) }
                     )
                 }
@@ -270,7 +279,8 @@ fun ProviderDashboardScreen(
                     )
                     1 -> ProfileTab(viewModel = viewModel)
                     2 -> AnalyticsTab(analytics = analytics)
-                    3 -> CalendarTab(allAppointments = allAppointments)
+                    3 -> IncomeTab(viewModel = viewModel)
+                    4 -> CalendarTab(allAppointments = allAppointments)
                 }
             }
         }
@@ -775,6 +785,48 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                     Text(strings.noServicesAdded, fontSize = 13.sp, color = Color(0xFFAAAAAA))
                 }
 
+                // ── Price per service ──────────────────────────────────────
+                if (viewModel.editServices.isNotEmpty()) {
+                    Text(
+                        strings.incomePriceLabel,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize   = 13.sp,
+                        color      = RoseGold,
+                        modifier   = Modifier.padding(top = 4.dp)
+                    )
+                    viewModel.editServices.forEach { service ->
+                        var priceText by remember(service) {
+                            mutableStateOf((viewModel.editPrices[service] ?: 0).toString())
+                        }
+                        Row(
+                            verticalAlignment     = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier              = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                service,
+                                fontSize = 13.sp,
+                                color    = DeepRose,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value         = priceText,
+                                onValueChange = { v ->
+                                    priceText = v.filter { it.isDigit() }
+                                    viewModel.setPriceForService(service, priceText.toIntOrNull() ?: 0)
+                                },
+                                singleLine        = true,
+                                keyboardOptions   = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                placeholder       = { Text(strings.incomePriceHint, fontSize = 12.sp) },
+                                modifier          = Modifier.width(110.dp),
+                                shape             = RoundedCornerShape(10.dp),
+                                colors            = fieldColors,
+                                suffix            = { Text(strings.incomeAFN, fontSize = 11.sp, color = RoseGold) }
+                            )
+                        }
+                    }
+                }
+
                 Row(
                     verticalAlignment     = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1200,6 +1252,204 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                     )
                 }
             }
+        }
+    }
+}
+
+// ── Income Tab ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun IncomeTab(viewModel: ProviderViewModel) {
+    val strings          = LocalStrings.current
+    val analytics        by viewModel.analytics.collectAsStateWithLifecycle()
+    val estimatedRevenue by viewModel.estimatedRevenue.collectAsStateWithLifecycle()
+    val prices           = viewModel.editPrices
+
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── Revenue summary ────────────────────────────────────────────────
+        item {
+            ElevatedCard(
+                shape     = RoundedCornerShape(20.dp),
+                colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                elevation = CardDefaults.elevatedCardElevation(4.dp),
+                modifier  = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier            = Modifier.padding(24.dp).fillMaxWidth()
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier
+                            .size(60.dp)
+                            .background(DeepRose.copy(alpha = 0.1f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.TrendingUp, null, tint = DeepRose, modifier = Modifier.size(32.dp))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text       = "${estimatedRevenue.format()} ${strings.incomeAFN}",
+                        fontSize   = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = DeepRose
+                    )
+                    Text(
+                        text     = strings.incomeEstimatedRevenue,
+                        fontSize = 13.sp,
+                        color    = RoseGold
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier              = Modifier.fillMaxWidth()
+                    ) {
+                        MiniStatCard(
+                            label    = strings.analyticsConfirmed,
+                            value    = "${analytics.confirmed}",
+                            tint     = AvailableGreen,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MiniStatCard(
+                            label    = strings.analyticsCancelled,
+                            value    = "${analytics.cancelled}",
+                            tint     = UnavailableGrey,
+                            modifier = Modifier.weight(1f)
+                        )
+                        MiniStatCard(
+                            label    = strings.pending,
+                            value    = "${analytics.pending}",
+                            tint     = WarmGold,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Per-service breakdown ──────────────────────────────────────────
+        if (analytics.confirmedByService.isEmpty()) {
+            item {
+                CenteredProviderEmpty(
+                    icon    = Icons.Default.AttachMoney,
+                    title   = strings.noDataYet,
+                    subtext = strings.incomeNoData
+                )
+            }
+        } else {
+            item {
+                Text(
+                    strings.analyticsByService,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize   = 14.sp,
+                    color      = DeepRose
+                )
+            }
+            items(analytics.confirmedByService.entries.toList(), key = { it.key }) { (service, count) ->
+                val price = prices[service] ?: 0
+                val revenue = price * count
+                ElevatedCard(
+                    shape     = RoundedCornerShape(14.dp),
+                    colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                    elevation = CardDefaults.elevatedCardElevation(1.dp),
+                    modifier  = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment     = Alignment.CenterVertically,
+                        modifier              = Modifier.padding(14.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier         = Modifier
+                                .size(44.dp)
+                                .background(BlushPink, RoundedCornerShape(12.dp))
+                        ) {
+                            Text("$count", fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 16.sp)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(service, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                            Text("${strings.incomeConfirmedCount}: $count", fontSize = 12.sp, color = RoseGold)
+                        }
+                        if (revenue > 0) {
+                            Text(
+                                "${revenue.format()} ${strings.incomeAFN}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 15.sp,
+                                color      = AvailableGreen
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Set prices hint ────────────────────────────────────────────────
+        if (prices.values.all { it == 0 }) {
+            item {
+                ElevatedCard(
+                    shape     = RoundedCornerShape(14.dp),
+                    colors    = CardDefaults.elevatedCardColors(containerColor = BlushPink.copy(alpha = 0.3f)),
+                    elevation = CardDefaults.elevatedCardElevation(0.dp),
+                    modifier  = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier          = Modifier.padding(14.dp)
+                    ) {
+                        Icon(Icons.Default.AttachMoney, null, tint = RoseGold, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(strings.incomeNoData, fontSize = 13.sp, color = RoseGold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniStatCard(label: String, value: String, tint: Color, modifier: Modifier = Modifier) {
+    ElevatedCard(
+        shape     = RoundedCornerShape(12.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = tint.copy(alpha = 0.08f)),
+        elevation = CardDefaults.elevatedCardElevation(0.dp),
+        modifier  = modifier
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier            = Modifier.padding(10.dp).fillMaxWidth()
+        ) {
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = tint)
+            Text(label, fontSize = 10.sp, color = tint.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+        }
+    }
+}
+
+private fun Int.format(): String {
+    return "%,d".format(this)
+}
+
+@Composable
+private fun CenteredProviderEmpty(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtext: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier            = Modifier.fillMaxWidth().padding(32.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier         = Modifier
+                .size(72.dp)
+                .background(BlushPink.copy(alpha = 0.5f), CircleShape)
+        ) {
+            Icon(icon, null, tint = RoseGold, modifier = Modifier.size(36.dp))
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = DeepRose, textAlign = TextAlign.Center)
+        if (subtext.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
+            Text(subtext, fontSize = 12.sp, color = RoseGold, textAlign = TextAlign.Center)
         }
     }
 }
