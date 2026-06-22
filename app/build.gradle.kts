@@ -16,12 +16,12 @@ val keystoreProps = Properties().apply {
 
 android {
     namespace = "com.security.stealthapp"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.security.stealthapp"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -129,9 +129,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.0.0")
 
     // Firebase BOM — aligns all Firebase library versions.
-    // 33.1.0 is the last line compatible with compileSdk 34 AND still ships
-    // the -ktx artifacts. (BOM 34.x dropped firebase-*-ktx and needs sdk 35.)
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    // 33.x line ships -ktx artifacts; 34.x+ drops them and requires sdk 35.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
