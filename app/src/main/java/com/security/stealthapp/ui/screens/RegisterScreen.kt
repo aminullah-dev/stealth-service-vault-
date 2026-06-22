@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
@@ -215,6 +216,13 @@ fun RegisterScreen(
                         label         = strings.phoneNumber,
                         leadingIcon   = Icons.Default.Phone,
                         keyboard      = KeyboardType.Phone
+                    )
+                    FormField(
+                        value         = viewModel.email,
+                        onValueChange = { viewModel.email = it },
+                        label         = strings.emailAddress,
+                        leadingIcon   = Icons.Default.Email,
+                        keyboard      = KeyboardType.Email
                     )
                     FormField(
                         value         = viewModel.pin,

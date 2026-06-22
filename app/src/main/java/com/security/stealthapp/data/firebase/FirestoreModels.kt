@@ -11,6 +11,7 @@ data class UserDocument(
     val uid: String = "",
     val name: String = "",
     val phone: String = "",
+    val email: String = "",                 // optional real email address
     val role: String = "CUSTOMER",          // "CUSTOMER" | "PROVIDER" | "ADMIN"
     val pinHash: String = "",               // PBKDF2(pin, salt) — for local verification
     val salt: String = "",
@@ -20,7 +21,8 @@ data class UserDocument(
     val createdAt: Long = 0L,
     val decoyPinHash: String = "",          // PBKDF2 hash of decoy PIN — shows fake notepad
     val decoySalt: String = "",
-    val loyaltyPoints: Int = 0              // +10 per confirmed appointment
+    val loyaltyPoints: Int = 0,             // +10 per confirmed appointment
+    val profilePhotoBase64: String = ""     // optional base64-encoded profile photo
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }

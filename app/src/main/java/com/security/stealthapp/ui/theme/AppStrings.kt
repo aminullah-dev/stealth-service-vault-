@@ -279,6 +279,9 @@ data class AppStrings(
     val providerReplyHint: String,
     val providerReplySubmit: String,
     val providerReplied: String,
+    // Email & booking history
+    val emailAddress: String,
+    val bookingHistoryTitle: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -516,6 +519,8 @@ object StringResources {
         providerReplyHint          = "Write a reply to this review…",
         providerReplySubmit        = "Reply",
         providerReplied            = "Our response:",
+        emailAddress               = "Email Address (optional)",
+        bookingHistoryTitle        = "Booking History",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -750,6 +755,8 @@ object StringResources {
         providerReplyHint          = "پاسخ خود را بنویسید…",
         providerReplySubmit        = "پاسخ",
         providerReplied            = "پاسخ ما:",
+        emailAddress               = "آدرس ایمیل (اختیاری)",
+        bookingHistoryTitle        = "تاریخچه رزروها",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -984,6 +991,8 @@ object StringResources {
         providerReplyHint          = "دې نظر ته ځواب ولیکئ…",
         providerReplySubmit        = "ځواب",
         providerReplied            = "زموږ ځواب:",
+        emailAddress               = "د ایمیل پته (اختیاري)",
+        bookingHistoryTitle        = "د بکینګونو تاریخچه",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )

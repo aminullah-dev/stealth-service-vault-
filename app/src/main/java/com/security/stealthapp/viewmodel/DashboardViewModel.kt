@@ -58,7 +58,12 @@ private val NEIGHBORHOOD_KEYS = listOf(
     "District 13 – Afshar"
 )
 
-data class BookingStatusChange(val salonName: String, val newStatus: String)
+data class BookingStatusChange(
+    val salonName: String,
+    val newStatus: String,
+    val serviceName: String = "",
+    val appointmentDate: Long = 0L
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -80,6 +85,7 @@ class DashboardViewModel @Inject constructor(
     private val _selectedNeighborhoodIndex  = MutableStateFlow(0)
     private val _currentUserName            = MutableStateFlow("")
     private val _currentUserPhone           = MutableStateFlow("")
+    private val _currentUserPhoto           = MutableStateFlow("")
     private val _isOffline                  = MutableStateFlow(false)
     private val _showFavoritesOnly          = MutableStateFlow(false)
     private val _searchQuery                = MutableStateFlow("")
@@ -91,6 +97,7 @@ class DashboardViewModel @Inject constructor(
     val selectedCategoryIndex: StateFlow<Int>          = _selectedCategoryIndex
     val selectedNeighborhoodIndex: StateFlow<Int>      = _selectedNeighborhoodIndex
     val currentUserName: StateFlow<String>             = _currentUserName
+    val currentUserPhoto: StateFlow<String>            = _currentUserPhoto
     val isOffline: StateFlow<Boolean>                  = _isOffline
     val showFavoritesOnly: StateFlow<Boolean>          = _showFavoritesOnly
     val searchQuery: StateFlow<String>                 = _searchQuery
@@ -235,6 +242,8 @@ class DashboardViewModel @Inject constructor(
         private set
     var profileSaveSuccess by mutableStateOf(false)
         private set
+    var isUploadingPhoto by mutableStateOf(false)
+        private set
 
     init {
         // Check current connectivity state
@@ -242,13 +251,14 @@ class DashboardViewModel @Inject constructor(
         _isOffline.value = caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
 
-        // Fetch current user's display name
+        // Fetch current user's display name and profile photo
         viewModelScope.launch {
             runCatching { firestoreRepository.getUserById(customerId) }
                 .getOrNull()
                 ?.let {
                     _currentUserName.value = it.name
                     _currentUserPhone.value = it.phone
+                    _currentUserPhoto.value = it.profilePhotoBase64
                     editName = it.name
                 }
         }
@@ -262,7 +272,14 @@ class DashboardViewModel @Inject constructor(
                     if (newStatus != null && newStatus != prevStatus) {
                         val appt = appointments.find { it.id == id }
                         if (appt != null) {
-                            _bookingStatusChange.emit(BookingStatusChange(appt.salonName, newStatus))
+                            _bookingStatusChange.emit(
+                                BookingStatusChange(
+                                    salonName       = appt.salonName,
+                                    newStatus       = newStatus,
+                                    serviceName     = appt.serviceName,
+                                    appointmentDate = appt.appointmentDate
+                                )
+                            )
                             if (newStatus == "CONFIRMED") scheduleReminders(appt)
                         }
                     }
@@ -313,6 +330,17 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun dismissProfileSaveSuccess() { profileSaveSuccess = false }
+
+    fun uploadProfilePhoto(base64: String) {
+        viewModelScope.launch {
+            isUploadingPhoto = true
+            runCatching {
+                firestoreRepository.updateUserPhoto(customerId, base64)
+                _currentUserPhoto.value = base64
+            }
+            isUploadingPhoto = false
+        }
+    }
 
     fun toggleFavorite(salonId: String) {
         viewModelScope.launch { runCatching { favoritesRepository.toggle(salonId) } }

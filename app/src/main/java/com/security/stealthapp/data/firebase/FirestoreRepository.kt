@@ -78,6 +78,10 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update(mapOf("decoyPinHash" to "", "decoySalt" to "")).await()
     }
 
+    suspend fun updateUserPhoto(uid: String, base64: String) {
+        usersCol.document(uid).update("profilePhotoBase64", base64).await()
+    }
+
     suspend fun incrementLoyaltyPoints(customerId: String) {
         runCatching {
             usersCol.document(customerId).update("loyaltyPoints", FieldValue.increment(10)).await()

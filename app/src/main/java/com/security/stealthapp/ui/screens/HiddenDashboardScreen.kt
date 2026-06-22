@@ -86,8 +86,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,10 +190,12 @@ fun HiddenDashboardScreen(
     LaunchedEffect(Unit) {
         viewModel.bookingStatusChange.collect { change ->
             val title = latestStrings.bookingUpdatedTitle
-            val body  = if (change.newStatus == "CONFIRMED")
-                latestStrings.bookingConfirmedText(change.salonName)
-            else
+            val body  = if (change.newStatus == "CONFIRMED") {
+                val dateFmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
+                "${change.serviceName} at ${change.salonName}\n${dateFmt.format(Date(change.appointmentDate))}"
+            } else {
                 latestStrings.bookingDeclinedText(change.salonName)
+            }
             NotificationHelper.showBookingUpdate(context, title, body)
         }
     }
@@ -240,6 +244,7 @@ fun HiddenDashboardScreen(
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
     val currentUserName           by viewModel.currentUserName.collectAsStateWithLifecycle()
+    val currentUserPhoto          by viewModel.currentUserPhoto.collectAsStateWithLifecycle()
     val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
     val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
@@ -513,10 +518,14 @@ fun HiddenDashboardScreen(
                 containerColor   = ElegantCream
             ) {
                 CustomerProfileSheetContent(
-                    name        = viewModel.editName,
-                    onNameChange = { viewModel.onEditNameChanged(it) },
-                    onSave      = { viewModel.saveCustomerProfile(); showProfileSheet = false },
-                    onDismiss   = { showProfileSheet = false }
+                    name            = viewModel.editName,
+                    onNameChange    = { viewModel.onEditNameChanged(it) },
+                    onSave          = { viewModel.saveCustomerProfile(); showProfileSheet = false },
+                    onDismiss       = { showProfileSheet = false },
+                    photo           = currentUserPhoto,
+                    onPhotoSelected = { viewModel.uploadProfilePhoto(it) },
+                    isUploadingPhoto = viewModel.isUploadingPhoto,
+                    appointments    = myAppointments
                 )
                 LoyaltyCard(
                     points   = loyaltyPoints,
@@ -1533,9 +1542,29 @@ private fun CustomerProfileSheetContent(
     name: String,
     onNameChange: (String) -> Unit,
     onSave: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    photo: String = "",
+    onPhotoSelected: (String) -> Unit = {},
+    isUploadingPhoto: Boolean = false,
+    appointments: List<AppointmentDocument> = emptyList()
 ) {
     val strings = LocalStrings.current
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            when (val result = ImageUtils.uriToCompressedBase64(context, uri)) {
+                is ImageUtils.Result.Success  -> onPhotoSelected(result.base64)
+                is ImageUtils.Result.TooLarge -> { /* optionally surface error */ }
+                is ImageUtils.Result.Failed   -> { /* optionally surface error */ }
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1552,6 +1581,55 @@ private fun CustomerProfileSheetContent(
             TextButton(onClick = onDismiss) { Text(strings.close, color = RoseGold) }
         }
         HorizontalDivider(color = BlushPink)
+
+        // ── Profile photo ─────────────────────────────────────────────
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier         = Modifier.fillMaxWidth()
+        ) {
+            Box(contentAlignment = Alignment.BottomEnd) {
+                if (photo.isNotBlank()) {
+                    val bitmap = remember(photo) { ImageUtils.base64ToBitmap(photo) }
+                    if (bitmap != null) {
+                        Image(
+                            bitmap             = bitmap.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale       = ContentScale.Crop,
+                            modifier           = Modifier
+                                .size(88.dp)
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        ProfileInitialsAvatar(name = name, size = 88)
+                    }
+                } else {
+                    ProfileInitialsAvatar(name = name, size = 88)
+                }
+                if (isUploadingPhoto) {
+                    CircularProgressIndicator(
+                        color    = RoseGold,
+                        modifier = Modifier.size(24.dp)
+                    )
+                } else {
+                    IconButton(
+                        onClick  = { photoPickerLauncher.launch("image/*") },
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(RoseGold)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = null,
+                            tint               = Color.White,
+                            modifier           = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Name field ────────────────────────────────────────────────
         androidx.compose.material3.OutlinedTextField(
             value         = name,
             onValueChange = onNameChange,
@@ -1575,6 +1653,90 @@ private fun CustomerProfileSheetContent(
         ) {
             Text(strings.saveProfile, color = Color.White, fontWeight = FontWeight.SemiBold)
         }
+
+        // ── Booking history ───────────────────────────────────────────
+        val historyItems = remember(appointments) {
+            appointments
+                .filter { it.status == "CONFIRMED" || it.status == "CANCELLED" }
+                .sortedByDescending { it.appointmentDate }
+                .take(10)
+        }
+        if (historyItems.isNotEmpty()) {
+            val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text       = strings.bookingHistoryTitle,
+                fontWeight = FontWeight.Bold,
+                fontSize   = 14.sp,
+                color      = DeepRose
+            )
+            HorizontalDivider(color = BlushPink)
+            historyItems.forEach { appt ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text       = appt.serviceName,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize   = 13.sp,
+                            color      = DeepRose,
+                            maxLines   = 1,
+                            overflow   = TextOverflow.Ellipsis
+                        )
+                        if (appt.salonName.isNotBlank()) {
+                            Text(appt.salonName, fontSize = 11.sp, color = RoseGold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(
+                            dateFmt.format(Date(appt.appointmentDate)),
+                            fontSize = 10.sp,
+                            color    = Color(0xFFAAAAAA)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    val (chipBg, chipFg) = if (appt.status == "CONFIRMED")
+                        Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+                    else
+                        Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(chipBg)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text       = if (appt.status == "CONFIRMED") strings.accept else strings.decline,
+                            fontSize   = 10.sp,
+                            color      = chipFg,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileInitialsAvatar(name: String, size: Int) {
+    val initial = if (name.isNotBlank()) name.first().toString().uppercase() else "?"
+    val color   = remember(name) { if (name.isNotBlank()) avatarColor(name) else Color(0xFFB76E79) }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier         = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(color)
+    ) {
+        Text(
+            text       = initial,
+            fontSize   = (size / 2.5).sp,
+            fontWeight = FontWeight.Bold,
+            color      = Color.White
+        )
     }
 }
 

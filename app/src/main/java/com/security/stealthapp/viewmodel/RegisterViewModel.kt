@@ -1,5 +1,6 @@
 package com.security.stealthapp.viewmodel
 
+import android.util.Patterns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -34,6 +35,7 @@ class RegisterViewModel @Inject constructor(
 
     var name         by mutableStateOf("")
     var phone        by mutableStateOf("")
+    var email        by mutableStateOf("")
     var pin          by mutableStateOf("")
     var confirmPin   by mutableStateOf("")
     var isProvider   by mutableStateOf(false)
@@ -65,6 +67,8 @@ class RegisterViewModel @Inject constructor(
     private fun validate(): String? {
         if (name.isBlank())            return "Name is required"
         if (phone.isBlank())           return "Phone number is required"
+        if (email.isNotBlank() && !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches())
+            return "Please enter a valid email address"
         if (!pin.all { it.isDigit() }) return "PIN must contain digits only"
         if (pin.length < 6)            return "PIN must be at least 6 digits"
         if (isWeakPin(pin))            return "PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000."
@@ -108,6 +112,7 @@ class RegisterViewModel @Inject constructor(
                         uid           = uid,
                         name          = name.trim(),
                         phone         = phone.trim(),
+                        email         = email.trim(),
                         role          = role,
                         pinHash       = pinHash,
                         salt          = salt,
