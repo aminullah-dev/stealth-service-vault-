@@ -127,6 +127,8 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.security.stealthapp.viewmodel.ChangePinViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -907,6 +909,10 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Decoy PIN ─────────────────────────────────────────────────────
         val decoyVm: DecoyPinViewModel = hiltViewModel()
         DecoyPinSection(uid = viewModel.providerId, decoyVm = decoyVm)
+
+        // ── Change PIN ────────────────────────────────────────────────────
+        val changePinVm: ChangePinViewModel = hiltViewModel()
+        ChangePinSection(changePinVm = changePinVm)
 
         Spacer(Modifier.height(16.dp))
     }

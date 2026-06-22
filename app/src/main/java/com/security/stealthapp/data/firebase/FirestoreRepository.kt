@@ -70,6 +70,10 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("name", name).await()
     }
 
+    suspend fun updateUserPin(uid: String, pinHash: String, salt: String) {
+        usersCol.document(uid).update(mapOf("pinHash" to pinHash, "salt" to salt)).await()
+    }
+
     suspend fun setDecoyPin(uid: String, hash: String, salt: String) {
         usersCol.document(uid).update(mapOf("decoyPinHash" to hash, "decoySalt" to salt)).await()
     }

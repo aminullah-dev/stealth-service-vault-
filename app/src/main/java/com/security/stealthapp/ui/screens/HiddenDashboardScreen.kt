@@ -141,6 +141,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.security.stealthapp.viewmodel.ChangePinViewModel
 import com.security.stealthapp.viewmodel.DecoyPinViewModel
 
 // Avatar colors cycle through the brand palette based on name's first character
@@ -170,7 +172,8 @@ fun HiddenDashboardScreen(
     viewModel: DashboardViewModel     = hiltViewModel(),
     langVm: LanguageViewModel         = hiltViewModel(),
     exportVm: ExportViewModel         = hiltViewModel(),
-    decoyVm: DecoyPinViewModel        = hiltViewModel()
+    decoyVm: DecoyPinViewModel        = hiltViewModel(),
+    changePinVm: ChangePinViewModel   = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
     val context     = LocalContext.current
@@ -541,7 +544,11 @@ fun HiddenDashboardScreen(
                 DecoyPinSection(
                     uid      = viewModel.customerId,
                     decoyVm  = decoyVm,
-                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
+                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                )
+                ChangePinSection(
+                    changePinVm = changePinVm,
+                    modifier    = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
                 )
             }
         }
@@ -2438,6 +2445,112 @@ fun DecoyPinSection(
             containerColor = ElegantCream
         )
     }
+}
+
+// ── Change PIN section (used in customer & provider profile sheets) ───────────
+
+@Composable
+fun ChangePinSection(
+    changePinVm: ChangePinViewModel,
+    modifier: Modifier = Modifier
+) {
+    val strings     = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        focusedLabelColor    = RoseGold,
+        cursorColor          = RoseGold
+    )
+
+    Card(
+        shape    = RoundedCornerShape(16.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, null, tint = RoseGold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(strings.changePinTitle, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+            }
+            ChangePinField(
+                value         = changePinVm.currentPin,
+                onValueChange = { changePinVm.currentPin = it.filter(Char::isDigit) },
+                label         = strings.changePinCurrentPin,
+                fieldColors   = fieldColors
+            )
+            ChangePinField(
+                value         = changePinVm.newPin,
+                onValueChange = { changePinVm.newPin = it.filter(Char::isDigit) },
+                label         = strings.changePinNewPin,
+                fieldColors   = fieldColors
+            )
+            ChangePinField(
+                value         = changePinVm.confirmPin,
+                onValueChange = { changePinVm.confirmPin = it.filter(Char::isDigit) },
+                label         = strings.changePinConfirmNew,
+                fieldColors   = fieldColors
+            )
+            if (changePinVm.state is ChangePinViewModel.State.Error) {
+                Text(
+                    (changePinVm.state as ChangePinViewModel.State.Error).message,
+                    fontSize = 12.sp,
+                    color    = Color(0xFFD32F2F)
+                )
+            }
+            Button(
+                onClick  = { changePinVm.changePin() },
+                enabled  = changePinVm.state !is ChangePinViewModel.State.Loading,
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+            ) {
+                if (changePinVm.state is ChangePinViewModel.State.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(strings.changePinTitle, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+
+    if (changePinVm.state is ChangePinViewModel.State.Success) {
+        AlertDialog(
+            onDismissRequest = { changePinVm.dismissState() },
+            icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
+            title = { Text(strings.changePinSaved, fontWeight = FontWeight.Bold, color = DeepRose) },
+            confirmButton = {
+                Button(
+                    onClick = { changePinVm.dismissState() },
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) { Text(strings.ok, color = Color.White) }
+            },
+            containerColor = ElegantCream
+        )
+    }
+}
+
+@Composable
+private fun ChangePinField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    fieldColors: androidx.compose.material3.TextFieldColors
+) {
+    OutlinedTextField(
+        value                = value,
+        onValueChange        = onValueChange,
+        label                = { Text(label, fontSize = 12.sp) },
+        singleLine           = true,
+        keyboardOptions      = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        visualTransformation = PasswordVisualTransformation(),
+        modifier             = Modifier.fillMaxWidth(),
+        shape                = RoundedCornerShape(12.dp),
+        colors               = fieldColors
+    )
 }
 
 // ── Language picker dialog ────────────────────────────────────────────────────

@@ -290,6 +290,13 @@ data class AppStrings(
     // Booking notes
     val bookingNotesTitle: String,
     val bookingNotesHint: String,
+    // Change PIN
+    val changePinTitle: String,
+    val changePinCurrentPin: String,
+    val changePinNewPin: String,
+    val changePinConfirmNew: String,
+    val changePinSaved: String,
+    val changePinSameAsOld: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -535,6 +542,12 @@ object StringResources {
         photoConfirmRetry          = "Try another",
         bookingNotesTitle          = "Special Request",
         bookingNotesHint           = "Any special request? (optional)",
+        changePinTitle             = "Change PIN",
+        changePinCurrentPin        = "Current PIN",
+        changePinNewPin            = "New PIN (6+ digits)",
+        changePinConfirmNew        = "Confirm New PIN",
+        changePinSaved             = "PIN changed successfully",
+        changePinSameAsOld         = "New PIN must differ from current PIN",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -777,6 +790,12 @@ object StringResources {
         photoConfirmRetry          = "عکس دیگر",
         bookingNotesTitle          = "درخواست خاص",
         bookingNotesHint           = "درخواست خاصی دارید؟ (اختیاری)",
+        changePinTitle             = "تغییر پین",
+        changePinCurrentPin        = "پین فعلی",
+        changePinNewPin            = "پین جدید (۶+ رقم)",
+        changePinConfirmNew        = "تأیید پین جدید",
+        changePinSaved             = "پین با موفقیت تغییر کرد",
+        changePinSameAsOld         = "پین جدید باید با پین فعلی متفاوت باشد",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -1019,6 +1038,12 @@ object StringResources {
         photoConfirmRetry          = "بل عکس",
         bookingNotesTitle          = "ځانګړې غوښتنه",
         bookingNotesHint           = "ځانګړې غوښتنه لرئ؟ (اختیاري)",
+        changePinTitle             = "PIN بدلول",
+        changePinCurrentPin        = "اوسنی PIN",
+        changePinNewPin            = "نوی PIN (۶+ شمیرې)",
+        changePinConfirmNew        = "نوی PIN تایید کړئ",
+        changePinSaved             = "PIN بریالیتوب سره بدل شو",
+        changePinSameAsOld         = "نوی PIN باید د اوسني PIN سره توپیر ولري",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
