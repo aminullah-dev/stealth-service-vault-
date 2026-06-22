@@ -19,6 +19,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -49,6 +50,7 @@ class ProviderViewModel @Inject constructor(
 
     val salon: StateFlow<SalonDocument?> =
         firestoreRepository.observeSalonByProvider(providerId)
+            .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // Optimistic override: set immediately on toggle, cleared when Firestore confirms.
@@ -60,6 +62,7 @@ class ProviderViewModel @Inject constructor(
 
     val broadcasts: StateFlow<List<BroadcastDocument>> =
         firestoreRepository.observeBroadcasts()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val pendingAppointments: StateFlow<List<AppointmentDocument>> = salon
@@ -67,6 +70,7 @@ class ProviderViewModel @Inject constructor(
             if (s != null) firestoreRepository.observePendingForSalon(s.id)
             else flowOf(emptyList())
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allAppointments: StateFlow<List<AppointmentDocument>> = salon
@@ -74,6 +78,7 @@ class ProviderViewModel @Inject constructor(
             if (s != null) firestoreRepository.observeAllForSalon(s.id)
             else flowOf(emptyList())
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val reviews: StateFlow<List<ReviewDocument>> = salon
@@ -81,6 +86,7 @@ class ProviderViewModel @Inject constructor(
             if (s != null) firestoreRepository.observeReviewsForSalon(s.id)
             else flowOf(emptyList())
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val analytics: StateFlow<ProviderAnalytics> = allAppointments
@@ -112,6 +118,7 @@ class ProviderViewModel @Inject constructor(
             if (s != null) firestoreRepository.observeGalleryForSalon(s.id)
             else flowOf(emptyList())
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var isUploadingPhoto by mutableStateOf(false)

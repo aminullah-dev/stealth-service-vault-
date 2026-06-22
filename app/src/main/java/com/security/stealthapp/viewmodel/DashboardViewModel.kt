@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -101,6 +102,7 @@ class DashboardViewModel @Inject constructor(
 
     val broadcasts: StateFlow<List<BroadcastDocument>> =
         firestoreRepository.observeBroadcasts()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var reviewThanksShown by mutableStateOf(false)
@@ -116,6 +118,7 @@ class DashboardViewModel @Inject constructor(
 
     private val _allAvailableSalons: StateFlow<List<SalonDocument>> =
         firestoreRepository.observeAvailableSalons()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
@@ -145,10 +148,12 @@ class DashboardViewModel @Inject constructor(
 
     val myAppointments: StateFlow<List<AppointmentDocument>> =
         firestoreRepository.observeForCustomer(customerId)
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val myWaitlist: StateFlow<List<WaitlistEntry>> =
         firestoreRepository.observeMyWaitlist(customerId)
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // Salons scored by how well they match the customer's booking history.
@@ -177,6 +182,7 @@ class DashboardViewModel @Inject constructor(
 
     val loyaltyPoints: StateFlow<Int> =
         firestoreRepository.observeUserLoyaltyPoints(customerId)
+            .catch { emit(0) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     val loyaltyTier: StateFlow<LoyaltyTier> = loyaltyPoints
@@ -196,6 +202,7 @@ class DashboardViewModel @Inject constructor(
             if (id.isEmpty()) flowOf(emptyList())
             else firestoreRepository.observeReviewsForSalon(id)
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val galleryForSalon: StateFlow<List<GalleryImageDocument>> = _activeSalonId
@@ -203,6 +210,7 @@ class DashboardViewModel @Inject constructor(
             if (id.isEmpty()) flowOf(emptyList())
             else firestoreRepository.observeGalleryForSalon(id)
         }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun setActiveSalon(id: String) { _activeSalonId.value = id }

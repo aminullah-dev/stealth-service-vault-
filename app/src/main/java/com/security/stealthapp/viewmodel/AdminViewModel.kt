@@ -13,6 +13,7 @@ import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -36,14 +37,17 @@ class AdminViewModel @Inject constructor(
 
     val pendingProviders: StateFlow<List<UserDocument>> =
         firestoreRepository.observePendingProviders()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allUsers: StateFlow<List<UserDocument>> =
         firestoreRepository.observeAllUsers()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allSalons: StateFlow<List<SalonDocument>> =
         firestoreRepository.observeAllSalons()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val stats: StateFlow<SystemStats> = combine(allUsers, allSalons) { users, salons ->
@@ -59,6 +63,7 @@ class AdminViewModel @Inject constructor(
 
     val broadcasts: StateFlow<List<BroadcastDocument>> =
         firestoreRepository.observeBroadcasts()
+            .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var broadcastText by mutableStateOf("")
