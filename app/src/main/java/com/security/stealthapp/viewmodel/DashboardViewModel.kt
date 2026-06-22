@@ -461,7 +461,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long) {
+    fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long, notes: String = "") {
         viewModelScope.launch {
             runCatching {
                 firestoreRepository.createAppointment(
@@ -473,7 +473,8 @@ class DashboardViewModel @Inject constructor(
                         salonName       = salon.salonName,
                         serviceName     = serviceName,
                         appointmentDate = appointmentDateMs,
-                        createdAt       = System.currentTimeMillis()
+                        createdAt       = System.currentTimeMillis(),
+                        notes           = notes
                     )
                 )
                 vaultRepository.log(

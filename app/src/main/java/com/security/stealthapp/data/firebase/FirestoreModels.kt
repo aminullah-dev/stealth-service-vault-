@@ -85,7 +85,8 @@ data class AppointmentDocument(
     val serviceName: String = "",
     val appointmentDate: Long = 0L,         // epoch millis (date + time)
     val status: String = "PENDING",         // "PENDING" | "CONFIRMED" | "CANCELLED"
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    val notes: String = ""               // optional customer request/note
 )
 
 data class ReviewDocument(

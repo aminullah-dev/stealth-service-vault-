@@ -272,6 +272,12 @@ fun HiddenDashboardScreen(
     var showServiceDialog by remember { mutableStateOf(false) }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
+    var pendingSlotMs     by remember { mutableStateOf(0L) }
+    var showNotesDialog   by remember { mutableStateOf(false) }
+    var bookingNotes      by remember { mutableStateOf("") }
+
+    // Feature 1: photo confirmation
+    var pendingPhotoBase64 by remember { mutableStateOf<String?>(null) }
 
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
 
@@ -523,7 +529,7 @@ fun HiddenDashboardScreen(
                     onSave          = { viewModel.saveCustomerProfile(); showProfileSheet = false },
                     onDismiss       = { showProfileSheet = false },
                     photo           = currentUserPhoto,
-                    onPhotoSelected = { viewModel.uploadProfilePhoto(it) },
+                    onPhotoSelected = { base64 -> pendingPhotoBase64 = base64 },
                     isUploadingPhoto = viewModel.isUploadingPhoto,
                     appointments    = myAppointments
                 )
@@ -551,6 +557,49 @@ fun HiddenDashboardScreen(
                         onClick = { viewModel.dismissProfileSaveSuccess() },
                         colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
                     ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Photo confirmation dialog ─────────────────────────────────────────
+        pendingPhotoBase64?.let { photoBase64 ->
+            val bitmap = remember(photoBase64) { ImageUtils.base64ToBitmap(photoBase64) }
+            AlertDialog(
+                onDismissRequest = { pendingPhotoBase64 = null },
+                title = { Text(strings.photoConfirmTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier            = Modifier.fillMaxWidth()
+                    ) {
+                        if (bitmap != null) {
+                            Image(
+                                bitmap             = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale       = ContentScale.Crop,
+                                modifier           = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(strings.photoConfirmBody, fontSize = 13.sp, color = Color(0xFF555555), textAlign = TextAlign.Center)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.uploadProfilePhoto(photoBase64)
+                            pendingPhotoBase64 = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.photoConfirmYes, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingPhotoBase64 = null }) {
+                        Text(strings.photoConfirmRetry, color = RoseGold)
+                    }
                 },
                 containerColor = ElegantCream
             )
@@ -668,12 +717,8 @@ fun HiddenDashboardScreen(
                                         Button(
                                             onClick = {
                                                 showSlotPicker = false
-                                                val intent = bookingIntent
-                                                if (intent != null) {
-                                                    viewModel.bookService(intent.salon, intent.service, slotMs)
-                                                }
-                                                bookingIntent = null
-                                                viewModel.clearSlots()
+                                                pendingSlotMs  = slotMs
+                                                showNotesDialog = true
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(12.dp),
@@ -690,6 +735,76 @@ fun HiddenDashboardScreen(
                 confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { showSlotPicker = false; bookingIntent = null; viewModel.clearSlots() }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Step 4: Booking notes dialog ─────────────────────────────────────
+        if (showNotesDialog && bookingIntent != null) {
+            val intent  = bookingIntent!!
+            val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+            AlertDialog(
+                onDismissRequest = {
+                    showNotesDialog = false
+                    pendingSlotMs   = 0L
+                    bookingNotes    = ""
+                    bookingIntent   = null
+                    viewModel.clearSlots()
+                },
+                title = { Text(strings.bookingNotesTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text     = "${intent.service} · ${intent.salon.salonName}",
+                            fontSize = 14.sp,
+                            color    = DeepRose,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text     = dateFmt.format(Date(pendingSlotMs)),
+                            fontSize = 13.sp,
+                            color    = RoseGold
+                        )
+                        OutlinedTextField(
+                            value         = bookingNotes,
+                            onValueChange = { bookingNotes = it },
+                            label         = { Text(strings.bookingNotesHint, fontSize = 13.sp) },
+                            maxLines      = 3,
+                            modifier      = Modifier.fillMaxWidth(),
+                            shape         = RoundedCornerShape(12.dp),
+                            colors        = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor   = RoseGold,
+                                unfocusedBorderColor = ChipInactive,
+                                cursorColor          = RoseGold,
+                                focusedLabelColor    = RoseGold
+                            )
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes)
+                            showNotesDialog = false
+                            pendingSlotMs   = 0L
+                            bookingNotes    = ""
+                            bookingIntent   = null
+                            viewModel.clearSlots()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.confirmBooking, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showNotesDialog = false
+                        pendingSlotMs   = 0L
+                        bookingNotes    = ""
+                        bookingIntent   = null
+                        viewModel.clearSlots()
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },

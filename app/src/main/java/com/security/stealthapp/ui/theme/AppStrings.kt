@@ -282,6 +282,14 @@ data class AppStrings(
     // Email & booking history
     val emailAddress: String,
     val bookingHistoryTitle: String,
+    // Photo confirmation dialog
+    val photoConfirmTitle: String,
+    val photoConfirmBody: String,
+    val photoConfirmYes: String,
+    val photoConfirmRetry: String,
+    // Booking notes
+    val bookingNotesTitle: String,
+    val bookingNotesHint: String,
     // Common
     val lock: String,
     val languagePickerTitle: String,
@@ -521,6 +529,12 @@ object StringResources {
         providerReplied            = "Our response:",
         emailAddress               = "Email Address (optional)",
         bookingHistoryTitle        = "Booking History",
+        photoConfirmTitle          = "Is this your photo?",
+        photoConfirmBody           = "Please make sure your face is clearly visible. If not, please choose a different photo.",
+        photoConfirmYes            = "Yes, save it",
+        photoConfirmRetry          = "Try another",
+        bookingNotesTitle          = "Special Request",
+        bookingNotesHint           = "Any special request? (optional)",
         lock                       = "Lock",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -757,6 +771,12 @@ object StringResources {
         providerReplied            = "پاسخ ما:",
         emailAddress               = "آدرس ایمیل (اختیاری)",
         bookingHistoryTitle        = "تاریخچه رزروها",
+        photoConfirmTitle          = "آیا این عکس شما است؟",
+        photoConfirmBody           = "لطفاً مطمئن شوید که چهره شما به وضوح مشخص است. اگر نه، عکس دیگری انتخاب کنید.",
+        photoConfirmYes            = "بله، ذخیره کن",
+        photoConfirmRetry          = "عکس دیگر",
+        bookingNotesTitle          = "درخواست خاص",
+        bookingNotesHint           = "درخواست خاصی دارید؟ (اختیاری)",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )
@@ -993,6 +1013,12 @@ object StringResources {
         providerReplied            = "زموږ ځواب:",
         emailAddress               = "د ایمیل پته (اختیاري)",
         bookingHistoryTitle        = "د بکینګونو تاریخچه",
+        photoConfirmTitle          = "ایا دا ستاسو عکس دی؟",
+        photoConfirmBody           = "مهرباني وکړئ ډاډ ترلاسه کړئ چې ستاسو مخ واضح ښکاري. که نه، بل عکس غوره کړئ.",
+        photoConfirmYes            = "هو، خوندي کړه",
+        photoConfirmRetry          = "بل عکس",
+        bookingNotesTitle          = "ځانګړې غوښتنه",
+        bookingNotesHint           = "ځانګړې غوښتنه لرئ؟ (اختیاري)",
         lock                       = "قفل",
         languagePickerTitle        = "Language / زبان / ژبه",
     )

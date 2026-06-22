@@ -656,6 +656,22 @@ private fun BookingRequestCard(
                     color    = Color(0xFF888888)
                 )
 
+                if (appointment.notes.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(Icons.Default.Edit, null, tint = RoseGold, modifier = Modifier.size(11.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text      = appointment.notes,
+                            fontSize  = 12.sp,
+                            color     = Color(0xFF666666),
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            maxLines  = 3,
+                            overflow  = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
                 if (appointment.status == "PENDING") {
                     Spacer(Modifier.height(12.dp))
                     Row(
