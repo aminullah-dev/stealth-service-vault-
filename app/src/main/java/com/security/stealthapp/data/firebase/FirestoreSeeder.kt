@@ -21,9 +21,17 @@ class FirestoreSeeder @Inject constructor(
         // user yet — not only when the whole collection is empty — so that an
         // admin is restored even if customers/providers registered first (e.g.
         // after the database was wiped).
-        if (!repo.isAdminMissing()) return
-        // Default admin PIN: 135790 — change via Firebase Console after first login.
-        seed("Admin", "135790", "ADMIN", "APPROVED", null)
+        //
+        // This runs at app startup before anyone has authenticated, so the
+        // isAdminMissing() read is rejected by the security rules
+        // (request.auth == null) once the database is no longer in test mode.
+        // That's expected — the admin already exists by then. Swallow any
+        // failure so a denied read can never crash the app on launch.
+        runCatching {
+            if (!repo.isAdminMissing()) return
+            // Default admin PIN: 135790 — change via Firebase Console after first login.
+            seed("Admin", "135790", "ADMIN", "APPROVED", null)
+        }
     }
 
     private data class SalonSeed(

@@ -35,7 +35,9 @@ class StealthApplication : Application(), Configuration.Provider {
         NotificationHelper.createChannels(this)
 
         CoroutineScope(Dispatchers.IO).launch {
-            firestoreSeeder.seedIfEmpty()
+            // Defensive: the seeder reads Firestore before the user authenticates,
+            // which the security rules reject. Never let that crash app launch.
+            runCatching { firestoreSeeder.seedIfEmpty() }
         }
 
         schedulePeriodicErasure()
