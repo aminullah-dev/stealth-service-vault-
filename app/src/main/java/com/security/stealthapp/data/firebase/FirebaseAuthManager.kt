@@ -1,5 +1,6 @@
 package com.security.stealthapp.data.firebase
 
+import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -33,6 +34,19 @@ class FirebaseAuthManager @Inject constructor() {
     suspend fun updatePassword(newPassword: String): Result<Unit> = runCatching {
         auth.currentUser?.updatePassword(newPassword)?.await()
             ?: error("No authenticated user")
+    }
+
+    suspend fun sendPasswordResetEmail(email: String): Result<Unit> = runCatching {
+        val settings = ActionCodeSettings.newBuilder()
+            .setUrl("https://safebeauty.firebaseapp.com")
+            .setHandleCodeInApp(true)
+            .setAndroidPackageName("com.security.stealthapp", true, null)
+            .build()
+        auth.sendPasswordResetEmail(email, settings).await()
+    }
+
+    suspend fun confirmPasswordReset(oobCode: String, newPassword: String): Result<Unit> = runCatching {
+        auth.confirmPasswordReset(oobCode, newPassword).await()
     }
 
     fun signOut() = auth.signOut()

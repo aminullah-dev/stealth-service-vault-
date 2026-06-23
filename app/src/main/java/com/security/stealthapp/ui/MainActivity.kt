@@ -13,12 +13,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         enableEdgeToEdge()
+
+        val deepLink = intent?.data?.toString()
 
         setContent {
             val navController = rememberNavController()
-            AppNavGraph(navController = navController)
+            AppNavGraph(navController = navController, deepLink = deepLink)
         }
     }
 }

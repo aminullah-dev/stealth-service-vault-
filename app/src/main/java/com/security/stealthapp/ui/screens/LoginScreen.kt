@@ -69,6 +69,7 @@ fun LoginScreen(
     onAuthSuccess: (LoggedInUser) -> Unit,
     onDecoyMode: () -> Unit = {},
     onRegisterTapped: () -> Unit,
+    onForgotPinTapped: () -> Unit = {},
     authViewModel: AuthViewModel   = hiltViewModel(),
     langVm: LanguageViewModel      = hiltViewModel()
 ) {
@@ -353,6 +354,13 @@ fun LoginScreen(
                         text     = strings.loginRegisterPrompt,
                         fontSize = 14.sp,
                         color    = RoseGold
+                    )
+                }
+                TextButton(onClick = onForgotPinTapped) {
+                    Text(
+                        text     = strings.forgotPin,
+                        fontSize = 13.sp,
+                        color    = Color(0xFF999999)
                     )
                 }
             }

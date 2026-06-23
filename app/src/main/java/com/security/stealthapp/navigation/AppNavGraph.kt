@@ -3,6 +3,7 @@ package com.security.stealthapp.navigation
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -16,10 +17,12 @@ import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.ui.screens.AdminDashboardScreen
 import com.security.stealthapp.ui.screens.ChatScreen
 import com.security.stealthapp.ui.screens.DisguiseScreen
+import com.security.stealthapp.ui.screens.ForgotPinScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
 import com.security.stealthapp.ui.screens.LoginScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
 import com.security.stealthapp.ui.screens.RegisterScreen
+import com.security.stealthapp.ui.screens.SetNewPinScreen
 import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.StringResources
 import com.security.stealthapp.ui.theme.layoutDirection
@@ -41,6 +44,10 @@ sealed class Screen(val route: String) {
     object AdminDashboard : Screen("dashboard/admin/{userId}") {
         fun build(userId: String) = "dashboard/admin/$userId"
     }
+    object ForgotPin : Screen("forgotPin")
+    object SetNewPin : Screen("setNewPin/{oobCode}") {
+        fun build(oobCode: String) = "setNewPin/${Uri.encode(oobCode)}"
+    }
     object Chat : Screen("chat/{conversationId}/{myUserId}/{myName}/{otherName}") {
         fun build(
             conversationId: String,
@@ -54,7 +61,7 @@ sealed class Screen(val route: String) {
 // ── Nav graph ─────────────────────────────────────────────────────────────────
 
 @Composable
-fun AppNavGraph(navController: NavHostController) {
+fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
 
     val langVm: LanguageViewModel = hiltViewModel()
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
@@ -64,6 +71,18 @@ fun AppNavGraph(navController: NavHostController) {
         LocalStrings        provides strings,
         LocalLayoutDirection provides currentLanguage.layoutDirection()
     ) {
+        // Navigate to SetNewPin screen when the app is opened via Firebase reset link
+        LaunchedEffect(deepLink) {
+            if (deepLink != null && deepLink.contains("mode=resetPassword")) {
+                val oobCode = Uri.parse(deepLink).getQueryParameter("oobCode").orEmpty()
+                if (oobCode.isNotBlank()) {
+                    navController.navigate(Screen.SetNewPin.build(oobCode)) {
+                        launchSingleTop = true
+                    }
+                }
+            }
+        }
+
         val lockAndReturn: () -> Unit = {
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Login.route) { inclusive = false }
@@ -93,8 +112,11 @@ fun AppNavGraph(navController: NavHostController) {
                             launchSingleTop = true
                         }
                     },
-                    onRegisterTapped = {
+                    onRegisterTapped  = {
                         navController.navigate(Screen.Register.route) { launchSingleTop = true }
+                    },
+                    onForgotPinTapped = {
+                        navController.navigate(Screen.ForgotPin.route) { launchSingleTop = true }
                     }
                 )
             }
@@ -144,6 +166,33 @@ fun AppNavGraph(navController: NavHostController) {
                 )
             ) {
                 ChatScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.ForgotPin.route) {
+                ForgotPinScreen(
+                    onBack         = { navController.popBackStack() },
+                    onLoginTapped  = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Login.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route     = Screen.SetNewPin.route,
+                arguments = listOf(navArgument("oobCode") { type = NavType.StringType })
+            ) {
+                SetNewPinScreen(
+                    onSuccess = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

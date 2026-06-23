@@ -59,6 +59,12 @@ class FirestoreRepository @Inject constructor(
             .toObject(UserDocument::class.java)?.copy(uid = uid)
     }
 
+    suspend fun getUserByPhone(phone: String): UserDocument? {
+        val docs = usersCol.whereEqualTo("phone", phone).limit(1).get().await()
+        val doc  = docs.documents.firstOrNull() ?: return null
+        return doc.toObject(UserDocument::class.java)?.copy(uid = doc.id)
+    }
+
     suspend fun setUserStatus(uid: String, status: String) {
         usersCol.document(uid).update("status", status).await()
     }
