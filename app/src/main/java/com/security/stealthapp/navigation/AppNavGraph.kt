@@ -28,6 +28,7 @@ import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.StringResources
 import com.security.stealthapp.ui.theme.layoutDirection
 import com.security.stealthapp.viewmodel.LanguageViewModel
+import com.security.stealthapp.viewmodel.SessionViewModel
 
 // ── Route constants ────────────────────────────────────────────────────────────
 
@@ -68,8 +69,21 @@ sealed class Screen(val route: String) {
 fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
 
     val langVm: LanguageViewModel = hiltViewModel()
+    val sessionVm: SessionViewModel = hiltViewModel()
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
+    val shouldLock      by sessionVm.shouldLock.collectAsStateWithLifecycle()
     val strings = StringResources.forLanguage(currentLanguage)
+
+    // Auto-lock: when session expires after 5 min of inactivity, return to Login.
+    LaunchedEffect(shouldLock) {
+        if (shouldLock) {
+            sessionVm.onLockHandled()
+            navController.navigate(Screen.Login.route) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
+    }
 
     CompositionLocalProvider(
         LocalStrings        provides strings,
@@ -102,6 +116,7 @@ fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
             composable(Screen.Login.route) {
                 LoginScreen(
                     onAuthSuccess = { user ->
+                        sessionVm.onLoggedIn()
                         val route = when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
