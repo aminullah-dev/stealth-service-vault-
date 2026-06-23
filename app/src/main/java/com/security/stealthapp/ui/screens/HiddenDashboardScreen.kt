@@ -541,30 +541,36 @@ fun HiddenDashboardScreen(
                 sheetState       = profileSheetState,
                 containerColor   = ElegantCream
             ) {
-                CustomerProfileSheetContent(
-                    name            = viewModel.editName,
-                    onNameChange    = { viewModel.onEditNameChanged(it) },
-                    onSave          = { viewModel.saveCustomerProfile(); showProfileSheet = false },
-                    onDismiss       = { showProfileSheet = false },
-                    photo           = currentUserPhoto,
-                    onPhotoSelected = { base64 -> pendingPhotoBase64 = base64 },
-                    isUploadingPhoto = viewModel.isUploadingPhoto,
-                    appointments    = myAppointments
-                )
-                LoyaltyCard(
-                    points   = loyaltyPoints,
-                    tier     = loyaltyTier,
-                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
-                )
-                DecoyPinSection(
-                    uid      = viewModel.customerId,
-                    decoyVm  = decoyVm,
-                    modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
-                )
-                ChangePinSection(
-                    changePinVm = changePinVm,
-                    modifier    = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    CustomerProfileSheetContent(
+                        name            = viewModel.editName,
+                        onNameChange    = { viewModel.onEditNameChanged(it) },
+                        onSave          = { viewModel.saveCustomerProfile(); showProfileSheet = false },
+                        onDismiss       = { showProfileSheet = false },
+                        photo           = currentUserPhoto,
+                        onPhotoSelected = { base64 -> pendingPhotoBase64 = base64 },
+                        isUploadingPhoto = viewModel.isUploadingPhoto,
+                        appointments    = myAppointments
+                    )
+                    LoyaltyCard(
+                        points   = loyaltyPoints,
+                        tier     = loyaltyTier,
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                    )
+                    DecoyPinSection(
+                        uid      = viewModel.customerId,
+                        decoyVm  = decoyVm,
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                    )
+                    ChangePinSection(
+                        changePinVm = changePinVm,
+                        modifier    = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
+                    )
+                }
             }
         }
 
