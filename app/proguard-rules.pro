@@ -38,6 +38,11 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# Crashlytics — keep file names and line numbers so deobfuscated crash
+# reports remain readable, and preserve custom exception classes.
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends java.lang.Exception
+
 # Firestore data models (no-arg constructors needed for deserialization)
 -keep class com.security.stealthapp.data.firebase.** { *; }
 -keep class com.security.stealthapp.data.model.** { *; }

@@ -8,6 +8,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.security.stealthapp.data.firebase.FirestoreSeeder
+import com.security.stealthapp.util.CrashReporter
 import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.workers.DataErasureWorker
 import dagger.hilt.android.HiltAndroidApp
@@ -32,12 +33,16 @@ class StealthApplication : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
 
+        // Crash reporting (release builds only — see CrashReporter for privacy notes).
+        CrashReporter.init()
+
         NotificationHelper.createChannels(this)
 
         CoroutineScope(Dispatchers.IO).launch {
             // Defensive: the seeder reads Firestore before the user authenticates,
             // which the security rules reject. Never let that crash app launch.
             runCatching { firestoreSeeder.seedIfEmpty() }
+                .onFailure { CrashReporter.recordNonFatal(it, "seeder:seedIfEmpty") }
         }
 
         schedulePeriodicErasure()

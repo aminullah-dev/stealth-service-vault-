@@ -4,6 +4,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.security.stealthapp.data.db.dao.SalonCacheDao
 import com.security.stealthapp.data.db.entities.toEntity
+import com.security.stealthapp.util.CrashReporter
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -480,7 +481,10 @@ class FirestoreRepository @Inject constructor(
         val listener = notificationsCol
             .whereEqualTo("recipientId", uid)
             .addSnapshotListener { snap, err ->
-                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                if (err != null) {
+                    CrashReporter.recordNonFatal(err, "firestore:observeNotifications")
+                    trySend(emptyList()); return@addSnapshotListener
+                }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(NotificationDocument::class.java)?.copy(id = it.id) }
                     ?.sortedByDescending { it.createdAt }
@@ -494,11 +498,12 @@ class FirestoreRepository @Inject constructor(
         runCatching {
             val ref = notificationsCol.document()
             notificationsCol.document(ref.id).set(notification.copy(id = ref.id)).await()
-        }
+        }.onFailure { CrashReporter.recordNonFatal(it, "firestore:createNotification") }
     }
 
     suspend fun markNotificationRead(notificationId: String) {
         runCatching { notificationsCol.document(notificationId).update("isRead", true).await() }
+            .onFailure { CrashReporter.recordNonFatal(it, "firestore:markNotificationRead") }
     }
 
     suspend fun markAllNotificationsRead(uid: String) {
@@ -510,11 +515,12 @@ class FirestoreRepository @Inject constructor(
                 .get().await()
             docs.documents.forEach { batch.update(it.reference, "isRead", true) }
             if (docs.documents.isNotEmpty()) batch.commit().await()
-        }
+        }.onFailure { CrashReporter.recordNonFatal(it, "firestore:markAllNotificationsRead") }
     }
 
     suspend fun deleteNotification(notificationId: String) {
         runCatching { notificationsCol.document(notificationId).delete().await() }
+            .onFailure { CrashReporter.recordNonFatal(it, "firestore:deleteNotification") }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────

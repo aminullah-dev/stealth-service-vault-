@@ -6,6 +6,7 @@ plugins {
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
 }
 
 // Load signing credentials from keystore.properties (never committed to git)
@@ -68,6 +69,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Generates BuildConfig.DEBUG, used to disable crash collection in debug builds.
+        buildConfig = true
     }
 
     composeOptions {
@@ -134,6 +137,8 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
 
     // Coroutines — play-services provides the Task.await() extension used by
     // FirebaseAuthManager / FirestoreRepository (NOT transitive; must be explicit)
