@@ -12,1094 +12,1094 @@ enum class AppLanguage(val nativeName: String) {
 fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.ENGLISH) LayoutDirection.Ltr else LayoutDirection.Rtl
 
-data class AppStrings(
+class AppStrings {
     // Login screen
-    val loginTitle: String,
-    val loginTagline: String,
-    val loginWrongPin: String,
-    val loginRegisterPrompt: String,
+    var loginTitle: String = ""
+    var loginTagline: String = ""
+    var loginWrongPin: String = ""
+    var loginRegisterPrompt: String = ""
     // Top-bar taglines
-    val taglineCustomer: String,
-    val taglineProvider: String,
-    val taglineAdmin: String,
-    val taglineRegister: String,
+    var taglineCustomer: String = ""
+    var taglineProvider: String = ""
+    var taglineAdmin: String = ""
+    var taglineRegister: String = ""
     // Category chips (display labels parallel to internal English keys)
-    val categoryAll: String,
-    val categoryHair: String,
-    val categoryMakeup: String,
-    val categoryNails: String,
-    val categorySkincare: String,
-    val categoryEyebrows: String,
+    var categoryAll: String = ""
+    var categoryHair: String = ""
+    var categoryMakeup: String = ""
+    var categoryNails: String = ""
+    var categorySkincare: String = ""
+    var categoryEyebrows: String = ""
     // Neighborhood labels (parallel to internal English keys)
-    val neighborhoodAll: String,
-    val neighborhood1: String,
-    val neighborhood3: String,
-    val neighborhood6: String,
-    val neighborhood9: String,
-    val neighborhood11: String,
-    val neighborhood13: String,
+    var neighborhoodAll: String = ""
+    var neighborhood1: String = ""
+    var neighborhood3: String = ""
+    var neighborhood6: String = ""
+    var neighborhood9: String = ""
+    var neighborhood11: String = ""
+    var neighborhood13: String = ""
     // Salon card
-    val availableNow: String,
-    val notAvailable: String,
-    val book: String,
-    val providersFound: (Int) -> String,
-    val noProvidersTitle: String,
-    val noProvidersSubtext: String,
+    var availableNow: String = ""
+    var notAvailable: String = ""
+    var book: String = ""
+    var providersFound: (Int) -> String = { "" }
+    var noProvidersTitle: String = ""
+    var noProvidersSubtext: String = ""
     // Booking flow
-    val myBookings: String,
-    val chooseService: String,
-    val cancel: String,
-    val next: String,
-    val selectTime: String,
-    val confirmBooking: String,
-    val bookingRequestSent: String,
-    val bookingConfirmText: (String) -> String,
-    val ok: String,
-    val noBookingsTitle: String,
-    val noBookingsSubtext: String,
-    val close: String,
+    var myBookings: String = ""
+    var chooseService: String = ""
+    var cancel: String = ""
+    var next: String = ""
+    var selectTime: String = ""
+    var confirmBooking: String = ""
+    var bookingRequestSent: String = ""
+    var bookingConfirmText: (String) -> String = { "" }
+    var ok: String = ""
+    var noBookingsTitle: String = ""
+    var noBookingsSubtext: String = ""
+    var close: String = ""
     // Provider dashboard
-    val acceptingBookings: String,
-    val closedForBookings: String,
-    val customersCanSeeYou: String,
-    val youAreHidden: String,
-    val tabRequests: String,
-    val tabMyProfile: String,
-    val noPendingRequests: String,
-    val noPendingRequestsSubtext: String,
-    val requestedAt: String,
-    val accept: String,
-    val decline: String,
-    val sectionLocation: String,
-    val sectionServices: String,
-    val districtArea: String,
-    val addServiceLabel: String,
-    val addServiceHint: String,
-    val noServicesAdded: String,
-    val saveProfile: String,
-    val profileSavedTitle: String,
-    val profileSavedText: String,
+    var acceptingBookings: String = ""
+    var closedForBookings: String = ""
+    var customersCanSeeYou: String = ""
+    var youAreHidden: String = ""
+    var tabRequests: String = ""
+    var tabMyProfile: String = ""
+    var noPendingRequests: String = ""
+    var noPendingRequestsSubtext: String = ""
+    var requestedAt: String = ""
+    var accept: String = ""
+    var decline: String = ""
+    var sectionLocation: String = ""
+    var sectionServices: String = ""
+    var districtArea: String = ""
+    var addServiceLabel: String = ""
+    var addServiceHint: String = ""
+    var noServicesAdded: String = ""
+    var saveProfile: String = ""
+    var profileSavedTitle: String = ""
+    var profileSavedText: String = ""
     // Register screen
-    val createAccount: String,
-    val taglineSecure: String,
-    val sectionPersonalInfo: String,
-    val sectionSalonDetails: String,
-    val roleProvider: String,
-    val roleCustomer: String,
-    val roleProviderDesc: String,
-    val roleCustomerDesc: String,
-    val fullName: String,
-    val phoneNumber: String,
-    val secretPin: String,
-    val confirmPin: String,
-    val salonName: String,
-    val addServiceExample: String,
-    val creatingAccount: String,
-    val welcomeTitle: (String) -> String,
-    val accountReadyText: String,
-    val goToApp: String,
-    val registrationSubmittedTitle: String,
-    val salonUnderReviewText: String,
-    val gotIt: String,
-    val pleaseCheckTitle: String,
+    var createAccount: String = ""
+    var taglineSecure: String = ""
+    var sectionPersonalInfo: String = ""
+    var sectionSalonDetails: String = ""
+    var roleProvider: String = ""
+    var roleCustomer: String = ""
+    var roleProviderDesc: String = ""
+    var roleCustomerDesc: String = ""
+    var fullName: String = ""
+    var phoneNumber: String = ""
+    var secretPin: String = ""
+    var confirmPin: String = ""
+    var salonName: String = ""
+    var addServiceExample: String = ""
+    var creatingAccount: String = ""
+    var welcomeTitle: (String) -> String = { "" }
+    var accountReadyText: String = ""
+    var goToApp: String = ""
+    var registrationSubmittedTitle: String = ""
+    var salonUnderReviewText: String = ""
+    var gotIt: String = ""
+    var pleaseCheckTitle: String = ""
     // Admin dashboard
-    val adminPanelTitle: String,
-    val approvalQueueSubtitle: String,
-    val noPendingAppsTitle: String,
-    val noPendingAppsSubtext: String,
-    val approve: String,
-    val reject: String,
-    val pending: String,
+    var adminPanelTitle: String = ""
+    var approvalQueueSubtitle: String = ""
+    var noPendingAppsTitle: String = ""
+    var noPendingAppsSubtext: String = ""
+    var approve: String = ""
+    var reject: String = ""
+    var pending: String = ""
     // Chat
-    val chat: String,
-    val messagePlaceholder: String,
-    val send: String,
+    var chat: String = ""
+    var messagePlaceholder: String = ""
+    var send: String = ""
     // Offline / status
-    val offlineBanner: String,
-    val bookingUpdatedTitle: String,
-    val bookingConfirmedText: (String) -> String,
-    val bookingDeclinedText: (String) -> String,
+    var offlineBanner: String = ""
+    var bookingUpdatedTitle: String = ""
+    var bookingConfirmedText: (String) -> String = { "" }
+    var bookingDeclinedText: (String) -> String = { "" }
     // Appointment reminders
-    val reminderTitle: String,
-    val remindedTomorrow: (String) -> String,
-    val remindedInHour: (String) -> String,
+    var reminderTitle: String = ""
+    var remindedTomorrow: (String) -> String = { "" }
+    var remindedInHour: (String) -> String = { "" }
     // Customer booking cancellation
-    val cancelAppointment: String,
-    val cancelConfirmTitle: String,
-    val cancelConfirmText: String,
+    var cancelAppointment: String = ""
+    var cancelConfirmTitle: String = ""
+    var cancelConfirmText: String = ""
     // Provider analytics
-    val tabAnalytics: String,
-    val analyticsTotal: String,
-    val analyticsConfirmed: String,
-    val analyticsCancelled: String,
-    val analyticsByService: String,
-    val noDataYet: String,
+    var tabAnalytics: String = ""
+    var analyticsTotal: String = ""
+    var analyticsConfirmed: String = ""
+    var analyticsCancelled: String = ""
+    var analyticsByService: String = ""
+    var noDataYet: String = ""
     // Ratings & reviews
-    val leaveReview: String,
-    val rateExperience: String,
-    val reviewCommentHint: String,
-    val submit: String,
-    val reviewThanks: String,
-    val reviews: String,
-    val noReviewsYet: String,
+    var leaveReview: String = ""
+    var rateExperience: String = ""
+    var reviewCommentHint: String = ""
+    var submit: String = ""
+    var reviewThanks: String = ""
+    var reviews: String = ""
+    var noReviewsYet: String = ""
     // Favorites
-    val favorites: String,
-    val noFavoritesTitle: String,
-    val noFavoritesSubtext: String,
+    var favorites: String = ""
+    var noFavoritesTitle: String = ""
+    var noFavoritesSubtext: String = ""
     // Reschedule
-    val reschedule: String,
-    val rescheduleTitle: String,
+    var reschedule: String = ""
+    var rescheduleTitle: String = ""
     // PIN validation
-    val pinTooShort: String,
-    val pinTooSimple: String,
+    var pinTooShort: String = ""
+    var pinTooSimple: String = ""
     // Admin — delete user
-    val tabUsers: String,
-    val deleteUser: String,
-    val deleteUserConfirmTitle: String,
-    val deleteUserConfirmText: String,
+    var tabUsers: String = ""
+    var deleteUser: String = ""
+    var deleteUserConfirmTitle: String = ""
+    var deleteUserConfirmText: String = ""
     // Admin — Stats tab
-    val tabStats: String,
-    val statsTotalUsers: String,
-    val statsProviders: String,
-    val statsCustomers: String,
-    val statsPendingApprovals: String,
+    var tabStats: String = ""
+    var statsTotalUsers: String = ""
+    var statsProviders: String = ""
+    var statsCustomers: String = ""
+    var statsPendingApprovals: String = ""
     // Admin — Broadcast tab
-    val tabBroadcast: String,
-    val broadcastHint: String,
-    val broadcastSend: String,
-    val broadcastNone: String,
+    var tabBroadcast: String = ""
+    var broadcastHint: String = ""
+    var broadcastSend: String = ""
+    var broadcastNone: String = ""
     // Export / Backup
-    val exportTitle: String,
-    val exportStart: String,
-    val exportExporting: String,
-    val exportShareTitle: String,
-    val exportError: String,
+    var exportTitle: String = ""
+    var exportStart: String = ""
+    var exportExporting: String = ""
+    var exportShareTitle: String = ""
+    var exportError: String = ""
     // Working hours & time slots
-    val workingHoursTitle: String,
-    val slotDurationLabel: String,
-    val slotDuration30: String,
-    val slotDuration45: String,
-    val slotDuration60: String,
-    val slotDuration90: String,
-    val daySat: String,
-    val daySun: String,
-    val dayMon: String,
-    val dayTue: String,
-    val dayWed: String,
-    val dayThu: String,
-    val dayFri: String,
-    val openTime: String,
-    val closeTime: String,
-    val selectTimeSlot: String,
-    val noSlotsAvailable: String,
-    val closedThisDay: String,
+    var workingHoursTitle: String = ""
+    var slotDurationLabel: String = ""
+    var slotDuration30: String = ""
+    var slotDuration45: String = ""
+    var slotDuration60: String = ""
+    var slotDuration90: String = ""
+    var daySat: String = ""
+    var daySun: String = ""
+    var dayMon: String = ""
+    var dayTue: String = ""
+    var dayWed: String = ""
+    var dayThu: String = ""
+    var dayFri: String = ""
+    var openTime: String = ""
+    var closeTime: String = ""
+    var selectTimeSlot: String = ""
+    var noSlotsAvailable: String = ""
+    var closedThisDay: String = ""
     // Search
-    val searchHint: String,
+    var searchHint: String = ""
     // Customer profile
-    val myProfile: String,
-    val editProfileTitle: String,
-    val profileSavedCustomer: String,
+    var myProfile: String = ""
+    var editProfileTitle: String = ""
+    var profileSavedCustomer: String = ""
     // Provider calendar
-    val tabCalendar: String,
-    val calendarNoAppointments: String,
-    val calendarTapDay: String,
+    var tabCalendar: String = ""
+    var calendarNoAppointments: String = ""
+    var calendarTapDay: String = ""
     // Salon detail sheet
-    val salonDetailsTitle: String,
-    val todayHours: String,
-    val bookingsUpcoming: String,
-    val bookingsPast: String,
+    var salonDetailsTitle: String = ""
+    var todayHours: String = ""
+    var bookingsUpcoming: String = ""
+    var bookingsPast: String = ""
     // Provider income dashboard
-    val tabIncome: String,
-    val incomeEstimatedRevenue: String,
-    val incomeConfirmedCount: String,
-    val incomeAFN: String,
-    val incomePriceLabel: String,
-    val incomePriceHint: String,
-    val incomeNoData: String,
+    var tabIncome: String = ""
+    var incomeEstimatedRevenue: String = ""
+    var incomeConfirmedCount: String = ""
+    var incomeAFN: String = ""
+    var incomePriceLabel: String = ""
+    var incomePriceHint: String = ""
+    var incomeNoData: String = ""
     // Admin — Salons tab
-    val tabSalons: String,
-    val totalSalons: String,
-    val noSalonsYet: String,
-    val statsSuspended: String,
+    var tabSalons: String = ""
+    var totalSalons: String = ""
+    var noSalonsYet: String = ""
+    var statsSuspended: String = ""
     // Admin — Suspend/Unsuspend
-    val suspendUser: String,
-    val unsuspendUser: String,
-    val suspended: String,
+    var suspendUser: String = ""
+    var unsuspendUser: String = ""
+    var suspended: String = ""
     // Portfolio gallery
-    val portfolioTitle: String,
-    val addPhoto: String,
-    val noPhotosYet: String,
-    val uploadingPhoto: String,
-    val photoTooLarge: String,
-    val photoUploadFailed: String,
-    val deletePhoto: String,
+    var portfolioTitle: String = ""
+    var addPhoto: String = ""
+    var noPhotosYet: String = ""
+    var uploadingPhoto: String = ""
+    var photoTooLarge: String = ""
+    var photoUploadFailed: String = ""
+    var deletePhoto: String = ""
     // Decoy PIN
-    val decoyPinTitle: String,
-    val decoyPinSubtitle: String,
-    val decoyPinSet: String,
-    val decoyPinChange: String,
-    val decoyPinDialogTitle: String,
-    val decoyPinDialogText: String,
-    val decoyPinNewPin: String,
-    val decoyPinConfirm: String,
-    val decoyPinMismatch: String,
-    val decoyPinSameAsReal: String,
-    val decoyPinSaved: String,
-    val decoyPinEnabled: String,
+    var decoyPinTitle: String = ""
+    var decoyPinSubtitle: String = ""
+    var decoyPinSet: String = ""
+    var decoyPinChange: String = ""
+    var decoyPinDialogTitle: String = ""
+    var decoyPinDialogText: String = ""
+    var decoyPinNewPin: String = ""
+    var decoyPinConfirm: String = ""
+    var decoyPinMismatch: String = ""
+    var decoyPinSameAsReal: String = ""
+    var decoyPinSaved: String = ""
+    var decoyPinEnabled: String = ""
     // Provider credibility badges
-    val badgeVerified: String,
-    val badgeGold: String,
-    val badgeSilver: String,
-    val badgeVerifyToggle: String,
-    val badgeUnverify: String,
+    var badgeVerified: String = ""
+    var badgeGold: String = ""
+    var badgeSilver: String = ""
+    var badgeVerifyToggle: String = ""
+    var badgeUnverify: String = ""
     // Smart Waitlist
-    val waitlistJoin: String,
-    val waitlistLeave: String,
-    val waitlistTitle: String,
-    val waitlistWaiting: String,
-    val waitlistSlotAvailableTitle: String,
-    val waitlistSlotAvailableText: (String) -> String,
-    val waitlistJoined: String,
-    val waitlistJoinedText: (String) -> String,
-    val waitlistNoEntries: String,
-    val waitlistDismiss: String,
-    val waitlistBookNow: String,
+    var waitlistJoin: String = ""
+    var waitlistLeave: String = ""
+    var waitlistTitle: String = ""
+    var waitlistWaiting: String = ""
+    var waitlistSlotAvailableTitle: String = ""
+    var waitlistSlotAvailableText: (String) -> String = { "" }
+    var waitlistJoined: String = ""
+    var waitlistJoinedText: (String) -> String = { "" }
+    var waitlistNoEntries: String = ""
+    var waitlistDismiss: String = ""
+    var waitlistBookNow: String = ""
     // Customer Loyalty
-    val loyaltyTitle: String,
-    val loyaltyPtsUnit: String,
-    val loyaltyTierNewcomer: String,
-    val loyaltyTierRegular: String,
-    val loyaltyTierVIP: String,
-    val loyaltyEarnHint: String,
-    val loyaltyNextTier: (Int) -> String,
+    var loyaltyTitle: String = ""
+    var loyaltyPtsUnit: String = ""
+    var loyaltyTierNewcomer: String = ""
+    var loyaltyTierRegular: String = ""
+    var loyaltyTierVIP: String = ""
+    var loyaltyEarnHint: String = ""
+    var loyaltyNextTier: (Int) -> String = { "" }
     // Smart Recommendations
-    val recommendedTitle: String,
-    val recommendedSubtitle: String,
+    var recommendedTitle: String = ""
+    var recommendedSubtitle: String = ""
     // Provider review replies
-    val providerReplyHint: String,
-    val providerReplySubmit: String,
-    val providerReplied: String,
+    var providerReplyHint: String = ""
+    var providerReplySubmit: String = ""
+    var providerReplied: String = ""
     // Email & booking history
-    val emailAddress: String,
-    val bookingHistoryTitle: String,
+    var emailAddress: String = ""
+    var bookingHistoryTitle: String = ""
     // Photo confirmation dialog
-    val photoConfirmTitle: String,
-    val photoConfirmBody: String,
-    val photoConfirmYes: String,
-    val photoConfirmRetry: String,
+    var photoConfirmTitle: String = ""
+    var photoConfirmBody: String = ""
+    var photoConfirmYes: String = ""
+    var photoConfirmRetry: String = ""
     // Booking notes
-    val bookingNotesTitle: String,
-    val bookingNotesHint: String,
+    var bookingNotesTitle: String = ""
+    var bookingNotesHint: String = ""
     // Change PIN
-    val changePinTitle: String,
-    val changePinCurrentPin: String,
-    val changePinNewPin: String,
-    val changePinConfirmNew: String,
-    val changePinSaved: String,
-    val changePinSameAsOld: String,
+    var changePinTitle: String = ""
+    var changePinCurrentPin: String = ""
+    var changePinNewPin: String = ""
+    var changePinConfirmNew: String = ""
+    var changePinSaved: String = ""
+    var changePinSameAsOld: String = ""
     // Forgot / Reset PIN
-    val forgotPin: String,
-    val forgotPinTitle: String,
-    val forgotPinSubtitle: String,
-    val forgotPinSendLink: String,
-    val forgotPinEmailSentTitle: String,
-    val forgotPinEmailSentText: String,
-    val forgotPinNoEmail: String,
-    val forgotPinNotFound: String,
-    val setNewPinTitle: String,
-    val setNewPinSubtitle: String,
-    val setNewPinReset: String,
-    val setNewPinSuccess: String,
-    val setNewPinInvalidLink: String,
+    var forgotPin: String = ""
+    var forgotPinTitle: String = ""
+    var forgotPinSubtitle: String = ""
+    var forgotPinSendLink: String = ""
+    var forgotPinEmailSentTitle: String = ""
+    var forgotPinEmailSentText: String = ""
+    var forgotPinNoEmail: String = ""
+    var forgotPinNotFound: String = ""
+    var setNewPinTitle: String = ""
+    var setNewPinSubtitle: String = ""
+    var setNewPinReset: String = ""
+    var setNewPinSuccess: String = ""
+    var setNewPinInvalidLink: String = ""
     // Common
-    val lock: String,
-    val languagePickerTitle: String,
-)
+    var lock: String = ""
+    var languagePickerTitle: String = ""
+}
 
 object StringResources {
 
-    val ENGLISH = AppStrings(
-        loginTitle                 = "SafeBeauty",
-        loginTagline               = "Private · Discreet · Trusted",
-        loginWrongPin              = "Wrong PIN. Try again.",
-        loginRegisterPrompt        = "New account? Register →",
-        taglineCustomer            = "Private · Discreet · Trusted",
-        taglineProvider            = "Provider · Private · Discreet",
-        taglineAdmin               = "Provider approval queue",
-        taglineRegister            = "Private · Secure · Discreet",
-        categoryAll                = "All",
-        categoryHair               = "Hair",
-        categoryMakeup             = "Makeup",
-        categoryNails              = "Nails",
-        categorySkincare           = "Skincare",
-        categoryEyebrows           = "Eyebrows",
-        neighborhoodAll            = "All Neighborhoods",
-        neighborhood1              = "District 1 – Kabul Center",
-        neighborhood3              = "District 3 – Khair Khana",
-        neighborhood6              = "District 6 – Karte Seh",
-        neighborhood9              = "District 9 – Dasht-e Barchi",
-        neighborhood11             = "District 11 – Qala-e Wahed",
-        neighborhood13             = "District 13 – Afshar",
-        availableNow               = "Available now",
-        notAvailable               = "Not available",
-        book                       = "Book",
-        providersFound             = { n -> "$n provider${if (n == 1) "" else "s"} found" },
-        noProvidersTitle           = "No providers found",
-        noProvidersSubtext         = "Try a different category or neighborhood,\nor check back later.",
-        myBookings                 = "My Bookings",
-        chooseService              = "Choose a service",
-        cancel                     = "Cancel",
-        next                       = "Next →",
-        selectTime                 = "Select time",
-        confirmBooking             = "Confirm booking",
-        bookingRequestSent         = "Booking Request Sent",
-        bookingConfirmText         = { name -> "Request sent to $name. She will contact you discreetly." },
-        ok                         = "OK",
-        noBookingsTitle            = "No bookings yet.",
-        noBookingsSubtext          = "Find a provider and tap Book to get started.",
-        close                      = "Close",
-        acceptingBookings          = "Accepting Bookings",
-        closedForBookings          = "Closed for Bookings",
-        customersCanSeeYou         = "Customers can see and book you",
-        youAreHidden               = "You are hidden from customers",
-        tabRequests                = "Requests",
-        tabMyProfile               = "My Profile",
-        noPendingRequests          = "No pending requests",
-        noPendingRequestsSubtext   = "New booking requests from customers\nwill appear here.",
-        requestedAt                = "Requested:",
-        accept                     = "Accept",
-        decline                    = "Decline",
-        sectionLocation            = "Location",
-        sectionServices            = "Services Offered",
-        districtArea               = "District / Area",
-        addServiceLabel            = "Add service…",
-        addServiceHint             = "Add a service (e.g. Hair)",
-        noServicesAdded            = "No services added yet.",
-        saveProfile                = "Save Profile",
-        profileSavedTitle          = "Profile Saved",
-        profileSavedText           = "Your salon details have been updated.",
-        createAccount              = "Create Account",
-        taglineSecure              = "Private · Secure · Discreet",
-        sectionPersonalInfo        = "Personal Information",
-        sectionSalonDetails        = "Salon Details",
-        roleProvider               = "Service Provider",
-        roleCustomer               = "Customer",
-        roleProviderDesc           = "Register your salon — pending admin approval",
-        roleCustomerDesc           = "Find and book beauty services",
-        fullName                   = "Full Name",
-        phoneNumber                = "Phone Number",
-        secretPin                  = "Secret PIN (6+ digits)",
-        confirmPin                 = "Confirm PIN",
-        salonName                  = "Salon Name",
-        addServiceExample          = "Add a service (e.g. Hair)",
-        creatingAccount            = "Creating account…",
-        welcomeTitle               = { name -> "Welcome, $name!" },
-        accountReadyText           = "Your account is ready. Return to the notepad and enter your PIN to sign in.",
-        goToApp                    = "Go to app",
-        registrationSubmittedTitle = "Registration Submitted",
-        salonUnderReviewText       = "Your salon is under review. Once approved by our team, your PIN will activate and you can sign in.",
-        gotIt                      = "Got it",
-        pleaseCheckTitle           = "Please check your details",
-        adminPanelTitle            = "Admin Panel",
-        approvalQueueSubtitle      = "Provider approval queue",
-        noPendingAppsTitle         = "No pending applications",
-        noPendingAppsSubtext       = "New provider registrations\nwill appear here for approval.",
-        approve                    = "Approve",
-        reject                     = "Reject",
-        pending                    = "Pending",
-        chat                       = "Chat",
-        messagePlaceholder         = "Type a message…",
-        send                       = "Send",
-        offlineBanner              = "You're offline — showing cached results",
-        bookingUpdatedTitle        = "Booking Update",
-        bookingConfirmedText       = { name -> "$name confirmed your appointment!" },
-        bookingDeclinedText        = { name -> "$name has declined your appointment." },
-        reminderTitle              = "Appointment Reminder",
-        remindedTomorrow           = { name -> "Your appointment at $name is tomorrow." },
-        remindedInHour             = { name -> "Your appointment at $name starts in 1 hour." },
-        cancelAppointment          = "Cancel Appointment",
-        cancelConfirmTitle         = "Cancel this booking?",
-        cancelConfirmText          = "This will cancel your appointment. This cannot be undone.",
-        tabAnalytics               = "Analytics",
-        analyticsTotal             = "Total Requests",
-        analyticsConfirmed         = "Confirmed",
-        analyticsCancelled         = "Cancelled",
-        analyticsByService         = "By Service",
-        noDataYet                  = "No bookings yet",
-        leaveReview                = "Leave a Review",
-        rateExperience             = "Rate your experience",
-        reviewCommentHint          = "Share your experience (optional)",
-        submit                     = "Submit",
-        reviewThanks               = "Thank you for your review!",
-        reviews                    = "Reviews",
-        noReviewsYet               = "No reviews yet",
-        favorites                  = "Favorites",
-        noFavoritesTitle           = "No favorites yet",
-        noFavoritesSubtext         = "Tap the heart on a salon to save it here.",
-        reschedule                 = "Reschedule",
-        rescheduleTitle            = "Pick a new time",
-        pinTooShort                = "PIN must be at least 6 digits",
-        pinTooSimple               = "PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000.",
-        tabUsers                   = "Users",
-        deleteUser                 = "Delete",
-        deleteUserConfirmTitle     = "Delete this user?",
-        deleteUserConfirmText      = "This will permanently remove the user and their salon from the system.",
-        tabStats                   = "Stats",
-        statsTotalUsers            = "Total Users",
-        statsProviders             = "Providers",
-        statsCustomers             = "Customers",
-        statsPendingApprovals      = "Pending Approvals",
-        tabBroadcast               = "Broadcast",
-        broadcastHint              = "Type announcement to all users…",
-        broadcastSend              = "Send Announcement",
-        broadcastNone              = "No announcements sent yet",
-        exportTitle                = "Export My Data",
-        exportStart                = "Export Appointments",
-        exportExporting            = "Exporting…",
-        exportShareTitle           = "Share Appointment History",
-        exportError                = "Export failed. Try again.",
-        workingHoursTitle          = "Working Hours",
-        slotDurationLabel          = "Appointment Duration",
-        slotDuration30             = "30 min",
-        slotDuration45             = "45 min",
-        slotDuration60             = "60 min",
-        slotDuration90             = "90 min",
-        daySat                     = "Saturday",
-        daySun                     = "Sunday",
-        dayMon                     = "Monday",
-        dayTue                     = "Tuesday",
-        dayWed                     = "Wednesday",
-        dayThu                     = "Thursday",
-        dayFri                     = "Friday",
-        openTime                   = "Open",
-        closeTime                  = "Close",
-        selectTimeSlot             = "Select a Time",
-        noSlotsAvailable           = "No slots available for this day",
-        closedThisDay              = "Closed",
-        searchHint                 = "Search salons…",
-        myProfile                  = "My Profile",
-        editProfileTitle           = "Edit Profile",
-        profileSavedCustomer       = "Profile updated!",
-        tabCalendar                = "Calendar",
-        calendarNoAppointments     = "No appointments this day",
-        calendarTapDay             = "Tap a day to see appointments",
-        salonDetailsTitle          = "Salon Details",
-        todayHours                 = "Today's Hours",
-        tabIncome               = "Income",
-        incomeEstimatedRevenue  = "Est. Revenue (AFN)",
-        incomeConfirmedCount    = "Confirmed Bookings",
-        incomeAFN               = "AFN",
-        incomePriceLabel        = "Price per service (AFN)",
-        incomePriceHint         = "0",
-        incomeNoData            = "Set service prices to see revenue estimates",
-        tabSalons               = "Salons",
-        totalSalons             = "Total Salons",
-        noSalonsYet             = "No salons registered yet",
-        statsSuspended          = "Suspended",
-        suspendUser             = "Suspend",
-        unsuspendUser           = "Unsuspend",
-        suspended               = "Suspended",
-        portfolioTitle             = "Portfolio",
-        addPhoto                   = "Add Photo",
-        noPhotosYet                = "No sample work added yet",
-        uploadingPhoto             = "Uploading…",
-        photoTooLarge              = "Image is too large, please pick a smaller one",
-        photoUploadFailed          = "Couldn't add photo, please try again",
-        deletePhoto                = "Remove photo",
-        bookingsUpcoming           = "Upcoming",
-        bookingsPast               = "Past",
-        decoyPinTitle              = "Safety Exit PIN",
-        decoyPinSubtitle           = "A separate PIN that opens a fake Notes app if you are ever forced to unlock",
-        decoyPinSet                = "Set Safety Exit PIN",
-        decoyPinChange             = "Change Safety Exit PIN",
-        decoyPinDialogTitle        = "Set Safety Exit PIN",
-        decoyPinDialogText         = "Choose a PIN that is different from your real PIN. If you enter it at login, a fake Notes app appears instead.",
-        decoyPinNewPin             = "Safety PIN (6+ digits)",
-        decoyPinConfirm            = "Confirm Safety PIN",
-        decoyPinMismatch           = "PINs do not match",
-        decoyPinSameAsReal         = "Safety PIN must differ from your real PIN",
-        decoyPinSaved              = "Safety Exit PIN saved",
-        decoyPinEnabled            = "Safety Exit PIN active",
-        badgeVerified              = "Verified",
-        badgeGold                  = "Gold",
-        badgeSilver                = "Silver",
-        badgeVerifyToggle          = "Verify",
-        badgeUnverify              = "Unverify",
-        waitlistJoin               = "Join Waitlist",
-        waitlistLeave              = "Leave",
-        waitlistTitle              = "Waitlist",
-        waitlistWaiting            = "Waiting",
-        waitlistSlotAvailableTitle = "Slot Available!",
-        waitlistSlotAvailableText  = { name -> "A slot just opened at $name. Book now!" },
-        waitlistJoined             = "Added to waitlist",
-        waitlistJoinedText         = { name -> "We'll notify you when a slot opens at $name." },
-        waitlistNoEntries          = "No waitlist entries",
-        waitlistDismiss            = "Dismiss",
-        waitlistBookNow            = "Book Now",
-        loyaltyTitle               = "Loyalty Points",
-        loyaltyPtsUnit             = "pts",
-        loyaltyTierNewcomer        = "Newcomer",
-        loyaltyTierRegular         = "Regular",
-        loyaltyTierVIP             = "VIP",
-        loyaltyEarnHint            = "+10 pts per confirmed booking",
-        loyaltyNextTier            = { n -> "$n pts to next tier" },
-        recommendedTitle           = "Recommended for You",
-        recommendedSubtitle        = "Based on your bookings",
-        providerReplyHint          = "Write a reply to this review…",
-        providerReplySubmit        = "Reply",
-        providerReplied            = "Our response:",
-        emailAddress               = "Email Address (optional)",
-        bookingHistoryTitle        = "Booking History",
-        photoConfirmTitle          = "Is this your photo?",
-        photoConfirmBody           = "Please make sure your face is clearly visible. If not, please choose a different photo.",
-        photoConfirmYes            = "Yes, save it",
-        photoConfirmRetry          = "Try another",
-        bookingNotesTitle          = "Special Request",
-        bookingNotesHint           = "Any special request? (optional)",
-        changePinTitle             = "Change PIN",
-        changePinCurrentPin        = "Current PIN",
-        changePinNewPin            = "New PIN (6+ digits)",
-        changePinConfirmNew        = "Confirm New PIN",
-        changePinSaved             = "PIN changed successfully",
-        changePinSameAsOld         = "New PIN must differ from current PIN",
-        forgotPin                  = "Forgot PIN?",
-        forgotPinTitle             = "Account Recovery",
-        forgotPinSubtitle          = "Enter your registered phone number to receive a recovery email.",
-        forgotPinSendLink          = "Send Recovery Link",
-        forgotPinEmailSentTitle    = "Recovery Email Sent",
-        forgotPinEmailSentText     = "Check your email and tap the recovery link. It will bring you back here to set your new PIN.",
-        forgotPinNoEmail           = "No recovery email is linked to this account. Please contact your service provider to reset your PIN.",
-        forgotPinNotFound          = "No account found for this phone number.",
-        setNewPinTitle             = "Set New PIN",
-        setNewPinSubtitle          = "Enter your phone number and choose a new PIN.",
-        setNewPinReset             = "Set New PIN",
-        setNewPinSuccess           = "PIN reset successfully. You can now sign in.",
-        setNewPinInvalidLink       = "The reset link is invalid or has expired. Please request a new one.",
-        lock                       = "Lock",
-        languagePickerTitle        = "Language / زبان / ژبه",
-    )
+    val ENGLISH = AppStrings().apply {
+        loginTitle                 = "SafeBeauty"
+        loginTagline               = "Private · Discreet · Trusted"
+        loginWrongPin              = "Wrong PIN. Try again."
+        loginRegisterPrompt        = "New account? Register →"
+        taglineCustomer            = "Private · Discreet · Trusted"
+        taglineProvider            = "Provider · Private · Discreet"
+        taglineAdmin               = "Provider approval queue"
+        taglineRegister            = "Private · Secure · Discreet"
+        categoryAll                = "All"
+        categoryHair               = "Hair"
+        categoryMakeup             = "Makeup"
+        categoryNails              = "Nails"
+        categorySkincare           = "Skincare"
+        categoryEyebrows           = "Eyebrows"
+        neighborhoodAll            = "All Neighborhoods"
+        neighborhood1              = "District 1 – Kabul Center"
+        neighborhood3              = "District 3 – Khair Khana"
+        neighborhood6              = "District 6 – Karte Seh"
+        neighborhood9              = "District 9 – Dasht-e Barchi"
+        neighborhood11             = "District 11 – Qala-e Wahed"
+        neighborhood13             = "District 13 – Afshar"
+        availableNow               = "Available now"
+        notAvailable               = "Not available"
+        book                       = "Book"
+        providersFound             = { n -> "$n provider${if (n == 1) "" else "s"} found" }
+        noProvidersTitle           = "No providers found"
+        noProvidersSubtext         = "Try a different category or neighborhood,\nor check back later."
+        myBookings                 = "My Bookings"
+        chooseService              = "Choose a service"
+        cancel                     = "Cancel"
+        next                       = "Next →"
+        selectTime                 = "Select time"
+        confirmBooking             = "Confirm booking"
+        bookingRequestSent         = "Booking Request Sent"
+        bookingConfirmText         = { name -> "Request sent to $name. She will contact you discreetly." }
+        ok                         = "OK"
+        noBookingsTitle            = "No bookings yet."
+        noBookingsSubtext          = "Find a provider and tap Book to get started."
+        close                      = "Close"
+        acceptingBookings          = "Accepting Bookings"
+        closedForBookings          = "Closed for Bookings"
+        customersCanSeeYou         = "Customers can see and book you"
+        youAreHidden               = "You are hidden from customers"
+        tabRequests                = "Requests"
+        tabMyProfile               = "My Profile"
+        noPendingRequests          = "No pending requests"
+        noPendingRequestsSubtext   = "New booking requests from customers\nwill appear here."
+        requestedAt                = "Requested:"
+        accept                     = "Accept"
+        decline                    = "Decline"
+        sectionLocation            = "Location"
+        sectionServices            = "Services Offered"
+        districtArea               = "District / Area"
+        addServiceLabel            = "Add service…"
+        addServiceHint             = "Add a service (e.g. Hair)"
+        noServicesAdded            = "No services added yet."
+        saveProfile                = "Save Profile"
+        profileSavedTitle          = "Profile Saved"
+        profileSavedText           = "Your salon details have been updated."
+        createAccount              = "Create Account"
+        taglineSecure              = "Private · Secure · Discreet"
+        sectionPersonalInfo        = "Personal Information"
+        sectionSalonDetails        = "Salon Details"
+        roleProvider               = "Service Provider"
+        roleCustomer               = "Customer"
+        roleProviderDesc           = "Register your salon — pending admin approval"
+        roleCustomerDesc           = "Find and book beauty services"
+        fullName                   = "Full Name"
+        phoneNumber                = "Phone Number"
+        secretPin                  = "Secret PIN (6+ digits)"
+        confirmPin                 = "Confirm PIN"
+        salonName                  = "Salon Name"
+        addServiceExample          = "Add a service (e.g. Hair)"
+        creatingAccount            = "Creating account…"
+        welcomeTitle               = { name -> "Welcome, $name!" }
+        accountReadyText           = "Your account is ready. Return to the notepad and enter your PIN to sign in."
+        goToApp                    = "Go to app"
+        registrationSubmittedTitle = "Registration Submitted"
+        salonUnderReviewText       = "Your salon is under review. Once approved by our team, your PIN will activate and you can sign in."
+        gotIt                      = "Got it"
+        pleaseCheckTitle           = "Please check your details"
+        adminPanelTitle            = "Admin Panel"
+        approvalQueueSubtitle      = "Provider approval queue"
+        noPendingAppsTitle         = "No pending applications"
+        noPendingAppsSubtext       = "New provider registrations\nwill appear here for approval."
+        approve                    = "Approve"
+        reject                     = "Reject"
+        pending                    = "Pending"
+        chat                       = "Chat"
+        messagePlaceholder         = "Type a message…"
+        send                       = "Send"
+        offlineBanner              = "You're offline — showing cached results"
+        bookingUpdatedTitle        = "Booking Update"
+        bookingConfirmedText       = { name -> "$name confirmed your appointment!" }
+        bookingDeclinedText        = { name -> "$name has declined your appointment." }
+        reminderTitle              = "Appointment Reminder"
+        remindedTomorrow           = { name -> "Your appointment at $name is tomorrow." }
+        remindedInHour             = { name -> "Your appointment at $name starts in 1 hour." }
+        cancelAppointment          = "Cancel Appointment"
+        cancelConfirmTitle         = "Cancel this booking?"
+        cancelConfirmText          = "This will cancel your appointment. This cannot be undone."
+        tabAnalytics               = "Analytics"
+        analyticsTotal             = "Total Requests"
+        analyticsConfirmed         = "Confirmed"
+        analyticsCancelled         = "Cancelled"
+        analyticsByService         = "By Service"
+        noDataYet                  = "No bookings yet"
+        leaveReview                = "Leave a Review"
+        rateExperience             = "Rate your experience"
+        reviewCommentHint          = "Share your experience (optional)"
+        submit                     = "Submit"
+        reviewThanks               = "Thank you for your review!"
+        reviews                    = "Reviews"
+        noReviewsYet               = "No reviews yet"
+        favorites                  = "Favorites"
+        noFavoritesTitle           = "No favorites yet"
+        noFavoritesSubtext         = "Tap the heart on a salon to save it here."
+        reschedule                 = "Reschedule"
+        rescheduleTitle            = "Pick a new time"
+        pinTooShort                = "PIN must be at least 6 digits"
+        pinTooSimple               = "PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000."
+        tabUsers                   = "Users"
+        deleteUser                 = "Delete"
+        deleteUserConfirmTitle     = "Delete this user?"
+        deleteUserConfirmText      = "This will permanently remove the user and their salon from the system."
+        tabStats                   = "Stats"
+        statsTotalUsers            = "Total Users"
+        statsProviders             = "Providers"
+        statsCustomers             = "Customers"
+        statsPendingApprovals      = "Pending Approvals"
+        tabBroadcast               = "Broadcast"
+        broadcastHint              = "Type announcement to all users…"
+        broadcastSend              = "Send Announcement"
+        broadcastNone              = "No announcements sent yet"
+        exportTitle                = "Export My Data"
+        exportStart                = "Export Appointments"
+        exportExporting            = "Exporting…"
+        exportShareTitle           = "Share Appointment History"
+        exportError                = "Export failed. Try again."
+        workingHoursTitle          = "Working Hours"
+        slotDurationLabel          = "Appointment Duration"
+        slotDuration30             = "30 min"
+        slotDuration45             = "45 min"
+        slotDuration60             = "60 min"
+        slotDuration90             = "90 min"
+        daySat                     = "Saturday"
+        daySun                     = "Sunday"
+        dayMon                     = "Monday"
+        dayTue                     = "Tuesday"
+        dayWed                     = "Wednesday"
+        dayThu                     = "Thursday"
+        dayFri                     = "Friday"
+        openTime                   = "Open"
+        closeTime                  = "Close"
+        selectTimeSlot             = "Select a Time"
+        noSlotsAvailable           = "No slots available for this day"
+        closedThisDay              = "Closed"
+        searchHint                 = "Search salons…"
+        myProfile                  = "My Profile"
+        editProfileTitle           = "Edit Profile"
+        profileSavedCustomer       = "Profile updated!"
+        tabCalendar                = "Calendar"
+        calendarNoAppointments     = "No appointments this day"
+        calendarTapDay             = "Tap a day to see appointments"
+        salonDetailsTitle          = "Salon Details"
+        todayHours                 = "Today's Hours"
+        tabIncome               = "Income"
+        incomeEstimatedRevenue  = "Est. Revenue (AFN)"
+        incomeConfirmedCount    = "Confirmed Bookings"
+        incomeAFN               = "AFN"
+        incomePriceLabel        = "Price per service (AFN)"
+        incomePriceHint         = "0"
+        incomeNoData            = "Set service prices to see revenue estimates"
+        tabSalons               = "Salons"
+        totalSalons             = "Total Salons"
+        noSalonsYet             = "No salons registered yet"
+        statsSuspended          = "Suspended"
+        suspendUser             = "Suspend"
+        unsuspendUser           = "Unsuspend"
+        suspended               = "Suspended"
+        portfolioTitle             = "Portfolio"
+        addPhoto                   = "Add Photo"
+        noPhotosYet                = "No sample work added yet"
+        uploadingPhoto             = "Uploading…"
+        photoTooLarge              = "Image is too large, please pick a smaller one"
+        photoUploadFailed          = "Couldn't add photo, please try again"
+        deletePhoto                = "Remove photo"
+        bookingsUpcoming           = "Upcoming"
+        bookingsPast               = "Past"
+        decoyPinTitle              = "Safety Exit PIN"
+        decoyPinSubtitle           = "A separate PIN that opens a fake Notes app if you are ever forced to unlock"
+        decoyPinSet                = "Set Safety Exit PIN"
+        decoyPinChange             = "Change Safety Exit PIN"
+        decoyPinDialogTitle        = "Set Safety Exit PIN"
+        decoyPinDialogText         = "Choose a PIN that is different from your real PIN. If you enter it at login, a fake Notes app appears instead."
+        decoyPinNewPin             = "Safety PIN (6+ digits)"
+        decoyPinConfirm            = "Confirm Safety PIN"
+        decoyPinMismatch           = "PINs do not match"
+        decoyPinSameAsReal         = "Safety PIN must differ from your real PIN"
+        decoyPinSaved              = "Safety Exit PIN saved"
+        decoyPinEnabled            = "Safety Exit PIN active"
+        badgeVerified              = "Verified"
+        badgeGold                  = "Gold"
+        badgeSilver                = "Silver"
+        badgeVerifyToggle          = "Verify"
+        badgeUnverify              = "Unverify"
+        waitlistJoin               = "Join Waitlist"
+        waitlistLeave              = "Leave"
+        waitlistTitle              = "Waitlist"
+        waitlistWaiting            = "Waiting"
+        waitlistSlotAvailableTitle = "Slot Available!"
+        waitlistSlotAvailableText  = { name -> "A slot just opened at $name. Book now!" }
+        waitlistJoined             = "Added to waitlist"
+        waitlistJoinedText         = { name -> "We'll notify you when a slot opens at $name." }
+        waitlistNoEntries          = "No waitlist entries"
+        waitlistDismiss            = "Dismiss"
+        waitlistBookNow            = "Book Now"
+        loyaltyTitle               = "Loyalty Points"
+        loyaltyPtsUnit             = "pts"
+        loyaltyTierNewcomer        = "Newcomer"
+        loyaltyTierRegular         = "Regular"
+        loyaltyTierVIP             = "VIP"
+        loyaltyEarnHint            = "+10 pts per confirmed booking"
+        loyaltyNextTier            = { n -> "$n pts to next tier" }
+        recommendedTitle           = "Recommended for You"
+        recommendedSubtitle        = "Based on your bookings"
+        providerReplyHint          = "Write a reply to this review…"
+        providerReplySubmit        = "Reply"
+        providerReplied            = "Our response:"
+        emailAddress               = "Email Address (optional)"
+        bookingHistoryTitle        = "Booking History"
+        photoConfirmTitle          = "Is this your photo?"
+        photoConfirmBody           = "Please make sure your face is clearly visible. If not, please choose a different photo."
+        photoConfirmYes            = "Yes, save it"
+        photoConfirmRetry          = "Try another"
+        bookingNotesTitle          = "Special Request"
+        bookingNotesHint           = "Any special request? (optional)"
+        changePinTitle             = "Change PIN"
+        changePinCurrentPin        = "Current PIN"
+        changePinNewPin            = "New PIN (6+ digits)"
+        changePinConfirmNew        = "Confirm New PIN"
+        changePinSaved             = "PIN changed successfully"
+        changePinSameAsOld         = "New PIN must differ from current PIN"
+        forgotPin                  = "Forgot PIN?"
+        forgotPinTitle             = "Account Recovery"
+        forgotPinSubtitle          = "Enter your registered phone number to receive a recovery email."
+        forgotPinSendLink          = "Send Recovery Link"
+        forgotPinEmailSentTitle    = "Recovery Email Sent"
+        forgotPinEmailSentText     = "Check your email and tap the recovery link. It will bring you back here to set your new PIN."
+        forgotPinNoEmail           = "No recovery email is linked to this account. Please contact your service provider to reset your PIN."
+        forgotPinNotFound          = "No account found for this phone number."
+        setNewPinTitle             = "Set New PIN"
+        setNewPinSubtitle          = "Enter your phone number and choose a new PIN."
+        setNewPinReset             = "Set New PIN"
+        setNewPinSuccess           = "PIN reset successfully. You can now sign in."
+        setNewPinInvalidLink       = "The reset link is invalid or has expired. Please request a new one."
+        lock                       = "Lock"
+        languagePickerTitle        = "Language / زبان / ژبه"
+    }
 
-    val DARI = AppStrings(
-        loginTitle                 = "سیف بیوتی",
-        loginTagline               = "خصوصی · محرمانه · قابل اعتماد",
-        loginWrongPin              = "رمز پین اشتباه است. دوباره امتحان کنید.",
-        loginRegisterPrompt        = "حساب جدید؟ ثبت‌نام →",
-        taglineCustomer            = "خصوصی · مخفیانه · معتمد",
-        taglineProvider            = "ارائه‌دهنده · خصوصی · مخفیانه",
-        taglineAdmin               = "صف تایید ارائه‌دهندگان",
-        taglineRegister            = "خصوصی · امن · مخفیانه",
-        categoryAll                = "همه",
-        categoryHair               = "مو",
-        categoryMakeup             = "آرایش",
-        categoryNails              = "ناخن",
-        categorySkincare           = "مراقبت پوست",
-        categoryEyebrows           = "ابرو",
-        neighborhoodAll            = "همه محله‌ها",
-        neighborhood1              = "ناحیه ۱ – مرکز کابل",
-        neighborhood3              = "ناحیه ۳ – خیرخانه",
-        neighborhood6              = "ناحیه ۶ – کارته سه",
-        neighborhood9              = "ناحیه ۹ – دشت برچی",
-        neighborhood11             = "ناحیه ۱۱ – قلعه واحد",
-        neighborhood13             = "ناحیه ۱۳ – افشار",
-        availableNow               = "در دسترس",
-        notAvailable               = "در دسترس نیست",
-        book                       = "رزرو",
-        providersFound             = { n -> "$n ارائه‌دهنده پیدا شد" },
-        noProvidersTitle           = "ارائه‌دهنده‌ای پیدا نشد",
-        noProvidersSubtext         = "دسته‌بندی یا محله دیگری را امتحان کنید،\nیا بعداً دوباره بررسی کنید.",
-        myBookings                 = "رزروهای من",
-        chooseService              = "انتخاب خدمات",
-        cancel                     = "لغو",
-        next                       = "← بعدی",
-        selectTime                 = "انتخاب زمان",
-        confirmBooking             = "تایید رزرو",
-        bookingRequestSent         = "درخواست رزرو ارسال شد",
-        bookingConfirmText         = { name -> "درخواست به $name ارسال شد. او مخفیانه با شما تماس می‌گیرد." },
-        ok                         = "تایید",
-        noBookingsTitle            = "هنوز رزروی ندارید.",
-        noBookingsSubtext          = "یک ارائه‌دهنده پیدا کنید و روی رزرو ضربه بزنید.",
-        close                      = "بستن",
-        acceptingBookings          = "در حال پذیرش رزرو",
-        closedForBookings          = "بسته برای رزرو",
-        customersCanSeeYou         = "مشتریان می‌توانند شما را ببینند و رزرو کنند",
-        youAreHidden               = "از دید مشتریان پنهان هستید",
-        tabRequests                = "درخواست‌ها",
-        tabMyProfile               = "پروفایل من",
-        noPendingRequests          = "درخواست معلقی وجود ندارد",
-        noPendingRequestsSubtext   = "درخواست‌های رزرو جدید از مشتریان\nاینجا نمایش داده می‌شود.",
-        requestedAt                = "درخواست:",
-        accept                     = "قبول",
-        decline                    = "رد",
-        sectionLocation            = "مکان",
-        sectionServices            = "خدمات ارائه شده",
-        districtArea               = "ناحیه / منطقه",
-        addServiceLabel            = "افزودن خدمت…",
-        addServiceHint             = "افزودن خدمت (مثلاً مو)",
-        noServicesAdded            = "هنوز خدماتی اضافه نشده.",
-        saveProfile                = "ذخیره پروفایل",
-        profileSavedTitle          = "پروفایل ذخیره شد",
-        profileSavedText           = "اطلاعات سالن شما به‌روزرسانی شد.",
-        createAccount              = "ایجاد حساب",
-        taglineSecure              = "خصوصی · امن · مخفیانه",
-        sectionPersonalInfo        = "اطلاعات شخصی",
-        sectionSalonDetails        = "جزئیات سالن",
-        roleProvider               = "ارائه‌دهنده خدمات",
-        roleCustomer               = "مشتری",
-        roleProviderDesc           = "سالن خود را ثبت کنید — در انتظار تایید مدیر",
-        roleCustomerDesc           = "خدمات زیبایی را پیدا کنید و رزرو کنید",
-        fullName                   = "نام کامل",
-        phoneNumber                = "شماره تلفن",
-        secretPin                  = "رمز پین محرمانه (۶+ رقم)",
-        confirmPin                 = "تایید پین",
-        salonName                  = "نام سالن",
-        addServiceExample          = "افزودن خدمت (مثلاً مو)",
-        creatingAccount            = "در حال ایجاد حساب…",
-        welcomeTitle               = { name -> "خوش آمدید، $name!" },
-        accountReadyText           = "حساب شما آماده است. به دفترچه برگردید و پین خود را وارد کنید.",
-        goToApp                    = "رفتن به برنامه",
-        registrationSubmittedTitle = "ثبت‌نام ارسال شد",
-        salonUnderReviewText       = "سالن شما در حال بررسی است. پس از تایید توسط تیم ما، پین شما فعال می‌شود.",
-        gotIt                      = "متوجه شدم",
-        pleaseCheckTitle           = "لطفاً جزئیات را بررسی کنید",
-        adminPanelTitle            = "پنل مدیریت",
-        approvalQueueSubtitle      = "صف تایید ارائه‌دهندگان",
-        noPendingAppsTitle         = "درخواست معلقی وجود ندارد",
-        noPendingAppsSubtext       = "ثبت‌نام‌های ارائه‌دهنده جدید\nاینجا برای تایید نمایش داده می‌شود.",
-        approve                    = "تایید",
-        reject                     = "رد",
-        pending                    = "معلق",
-        chat                       = "گفتگو",
-        messagePlaceholder         = "پیام بنویسید…",
-        send                       = "ارسال",
-        offlineBanner              = "آفلاین هستید — نتایج ذخیره‌شده نمایش داده می‌شود",
-        bookingUpdatedTitle        = "به‌روزرسانی رزرو",
-        bookingConfirmedText       = { name -> "$name رزرو شما را تایید کرد!" },
-        bookingDeclinedText        = { name -> "$name رزرو شما را رد کرد." },
-        reminderTitle              = "یادآوری قرار ملاقات",
-        remindedTomorrow           = { name -> "قرار ملاقات شما در $name فردا است." },
-        remindedInHour             = { name -> "قرار ملاقات شما در $name یک ساعت دیگر شروع می‌شود." },
-        cancelAppointment          = "لغو رزرو",
-        cancelConfirmTitle         = "لغو این رزرو؟",
-        cancelConfirmText          = "این رزرو را لغو می‌کند. این عملیات قابل بازگشت نیست.",
-        tabAnalytics               = "آمار",
-        analyticsTotal             = "کل درخواست‌ها",
-        analyticsConfirmed         = "تایید شده",
-        analyticsCancelled         = "لغو شده",
-        analyticsByService         = "بر اساس خدمات",
-        noDataYet                  = "هنوز رزروی نیست",
-        leaveReview                = "ثبت نظر",
-        rateExperience             = "تجربه خود را امتیاز دهید",
-        reviewCommentHint          = "تجربه خود را بنویسید (اختیاری)",
-        submit                     = "ثبت",
-        reviewThanks               = "از نظر شما متشکریم!",
-        reviews                    = "نظرات",
-        noReviewsYet               = "هنوز نظری نیست",
-        favorites                  = "علاقه‌مندی‌ها",
-        noFavoritesTitle           = "هنوز علاقه‌مندی ندارید",
-        noFavoritesSubtext         = "برای ذخیره، روی قلب یک سالن ضربه بزنید.",
-        reschedule                 = "تغییر زمان",
-        rescheduleTitle            = "زمان جدید را انتخاب کنید",
-        pinTooShort                = "رمز پین باید حداقل ۶ رقم باشد",
-        pinTooSimple               = "رمز پین خیلی ساده است. از دنباله‌هایی مثل ۱۲۳۴۵۶ یا ارقام تکراری مثل ۰۰۰۰۰۰ استفاده نکنید.",
-        tabUsers                   = "کاربران",
-        deleteUser                 = "حذف",
-        deleteUserConfirmTitle     = "این کاربر حذف شود؟",
-        deleteUserConfirmText      = "این عملیات کاربر و سالن آن‌ها را برای همیشه از سیستم حذف می‌کند.",
-        tabStats                   = "آمار",
-        statsTotalUsers            = "کل کاربران",
-        statsProviders             = "ارائه‌دهندگان",
-        statsCustomers             = "مشتریان",
-        statsPendingApprovals      = "در انتظار تایید",
-        tabBroadcast               = "اعلان",
-        broadcastHint              = "پیام برای همه کاربران بنویسید…",
-        broadcastSend              = "ارسال اعلان",
-        broadcastNone              = "هنوز اعلانی ارسال نشده",
-        exportTitle                = "خروجی داده‌های من",
-        exportStart                = "خروجی رزروها",
-        exportExporting            = "در حال خروجی گرفتن…",
-        exportShareTitle           = "اشتراک‌گذاری تاریخچه رزروها",
-        exportError                = "خروجی ناموفق بود. دوباره امتحان کنید.",
-        workingHoursTitle          = "ساعات کاری",
-        slotDurationLabel          = "مدت وقت",
-        slotDuration30             = "۳۰ دقیقه",
-        slotDuration45             = "۴۵ دقیقه",
-        slotDuration60             = "۶۰ دقیقه",
-        slotDuration90             = "۹۰ دقیقه",
-        daySat                     = "شنبه",
-        daySun                     = "یکشنبه",
-        dayMon                     = "دوشنبه",
-        dayTue                     = "سه‌شنبه",
-        dayWed                     = "چهارشنبه",
-        dayThu                     = "پنجشنبه",
-        dayFri                     = "جمعه",
-        openTime                   = "باز",
-        closeTime                  = "بسته",
-        selectTimeSlot             = "وقت را انتخاب کنید",
-        noSlotsAvailable           = "وقت خالی برای این روز نیست",
-        closedThisDay              = "تعطیل",
-        searchHint                 = "جستجوی سالون…",
-        myProfile                  = "پروفایل من",
-        editProfileTitle           = "ویرایش پروفایل",
-        profileSavedCustomer       = "پروفایل به‌روزرسانی شد!",
-        tabCalendar                = "تقویم",
-        calendarNoAppointments     = "رزروی در این روز نیست",
-        calendarTapDay             = "روی یک روز ضربه بزنید",
-        salonDetailsTitle          = "جزئیات سالون",
-        todayHours                 = "ساعات کاری امروز",
-        tabIncome               = "درآمد",
-        incomeEstimatedRevenue  = "درآمد تخمینی (افغانی)",
-        incomeConfirmedCount    = "رزروهای تایید شده",
-        incomeAFN               = "افغانی",
-        incomePriceLabel        = "قیمت هر خدمت (افغانی)",
-        incomePriceHint         = "۰",
-        incomeNoData            = "برای مشاهده درآمد تخمینی، قیمت خدمات را تنظیم کنید",
-        tabSalons               = "سالون‌ها",
-        totalSalons             = "کل سالون‌ها",
-        noSalonsYet             = "هنوز سالونی ثبت نشده",
-        statsSuspended          = "تعلیق‌شده",
-        suspendUser             = "تعلیق",
-        unsuspendUser           = "رفع تعلیق",
-        suspended               = "تعلیق",
-        portfolioTitle             = "نمونه کارها",
-        addPhoto                   = "افزودن عکس",
-        noPhotosYet                = "هنوز نمونه کاری اضافه نشده",
-        uploadingPhoto             = "در حال بارگذاری…",
-        photoTooLarge              = "عکس خیلی بزرگ است، لطفاً عکس کوچکتری انتخاب کنید",
-        photoUploadFailed          = "افزودن عکس ناموفق بود، دوباره تلاش کنید",
-        deletePhoto                = "حذف عکس",
-        bookingsUpcoming           = "آینده",
-        bookingsPast               = "گذشته",
-        decoyPinTitle              = "پین خروج امن",
-        decoyPinSubtitle           = "یک پین جداگانه که در صورت اجبار، یک برنامه یادداشت ساختگی نشان می‌دهد",
-        decoyPinSet                = "تنظیم پین خروج امن",
-        decoyPinChange             = "تغییر پین خروج امن",
-        decoyPinDialogTitle        = "تنظیم پین خروج امن",
-        decoyPinDialogText         = "پینی انتخاب کنید که با پین اصلی‌تان متفاوت باشد. اگر آن را در ورود وارد کنید، به جای آن یک برنامه یادداشت ساختگی ظاهر می‌شود.",
-        decoyPinNewPin             = "پین امنیتی (۶+ رقم)",
-        decoyPinConfirm            = "تایید پین امنیتی",
-        decoyPinMismatch           = "پین‌ها مطابقت ندارند",
-        decoyPinSameAsReal         = "پین امنیتی باید با پین اصلی متفاوت باشد",
-        decoyPinSaved              = "پین خروج امن ذخیره شد",
-        decoyPinEnabled            = "پین خروج امن فعال است",
-        badgeVerified              = "تأیید شده",
-        badgeGold                  = "طلایی",
-        badgeSilver                = "نقره‌ای",
-        badgeVerifyToggle          = "تأیید",
-        badgeUnverify              = "لغو تأیید",
-        waitlistJoin               = "ورود به لیست انتظار",
-        waitlistLeave              = "خروج",
-        waitlistTitle              = "لیست انتظار",
-        waitlistWaiting            = "در انتظار",
-        waitlistSlotAvailableTitle = "وقت آزاد شد!",
-        waitlistSlotAvailableText  = { name -> "وقت آزاد شد در $name. همین حالا رزرو کنید!" },
-        waitlistJoined             = "به لیست انتظار اضافه شدید",
-        waitlistJoinedText         = { name -> "وقتی وقت آزاد شود در $name، به شما اطلاع می‌دهیم." },
-        waitlistNoEntries          = "لیست انتظار خالی است",
-        waitlistDismiss            = "رد کردن",
-        waitlistBookNow            = "رزرو الان",
-        loyaltyTitle               = "امتیاز وفاداری",
-        loyaltyPtsUnit             = "امتیاز",
-        loyaltyTierNewcomer        = "تازه‌کار",
-        loyaltyTierRegular         = "دائمی",
-        loyaltyTierVIP             = "ویژه",
-        loyaltyEarnHint            = "+۱۰ امتیاز به ازای هر رزرو تایید شده",
-        loyaltyNextTier            = { n -> "$n امتیاز تا سطح بعدی" },
-        recommendedTitle           = "پیشنهاد برای شما",
-        recommendedSubtitle        = "بر اساس رزروهای شما",
-        providerReplyHint          = "پاسخ خود را بنویسید…",
-        providerReplySubmit        = "پاسخ",
-        providerReplied            = "پاسخ ما:",
-        emailAddress               = "آدرس ایمیل (اختیاری)",
-        bookingHistoryTitle        = "تاریخچه رزروها",
-        photoConfirmTitle          = "آیا این عکس شما است؟",
-        photoConfirmBody           = "لطفاً مطمئن شوید که چهره شما به وضوح مشخص است. اگر نه، عکس دیگری انتخاب کنید.",
-        photoConfirmYes            = "بله، ذخیره کن",
-        photoConfirmRetry          = "عکس دیگر",
-        bookingNotesTitle          = "درخواست خاص",
-        bookingNotesHint           = "درخواست خاصی دارید؟ (اختیاری)",
-        changePinTitle             = "تغییر پین",
-        changePinCurrentPin        = "پین فعلی",
-        changePinNewPin            = "پین جدید (۶+ رقم)",
-        changePinConfirmNew        = "تأیید پین جدید",
-        changePinSaved             = "پین با موفقیت تغییر کرد",
-        changePinSameAsOld         = "پین جدید باید با پین فعلی متفاوت باشد",
-        forgotPin                  = "پین را فراموش کردید؟",
-        forgotPinTitle             = "بازیابی حساب",
-        forgotPinSubtitle          = "شماره تلفن ثبت‌شده خود را وارد کنید تا ایمیل بازیابی دریافت کنید.",
-        forgotPinSendLink          = "ارسال لینک بازیابی",
-        forgotPinEmailSentTitle    = "ایمیل بازیابی ارسال شد",
-        forgotPinEmailSentText     = "ایمیل خود را بررسی کنید و روی لینک بازیابی ضربه بزنید. شما را به اینجا برمی‌گرداند تا پین جدید تنظیم کنید.",
-        forgotPinNoEmail           = "هیچ ایمیل بازیابی به این حساب مرتبط نیست. لطفاً با ارائه‌دهنده خدمات خود تماس بگیرید.",
-        forgotPinNotFound          = "برای این شماره تلفن حسابی یافت نشد.",
-        setNewPinTitle             = "پین جدید تنظیم کنید",
-        setNewPinSubtitle          = "شماره تلفن خود را وارد کنید و یک پین جدید انتخاب کنید.",
-        setNewPinReset             = "تنظیم پین جدید",
-        setNewPinSuccess           = "پین با موفقیت بازنشانی شد. اکنون می‌توانید وارد شوید.",
-        setNewPinInvalidLink       = "لینک بازنشانی نامعتبر یا منقضی شده است. لطفاً دوباره درخواست دهید.",
-        lock                       = "قفل",
-        languagePickerTitle        = "Language / زبان / ژبه",
-    )
+    val DARI = AppStrings().apply {
+        loginTitle                 = "سیف بیوتی"
+        loginTagline               = "خصوصی · محرمانه · قابل اعتماد"
+        loginWrongPin              = "رمز پین اشتباه است. دوباره امتحان کنید."
+        loginRegisterPrompt        = "حساب جدید؟ ثبت‌نام →"
+        taglineCustomer            = "خصوصی · مخفیانه · معتمد"
+        taglineProvider            = "ارائه‌دهنده · خصوصی · مخفیانه"
+        taglineAdmin               = "صف تایید ارائه‌دهندگان"
+        taglineRegister            = "خصوصی · امن · مخفیانه"
+        categoryAll                = "همه"
+        categoryHair               = "مو"
+        categoryMakeup             = "آرایش"
+        categoryNails              = "ناخن"
+        categorySkincare           = "مراقبت پوست"
+        categoryEyebrows           = "ابرو"
+        neighborhoodAll            = "همه محله‌ها"
+        neighborhood1              = "ناحیه ۱ – مرکز کابل"
+        neighborhood3              = "ناحیه ۳ – خیرخانه"
+        neighborhood6              = "ناحیه ۶ – کارته سه"
+        neighborhood9              = "ناحیه ۹ – دشت برچی"
+        neighborhood11             = "ناحیه ۱۱ – قلعه واحد"
+        neighborhood13             = "ناحیه ۱۳ – افشار"
+        availableNow               = "در دسترس"
+        notAvailable               = "در دسترس نیست"
+        book                       = "رزرو"
+        providersFound             = { n -> "$n ارائه‌دهنده پیدا شد" }
+        noProvidersTitle           = "ارائه‌دهنده‌ای پیدا نشد"
+        noProvidersSubtext         = "دسته‌بندی یا محله دیگری را امتحان کنید،\nیا بعداً دوباره بررسی کنید."
+        myBookings                 = "رزروهای من"
+        chooseService              = "انتخاب خدمات"
+        cancel                     = "لغو"
+        next                       = "← بعدی"
+        selectTime                 = "انتخاب زمان"
+        confirmBooking             = "تایید رزرو"
+        bookingRequestSent         = "درخواست رزرو ارسال شد"
+        bookingConfirmText         = { name -> "درخواست به $name ارسال شد. او مخفیانه با شما تماس می‌گیرد." }
+        ok                         = "تایید"
+        noBookingsTitle            = "هنوز رزروی ندارید."
+        noBookingsSubtext          = "یک ارائه‌دهنده پیدا کنید و روی رزرو ضربه بزنید."
+        close                      = "بستن"
+        acceptingBookings          = "در حال پذیرش رزرو"
+        closedForBookings          = "بسته برای رزرو"
+        customersCanSeeYou         = "مشتریان می‌توانند شما را ببینند و رزرو کنند"
+        youAreHidden               = "از دید مشتریان پنهان هستید"
+        tabRequests                = "درخواست‌ها"
+        tabMyProfile               = "پروفایل من"
+        noPendingRequests          = "درخواست معلقی وجود ندارد"
+        noPendingRequestsSubtext   = "درخواست‌های رزرو جدید از مشتریان\nاینجا نمایش داده می‌شود."
+        requestedAt                = "درخواست:"
+        accept                     = "قبول"
+        decline                    = "رد"
+        sectionLocation            = "مکان"
+        sectionServices            = "خدمات ارائه شده"
+        districtArea               = "ناحیه / منطقه"
+        addServiceLabel            = "افزودن خدمت…"
+        addServiceHint             = "افزودن خدمت (مثلاً مو)"
+        noServicesAdded            = "هنوز خدماتی اضافه نشده."
+        saveProfile                = "ذخیره پروفایل"
+        profileSavedTitle          = "پروفایل ذخیره شد"
+        profileSavedText           = "اطلاعات سالن شما به‌روزرسانی شد."
+        createAccount              = "ایجاد حساب"
+        taglineSecure              = "خصوصی · امن · مخفیانه"
+        sectionPersonalInfo        = "اطلاعات شخصی"
+        sectionSalonDetails        = "جزئیات سالن"
+        roleProvider               = "ارائه‌دهنده خدمات"
+        roleCustomer               = "مشتری"
+        roleProviderDesc           = "سالن خود را ثبت کنید — در انتظار تایید مدیر"
+        roleCustomerDesc           = "خدمات زیبایی را پیدا کنید و رزرو کنید"
+        fullName                   = "نام کامل"
+        phoneNumber                = "شماره تلفن"
+        secretPin                  = "رمز پین محرمانه (۶+ رقم)"
+        confirmPin                 = "تایید پین"
+        salonName                  = "نام سالن"
+        addServiceExample          = "افزودن خدمت (مثلاً مو)"
+        creatingAccount            = "در حال ایجاد حساب…"
+        welcomeTitle               = { name -> "خوش آمدید، $name!" }
+        accountReadyText           = "حساب شما آماده است. به دفترچه برگردید و پین خود را وارد کنید."
+        goToApp                    = "رفتن به برنامه"
+        registrationSubmittedTitle = "ثبت‌نام ارسال شد"
+        salonUnderReviewText       = "سالن شما در حال بررسی است. پس از تایید توسط تیم ما، پین شما فعال می‌شود."
+        gotIt                      = "متوجه شدم"
+        pleaseCheckTitle           = "لطفاً جزئیات را بررسی کنید"
+        adminPanelTitle            = "پنل مدیریت"
+        approvalQueueSubtitle      = "صف تایید ارائه‌دهندگان"
+        noPendingAppsTitle         = "درخواست معلقی وجود ندارد"
+        noPendingAppsSubtext       = "ثبت‌نام‌های ارائه‌دهنده جدید\nاینجا برای تایید نمایش داده می‌شود."
+        approve                    = "تایید"
+        reject                     = "رد"
+        pending                    = "معلق"
+        chat                       = "گفتگو"
+        messagePlaceholder         = "پیام بنویسید…"
+        send                       = "ارسال"
+        offlineBanner              = "آفلاین هستید — نتایج ذخیره‌شده نمایش داده می‌شود"
+        bookingUpdatedTitle        = "به‌روزرسانی رزرو"
+        bookingConfirmedText       = { name -> "$name رزرو شما را تایید کرد!" }
+        bookingDeclinedText        = { name -> "$name رزرو شما را رد کرد." }
+        reminderTitle              = "یادآوری قرار ملاقات"
+        remindedTomorrow           = { name -> "قرار ملاقات شما در $name فردا است." }
+        remindedInHour             = { name -> "قرار ملاقات شما در $name یک ساعت دیگر شروع می‌شود." }
+        cancelAppointment          = "لغو رزرو"
+        cancelConfirmTitle         = "لغو این رزرو؟"
+        cancelConfirmText          = "این رزرو را لغو می‌کند. این عملیات قابل بازگشت نیست."
+        tabAnalytics               = "آمار"
+        analyticsTotal             = "کل درخواست‌ها"
+        analyticsConfirmed         = "تایید شده"
+        analyticsCancelled         = "لغو شده"
+        analyticsByService         = "بر اساس خدمات"
+        noDataYet                  = "هنوز رزروی نیست"
+        leaveReview                = "ثبت نظر"
+        rateExperience             = "تجربه خود را امتیاز دهید"
+        reviewCommentHint          = "تجربه خود را بنویسید (اختیاری)"
+        submit                     = "ثبت"
+        reviewThanks               = "از نظر شما متشکریم!"
+        reviews                    = "نظرات"
+        noReviewsYet               = "هنوز نظری نیست"
+        favorites                  = "علاقه‌مندی‌ها"
+        noFavoritesTitle           = "هنوز علاقه‌مندی ندارید"
+        noFavoritesSubtext         = "برای ذخیره، روی قلب یک سالن ضربه بزنید."
+        reschedule                 = "تغییر زمان"
+        rescheduleTitle            = "زمان جدید را انتخاب کنید"
+        pinTooShort                = "رمز پین باید حداقل ۶ رقم باشد"
+        pinTooSimple               = "رمز پین خیلی ساده است. از دنباله‌هایی مثل ۱۲۳۴۵۶ یا ارقام تکراری مثل ۰۰۰۰۰۰ استفاده نکنید."
+        tabUsers                   = "کاربران"
+        deleteUser                 = "حذف"
+        deleteUserConfirmTitle     = "این کاربر حذف شود؟"
+        deleteUserConfirmText      = "این عملیات کاربر و سالن آن‌ها را برای همیشه از سیستم حذف می‌کند."
+        tabStats                   = "آمار"
+        statsTotalUsers            = "کل کاربران"
+        statsProviders             = "ارائه‌دهندگان"
+        statsCustomers             = "مشتریان"
+        statsPendingApprovals      = "در انتظار تایید"
+        tabBroadcast               = "اعلان"
+        broadcastHint              = "پیام برای همه کاربران بنویسید…"
+        broadcastSend              = "ارسال اعلان"
+        broadcastNone              = "هنوز اعلانی ارسال نشده"
+        exportTitle                = "خروجی داده‌های من"
+        exportStart                = "خروجی رزروها"
+        exportExporting            = "در حال خروجی گرفتن…"
+        exportShareTitle           = "اشتراک‌گذاری تاریخچه رزروها"
+        exportError                = "خروجی ناموفق بود. دوباره امتحان کنید."
+        workingHoursTitle          = "ساعات کاری"
+        slotDurationLabel          = "مدت وقت"
+        slotDuration30             = "۳۰ دقیقه"
+        slotDuration45             = "۴۵ دقیقه"
+        slotDuration60             = "۶۰ دقیقه"
+        slotDuration90             = "۹۰ دقیقه"
+        daySat                     = "شنبه"
+        daySun                     = "یکشنبه"
+        dayMon                     = "دوشنبه"
+        dayTue                     = "سه‌شنبه"
+        dayWed                     = "چهارشنبه"
+        dayThu                     = "پنجشنبه"
+        dayFri                     = "جمعه"
+        openTime                   = "باز"
+        closeTime                  = "بسته"
+        selectTimeSlot             = "وقت را انتخاب کنید"
+        noSlotsAvailable           = "وقت خالی برای این روز نیست"
+        closedThisDay              = "تعطیل"
+        searchHint                 = "جستجوی سالون…"
+        myProfile                  = "پروفایل من"
+        editProfileTitle           = "ویرایش پروفایل"
+        profileSavedCustomer       = "پروفایل به‌روزرسانی شد!"
+        tabCalendar                = "تقویم"
+        calendarNoAppointments     = "رزروی در این روز نیست"
+        calendarTapDay             = "روی یک روز ضربه بزنید"
+        salonDetailsTitle          = "جزئیات سالون"
+        todayHours                 = "ساعات کاری امروز"
+        tabIncome               = "درآمد"
+        incomeEstimatedRevenue  = "درآمد تخمینی (افغانی)"
+        incomeConfirmedCount    = "رزروهای تایید شده"
+        incomeAFN               = "افغانی"
+        incomePriceLabel        = "قیمت هر خدمت (افغانی)"
+        incomePriceHint         = "۰"
+        incomeNoData            = "برای مشاهده درآمد تخمینی، قیمت خدمات را تنظیم کنید"
+        tabSalons               = "سالون‌ها"
+        totalSalons             = "کل سالون‌ها"
+        noSalonsYet             = "هنوز سالونی ثبت نشده"
+        statsSuspended          = "تعلیق‌شده"
+        suspendUser             = "تعلیق"
+        unsuspendUser           = "رفع تعلیق"
+        suspended               = "تعلیق"
+        portfolioTitle             = "نمونه کارها"
+        addPhoto                   = "افزودن عکس"
+        noPhotosYet                = "هنوز نمونه کاری اضافه نشده"
+        uploadingPhoto             = "در حال بارگذاری…"
+        photoTooLarge              = "عکس خیلی بزرگ است، لطفاً عکس کوچکتری انتخاب کنید"
+        photoUploadFailed          = "افزودن عکس ناموفق بود، دوباره تلاش کنید"
+        deletePhoto                = "حذف عکس"
+        bookingsUpcoming           = "آینده"
+        bookingsPast               = "گذشته"
+        decoyPinTitle              = "پین خروج امن"
+        decoyPinSubtitle           = "یک پین جداگانه که در صورت اجبار، یک برنامه یادداشت ساختگی نشان می‌دهد"
+        decoyPinSet                = "تنظیم پین خروج امن"
+        decoyPinChange             = "تغییر پین خروج امن"
+        decoyPinDialogTitle        = "تنظیم پین خروج امن"
+        decoyPinDialogText         = "پینی انتخاب کنید که با پین اصلی‌تان متفاوت باشد. اگر آن را در ورود وارد کنید، به جای آن یک برنامه یادداشت ساختگی ظاهر می‌شود."
+        decoyPinNewPin             = "پین امنیتی (۶+ رقم)"
+        decoyPinConfirm            = "تایید پین امنیتی"
+        decoyPinMismatch           = "پین‌ها مطابقت ندارند"
+        decoyPinSameAsReal         = "پین امنیتی باید با پین اصلی متفاوت باشد"
+        decoyPinSaved              = "پین خروج امن ذخیره شد"
+        decoyPinEnabled            = "پین خروج امن فعال است"
+        badgeVerified              = "تأیید شده"
+        badgeGold                  = "طلایی"
+        badgeSilver                = "نقره‌ای"
+        badgeVerifyToggle          = "تأیید"
+        badgeUnverify              = "لغو تأیید"
+        waitlistJoin               = "ورود به لیست انتظار"
+        waitlistLeave              = "خروج"
+        waitlistTitle              = "لیست انتظار"
+        waitlistWaiting            = "در انتظار"
+        waitlistSlotAvailableTitle = "وقت آزاد شد!"
+        waitlistSlotAvailableText  = { name -> "وقت آزاد شد در $name. همین حالا رزرو کنید!" }
+        waitlistJoined             = "به لیست انتظار اضافه شدید"
+        waitlistJoinedText         = { name -> "وقتی وقت آزاد شود در $name، به شما اطلاع می‌دهیم." }
+        waitlistNoEntries          = "لیست انتظار خالی است"
+        waitlistDismiss            = "رد کردن"
+        waitlistBookNow            = "رزرو الان"
+        loyaltyTitle               = "امتیاز وفاداری"
+        loyaltyPtsUnit             = "امتیاز"
+        loyaltyTierNewcomer        = "تازه‌کار"
+        loyaltyTierRegular         = "دائمی"
+        loyaltyTierVIP             = "ویژه"
+        loyaltyEarnHint            = "+۱۰ امتیاز به ازای هر رزرو تایید شده"
+        loyaltyNextTier            = { n -> "$n امتیاز تا سطح بعدی" }
+        recommendedTitle           = "پیشنهاد برای شما"
+        recommendedSubtitle        = "بر اساس رزروهای شما"
+        providerReplyHint          = "پاسخ خود را بنویسید…"
+        providerReplySubmit        = "پاسخ"
+        providerReplied            = "پاسخ ما:"
+        emailAddress               = "آدرس ایمیل (اختیاری)"
+        bookingHistoryTitle        = "تاریخچه رزروها"
+        photoConfirmTitle          = "آیا این عکس شما است؟"
+        photoConfirmBody           = "لطفاً مطمئن شوید که چهره شما به وضوح مشخص است. اگر نه، عکس دیگری انتخاب کنید."
+        photoConfirmYes            = "بله، ذخیره کن"
+        photoConfirmRetry          = "عکس دیگر"
+        bookingNotesTitle          = "درخواست خاص"
+        bookingNotesHint           = "درخواست خاصی دارید؟ (اختیاری)"
+        changePinTitle             = "تغییر پین"
+        changePinCurrentPin        = "پین فعلی"
+        changePinNewPin            = "پین جدید (۶+ رقم)"
+        changePinConfirmNew        = "تأیید پین جدید"
+        changePinSaved             = "پین با موفقیت تغییر کرد"
+        changePinSameAsOld         = "پین جدید باید با پین فعلی متفاوت باشد"
+        forgotPin                  = "پین را فراموش کردید؟"
+        forgotPinTitle             = "بازیابی حساب"
+        forgotPinSubtitle          = "شماره تلفن ثبت‌شده خود را وارد کنید تا ایمیل بازیابی دریافت کنید."
+        forgotPinSendLink          = "ارسال لینک بازیابی"
+        forgotPinEmailSentTitle    = "ایمیل بازیابی ارسال شد"
+        forgotPinEmailSentText     = "ایمیل خود را بررسی کنید و روی لینک بازیابی ضربه بزنید. شما را به اینجا برمی‌گرداند تا پین جدید تنظیم کنید."
+        forgotPinNoEmail           = "هیچ ایمیل بازیابی به این حساب مرتبط نیست. لطفاً با ارائه‌دهنده خدمات خود تماس بگیرید."
+        forgotPinNotFound          = "برای این شماره تلفن حسابی یافت نشد."
+        setNewPinTitle             = "پین جدید تنظیم کنید"
+        setNewPinSubtitle          = "شماره تلفن خود را وارد کنید و یک پین جدید انتخاب کنید."
+        setNewPinReset             = "تنظیم پین جدید"
+        setNewPinSuccess           = "پین با موفقیت بازنشانی شد. اکنون می‌توانید وارد شوید."
+        setNewPinInvalidLink       = "لینک بازنشانی نامعتبر یا منقضی شده است. لطفاً دوباره درخواست دهید."
+        lock                       = "قفل"
+        languagePickerTitle        = "Language / زبان / ژبه"
+    }
 
-    val PASHTO = AppStrings(
-        loginTitle                 = "سیف بیوتي",
-        loginTagline               = "شخصي · محرمانه · د اعتماد وړ",
-        loginWrongPin              = "PIN غلط دی. بیا هڅه وکړئ.",
-        loginRegisterPrompt        = "نوی حساب؟ راجستر →",
-        taglineCustomer            = "شخصي · پټ · باوروړ",
-        taglineProvider            = "چمتو کوونکی · شخصي · پټ",
-        taglineAdmin               = "د چمتو کوونکو د تایید کتار",
-        taglineRegister            = "شخصي · خوندي · پټ",
-        categoryAll                = "ټول",
-        categoryHair               = "ویښتان",
-        categoryMakeup             = "سینګار",
-        categoryNails              = "نوکان",
-        categorySkincare           = "جلدي پاملرنه",
-        categoryEyebrows           = "وروځې",
-        neighborhoodAll            = "ټول ګاونډونه",
-        neighborhood1              = "ناحیه ۱ – د کابل مرکز",
-        neighborhood3              = "ناحیه ۳ – خیرخانه",
-        neighborhood6              = "ناحیه ۶ – کارته سه",
-        neighborhood9              = "ناحیه ۹ – دشت برچي",
-        neighborhood11             = "ناحیه ۱۱ – قلعه واحد",
-        neighborhood13             = "ناحیه ۱۳ – افشار",
-        availableNow               = "اوس شتون لري",
-        notAvailable               = "شتون نه لري",
-        book                       = "وخت اخیستل",
-        providersFound             = { n -> "$n چمتو کوونکي وموندل شول" },
-        noProvidersTitle           = "هیڅ چمتو کوونکی ونه موندل شو",
-        noProvidersSubtext         = "د بل کټګورۍ یا ګاونډ هڅه وکړئ،\nیا وروسته بیا وګورئ.",
-        myBookings                 = "اخیستل شوي وختونه",
-        chooseService              = "خدمت غوره کړئ",
-        cancel                     = "شا کول",
-        next                       = "← بل",
-        selectTime                 = "وخت وټاکئ",
-        confirmBooking             = "د بکینګ تایید",
-        bookingRequestSent         = "د بکینګ غوښتنه واستول شوه",
-        bookingConfirmText         = { name -> "غوښتنه $name ته واستول شوه. هغه به له تاسو سره پټ اړیکه وکړي." },
-        ok                         = "سمه ده",
-        noBookingsTitle            = "لا هیڅ بکینګ نشته.",
-        noBookingsSubtext          = "یو چمتو کوونکی ومومئ او د بک کولو تڼۍ ووهئ.",
-        close                      = "بندول",
-        acceptingBookings          = "بکونه منم",
-        closedForBookings          = "بکونو لپاره بند",
-        customersCanSeeYou         = "پیرودونکي کولی شي تاسو وګوري او بک کړي",
-        youAreHidden               = "تاسو د پیرودونکو له لیده پټ یاست",
-        tabRequests                = "غوښتنې",
-        tabMyProfile               = "زما پروفایل",
-        noPendingRequests          = "انتظار کې غوښتنه نشته",
-        noPendingRequestsSubtext   = "د پیرودونکو نوې د بکینګ غوښتنې\nدلته ښکاره کیږي.",
-        requestedAt                = "غوښتل شوی:",
-        accept                     = "قبول",
-        decline                    = "رد",
-        sectionLocation            = "ځای",
-        sectionServices            = "وړاندیز شوي خدمتونه",
-        districtArea               = "سیمه / ناحیه",
-        addServiceLabel            = "خدمت اضافه کړئ…",
-        addServiceHint             = "خدمت اضافه کړئ (لکه ویښتان)",
-        noServicesAdded            = "لا هیڅ خدمت اضافه نشوی.",
-        saveProfile                = "پروفایل خوندي کړئ",
-        profileSavedTitle          = "پروفایل خوندي شو",
-        profileSavedText           = "ستاسو د سالون توضیحات تازه شول.",
-        createAccount              = "حساب جوړ کړئ",
-        taglineSecure              = "شخصي · خوندي · پټ",
-        sectionPersonalInfo        = "شخصي معلومات",
-        sectionSalonDetails        = "د سالون توضیحات",
-        roleProvider               = "د خدماتو چمتو کوونکی",
-        roleCustomer               = "پیرودونکی",
-        roleProviderDesc           = "خپل سالون ثبت کړئ — د مدیر تایید ته انتظار",
-        roleCustomerDesc           = "د ښکلا خدمتونه ومومئ او بک کړئ",
-        fullName                   = "بشپړ نوم",
-        phoneNumber                = "د تلیفون شمیره",
-        secretPin                  = "محرمانه PIN (۶+ شمیرې)",
-        confirmPin                 = "PIN تایید کړئ",
-        salonName                  = "د سالون نوم",
-        addServiceExample          = "خدمت اضافه کړئ (لکه ویښتان)",
-        creatingAccount            = "حساب جوړیږي…",
-        welcomeTitle               = { name -> "ښه راغلاست، $name!" },
-        accountReadyText           = "ستاسو حساب چمتو دی. نوټ پیډ ته ستانه شئ او خپل PIN دننه کړئ.",
-        goToApp                    = "اپ ته لاړ شئ",
-        registrationSubmittedTitle = "ثبتنام وسپارل شو",
-        salonUnderReviewText       = "ستاسو سالون د بیاکتنې لاندې دی. د تایید وروسته، ستاسو PIN فعالیږي.",
-        gotIt                      = "پوه شوم",
-        pleaseCheckTitle           = "مهرباني وکړئ خپل توضیحات وګورئ",
-        adminPanelTitle            = "داشبور",
-        approvalQueueSubtitle      = "د چمتو کوونکو د تایید کتار",
-        noPendingAppsTitle         = "انتظار کې څوک نشته",
-        noPendingAppsSubtext       = "د چمتو کوونکو نوي ثبتنامونه\nدلته د تایید لپاره ښکاره کیږي.",
-        approve                    = "تایید",
-        reject                     = "رد",
-        pending                    = "انتظار",
-        chat                       = "خبرې",
-        messagePlaceholder         = "پیغام ولیکئ…",
-        send                       = "واستول",
-        offlineBanner              = "آفلاین یاست — خوندي شوي پایلې ښودل کیږي",
-        bookingUpdatedTitle        = "د بکینګ تازه خبر",
-        bookingConfirmedText       = { name -> "$name ستاسو بکینګ تایید کړ!" },
-        bookingDeclinedText        = { name -> "$name ستاسو بکینګ رد کړ." },
-        reminderTitle              = "د ملاقات یادونه",
-        remindedTomorrow           = { name -> "ستاسو ملاقات $name کې سبا دی." },
-        remindedInHour             = { name -> "ستاسو ملاقات $name کې یو ساعت وروسته پیلیږي." },
-        cancelAppointment          = "بکینګ لغو کول",
-        cancelConfirmTitle         = "دا بکینګ لغو کړئ؟",
-        cancelConfirmText          = "دا به ستاسو ملاقات لغو کړي. دا عملیه بیرته نه راتلی شي.",
-        tabAnalytics               = "احصایه",
-        analyticsTotal             = "ټول غوښتنې",
-        analyticsConfirmed         = "تایید شوي",
-        analyticsCancelled         = "لغو شوي",
-        analyticsByService         = "د خدمت له مخې",
-        noDataYet                  = "لا هیڅ بکینګ نشته",
-        leaveReview                = "نظر ورکول",
-        rateExperience             = "خپلې تجربې ته نمره ورکړئ",
-        reviewCommentHint          = "خپله تجربه ولیکئ (اختیاري)",
-        submit                     = "ثبت",
-        reviewThanks               = "ستاسو د نظر څخه مننه!",
-        reviews                    = "نظرونه",
-        noReviewsYet               = "لا هیڅ نظر نشته",
-        favorites                  = "خوښې",
-        noFavoritesTitle           = "لا هیڅ خوښه نشته",
-        noFavoritesSubtext         = "د خوندي کولو لپاره د سالون په زړه ووهئ.",
-        reschedule                 = "وخت بدلول",
-        rescheduleTitle            = "نوی وخت وټاکئ",
-        pinTooShort                = "PIN باید لږترلږه ۶ شمیرې ولري",
-        pinTooSimple               = "PIN ډیر ساده دی. د ۱۲۳۴۵۶ یا ۰۰۰۰۰۰ غوندې نمونو کارولو مه کوئ.",
-        tabUsers                   = "کاروونکي",
-        deleteUser                 = "حذف",
-        deleteUserConfirmTitle     = "دا کاروونکی ړنګ شي؟",
-        deleteUserConfirmText      = "دا عملیه به کاروونکی او ورسره د هغوی سالون د سیستم نه د تل لپاره ړنګ کړي.",
-        tabStats                   = "احصایه",
-        statsTotalUsers            = "ټول کاروونکي",
-        statsProviders             = "چمتو کوونکي",
-        statsCustomers             = "پیرودونکي",
-        statsPendingApprovals      = "د تایید انتظار",
-        tabBroadcast               = "اعلان",
-        broadcastHint              = "د ټولو کاروونکو لپاره پیغام ولیکئ…",
-        broadcastSend              = "اعلان واستوئ",
-        broadcastNone              = "لا هیڅ اعلان نه دی استول شوی",
-        exportTitle                = "زما معلومات صادرول",
-        exportStart                = "بکینګونه صادرول",
-        exportExporting            = "صادریږي…",
-        exportShareTitle           = "د بکینګ تاریخچه شریکول",
-        exportError                = "صادرول ناکام شول. بیا هڅه وکړئ.",
-        workingHoursTitle          = "د کار ساعتونه",
-        slotDurationLabel          = "د وخت موده",
-        slotDuration30             = "۳۰ دقیقې",
-        slotDuration45             = "۴۵ دقیقې",
-        slotDuration60             = "۶۰ دقیقې",
-        slotDuration90             = "۹۰ دقیقې",
-        daySat                     = "شنبه",
-        daySun                     = "یکشنبه",
-        dayMon                     = "دوشنبه",
-        dayTue                     = "سه‌شنبه",
-        dayWed                     = "چهارشنبه",
-        dayThu                     = "پنجشنبه",
-        dayFri                     = "جمعه",
-        openTime                   = "خلاص",
-        closeTime                  = "وتل",
-        selectTimeSlot             = "وخت غوره کړئ",
-        noSlotsAvailable           = "د دې ورځ لپاره وخت نشته",
-        closedThisDay              = "بند",
-        searchHint                 = "د سالون لټون…",
-        myProfile                  = "زما پروفایل",
-        editProfileTitle           = "پروفایل سمول",
-        profileSavedCustomer       = "پروفایل تازه شو!",
-        tabCalendar                = "کلنډر",
-        calendarNoAppointments     = "د دې ورځ لپاره بکینګ نشته",
-        calendarTapDay             = "د بکینګونو لیدو لپاره یوه ورځ ووهئ",
-        salonDetailsTitle          = "د سالون توضیح",
-        todayHours                 = "د نن ورځ د کار ساعت",
-        tabIncome               = "عاید",
-        incomeEstimatedRevenue  = "اټکل شوی عاید (افغاني)",
-        incomeConfirmedCount    = "تایید شوي بکینګونه",
-        incomeAFN               = "افغاني",
-        incomePriceLabel        = "د هر خدمت بیه (افغاني)",
-        incomePriceHint         = "۰",
-        incomeNoData            = "د عاید لیدو لپاره د خدماتو بیه وټاکئ",
-        tabSalons               = "سالونونه",
-        totalSalons             = "ټول سالونونه",
-        noSalonsYet             = "لا هیڅ سالون ثبت نشوی",
-        statsSuspended          = "معلق",
-        suspendUser             = "معلق کول",
-        unsuspendUser           = "له معلق کولو وتل",
-        suspended               = "معلق",
-        portfolioTitle             = "د کار نمونې",
-        addPhoto                   = "انځور اضافه کول",
-        noPhotosYet                = "تر اوسه د کار نمونه نه ده اضافه شوې",
-        uploadingPhoto             = "اپلوډ کیږي…",
-        photoTooLarge              = "انځور ډیر لوی دی، مهرباني وکړئ کوچنی غوره کړئ",
-        photoUploadFailed          = "د انځور اضافه کول ناکام شول، بیا هڅه وکړئ",
-        deletePhoto                = "انځور لرې کول",
-        bookingsUpcoming           = "راتلونکي",
-        bookingsPast               = "تیر شوي",
-        decoyPinTitle              = "خوندي وتلو PIN",
-        decoyPinSubtitle           = "یو جلا PIN چې که مجبور شئ د خلاصولو لپاره، د جعلي یادداشت اپ ښکاره کوي",
-        decoyPinSet                = "د خوندي وتلو PIN ټاکئ",
-        decoyPinChange             = "د خوندي وتلو PIN بدل کړئ",
-        decoyPinDialogTitle        = "د خوندي وتلو PIN ټاکئ",
-        decoyPinDialogText         = "یو PIN وټاکئ چې ستاسو د اصلي PIN سره توپیر ولري. که دا د ننوتلو پرمهال دننه کړئ، پرځای یې جعلي یادداشت اپ ښکاري.",
-        decoyPinNewPin             = "د امنیت PIN (۶+ شمیرې)",
-        decoyPinConfirm            = "د امنیت PIN تایید کړئ",
-        decoyPinMismatch           = "PIN ګانې سره مطابقت نه لري",
-        decoyPinSameAsReal         = "د امنیت PIN باید د اصلي PIN سره توپیر ولري",
-        decoyPinSaved              = "د خوندي وتلو PIN خوندي شو",
-        decoyPinEnabled            = "د خوندي وتلو PIN فعال دی",
-        badgeVerified              = "تایید شوی",
-        badgeGold                  = "طلایي",
-        badgeSilver                = "سپین",
-        badgeVerifyToggle          = "تایید",
-        badgeUnverify              = "د تایید لغو",
-        waitlistJoin               = "د انتظار لیست ته ورننوتل",
-        waitlistLeave              = "وتل",
-        waitlistTitle              = "د انتظار لیست",
-        waitlistWaiting            = "انتظار کې",
-        waitlistSlotAvailableTitle = "وخت خالي شو!",
-        waitlistSlotAvailableText  = { name -> "د $name کې وخت خالي شو. اوس بک کړئ!" },
-        waitlistJoined             = "د انتظار لیست ته اضافه شوئ",
-        waitlistJoinedText         = { name -> "کله چې د $name کې وخت خالي شي، به تاسو خبر کړو." },
-        waitlistNoEntries          = "د انتظار لیست خالي دی",
-        waitlistDismiss            = "رد کول",
-        waitlistBookNow            = "اوس بک کړئ",
-        loyaltyTitle               = "د وفادارۍ ټکي",
-        loyaltyPtsUnit             = "ټکي",
-        loyaltyTierNewcomer        = "نوی پیرودونکی",
-        loyaltyTierRegular         = "دایمي",
-        loyaltyTierVIP             = "ځانګړی",
-        loyaltyEarnHint            = "+۱۰ ټکي د هر تایید شوي بک لپاره",
-        loyaltyNextTier            = { n -> "بل سطح ته $n ټکي پاتې" },
-        recommendedTitle           = "ستاسو لپاره وړاندیز",
-        recommendedSubtitle        = "ستاسو د بکینګونو له مخې",
-        providerReplyHint          = "دې نظر ته ځواب ولیکئ…",
-        providerReplySubmit        = "ځواب",
-        providerReplied            = "زموږ ځواب:",
-        emailAddress               = "د ایمیل پته (اختیاري)",
-        bookingHistoryTitle        = "د بکینګونو تاریخچه",
-        photoConfirmTitle          = "ایا دا ستاسو عکس دی؟",
-        photoConfirmBody           = "مهرباني وکړئ ډاډ ترلاسه کړئ چې ستاسو مخ واضح ښکاري. که نه، بل عکس غوره کړئ.",
-        photoConfirmYes            = "هو، خوندي کړه",
-        photoConfirmRetry          = "بل عکس",
-        bookingNotesTitle          = "ځانګړې غوښتنه",
-        bookingNotesHint           = "ځانګړې غوښتنه لرئ؟ (اختیاري)",
-        changePinTitle             = "PIN بدلول",
-        changePinCurrentPin        = "اوسنی PIN",
-        changePinNewPin            = "نوی PIN (۶+ شمیرې)",
-        changePinConfirmNew        = "نوی PIN تایید کړئ",
-        changePinSaved             = "PIN بریالیتوب سره بدل شو",
-        changePinSameAsOld         = "نوی PIN باید د اوسني PIN سره توپیر ولري",
-        forgotPin                  = "PIN هیر کړئ؟",
-        forgotPinTitle             = "د حساب بیارغونه",
-        forgotPinSubtitle          = "د بیارغونې ایمیل ترلاسه کولو لپاره خپل ثبت شوی د تلیفون شمیره دننه کړئ.",
-        forgotPinSendLink          = "د بیارغونې لینک واستوئ",
-        forgotPinEmailSentTitle    = "د بیارغونې ایمیل واستول شو",
-        forgotPinEmailSentText     = "خپل ایمیل وګورئ او د بیارغونې لینک ووهئ. دا به تاسو دلته بیرته راوړي ترڅو نوی PIN وټاکئ.",
-        forgotPinNoEmail           = "د دې حساب سره هیڅ د بیارغونې ایمیل تړل شوی نه دی. مهرباني وکړئ له خپل د خدماتو چمتو کوونکي سره اړیکه ونیسئ.",
-        forgotPinNotFound          = "د دې د تلیفون شمیرې لپاره هیڅ حساب ونه موندل شو.",
-        setNewPinTitle             = "نوی PIN وټاکئ",
-        setNewPinSubtitle          = "خپل د تلیفون شمیره دننه کړئ او نوی PIN غوره کړئ.",
-        setNewPinReset             = "نوی PIN وټاکئ",
-        setNewPinSuccess           = "PIN بریالیتوب سره بیا تنظیم شو. اوس کولی شئ ننوتلئ.",
-        setNewPinInvalidLink       = "د بیا تنظیم کولو لینک ناسم یا پای ته رسیدلی دی. مهرباني وکړئ بیا یو غوښتنه وکړئ.",
-        lock                       = "قفل",
-        languagePickerTitle        = "Language / زبان / ژبه",
-    )
+    val PASHTO = AppStrings().apply {
+        loginTitle                 = "سیف بیوتي"
+        loginTagline               = "شخصي · محرمانه · د اعتماد وړ"
+        loginWrongPin              = "PIN غلط دی. بیا هڅه وکړئ."
+        loginRegisterPrompt        = "نوی حساب؟ راجستر →"
+        taglineCustomer            = "شخصي · پټ · باوروړ"
+        taglineProvider            = "چمتو کوونکی · شخصي · پټ"
+        taglineAdmin               = "د چمتو کوونکو د تایید کتار"
+        taglineRegister            = "شخصي · خوندي · پټ"
+        categoryAll                = "ټول"
+        categoryHair               = "ویښتان"
+        categoryMakeup             = "سینګار"
+        categoryNails              = "نوکان"
+        categorySkincare           = "جلدي پاملرنه"
+        categoryEyebrows           = "وروځې"
+        neighborhoodAll            = "ټول ګاونډونه"
+        neighborhood1              = "ناحیه ۱ – د کابل مرکز"
+        neighborhood3              = "ناحیه ۳ – خیرخانه"
+        neighborhood6              = "ناحیه ۶ – کارته سه"
+        neighborhood9              = "ناحیه ۹ – دشت برچي"
+        neighborhood11             = "ناحیه ۱۱ – قلعه واحد"
+        neighborhood13             = "ناحیه ۱۳ – افشار"
+        availableNow               = "اوس شتون لري"
+        notAvailable               = "شتون نه لري"
+        book                       = "وخت اخیستل"
+        providersFound             = { n -> "$n چمتو کوونکي وموندل شول" }
+        noProvidersTitle           = "هیڅ چمتو کوونکی ونه موندل شو"
+        noProvidersSubtext         = "د بل کټګورۍ یا ګاونډ هڅه وکړئ،\nیا وروسته بیا وګورئ."
+        myBookings                 = "اخیستل شوي وختونه"
+        chooseService              = "خدمت غوره کړئ"
+        cancel                     = "شا کول"
+        next                       = "← بل"
+        selectTime                 = "وخت وټاکئ"
+        confirmBooking             = "د بکینګ تایید"
+        bookingRequestSent         = "د بکینګ غوښتنه واستول شوه"
+        bookingConfirmText         = { name -> "غوښتنه $name ته واستول شوه. هغه به له تاسو سره پټ اړیکه وکړي." }
+        ok                         = "سمه ده"
+        noBookingsTitle            = "لا هیڅ بکینګ نشته."
+        noBookingsSubtext          = "یو چمتو کوونکی ومومئ او د بک کولو تڼۍ ووهئ."
+        close                      = "بندول"
+        acceptingBookings          = "بکونه منم"
+        closedForBookings          = "بکونو لپاره بند"
+        customersCanSeeYou         = "پیرودونکي کولی شي تاسو وګوري او بک کړي"
+        youAreHidden               = "تاسو د پیرودونکو له لیده پټ یاست"
+        tabRequests                = "غوښتنې"
+        tabMyProfile               = "زما پروفایل"
+        noPendingRequests          = "انتظار کې غوښتنه نشته"
+        noPendingRequestsSubtext   = "د پیرودونکو نوې د بکینګ غوښتنې\nدلته ښکاره کیږي."
+        requestedAt                = "غوښتل شوی:"
+        accept                     = "قبول"
+        decline                    = "رد"
+        sectionLocation            = "ځای"
+        sectionServices            = "وړاندیز شوي خدمتونه"
+        districtArea               = "سیمه / ناحیه"
+        addServiceLabel            = "خدمت اضافه کړئ…"
+        addServiceHint             = "خدمت اضافه کړئ (لکه ویښتان)"
+        noServicesAdded            = "لا هیڅ خدمت اضافه نشوی."
+        saveProfile                = "پروفایل خوندي کړئ"
+        profileSavedTitle          = "پروفایل خوندي شو"
+        profileSavedText           = "ستاسو د سالون توضیحات تازه شول."
+        createAccount              = "حساب جوړ کړئ"
+        taglineSecure              = "شخصي · خوندي · پټ"
+        sectionPersonalInfo        = "شخصي معلومات"
+        sectionSalonDetails        = "د سالون توضیحات"
+        roleProvider               = "د خدماتو چمتو کوونکی"
+        roleCustomer               = "پیرودونکی"
+        roleProviderDesc           = "خپل سالون ثبت کړئ — د مدیر تایید ته انتظار"
+        roleCustomerDesc           = "د ښکلا خدمتونه ومومئ او بک کړئ"
+        fullName                   = "بشپړ نوم"
+        phoneNumber                = "د تلیفون شمیره"
+        secretPin                  = "محرمانه PIN (۶+ شمیرې)"
+        confirmPin                 = "PIN تایید کړئ"
+        salonName                  = "د سالون نوم"
+        addServiceExample          = "خدمت اضافه کړئ (لکه ویښتان)"
+        creatingAccount            = "حساب جوړیږي…"
+        welcomeTitle               = { name -> "ښه راغلاست، $name!" }
+        accountReadyText           = "ستاسو حساب چمتو دی. نوټ پیډ ته ستانه شئ او خپل PIN دننه کړئ."
+        goToApp                    = "اپ ته لاړ شئ"
+        registrationSubmittedTitle = "ثبتنام وسپارل شو"
+        salonUnderReviewText       = "ستاسو سالون د بیاکتنې لاندې دی. د تایید وروسته، ستاسو PIN فعالیږي."
+        gotIt                      = "پوه شوم"
+        pleaseCheckTitle           = "مهرباني وکړئ خپل توضیحات وګورئ"
+        adminPanelTitle            = "داشبور"
+        approvalQueueSubtitle      = "د چمتو کوونکو د تایید کتار"
+        noPendingAppsTitle         = "انتظار کې څوک نشته"
+        noPendingAppsSubtext       = "د چمتو کوونکو نوي ثبتنامونه\nدلته د تایید لپاره ښکاره کیږي."
+        approve                    = "تایید"
+        reject                     = "رد"
+        pending                    = "انتظار"
+        chat                       = "خبرې"
+        messagePlaceholder         = "پیغام ولیکئ…"
+        send                       = "واستول"
+        offlineBanner              = "آفلاین یاست — خوندي شوي پایلې ښودل کیږي"
+        bookingUpdatedTitle        = "د بکینګ تازه خبر"
+        bookingConfirmedText       = { name -> "$name ستاسو بکینګ تایید کړ!" }
+        bookingDeclinedText        = { name -> "$name ستاسو بکینګ رد کړ." }
+        reminderTitle              = "د ملاقات یادونه"
+        remindedTomorrow           = { name -> "ستاسو ملاقات $name کې سبا دی." }
+        remindedInHour             = { name -> "ستاسو ملاقات $name کې یو ساعت وروسته پیلیږي." }
+        cancelAppointment          = "بکینګ لغو کول"
+        cancelConfirmTitle         = "دا بکینګ لغو کړئ؟"
+        cancelConfirmText          = "دا به ستاسو ملاقات لغو کړي. دا عملیه بیرته نه راتلی شي."
+        tabAnalytics               = "احصایه"
+        analyticsTotal             = "ټول غوښتنې"
+        analyticsConfirmed         = "تایید شوي"
+        analyticsCancelled         = "لغو شوي"
+        analyticsByService         = "د خدمت له مخې"
+        noDataYet                  = "لا هیڅ بکینګ نشته"
+        leaveReview                = "نظر ورکول"
+        rateExperience             = "خپلې تجربې ته نمره ورکړئ"
+        reviewCommentHint          = "خپله تجربه ولیکئ (اختیاري)"
+        submit                     = "ثبت"
+        reviewThanks               = "ستاسو د نظر څخه مننه!"
+        reviews                    = "نظرونه"
+        noReviewsYet               = "لا هیڅ نظر نشته"
+        favorites                  = "خوښې"
+        noFavoritesTitle           = "لا هیڅ خوښه نشته"
+        noFavoritesSubtext         = "د خوندي کولو لپاره د سالون په زړه ووهئ."
+        reschedule                 = "وخت بدلول"
+        rescheduleTitle            = "نوی وخت وټاکئ"
+        pinTooShort                = "PIN باید لږترلږه ۶ شمیرې ولري"
+        pinTooSimple               = "PIN ډیر ساده دی. د ۱۲۳۴۵۶ یا ۰۰۰۰۰۰ غوندې نمونو کارولو مه کوئ."
+        tabUsers                   = "کاروونکي"
+        deleteUser                 = "حذف"
+        deleteUserConfirmTitle     = "دا کاروونکی ړنګ شي؟"
+        deleteUserConfirmText      = "دا عملیه به کاروونکی او ورسره د هغوی سالون د سیستم نه د تل لپاره ړنګ کړي."
+        tabStats                   = "احصایه"
+        statsTotalUsers            = "ټول کاروونکي"
+        statsProviders             = "چمتو کوونکي"
+        statsCustomers             = "پیرودونکي"
+        statsPendingApprovals      = "د تایید انتظار"
+        tabBroadcast               = "اعلان"
+        broadcastHint              = "د ټولو کاروونکو لپاره پیغام ولیکئ…"
+        broadcastSend              = "اعلان واستوئ"
+        broadcastNone              = "لا هیڅ اعلان نه دی استول شوی"
+        exportTitle                = "زما معلومات صادرول"
+        exportStart                = "بکینګونه صادرول"
+        exportExporting            = "صادریږي…"
+        exportShareTitle           = "د بکینګ تاریخچه شریکول"
+        exportError                = "صادرول ناکام شول. بیا هڅه وکړئ."
+        workingHoursTitle          = "د کار ساعتونه"
+        slotDurationLabel          = "د وخت موده"
+        slotDuration30             = "۳۰ دقیقې"
+        slotDuration45             = "۴۵ دقیقې"
+        slotDuration60             = "۶۰ دقیقې"
+        slotDuration90             = "۹۰ دقیقې"
+        daySat                     = "شنبه"
+        daySun                     = "یکشنبه"
+        dayMon                     = "دوشنبه"
+        dayTue                     = "سه‌شنبه"
+        dayWed                     = "چهارشنبه"
+        dayThu                     = "پنجشنبه"
+        dayFri                     = "جمعه"
+        openTime                   = "خلاص"
+        closeTime                  = "وتل"
+        selectTimeSlot             = "وخت غوره کړئ"
+        noSlotsAvailable           = "د دې ورځ لپاره وخت نشته"
+        closedThisDay              = "بند"
+        searchHint                 = "د سالون لټون…"
+        myProfile                  = "زما پروفایل"
+        editProfileTitle           = "پروفایل سمول"
+        profileSavedCustomer       = "پروفایل تازه شو!"
+        tabCalendar                = "کلنډر"
+        calendarNoAppointments     = "د دې ورځ لپاره بکینګ نشته"
+        calendarTapDay             = "د بکینګونو لیدو لپاره یوه ورځ ووهئ"
+        salonDetailsTitle          = "د سالون توضیح"
+        todayHours                 = "د نن ورځ د کار ساعت"
+        tabIncome               = "عاید"
+        incomeEstimatedRevenue  = "اټکل شوی عاید (افغاني)"
+        incomeConfirmedCount    = "تایید شوي بکینګونه"
+        incomeAFN               = "افغاني"
+        incomePriceLabel        = "د هر خدمت بیه (افغاني)"
+        incomePriceHint         = "۰"
+        incomeNoData            = "د عاید لیدو لپاره د خدماتو بیه وټاکئ"
+        tabSalons               = "سالونونه"
+        totalSalons             = "ټول سالونونه"
+        noSalonsYet             = "لا هیڅ سالون ثبت نشوی"
+        statsSuspended          = "معلق"
+        suspendUser             = "معلق کول"
+        unsuspendUser           = "له معلق کولو وتل"
+        suspended               = "معلق"
+        portfolioTitle             = "د کار نمونې"
+        addPhoto                   = "انځور اضافه کول"
+        noPhotosYet                = "تر اوسه د کار نمونه نه ده اضافه شوې"
+        uploadingPhoto             = "اپلوډ کیږي…"
+        photoTooLarge              = "انځور ډیر لوی دی، مهرباني وکړئ کوچنی غوره کړئ"
+        photoUploadFailed          = "د انځور اضافه کول ناکام شول، بیا هڅه وکړئ"
+        deletePhoto                = "انځور لرې کول"
+        bookingsUpcoming           = "راتلونکي"
+        bookingsPast               = "تیر شوي"
+        decoyPinTitle              = "خوندي وتلو PIN"
+        decoyPinSubtitle           = "یو جلا PIN چې که مجبور شئ د خلاصولو لپاره، د جعلي یادداشت اپ ښکاره کوي"
+        decoyPinSet                = "د خوندي وتلو PIN ټاکئ"
+        decoyPinChange             = "د خوندي وتلو PIN بدل کړئ"
+        decoyPinDialogTitle        = "د خوندي وتلو PIN ټاکئ"
+        decoyPinDialogText         = "یو PIN وټاکئ چې ستاسو د اصلي PIN سره توپیر ولري. که دا د ننوتلو پرمهال دننه کړئ، پرځای یې جعلي یادداشت اپ ښکاري."
+        decoyPinNewPin             = "د امنیت PIN (۶+ شمیرې)"
+        decoyPinConfirm            = "د امنیت PIN تایید کړئ"
+        decoyPinMismatch           = "PIN ګانې سره مطابقت نه لري"
+        decoyPinSameAsReal         = "د امنیت PIN باید د اصلي PIN سره توپیر ولري"
+        decoyPinSaved              = "د خوندي وتلو PIN خوندي شو"
+        decoyPinEnabled            = "د خوندي وتلو PIN فعال دی"
+        badgeVerified              = "تایید شوی"
+        badgeGold                  = "طلایي"
+        badgeSilver                = "سپین"
+        badgeVerifyToggle          = "تایید"
+        badgeUnverify              = "د تایید لغو"
+        waitlistJoin               = "د انتظار لیست ته ورننوتل"
+        waitlistLeave              = "وتل"
+        waitlistTitle              = "د انتظار لیست"
+        waitlistWaiting            = "انتظار کې"
+        waitlistSlotAvailableTitle = "وخت خالي شو!"
+        waitlistSlotAvailableText  = { name -> "د $name کې وخت خالي شو. اوس بک کړئ!" }
+        waitlistJoined             = "د انتظار لیست ته اضافه شوئ"
+        waitlistJoinedText         = { name -> "کله چې د $name کې وخت خالي شي، به تاسو خبر کړو." }
+        waitlistNoEntries          = "د انتظار لیست خالي دی"
+        waitlistDismiss            = "رد کول"
+        waitlistBookNow            = "اوس بک کړئ"
+        loyaltyTitle               = "د وفادارۍ ټکي"
+        loyaltyPtsUnit             = "ټکي"
+        loyaltyTierNewcomer        = "نوی پیرودونکی"
+        loyaltyTierRegular         = "دایمي"
+        loyaltyTierVIP             = "ځانګړی"
+        loyaltyEarnHint            = "+۱۰ ټکي د هر تایید شوي بک لپاره"
+        loyaltyNextTier            = { n -> "بل سطح ته $n ټکي پاتې" }
+        recommendedTitle           = "ستاسو لپاره وړاندیز"
+        recommendedSubtitle        = "ستاسو د بکینګونو له مخې"
+        providerReplyHint          = "دې نظر ته ځواب ولیکئ…"
+        providerReplySubmit        = "ځواب"
+        providerReplied            = "زموږ ځواب:"
+        emailAddress               = "د ایمیل پته (اختیاري)"
+        bookingHistoryTitle        = "د بکینګونو تاریخچه"
+        photoConfirmTitle          = "ایا دا ستاسو عکس دی؟"
+        photoConfirmBody           = "مهرباني وکړئ ډاډ ترلاسه کړئ چې ستاسو مخ واضح ښکاري. که نه، بل عکس غوره کړئ."
+        photoConfirmYes            = "هو، خوندي کړه"
+        photoConfirmRetry          = "بل عکس"
+        bookingNotesTitle          = "ځانګړې غوښتنه"
+        bookingNotesHint           = "ځانګړې غوښتنه لرئ؟ (اختیاري)"
+        changePinTitle             = "PIN بدلول"
+        changePinCurrentPin        = "اوسنی PIN"
+        changePinNewPin            = "نوی PIN (۶+ شمیرې)"
+        changePinConfirmNew        = "نوی PIN تایید کړئ"
+        changePinSaved             = "PIN بریالیتوب سره بدل شو"
+        changePinSameAsOld         = "نوی PIN باید د اوسني PIN سره توپیر ولري"
+        forgotPin                  = "PIN هیر کړئ؟"
+        forgotPinTitle             = "د حساب بیارغونه"
+        forgotPinSubtitle          = "د بیارغونې ایمیل ترلاسه کولو لپاره خپل ثبت شوی د تلیفون شمیره دننه کړئ."
+        forgotPinSendLink          = "د بیارغونې لینک واستوئ"
+        forgotPinEmailSentTitle    = "د بیارغونې ایمیل واستول شو"
+        forgotPinEmailSentText     = "خپل ایمیل وګورئ او د بیارغونې لینک ووهئ. دا به تاسو دلته بیرته راوړي ترڅو نوی PIN وټاکئ."
+        forgotPinNoEmail           = "د دې حساب سره هیڅ د بیارغونې ایمیل تړل شوی نه دی. مهرباني وکړئ له خپل د خدماتو چمتو کوونکي سره اړیکه ونیسئ."
+        forgotPinNotFound          = "د دې د تلیفون شمیرې لپاره هیڅ حساب ونه موندل شو."
+        setNewPinTitle             = "نوی PIN وټاکئ"
+        setNewPinSubtitle          = "خپل د تلیفون شمیره دننه کړئ او نوی PIN غوره کړئ."
+        setNewPinReset             = "نوی PIN وټاکئ"
+        setNewPinSuccess           = "PIN بریالیتوب سره بیا تنظیم شو. اوس کولی شئ ننوتلئ."
+        setNewPinInvalidLink       = "د بیا تنظیم کولو لینک ناسم یا پای ته رسیدلی دی. مهرباني وکړئ بیا یو غوښتنه وکړئ."
+        lock                       = "قفل"
+        languagePickerTitle        = "Language / زبان / ژبه"
+    }
 
     fun forLanguage(lang: AppLanguage): AppStrings = when (lang) {
         AppLanguage.ENGLISH -> ENGLISH
