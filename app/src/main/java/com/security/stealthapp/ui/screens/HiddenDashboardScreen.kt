@@ -144,6 +144,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.security.stealthapp.viewmodel.ChangePinViewModel
 import com.security.stealthapp.viewmodel.DecoyPinViewModel
+import com.security.stealthapp.viewmodel.NotificationCenterViewModel
+import androidx.compose.material.icons.filled.Notifications
 
 // Avatar colors cycle through the brand palette based on name's first character
 private val avatarColors = listOf(
@@ -168,12 +170,13 @@ private data class BookingIntent(
 @Composable
 fun HiddenDashboardScreen(
     onLockTriggered: () -> Unit,
-    onNavigate: (String) -> Unit      = {},
-    viewModel: DashboardViewModel     = hiltViewModel(),
-    langVm: LanguageViewModel         = hiltViewModel(),
-    exportVm: ExportViewModel         = hiltViewModel(),
-    decoyVm: DecoyPinViewModel        = hiltViewModel(),
-    changePinVm: ChangePinViewModel   = hiltViewModel()
+    onNavigate: (String) -> Unit           = {},
+    viewModel: DashboardViewModel          = hiltViewModel(),
+    langVm: LanguageViewModel              = hiltViewModel(),
+    exportVm: ExportViewModel              = hiltViewModel(),
+    decoyVm: DecoyPinViewModel             = hiltViewModel(),
+    changePinVm: ChangePinViewModel        = hiltViewModel(),
+    notifVm: NotificationCenterViewModel   = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
     val context     = LocalContext.current
@@ -305,6 +308,18 @@ fun HiddenDashboardScreen(
                         }
                     },
                     actions = {
+                        val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
+                        IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.customerId)) }) {
+                            BadgedBox(badge = {
+                                if (unreadCount > 0) {
+                                    Badge(containerColor = DeepRose) {
+                                        Text("$unreadCount", color = Color.White, fontSize = 10.sp)
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
+                            }
+                        }
                         IconButton(
                             onClick  = { exportVm.export() },
                             enabled  = exportVm.phase != ExportPhase.WORKING

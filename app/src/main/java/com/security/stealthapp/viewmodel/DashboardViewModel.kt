@@ -17,6 +17,7 @@ import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
+import com.security.stealthapp.data.firebase.NotificationDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.LoyaltyTier
@@ -481,6 +482,17 @@ class DashboardViewModel @Inject constructor(
                     "APPOINTMENT_CREATED",
                     "salonId=${salon.id} service=$serviceName"
                 )
+                runCatching {
+                    firestoreRepository.createNotification(
+                        NotificationDocument(
+                            recipientId = salon.providerId,
+                            type        = "NEW_BOOKING",
+                            title       = "New Booking Request",
+                            body        = "${_currentUserName.value} — $serviceName",
+                            createdAt   = System.currentTimeMillis()
+                        )
+                    )
+                }
                 bookingConfirmSalonName = salon.salonName
             }
         }

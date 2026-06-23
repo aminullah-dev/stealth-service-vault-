@@ -130,3 +130,16 @@ data class WaitlistEntry(
     val status: String = "WAITING",         // "WAITING" | "SLOT_AVAILABLE" | "EXPIRED"
     val createdAt: Long = 0L
 )
+
+data class NotificationDocument(
+    val id: String = "",
+    val recipientId: String = "",
+    val type: String = "SYSTEM",            // "BOOKING_CONFIRMED" | "BOOKING_CANCELLED" | "NEW_BOOKING" | "WAITLIST" | "SYSTEM"
+    val title: String = "",
+    val body: String = "",
+    // Boolean field starting with "is" requires explicit @PropertyName to avoid JavaBeans stripping.
+    @get:PropertyName("isRead") @set:PropertyName("isRead")
+    var isRead: Boolean = false,
+    val createdAt: Long = 0L,
+    val relatedId: String = ""              // optional appointmentId or other related doc id
+)

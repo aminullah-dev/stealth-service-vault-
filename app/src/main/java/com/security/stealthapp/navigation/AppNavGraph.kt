@@ -20,6 +20,7 @@ import com.security.stealthapp.ui.screens.DisguiseScreen
 import com.security.stealthapp.ui.screens.ForgotPinScreen
 import com.security.stealthapp.ui.screens.HiddenDashboardScreen
 import com.security.stealthapp.ui.screens.LoginScreen
+import com.security.stealthapp.ui.screens.NotificationCenterScreen
 import com.security.stealthapp.ui.screens.ProviderDashboardScreen
 import com.security.stealthapp.ui.screens.RegisterScreen
 import com.security.stealthapp.ui.screens.SetNewPinScreen
@@ -55,6 +56,9 @@ sealed class Screen(val route: String) {
             myName: String,
             otherName: String
         ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}"
+    }
+    object Notifications : Screen("notifications/{userId}") {
+        fun build(userId: String) = "notifications/$userId"
     }
 }
 
@@ -193,6 +197,13 @@ fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
                     },
                     onBack = { navController.popBackStack() }
                 )
+            }
+
+            composable(
+                route     = Screen.Notifications.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) {
+                NotificationCenterScreen(onBack = { navController.popBackStack() })
             }
         }
     }

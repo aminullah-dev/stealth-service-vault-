@@ -40,7 +40,8 @@ class FirestoreRepository @Inject constructor(
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
-    private val waitlistCol     = db.collection("waitlist")
+    private val waitlistCol      = db.collection("waitlist")
+    private val notificationsCol = db.collection("notifications")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -471,6 +472,49 @@ class FirestoreRepository @Inject constructor(
         if (first != null) {
             waitlistCol.document(first.id).update("status", "SLOT_AVAILABLE").await()
         }
+    }
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+
+    fun observeNotifications(uid: String): Flow<List<NotificationDocument>> = callbackFlow {
+        val listener = notificationsCol
+            .whereEqualTo("recipientId", uid)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(NotificationDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun createNotification(notification: NotificationDocument) {
+        runCatching {
+            val ref = notificationsCol.document()
+            notificationsCol.document(ref.id).set(notification.copy(id = ref.id)).await()
+        }
+    }
+
+    suspend fun markNotificationRead(notificationId: String) {
+        runCatching { notificationsCol.document(notificationId).update("isRead", true).await() }
+    }
+
+    suspend fun markAllNotificationsRead(uid: String) {
+        runCatching {
+            val batch = db.batch()
+            val docs  = notificationsCol
+                .whereEqualTo("recipientId", uid)
+                .whereEqualTo("isRead", false)
+                .get().await()
+            docs.documents.forEach { batch.update(it.reference, "isRead", true) }
+            if (docs.documents.isNotEmpty()) batch.commit().await()
+        }
+    }
+
+    suspend fun deleteNotification(notificationId: String) {
+        runCatching { notificationsCol.document(notificationId).delete().await() }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────

@@ -48,6 +48,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import android.app.TimePickerDialog
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -130,6 +132,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.security.stealthapp.viewmodel.ChangePinViewModel
+import com.security.stealthapp.viewmodel.NotificationCenterViewModel
+import com.security.stealthapp.navigation.Screen
+import androidx.compose.material.icons.filled.Notifications
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -140,9 +145,10 @@ import java.util.Locale
 @Composable
 fun ProviderDashboardScreen(
     onLockTriggered: () -> Unit,
-    onNavigate: (String) -> Unit = {},
-    viewModel: ProviderViewModel = hiltViewModel(),
-    langVm: LanguageViewModel    = hiltViewModel()
+    onNavigate: (String) -> Unit         = {},
+    viewModel: ProviderViewModel         = hiltViewModel(),
+    langVm: LanguageViewModel            = hiltViewModel(),
+    notifVm: NotificationCenterViewModel = hiltViewModel()
 ) {
     LaunchedEffect(viewModel.lockTriggered) {
         if (viewModel.lockTriggered) {
@@ -186,6 +192,18 @@ fun ProviderDashboardScreen(
                         }
                     },
                     actions = {
+                        val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
+                        IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.providerId)) }) {
+                            BadgedBox(badge = {
+                                if (unreadCount > 0) {
+                                    Badge(containerColor = DeepRose) {
+                                        Text("$unreadCount", color = Color.White, fontSize = 10.sp)
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
+                            }
+                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }

@@ -10,6 +10,7 @@ import com.security.stealthapp.data.firebase.AppointmentDocument
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
+import com.security.stealthapp.data.firebase.NotificationDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.WorkingHours
@@ -200,6 +201,18 @@ class ProviderViewModel @Inject constructor(
             }
             if (appt != null) {
                 runCatching { firestoreRepository.incrementLoyaltyPoints(appt.customerId) }
+                runCatching {
+                    firestoreRepository.createNotification(
+                        NotificationDocument(
+                            recipientId = appt.customerId,
+                            type        = "BOOKING_CONFIRMED",
+                            title       = "Booking Confirmed",
+                            body        = "${appt.serviceName} at ${appt.salonName}",
+                            createdAt   = System.currentTimeMillis(),
+                            relatedId   = apptId
+                        )
+                    )
+                }
             }
             vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
         }
@@ -212,6 +225,18 @@ class ProviderViewModel @Inject constructor(
             val salonId = salon.value?.id
             if (appt != null && salonId != null) {
                 runCatching { firestoreRepository.notifyFirstWaiting(salonId, appt.appointmentDate) }
+                runCatching {
+                    firestoreRepository.createNotification(
+                        NotificationDocument(
+                            recipientId = appt.customerId,
+                            type        = "BOOKING_CANCELLED",
+                            title       = "Booking Declined",
+                            body        = "${appt.serviceName} at ${appt.salonName}",
+                            createdAt   = System.currentTimeMillis(),
+                            relatedId   = apptId
+                        )
+                    )
+                }
             }
             vaultRepository.log("APPOINTMENT_CANCELLED", "id=$apptId")
         }

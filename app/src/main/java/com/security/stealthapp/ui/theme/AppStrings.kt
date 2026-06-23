@@ -314,6 +314,15 @@ class AppStrings {
     // Common
     var lock: String = ""
     var languagePickerTitle: String = ""
+    // Notification Center
+    var notificationCenterTitle: String = ""
+    var notificationsMarkAllRead: String = ""
+    var notificationsEmpty: String = ""
+    var notificationFilterAll: String = ""
+    var notificationFilterUnread: String = ""
+    var notificationFilterBookings: String = ""
+    var notificationFilterWaitlist: String = ""
+    var notificationFilterSystem: String = ""
 }
 
 object StringResources {
@@ -577,6 +586,14 @@ object StringResources {
         setNewPinInvalidLink       = "The reset link is invalid or has expired. Please request a new one."
         lock                       = "Lock"
         languagePickerTitle        = "Language / زبان / ژبه"
+        notificationCenterTitle    = "Notifications"
+        notificationsMarkAllRead   = "Mark all read"
+        notificationsEmpty         = "No notifications yet"
+        notificationFilterAll      = "All"
+        notificationFilterUnread   = "Unread"
+        notificationFilterBookings = "Bookings"
+        notificationFilterWaitlist = "Waitlist"
+        notificationFilterSystem   = "System"
     }
 
     val DARI = AppStrings().apply {
@@ -838,6 +855,14 @@ object StringResources {
         setNewPinInvalidLink       = "لینک بازنشانی نامعتبر یا منقضی شده است. لطفاً دوباره درخواست دهید."
         lock                       = "قفل"
         languagePickerTitle        = "Language / زبان / ژبه"
+        notificationCenterTitle    = "اعلان‌ها"
+        notificationsMarkAllRead   = "علامت‌گذاری همه به عنوان خوانده‌شده"
+        notificationsEmpty         = "هنوز اعلانی وجود ندارد"
+        notificationFilterAll      = "همه"
+        notificationFilterUnread   = "نخوانده"
+        notificationFilterBookings = "رزروها"
+        notificationFilterWaitlist = "لیست انتظار"
+        notificationFilterSystem   = "سیستم"
     }
 
     val PASHTO = AppStrings().apply {
@@ -1099,6 +1124,14 @@ object StringResources {
         setNewPinInvalidLink       = "د بیا تنظیم کولو لینک ناسم یا پای ته رسیدلی دی. مهرباني وکړئ بیا یو غوښتنه وکړئ."
         lock                       = "قفل"
         languagePickerTitle        = "Language / زبان / ژبه"
+        notificationCenterTitle    = "خبرتیاوې"
+        notificationsMarkAllRead   = "ټول لوستل شوي نښه کړئ"
+        notificationsEmpty         = "لا هیڅ خبرتیا نشته"
+        notificationFilterAll      = "ټول"
+        notificationFilterUnread   = "نه لوستل شوي"
+        notificationFilterBookings = "بکینګونه"
+        notificationFilterWaitlist = "د انتظار لیست"
+        notificationFilterSystem   = "سیستم"
     }
 
     fun forLanguage(lang: AppLanguage): AppStrings = when (lang) {
