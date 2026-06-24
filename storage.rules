@@ -1,0 +1,44 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+          && firestore.get(
+               /databases/(default)/documents/users/$(request.auth.uid)
+             ).data.role == 'ADMIN';
+    }
+
+    function salonOwner(salonId) {
+      return isSignedIn()
+          && firestore.get(
+               /databases/(default)/documents/salons/$(salonId)
+             ).data.providerId == request.auth.uid;
+    }
+
+    function isValidImage() {
+      return request.resource.size  < 2 * 1024 * 1024    // max 2 MB
+          && request.resource.contentType.matches('image/.*');
+    }
+
+    // ── Profile photos ─────────────────────────────────────────────────────────
+    // Path: profile_photos/{uid}.jpg
+    match /profile_photos/{uid}.jpg {
+      allow read:   if isSignedIn();
+      allow write:  if request.auth.uid == uid && isValidImage();
+    }
+
+    // ── Salon gallery ──────────────────────────────────────────────────────────
+    // Path: salon_gallery/{salonId}/{imageId}.jpg
+    match /salon_gallery/{salonId}/{imageId} {
+      allow read:   if isSignedIn();
+      allow create: if salonOwner(salonId) && isValidImage();
+      allow update: if false;                    // replace by delete + re-upload
+      allow delete: if salonOwner(salonId) || isAdmin();
+    }
+  }
+}

@@ -1,0 +1,208 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return request.auth.uid;
+    }
+
+    function myData() {
+      return get(/databases/$(database)/documents/users/$(me())).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myData().role == 'ADMIN';
+    }
+
+    function isProvider() {
+      return isSignedIn() && myData().role == 'PROVIDER';
+    }
+
+    function isCustomer() {
+      return isSignedIn() && myData().role == 'CUSTOMER';
+    }
+
+    function isApproved() {
+      return isSignedIn() && myData().status == 'APPROVED';
+    }
+
+    function ownsDoc(uid) {
+      return isSignedIn() && me() == uid;
+    }
+
+    // Returns true if the current user is the provider who owns [salonId].
+    function ownsThisSalon(salonId) {
+      return isProvider()
+          && get(/databases/$(database)/documents/salons/$(salonId)).data.providerId == me();
+    }
+
+    // conversationId format: "{customerId}_{salonId}"
+    // Returns true if the current user is the customer OR the salon's provider.
+    function isParticipantInConversation(conversationId) {
+      let parts = conversationId.split('_');
+      return parts.size() >= 2
+          && (parts[0] == me()
+              || get(/databases/$(database)/documents/salons/$(parts[1])).data.providerId == me());
+    }
+
+    // ── users ──────────────────────────────────────────────────────────────────
+    //
+    // ⚠️  ARCHITECTURE LIMITATION:
+    //    getUserByPhone() is called BEFORE Firebase Auth (the app needs the
+    //    synthetic firebaseEmail to call signInWithEmailAndPassword). Until this
+    //    lookup is moved to a Cloud Function (or Anonymous Auth is adopted as a
+    //    pre-step), list reads must remain open to unauthenticated callers.
+    //
+    //    Production hardening path:
+    //    1. Enable Anonymous Auth in Firebase Console.
+    //    2. Call signInAnonymously() in FirebaseAuthManager before getUserByPhone().
+    //    3. Change "allow list: if true" → "allow list: if isSignedIn()".
+    //    4. Or replace getUserByPhone() with a callable Cloud Function entirely.
+    //
+    match /users/{uid} {
+      // Open read is required for the pre-auth phone lookup.
+      allow get:  if true;
+      allow list: if true; // ⚠️ see architecture note above
+
+      // Only the user themselves can register their own document (Firebase Auth
+      // guarantees request.auth.uid == uid after createUserWithEmailAndPassword).
+      allow create: if isSignedIn() && me() == uid;
+
+      // Users can update their own profile; admins can change status / verify.
+      // pinHash + salt are intentionally not whitelisted — changing them goes
+      // through the dedicated Change-PIN flow which verifies the old PIN first.
+      allow update: if ownsDoc(uid) || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // ── salons ─────────────────────────────────────────────────────────────────
+    match /salons/{salonId} {
+      allow read: if isSignedIn();
+
+      // Only an approved provider can create a salon, and they must set themselves
+      // as the owner.
+      allow create: if isProvider() && isApproved()
+                 && request.resource.data.providerId == me();
+
+      // Provider can edit their own salon; admin can edit any.
+      allow update: if (isProvider() && isApproved() && resource.data.providerId == me())
+                 || isAdmin();
+
+      allow delete: if isAdmin()
+                 || (isProvider() && resource.data.providerId == me());
+    }
+
+    // ── appointments ───────────────────────────────────────────────────────────
+    match /appointments/{apptId} {
+      // Readable only by the customer who booked, the salon's provider, or admin.
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+
+      // Customers book for themselves only.
+      allow create: if isCustomer() && isApproved()
+                 && request.resource.data.customerId == me();
+
+      // Provider confirms or cancels; admin can do anything.
+      // Customer may cancel their own PENDING appointment (status field only).
+      allow update: if (ownsThisSalon(resource.data.salonId) || isAdmin())
+                 || (resource.data.customerId == me()
+                     && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['status'])
+                     && request.resource.data.status == 'CANCELLED'
+                     && resource.data.status   == 'PENDING');
+
+      allow delete: if isAdmin();
+    }
+
+    // ── chat_messages ──────────────────────────────────────────────────────────
+    // conversationId = "{customerId}_{salonId}"
+    // Messages are immutable once sent.
+    match /chat_messages/{msgId} {
+      allow read: if isSignedIn()
+               && isParticipantInConversation(resource.data.conversationId);
+
+      allow create: if isSignedIn()
+                 && request.resource.data.senderId == me()
+                 && isParticipantInConversation(request.resource.data.conversationId);
+
+      allow update, delete: if false;
+    }
+
+    // ── reviews ────────────────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+
+      // Customers submit reviews for themselves.
+      allow create: if isCustomer() && isApproved()
+                 && request.resource.data.customerId == me();
+
+      // Provider may only add/edit their reply (no other fields may change).
+      allow update: if (ownsThisSalon(resource.data.salonId)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['providerReply', 'repliedAt']))
+                 || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // ── salon_gallery ──────────────────────────────────────────────────────────
+    match /salon_gallery/{imageId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      // Images are replaced by delete + re-upload; no in-place edits.
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── broadcasts ─────────────────────────────────────────────────────────────
+    match /broadcasts/{docId} {
+      allow read:                    if isSignedIn();
+      allow create, update, delete:  if isAdmin();
+    }
+
+    // ── waitlist ───────────────────────────────────────────────────────────────
+    match /waitlist/{entryId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+
+      allow create: if isCustomer() && isApproved()
+                 && request.resource.data.customerId == me();
+
+      // Provider marks slot as available; admin can do anything.
+      allow update: if ownsThisSalon(resource.data.salonId) || isAdmin();
+
+      allow delete: if resource.data.customerId == me() || isAdmin();
+    }
+
+    // ── notifications ──────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      // Each user sees only their own notifications.
+      allow read: if isSignedIn()
+               && (resource.data.recipientId == me() || isAdmin());
+
+      // Any authenticated user may create — needed for the booking flow where the
+      // client writes a notification for a different user (e.g. provider gets a
+      // "new booking" notification when a customer books).
+      allow create: if isSignedIn();
+
+      // Only the recipient marks as read / deletes.
+      allow update: if resource.data.recipientId == me() || isAdmin();
+      allow delete: if resource.data.recipientId == me() || isAdmin();
+    }
+  }
+}
