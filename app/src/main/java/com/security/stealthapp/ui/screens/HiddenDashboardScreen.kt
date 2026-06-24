@@ -127,6 +127,7 @@ import com.security.stealthapp.ui.theme.LocalStrings
 import com.security.stealthapp.ui.theme.RoseGold
 import com.security.stealthapp.ui.theme.UnavailableGrey
 import com.security.stealthapp.ui.theme.WarmGold
+import coil.compose.AsyncImage
 import com.security.stealthapp.util.ImageUtils
 import com.security.stealthapp.util.NotificationHelper
 import com.security.stealthapp.viewmodel.DashboardViewModel
@@ -283,7 +284,7 @@ fun HiddenDashboardScreen(
     var bookingNotes      by remember { mutableStateOf("") }
 
     // Feature 1: photo confirmation
-    var pendingPhotoBase64 by remember { mutableStateOf<String?>(null) }
+    var pendingPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
 
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
 
@@ -552,7 +553,7 @@ fun HiddenDashboardScreen(
                         onSave          = { viewModel.saveCustomerProfile(); showProfileSheet = false },
                         onDismiss       = { showProfileSheet = false },
                         photo           = currentUserPhoto,
-                        onPhotoSelected = { base64 -> pendingPhotoBase64 = base64 },
+                        onPhotoSelected = { bytes -> pendingPhotoBytes = bytes },
                         isUploadingPhoto = viewModel.isUploadingPhoto,
                         appointments    = myAppointments
                     )
@@ -591,10 +592,12 @@ fun HiddenDashboardScreen(
         }
 
         // ── Photo confirmation dialog ─────────────────────────────────────────
-        pendingPhotoBase64?.let { photoBase64 ->
-            val bitmap = remember(photoBase64) { ImageUtils.base64ToBitmap(photoBase64) }
+        pendingPhotoBytes?.let { photoBytes ->
+            val bitmap = remember(photoBytes) {
+                android.graphics.BitmapFactory.decodeByteArray(photoBytes, 0, photoBytes.size)
+            }
             AlertDialog(
-                onDismissRequest = { pendingPhotoBase64 = null },
+                onDismissRequest = { pendingPhotoBytes = null },
                 title = { Text(strings.photoConfirmTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text = {
                     Column(
@@ -618,14 +621,14 @@ fun HiddenDashboardScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.uploadProfilePhoto(photoBase64)
-                            pendingPhotoBase64 = null
+                            viewModel.uploadProfilePhoto(photoBytes)
+                            pendingPhotoBytes = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
                     ) { Text(strings.photoConfirmYes, color = Color.White) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingPhotoBase64 = null }) {
+                    TextButton(onClick = { pendingPhotoBytes = null }) {
                         Text(strings.photoConfirmRetry, color = RoseGold)
                     }
                 },
@@ -1687,7 +1690,7 @@ private fun CustomerProfileSheetContent(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     photo: String = "",
-    onPhotoSelected: (String) -> Unit = {},
+    onPhotoSelected: (ByteArray) -> Unit = {},
     isUploadingPhoto: Boolean = false,
     appointments: List<AppointmentDocument> = emptyList()
 ) {
@@ -1700,10 +1703,10 @@ private fun CustomerProfileSheetContent(
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            when (val result = ImageUtils.uriToCompressedBase64(context, uri)) {
-                is ImageUtils.Result.Success  -> onPhotoSelected(result.base64)
-                is ImageUtils.Result.TooLarge -> { /* optionally surface error */ }
-                is ImageUtils.Result.Failed   -> { /* optionally surface error */ }
+            when (val result = ImageUtils.uriToCompressedBytes(context, uri)) {
+                is ImageUtils.BytesResult.Success  -> onPhotoSelected(result.bytes)
+                is ImageUtils.BytesResult.TooLarge -> { /* optionally surface error */ }
+                is ImageUtils.BytesResult.Failed   -> { /* optionally surface error */ }
             }
         }
     }
@@ -1732,10 +1735,9 @@ private fun CustomerProfileSheetContent(
         ) {
             Box(contentAlignment = Alignment.BottomEnd) {
                 if (photo.isNotBlank()) {
-                    val bitmap = remember(photo) { ImageUtils.base64ToBitmap(photo) }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap             = bitmap.asImageBitmap(),
+                    if (photo.startsWith("http")) {
+                        AsyncImage(
+                            model              = photo,
                             contentDescription = null,
                             contentScale       = ContentScale.Crop,
                             modifier           = Modifier
@@ -1743,7 +1745,19 @@ private fun CustomerProfileSheetContent(
                                 .clip(CircleShape)
                         )
                     } else {
-                        ProfileInitialsAvatar(name = name, size = 88)
+                        val bitmap = remember(photo) { ImageUtils.base64ToBitmap(photo) }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap             = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale       = ContentScale.Crop,
+                                modifier           = Modifier
+                                    .size(88.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            ProfileInitialsAvatar(name = name, size = 88)
+                        }
                     }
                 } else {
                     ProfileInitialsAvatar(name = name, size = 88)
@@ -2009,17 +2023,27 @@ private fun SalonDetailSheetContent(
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(gallery, key = { it.id }) { image ->
-                    val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap             = bitmap.asImageBitmap(),
+                    val imageModifier = Modifier
+                        .size(140.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(BlushPink)
+                    if (image.imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model              = image.imageUrl,
                             contentDescription = null,
                             contentScale       = ContentScale.Crop,
-                            modifier           = Modifier
-                                .size(140.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(BlushPink)
+                            modifier           = imageModifier
                         )
+                    } else {
+                        val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap             = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale       = ContentScale.Crop,
+                                modifier           = imageModifier
+                            )
+                        }
                     }
                 }
             }

@@ -21,8 +21,10 @@ import com.security.stealthapp.data.firebase.NotificationDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.LoyaltyTier
+import com.security.stealthapp.data.firebase.StorageRepository
 import com.security.stealthapp.data.firebase.WaitlistEntry
 import com.security.stealthapp.data.firebase.WorkingHours
+import com.security.stealthapp.util.CrashReporter
 import java.util.Calendar
 import com.security.stealthapp.data.repository.FavoritesRepository
 import com.security.stealthapp.data.repository.LanguageRepository
@@ -71,6 +73,7 @@ data class BookingStatusChange(
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
+    private val storageRepository: StorageRepository,
     private val vaultRepository: VaultRepository,
     private val languageRepository: LanguageRepository,
     private val favoritesRepository: FavoritesRepository,
@@ -259,7 +262,8 @@ class DashboardViewModel @Inject constructor(
                 ?.let {
                     _currentUserName.value = it.name
                     _currentUserPhone.value = it.phone
-                    _currentUserPhoto.value = it.profilePhotoBase64
+                    // Prefer Storage URL; fall back to legacy Base64 for pre-migration photos.
+                    _currentUserPhoto.value = it.profilePhotoUrl.ifBlank { it.profilePhotoBase64 }
                     editName = it.name
                 }
         }
@@ -332,13 +336,14 @@ class DashboardViewModel @Inject constructor(
 
     fun dismissProfileSaveSuccess() { profileSaveSuccess = false }
 
-    fun uploadProfilePhoto(base64: String) {
+    fun uploadProfilePhoto(bytes: ByteArray) {
         viewModelScope.launch {
             isUploadingPhoto = true
             runCatching {
-                firestoreRepository.updateUserPhoto(customerId, base64)
-                _currentUserPhoto.value = base64
-            }
+                val url = storageRepository.uploadUserPhoto(customerId, bytes)
+                firestoreRepository.updateUserPhotoUrl(customerId, url)
+                _currentUserPhoto.value = url
+            }.onFailure { CrashReporter.recordNonFatal(it, "dashboard:uploadProfilePhoto") }
             isUploadingPhoto = false
         }
     }

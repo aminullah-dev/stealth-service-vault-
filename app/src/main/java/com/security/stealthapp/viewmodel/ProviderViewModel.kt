@@ -13,8 +13,10 @@ import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.NotificationDocument
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
+import com.security.stealthapp.data.firebase.StorageRepository
 import com.security.stealthapp.data.firebase.WorkingHours
 import com.security.stealthapp.data.repository.VaultRepository
+import com.security.stealthapp.util.CrashReporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +46,7 @@ data class ProviderAnalytics(
 class ProviderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
+    private val storageRepository: StorageRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
@@ -125,27 +128,39 @@ class ProviderViewModel @Inject constructor(
     var isUploadingPhoto by mutableStateOf(false)
     var photoError by mutableStateOf<String?>(null)
 
-    /** Stores an already-compressed Base64 photo against the current salon. */
-    fun addGalleryImage(base64: String) {
+    /** Uploads [bytes] to Firebase Storage then writes the URL to Firestore. */
+    fun addGalleryImage(bytes: ByteArray) {
         val salonId = salon.value?.id ?: return
         viewModelScope.launch {
             isUploadingPhoto = true
             runCatching {
+                // Reserve the Firestore doc ID first so the Storage path matches.
+                val docId = firestoreRepository.newGalleryDocId()
+                val storagePath = "salon_gallery/$salonId/$docId.jpg"
+                val url = storageRepository.uploadGalleryImage(salonId, docId, bytes)
                 firestoreRepository.addGalleryImage(
                     GalleryImageDocument(
+                        id          = docId,
                         salonId     = salonId,
-                        imageBase64 = base64,
+                        imageUrl    = url,
+                        storagePath = storagePath,
                         createdAt   = System.currentTimeMillis()
                     )
                 )
-            }
+            }.onFailure { CrashReporter.recordNonFatal(it, "provider:addGalleryImage") }
             isUploadingPhoto = false
         }
     }
 
     fun deleteGalleryImage(imageId: String) {
         viewModelScope.launch {
+            // Look up the storagePath before deleting the Firestore doc.
+            val storagePath = firestoreRepository.getGalleryImageStoragePath(imageId)
             runCatching { firestoreRepository.deleteGalleryImage(imageId) }
+                .onFailure { CrashReporter.recordNonFatal(it, "provider:deleteGalleryImage:firestore") }
+            if (storagePath.isNotBlank()) {
+                storageRepository.deleteFile(storagePath)
+            }
         }
     }
 

@@ -90,8 +90,14 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update(mapOf("decoyPinHash" to "", "decoySalt" to "")).await()
     }
 
+    /** Legacy Base64 path — kept so existing photos still display after migration. */
     suspend fun updateUserPhoto(uid: String, base64: String) {
         usersCol.document(uid).update("profilePhotoBase64", base64).await()
+    }
+
+    /** New Storage path — stores the HTTPS download URL returned by [StorageRepository]. */
+    suspend fun updateUserPhotoUrl(uid: String, url: String) {
+        usersCol.document(uid).update("profilePhotoUrl", url).await()
     }
 
     suspend fun incrementLoyaltyPoints(customerId: String) {
@@ -362,9 +368,20 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    /** Reserves a new Firestore document ID so the Storage path can be pre-computed. */
+    fun newGalleryDocId(): String = galleryCol.document().id
+
     suspend fun addGalleryImage(image: GalleryImageDocument) {
-        galleryCol.add(image).await()
+        val id = image.id.ifBlank { galleryCol.document().id }
+        galleryCol.document(id).set(image.copy(id = id)).await()
     }
+
+    /** Returns the storagePath field for [imageId], or blank if the doc doesn't exist. */
+    suspend fun getGalleryImageStoragePath(imageId: String): String =
+        runCatching {
+            galleryCol.document(imageId).get().await()
+                .getString("storagePath").orEmpty()
+        }.getOrDefault("")
 
     suspend fun deleteGalleryImage(imageId: String) {
         galleryCol.document(imageId).delete().await()

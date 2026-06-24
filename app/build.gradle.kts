@@ -139,6 +139,10 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.firebase:firebase-crashlytics-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+
+    // Coil — URL-based image loading in Compose (replaces in-memory Base64 bitmaps)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Coroutines — play-services provides the Task.await() extension used by
     // FirebaseAuthManager / FirestoreRepository (NOT transitive; must be explicit)

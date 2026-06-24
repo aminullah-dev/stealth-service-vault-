@@ -1,5 +1,6 @@
 package com.security.stealthapp.ui.screens
 
+import coil.compose.AsyncImage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -952,13 +953,13 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
         viewModel.photoError = null
         viewModel.isUploadingPhoto = true
         scope.launch {
-            when (val result = ImageUtils.uriToCompressedBase64(context, uri)) {
-                is ImageUtils.Result.Success  -> viewModel.addGalleryImage(result.base64)
-                is ImageUtils.Result.TooLarge -> {
+            when (val result = ImageUtils.uriToCompressedBytes(context, uri)) {
+                is ImageUtils.BytesResult.Success  -> viewModel.addGalleryImage(result.bytes)
+                is ImageUtils.BytesResult.TooLarge -> {
                     viewModel.isUploadingPhoto = false
                     viewModel.photoError = strings.photoTooLarge
                 }
-                is ImageUtils.Result.Failed   -> {
+                is ImageUtils.BytesResult.Failed   -> {
                     viewModel.isUploadingPhoto = false
                     viewModel.photoError = strings.photoUploadFailed
                 }
@@ -1040,24 +1041,29 @@ private fun ProviderGalleryThumb(
     onDelete: () -> Unit,
     deleteCd: String
 ) {
-    val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+    val thumbModifier = Modifier
+        .fillMaxSize()
+        .clip(RoundedCornerShape(12.dp))
     Box(modifier = Modifier.size(96.dp)) {
-        if (bitmap != null) {
-            Image(
-                bitmap             = bitmap.asImageBitmap(),
+        if (image.imageUrl.isNotBlank()) {
+            AsyncImage(
+                model              = image.imageUrl,
                 contentDescription = null,
                 contentScale       = ContentScale.Crop,
-                modifier           = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp))
+                modifier           = thumbModifier
             )
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(BlushPink)
-            )
+            val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+            if (bitmap != null) {
+                Image(
+                    bitmap             = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = thumbModifier
+                )
+            } else {
+                Box(modifier = thumbModifier.background(BlushPink))
+            }
         }
         // Delete badge
         Box(

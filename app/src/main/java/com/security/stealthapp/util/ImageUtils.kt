@@ -33,6 +33,33 @@ object ImageUtils {
         data object Failed   : Result
     }
 
+    sealed interface BytesResult {
+        data class Success(val bytes: ByteArray) : BytesResult
+        data object TooLarge : BytesResult
+        data object Failed   : BytesResult
+    }
+
+    /**
+     * Compresses the image at [uri] and returns the raw JPEG bytes for upload
+     * to Firebase Storage. Reuses the same downscaling + EXIF rotation as
+     * [uriToCompressedBase64].
+     */
+    suspend fun uriToCompressedBytes(context: Context, uri: Uri): BytesResult =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val bitmap = decodeSampledBitmap(context, uri)
+                    ?: return@withContext BytesResult.Failed
+                val rotated = applyExifRotation(context, uri, bitmap)
+                val scaled  = downscale(rotated)
+                val out = ByteArrayOutputStream()
+                scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+                val bytes = out.toByteArray()
+                if (bytes.size > MAX_BASE64_BYTES) BytesResult.TooLarge
+                else BytesResult.Success(bytes)
+            }.getOrElse { BytesResult.Failed }
+        }
+
+    /** @suppress Legacy path — only used to display photos already stored as Base64 in Firestore. */
     suspend fun uriToCompressedBase64(context: Context, uri: Uri): Result =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -51,7 +78,7 @@ object ImageUtils {
             }.getOrElse { Result.Failed }
         }
 
-    /** Decodes a [base64] payload back into a Bitmap for display, or null on failure. */
+    /** @suppress Legacy path — decodes Base64 images stored before Firebase Storage migration. */
     fun base64ToBitmap(base64: String): Bitmap? = runCatching {
         val bytes = Base64.decode(base64, Base64.NO_WRAP)
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)

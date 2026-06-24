@@ -22,7 +22,8 @@ data class UserDocument(
     val decoyPinHash: String = "",          // PBKDF2 hash of decoy PIN — shows fake notepad
     val decoySalt: String = "",
     val loyaltyPoints: Int = 0,             // +10 per confirmed appointment
-    val profilePhotoBase64: String = ""     // optional base64-encoded profile photo
+    val profilePhotoBase64: String = "",    // legacy — kept for backward compat; prefer profilePhotoUrl
+    val profilePhotoUrl: String = ""        // Firebase Storage download URL (preferred)
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }
@@ -109,7 +110,9 @@ data class ReviewDocument(
 data class GalleryImageDocument(
     val id: String = "",                    // Firestore document ID
     val salonId: String = "",
-    val imageBase64: String = "",           // downscaled, JPEG-compressed, Base64
+    val imageBase64: String = "",           // legacy — kept for backward compat; prefer imageUrl
+    val imageUrl: String = "",              // Firebase Storage download URL (preferred)
+    val storagePath: String = "",           // Storage path used to delete the file
     val createdAt: Long = 0L
 )
 
