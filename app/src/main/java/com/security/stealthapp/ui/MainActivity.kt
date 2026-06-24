@@ -1,16 +1,21 @@
 package com.security.stealthapp.ui
 
+import android.content.Intent
 import android.os.Bundle
-import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.compose.rememberNavController
 import com.security.stealthapp.navigation.AppNavGraph
+import com.security.stealthapp.navigation.NotificationDeeplink
 import com.security.stealthapp.security.SessionManager
+import com.security.stealthapp.util.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -18,6 +23,9 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var sessionManager: SessionManager
+
+    // Persists across recompositions so AppNavGraph can consume it after login.
+    private var pendingDeeplink by mutableStateOf<NotificationDeeplink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,17 +38,36 @@ class MainActivity : ComponentActivity() {
             }
         )
 
-        val deepLink = intent?.data?.toString()
+        pendingDeeplink = intent.toNotificationDeeplink()
 
         setContent {
             val navController = rememberNavController()
-            AppNavGraph(navController = navController, deepLink = deepLink)
+            AppNavGraph(
+                navController      = navController,
+                deepLink           = intent?.data?.toString(),
+                notifDeeplink      = pendingDeeplink,
+                onDeeplinkConsumed = { pendingDeeplink = null }
+            )
         }
+    }
+
+    // Handle notification tap while app is already running (single-top).
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingDeeplink = intent.toNotificationDeeplink()
     }
 
     // Reset idle timer on every user touch/key event.
     override fun onUserInteraction() {
         super.onUserInteraction()
         sessionManager.onUserInteraction()
+    }
+
+    private fun Intent?.toNotificationDeeplink(): NotificationDeeplink? {
+        val type = this?.getStringExtra(NotificationHelper.EXTRA_NOTIF_TYPE)
+            ?.takeIf { it.isNotBlank() } ?: return null
+        val relatedId = this.getStringExtra(NotificationHelper.EXTRA_NOTIF_RELATED_ID) ?: ""
+        return NotificationDeeplink(type = type, relatedId = relatedId)
     }
 }

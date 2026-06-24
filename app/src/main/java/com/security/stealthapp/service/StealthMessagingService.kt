@@ -15,8 +15,19 @@ class StealthMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val title = message.notification?.title ?: return
-        val body  = message.notification?.body  ?: return
-        NotificationHelper.showBookingUpdate(applicationContext, title, body)
+        // Prefer the notification payload's text; fall back to data fields so the
+        // same function works whether the server sends a "notification" or "data" message.
+        val title     = message.notification?.title     ?: message.data["title"]     ?: return
+        val body      = message.notification?.body      ?: message.data["body"]      ?: return
+        val type      = message.data["type"]      ?: ""
+        val relatedId = message.data["relatedId"] ?: ""
+
+        NotificationHelper.showBookingUpdate(
+            context   = applicationContext,
+            title     = title,
+            body      = body,
+            type      = type,
+            relatedId = relatedId
+        )
     }
 }

@@ -30,6 +30,13 @@ import com.security.stealthapp.ui.theme.layoutDirection
 import com.security.stealthapp.viewmodel.LanguageViewModel
 import com.security.stealthapp.viewmodel.SessionViewModel
 
+// ── Deeplink payload carried from a tapped push notification ──────────────────
+
+data class NotificationDeeplink(
+    val type: String,       // e.g. "BOOKING_CONFIRMED", "NEW_BOOKING"
+    val relatedId: String   // appointmentId or other related doc id
+)
+
 // ── Route constants ────────────────────────────────────────────────────────────
 
 sealed class Screen(val route: String) {
@@ -66,7 +73,12 @@ sealed class Screen(val route: String) {
 // ── Nav graph ─────────────────────────────────────────────────────────────────
 
 @Composable
-fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
+fun AppNavGraph(
+    navController: NavHostController,
+    deepLink: String? = null,
+    notifDeeplink: NotificationDeeplink? = null,
+    onDeeplinkConsumed: () -> Unit = {}
+) {
 
     val langVm: LanguageViewModel = hiltViewModel()
     val sessionVm: SessionViewModel = hiltViewModel()
@@ -117,12 +129,21 @@ fun AppNavGraph(navController: NavHostController, deepLink: String? = null) {
                 LoginScreen(
                     onAuthSuccess = { user ->
                         sessionVm.onLoggedIn()
-                        val route = when (user.role) {
+                        val dashboardRoute = when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
                             UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
                         }
-                        navController.navigate(route) { launchSingleTop = true }
+                        navController.navigate(dashboardRoute) { launchSingleTop = true }
+
+                        // If the user opened the app by tapping a push notification,
+                        // navigate to the Notification Center after reaching the dashboard.
+                        if (notifDeeplink != null) {
+                            navController.navigate(Screen.Notifications.build(user.uid)) {
+                                launchSingleTop = true
+                            }
+                            onDeeplinkConsumed()
+                        }
                     },
                     onDecoyMode = {
                         // Clear back stack so back-press from fake notepad can't return to SafeBeauty
