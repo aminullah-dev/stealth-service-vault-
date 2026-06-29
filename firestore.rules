@@ -232,5 +232,15 @@ service cloud.firestore {
       allow read:  if ownsDoc(providerId) || isAdmin();
       allow write: if false;
     }
+
+    // ── payouts ─────────────────────────────────────────────────────────────────
+    // History of platform→provider payments. Written exclusively by the
+    // recordProviderPayout Cloud Function (Admin SDK). A provider reads only
+    // their own payouts; admins read all.
+    match /payouts/{payoutId} {
+      allow read:  if isSignedIn()
+               && (resource.data.providerId == me() || isAdmin());
+      allow write: if false;
+    }
   }
 }

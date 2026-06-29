@@ -45,6 +45,7 @@ class FirestoreRepository @Inject constructor(
     private val notificationsCol = db.collection("notifications")
     private val platformConfigCol  = db.collection("platform_config")
     private val providerBalancesCol = db.collection("provider_balances")
+    private val payoutsCol           = db.collection("payouts")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -571,6 +572,19 @@ class FirestoreRepository @Inject constructor(
                 ?.mapNotNull { it.toObject(ProviderBalance::class.java) }
                 ?.filter { it.owedAmount > 0 }
                 ?.sortedByDescending { it.owedAmount }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    /** Live payout history (most recent first). Admin reads all rows. */
+    fun observePayouts(): Flow<List<PayoutDocument>> = callbackFlow {
+        val listener = payoutsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
+                ?.sortedByDescending { it.createdAt }
                 ?: emptyList()
             trySend(list)
         }

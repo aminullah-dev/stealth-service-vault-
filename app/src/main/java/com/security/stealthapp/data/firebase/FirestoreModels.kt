@@ -194,3 +194,18 @@ data class ProviderBalance(
     // Joined in client-side for display — not stored on the doc.
     val providerName: String = ""
 )
+
+/**
+ * History row for a platform→provider payout. Written only by the
+ * recordProviderPayout Cloud Function; admins read all, providers read own.
+ */
+data class PayoutDocument(
+    val id: String = "",
+    val providerId: String = "",
+    val amount: Long = 0L,
+    val method: String = "MANUAL",
+    val paidBy: String = "",
+    val createdAt: Long = 0L,
+    // Joined client-side for display.
+    val providerName: String = ""
+)

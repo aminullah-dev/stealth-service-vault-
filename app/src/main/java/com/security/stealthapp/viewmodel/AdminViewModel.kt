@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.PaymentRepository
+import com.security.stealthapp.data.firebase.PayoutDocument
 import com.security.stealthapp.data.firebase.ProviderBalance
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
@@ -33,6 +35,7 @@ data class SystemStats(
 @HiltViewModel
 class AdminViewModel @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
+    private val paymentRepository: PaymentRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
@@ -83,8 +86,23 @@ class AdminViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Payout history joined with provider names, most recent first. */
+    val payouts: StateFlow<List<PayoutDocument>> =
+        combine(firestoreRepository.observePayouts(), allUsers) { payouts, users ->
+            val nameById = users.associate { it.uid to it.name }
+            payouts.map { it.copy(providerName = nameById[it.providerId] ?: it.providerId) }
+        }
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     var commissionInput by mutableStateOf("")
     var commissionSaved by mutableStateOf(false)
+        private set
+
+    // providerId currently being paid out (drives the per-row spinner); null = idle.
+    var payoutInProgress by mutableStateOf<String?>(null)
+        private set
+    var payoutResult by mutableStateOf<Long?>(null)   // amount just paid (for the toast/dialog)
         private set
 
     var broadcastText by mutableStateOf("")
@@ -105,6 +123,22 @@ class AdminViewModel @Inject constructor(
     }
 
     fun dismissCommissionSaved() { commissionSaved = false }
+
+    /** Records that [providerId] has been paid; the webhook ledger resets to 0. */
+    fun payoutProvider(providerId: String) {
+        if (payoutInProgress != null) return
+        payoutInProgress = providerId
+        viewModelScope.launch {
+            val amount = paymentRepository.recordProviderPayout(providerId)
+            payoutInProgress = null
+            if (amount != null) {
+                payoutResult = amount
+                vaultRepository.log("ADMIN_PAYOUT", "providerId=$providerId amount=$amount")
+            }
+        }
+    }
+
+    fun dismissPayoutResult() { payoutResult = null }
 
     fun suspendUser(uid: String) {
         viewModelScope.launch {

@@ -313,3 +313,66 @@ exports.hesabPayWebhook = onRequest(
     return res.status(200).send("OK");
   }
 );
+
+// ── recordProviderPayout (callable, admin-only) ─────────────────────────────────
+
+/**
+ * Records that the platform has paid a provider their owed balance (cash,
+ * HesabPay transfer, etc. — settled outside the app). Atomically writes a
+ * `payouts` history row and resets provider_balances/{providerId}.owedAmount
+ * to 0. Admin-only; clients can't touch provider_balances directly.
+ */
+exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  // Verify the caller is an admin (role is stored on the user document).
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (!callerSnap.exists || callerSnap.data().role !== "ADMIN") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const { providerId, method } = request.data || {};
+  if (!providerId) {
+    throw new HttpsError("invalid-argument", "providerId is required.");
+  }
+
+  const balanceRef = db.doc(`provider_balances/${providerId}`);
+
+  // Transaction so a concurrent webhook crediting the balance can't be lost:
+  // we record exactly what was owed at payout time and zero it.
+  const result = await db.runTransaction(async (tx) => {
+    const balSnap = await tx.get(balanceRef);
+    const owed = balSnap.exists ? Number(balSnap.data().owedAmount || 0) : 0;
+    if (owed <= 0) {
+      throw new HttpsError("failed-precondition", "Nothing owed to this provider.");
+    }
+    const payoutRef = db.collection("payouts").doc();
+    tx.set(payoutRef, {
+      providerId,
+      amount: owed,
+      method: method || "MANUAL",
+      paidBy: request.auth.uid,
+      createdAt: Date.now(),
+    });
+    tx.set(
+      balanceRef,
+      { owedAmount: 0, updatedAt: Date.now() },
+      { merge: true }
+    );
+    return { payoutId: payoutRef.id, amount: owed };
+  });
+
+  // Notify the provider (outside the transaction).
+  await db.collection("notifications").doc().set({
+    recipientId: providerId,
+    type: "SYSTEM",
+    title: "Payout Sent",
+    body: `You have been paid AFN ${result.amount}.`,
+    isRead: false,
+    createdAt: Date.now(),
+    relatedId: result.payoutId,
+  });
+
+  return result;
+});

@@ -73,6 +73,23 @@ class PaymentRepository @Inject constructor() {
     }.onFailure { CrashReporter.recordNonFatal(it, "payment:createCheckout") }
         .getOrNull()
 
+    /**
+     * Admin-only: records a payout to [providerId] (settles their owed balance to
+     * zero server-side). Returns the amount paid, or null on failure.
+     */
+    suspend fun recordProviderPayout(providerId: String, method: String = "MANUAL"): Long? =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("recordProviderPayout")
+                .call(hashMapOf("providerId" to providerId, "method" to method))
+                .await()
+
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?>
+            (map?.get("amount") as? Number)?.toLong()
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:recordProviderPayout") }
+            .getOrNull()
+
     /** Emits the live status ("PENDING" | "PAID" | "FAILED") of a payment. */
     fun observePaymentStatus(paymentId: String): Flow<String> = callbackFlow {
         val listener = paymentsCol.document(paymentId)

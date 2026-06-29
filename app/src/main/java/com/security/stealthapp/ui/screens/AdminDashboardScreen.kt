@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -75,6 +76,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.PayoutDocument
 import com.security.stealthapp.data.firebase.ProviderBalance
 import com.security.stealthapp.data.firebase.SalonBadge
 import com.security.stealthapp.data.firebase.SalonDocument
@@ -119,6 +121,7 @@ fun AdminDashboardScreen(
     val broadcasts       by viewModel.broadcasts.collectAsStateWithLifecycle()
     val commissionPercent by viewModel.commissionPercent.collectAsStateWithLifecycle()
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
+    val payouts          by viewModel.payouts.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
@@ -201,7 +204,7 @@ fun AdminDashboardScreen(
                     2 -> SalonsTab(allSalons, viewModel)
                     3 -> StatsTab(stats)
                     4 -> BroadcastTab(broadcasts, viewModel)
-                    5 -> FinanceTab(commissionPercent, providerBalances, viewModel)
+                    5 -> FinanceTab(commissionPercent, providerBalances, payouts, viewModel)
                 }
             }
         }
@@ -791,9 +794,12 @@ private fun BroadcastCard(broadcast: BroadcastDocument, timeLabel: String) {
 private fun FinanceTab(
     commissionPercent: Double,
     balances: List<ProviderBalance>,
+    payouts: List<PayoutDocument>,
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
+    val payoutFmt = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
+    var confirmPayout by remember { mutableStateOf<ProviderBalance?>(null) }
 
     // Seed the editable field from the live value the first time it arrives.
     LaunchedEffect(commissionPercent) {
@@ -901,9 +907,60 @@ private fun FinanceTab(
             }
         } else {
             items(balances, key = { it.providerId }) { balance ->
-                ProviderBalanceRow(balance)
+                ProviderBalanceRow(
+                    balance    = balance,
+                    isPayingOut = viewModel.payoutInProgress == balance.providerId,
+                    onMarkPaid = { confirmPayout = balance }
+                )
             }
         }
+
+        // ── Payout history ────────────────────────────────────────────────────
+        if (payouts.isNotEmpty()) {
+            item {
+                Text(
+                    strings.financePayoutsHistoryTitle,
+                    fontSize   = 13.sp,
+                    color      = RoseGold,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier   = Modifier.padding(top = 8.dp)
+                )
+            }
+            items(payouts, key = { it.id }) { payout ->
+                PayoutHistoryRow(payout, payoutFmt.format(Date(payout.createdAt)))
+            }
+        }
+    }
+
+    // Confirm-payout dialog.
+    confirmPayout?.let { balance ->
+        AlertDialog(
+            onDismissRequest = { confirmPayout = null },
+            title = { Text(strings.financePayoutConfirmTitle, color = DeepRose, fontWeight = FontWeight.Bold) },
+            text  = {
+                Column {
+                    Text(strings.financePayoutConfirmText, color = RoseGold, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${balance.providerName} · ${balance.owedAmount} AFN",
+                        color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 14.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.payoutProvider(balance.providerId)
+                    confirmPayout = null
+                }) {
+                    Text(strings.financeMarkPaid, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmPayout = null }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            }
+        )
     }
 
     if (viewModel.commissionSaved) {
@@ -917,10 +974,26 @@ private fun FinanceTab(
             text = { Text(strings.financeSaved, color = DeepRose) }
         )
     }
+
+    viewModel.payoutResult?.let { amount ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPayoutResult() },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissPayoutResult() }) {
+                    Text(strings.ok, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = { Text("${strings.financePayoutDone}: $amount AFN", color = DeepRose) }
+        )
+    }
 }
 
 @Composable
-private fun ProviderBalanceRow(balance: ProviderBalance) {
+private fun ProviderBalanceRow(
+    balance: ProviderBalance,
+    isPayingOut: Boolean,
+    onMarkPaid: () -> Unit
+) {
     val strings = LocalStrings.current
     ElevatedCard(
         shape     = RoundedCornerShape(14.dp),
@@ -928,28 +1001,70 @@ private fun ProviderBalanceRow(balance: ProviderBalance) {
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
         modifier  = Modifier.fillMaxWidth()
     ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier
+                        .size(40.dp)
+                        .background(AvailableGreen.copy(alpha = 0.12f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Payments, null, tint = AvailableGreen, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(balance.providerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                    Text(strings.financeOwed, fontSize = 11.sp, color = RoseGold)
+                }
+                Text(
+                    "${balance.owedAmount} AFN",
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 16.sp,
+                    color      = AvailableGreen
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick  = onMarkPaid,
+                enabled  = !isPayingOut,
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = AvailableGreen),
+                contentPadding = PaddingValues(vertical = 10.dp)
+            ) {
+                if (isPayingOut) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(strings.financeMarkPaid, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PayoutHistoryRow(payout: PayoutDocument, timeLabel: String) {
+    ElevatedCard(
+        shape     = RoundedCornerShape(12.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier          = Modifier.padding(14.dp)
+            modifier          = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier         = Modifier
-                    .size(40.dp)
-                    .background(AvailableGreen.copy(alpha = 0.12f), CircleShape)
-            ) {
-                Icon(Icons.Default.Payments, null, tint = AvailableGreen, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(balance.providerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
-                Text(strings.financeOwed, fontSize = 11.sp, color = RoseGold)
+                Text(payout.providerName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = DeepRose)
+                Text(timeLabel, fontSize = 11.sp, color = RoseGold)
             }
             Text(
-                "${balance.owedAmount} AFN",
+                "${payout.amount} AFN",
                 fontWeight = FontWeight.Bold,
-                fontSize   = 16.sp,
-                color      = AvailableGreen
+                fontSize   = 14.sp,
+                color      = UnavailableGrey
             )
         }
     }
