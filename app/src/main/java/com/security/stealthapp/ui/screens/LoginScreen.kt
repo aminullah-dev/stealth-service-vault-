@@ -20,7 +20,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,15 +43,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.R
 import com.security.stealthapp.data.model.LoggedInUser
+import com.security.stealthapp.security.BiometricVault
 import com.security.stealthapp.ui.theme.ChipInactive
 import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
@@ -77,9 +82,20 @@ fun LoginScreen(
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     val authState       = authViewModel.authState
 
+    val context  = LocalContext.current
+    val activity = context as? FragmentActivity
+
     var pin          by remember { mutableStateOf("") }
     var showError    by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
+
+    // Biometric fast-unlock state.
+    var biometricEnabled by remember { mutableStateOf(BiometricVault.isEnabled(context)) }
+    val biometricAvailable = remember { activity != null && BiometricVault.isAvailable(context) }
+    // The most recent PIN entered, kept so we can offer to enable biometric on success.
+    var lastPin by remember { mutableStateOf("") }
+    // Non-null while the post-login "enable fast unlock?" dialog is showing.
+    var offerEnableFor by remember { mutableStateOf<LoggedInUser?>(null) }
 
     // Shake animation offset
     val shakeOffset = remember { Animatable(0f) }
@@ -87,14 +103,36 @@ fun LoginScreen(
     // Track whether we were Authenticating so we know if going to Idle is a failure
     var wasAuthenticating by remember { mutableStateOf(false) }
 
+    // Runs the biometric prompt and, on success, feeds the decrypted PIN into the
+    // normal auth flow.
+    val triggerBiometricUnlock: () -> Unit = unlock@{
+        val act = activity ?: return@unlock
+        BiometricVault.unlock(
+            activity     = act,
+            title        = strings.biometricPromptTitle,
+            subtitle     = strings.biometricPromptSubtitle,
+            negativeText = strings.biometricUsePin,
+            onPin        = { recoveredPin -> authViewModel.authenticate(recoveredPin) },
+            onError      = { /* user cancelled or failed — fall back to the keypad */ }
+        )
+    }
+
     LaunchedEffect(authState) {
         when (authState) {
             is AuthViewModel.AuthState.Authenticating -> {
                 wasAuthenticating = true
             }
             is AuthViewModel.AuthState.Success -> {
+                wasAuthenticating = false
+                val user = authState.user
                 authViewModel.resetState()
-                onAuthSuccess(authState.user)
+                // Offer to turn on biometric fast-unlock after a successful PIN
+                // login, but only if the device supports it and it isn't on yet.
+                if (biometricAvailable && !biometricEnabled && lastPin.length == PIN_LENGTH) {
+                    offerEnableFor = user
+                } else {
+                    onAuthSuccess(user)
+                }
             }
             is AuthViewModel.AuthState.DecoyMode -> {
                 authViewModel.resetState()
@@ -128,6 +166,12 @@ fun LoginScreen(
                 }
             }
         }
+    }
+
+    // Auto-prompt biometric once on first display if it's enabled, so a returning
+    // user can unlock without touching the keypad.
+    LaunchedEffect(Unit) {
+        if (biometricEnabled && biometricAvailable) triggerBiometricUnlock()
     }
 
     DashboardTheme {
@@ -319,6 +363,7 @@ fun LoginScreen(
                                                 if (!isAuthenticating && pin.length < PIN_LENGTH) {
                                                     pin += key
                                                     if (pin.length == PIN_LENGTH) {
+                                                        lastPin = pin
                                                         authViewModel.authenticate(pin)
                                                     }
                                                 }
@@ -343,6 +388,26 @@ fun LoginScreen(
                                 }
                             }
                         }
+                    }
+                }
+
+                // ── Biometric unlock button ───────────────────────────────────
+                if (biometricEnabled && biometricAvailable) {
+                    Spacer(Modifier.height(20.dp))
+                    IconButton(
+                        onClick  = triggerBiometricUnlock,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .shadow(4.dp, CircleShape)
+                            .clip(CircleShape)
+                            .background(DashboardSurface)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Default.Fingerprint,
+                            contentDescription = strings.biometricUnlockCd,
+                            tint               = DeepRose,
+                            modifier           = Modifier.size(32.dp)
+                        )
                     }
                 }
 
@@ -371,6 +436,52 @@ fun LoginScreen(
                 current   = currentLanguage,
                 onPick    = { langVm.setLanguage(it); showLangPicker = false },
                 onDismiss = { showLangPicker = false }
+            )
+        }
+
+        // ── Offer to enable biometric fast-unlock after first PIN login ───────
+        offerEnableFor?.let { user ->
+            val pinToStore = lastPin
+            AlertDialog(
+                onDismissRequest = {
+                    offerEnableFor = null
+                    lastPin = ""
+                    onAuthSuccess(user)
+                },
+                title = { Text(strings.biometricEnableTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.biometricEnableBody, color = RoseGold, fontSize = 14.sp) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        offerEnableFor = null
+                        val act = activity
+                        if (act != null) {
+                            BiometricVault.enable(
+                                activity     = act,
+                                pin          = pinToStore,
+                                title        = strings.biometricEnableTitle,
+                                subtitle     = strings.biometricPromptSubtitle,
+                                negativeText = strings.biometricEnableSkip,
+                                onSuccess    = { biometricEnabled = true; lastPin = ""; onAuthSuccess(user) },
+                                onError      = { lastPin = ""; onAuthSuccess(user) }
+                            )
+                        } else {
+                            lastPin = ""
+                            onAuthSuccess(user)
+                        }
+                    }) {
+                        Text(strings.biometricEnableYes, color = DeepRose, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        offerEnableFor = null
+                        lastPin = ""
+                        onAuthSuccess(user)
+                    }) {
+                        Text(strings.biometricEnableSkip, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
             )
         }
     }

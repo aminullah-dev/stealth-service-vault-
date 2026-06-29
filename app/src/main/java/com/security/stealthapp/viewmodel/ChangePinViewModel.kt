@@ -1,5 +1,6 @@
 package com.security.stealthapp.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,8 +9,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.security.BiometricVault
 import com.security.stealthapp.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -18,7 +21,8 @@ class ChangePinViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repo: FirestoreRepository,
     private val auth: FirebaseAuthManager,
-    private val pinHasher: PinHasher
+    private val pinHasher: PinHasher,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     val userId: String = checkNotNull(savedStateHandle["userId"])
@@ -80,6 +84,10 @@ class ChangePinViewModel @Inject constructor(
                 auth.reauthenticate(user.firebaseEmail, oldAuthPassword).getOrThrow()
                 auth.updatePassword(newAuthPassword).getOrThrow()
                 repo.updateUserPin(userId, newHash, newSalt)
+
+                // The stored biometric PIN is now stale — clear it so the user is
+                // re-offered fast-unlock with the new PIN on next login.
+                BiometricVault.disable(context)
 
                 currentPin = ""; newPin = ""; confirmPin = ""
                 state = State.Success

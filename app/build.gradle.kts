@@ -93,6 +93,11 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
 
+    // Biometric fast-unlock (BiometricPrompt + CryptoObject). Pulls in
+    // androidx.fragment, which MainActivity needs as its base class.
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
+
     // Compose BOM — aligns all Compose library versions
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
