@@ -10,6 +10,7 @@ import com.security.stealthapp.data.db.dao.SecureLogDao
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.FirestoreSeeder
+import com.security.stealthapp.data.firebase.PaymentRepository
 import com.security.stealthapp.data.firebase.StorageRepository
 import com.security.stealthapp.data.repository.FavoritesRepository
 import com.security.stealthapp.data.repository.LanguageRepository
@@ -75,6 +76,9 @@ object AppModule {
 
     @Provides @Singleton
     fun provideStorageRepository(): StorageRepository = StorageRepository()
+
+    @Provides @Singleton
+    fun providePaymentRepository(): PaymentRepository = PaymentRepository()
 
     @Provides @Singleton
     fun provideFavoritesRepository(favoriteSalonDao: FavoriteSalonDao): FavoritesRepository =

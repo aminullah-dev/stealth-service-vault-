@@ -142,6 +142,7 @@ dependencies {
     implementation("com.google.firebase:firebase-crashlytics-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
 
     // Coil — URL-based image loading in Compose (replaces in-memory Base64 bitmaps)
     implementation("io.coil-kt:coil-compose:2.6.0")

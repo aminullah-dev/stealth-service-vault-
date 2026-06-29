@@ -2,6 +2,7 @@ package com.security.stealthapp.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -130,6 +131,7 @@ import com.security.stealthapp.ui.theme.WarmGold
 import coil.compose.AsyncImage
 import com.security.stealthapp.util.ImageUtils
 import com.security.stealthapp.util.NotificationHelper
+import com.security.stealthapp.viewmodel.CheckoutUiState
 import com.security.stealthapp.viewmodel.DashboardViewModel
 import com.security.stealthapp.viewmodel.ExportPhase
 import com.security.stealthapp.viewmodel.ExportViewModel
@@ -841,6 +843,97 @@ fun HiddenDashboardScreen(
                 },
                 containerColor = ElegantCream
             )
+        }
+
+        // ── Payment / HesabPay checkout ───────────────────────────────────────
+        run {
+            val openCheckout: (String) -> Unit = { url ->
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+            when (val state = viewModel.checkout) {
+                is CheckoutUiState.Creating -> {
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text(strings.paymentTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(color = RoseGold, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(14.dp))
+                                Text(strings.paymentPreparing, fontSize = 14.sp, color = Color(0xFF555555))
+                            }
+                        },
+                        confirmButton = { },
+                        containerColor = ElegantCream
+                    )
+                }
+
+                is CheckoutUiState.AwaitingPayment -> {
+                    // Open the HesabPay checkout page once when we enter this state.
+                    LaunchedEffect(state.session.paymentId) {
+                        openCheckout(state.session.checkoutUrl)
+                    }
+                    AlertDialog(
+                        onDismissRequest = { },
+                        title = { Text(strings.paymentTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    "${strings.paymentAmount}: ${state.session.amount} AFN",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = DeepRose
+                                )
+                                Text(strings.paymentOpenInstruction, fontSize = 13.sp, color = Color(0xFF555555))
+                                Spacer(Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(color = RoseGold, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(strings.paymentWaiting, fontSize = 13.sp, color = RoseGold)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { openCheckout(state.session.checkoutUrl) }) {
+                                Text(strings.paymentOpenAgain, color = RoseGold)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { viewModel.cancelCheckout() }) {
+                                Text(strings.cancel, color = RoseGold)
+                            }
+                        },
+                        containerColor = ElegantCream
+                    )
+                }
+
+                is CheckoutUiState.Failed -> {
+                    AlertDialog(
+                        onDismissRequest = { viewModel.cancelCheckout() },
+                        title = { Text(strings.paymentTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                        text = { Text(strings.paymentFailed, fontSize = 14.sp, color = Color(0xFF555555)) },
+                        confirmButton = {
+                            Button(
+                                onClick = { viewModel.cancelCheckout() },
+                                colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                            ) { Text(strings.ok, color = Color.White) }
+                        },
+                        containerColor = ElegantCream
+                    )
+                }
+
+                is CheckoutUiState.Paid -> {
+                    // Reset checkout; the booking-confirmation dialog (driven by
+                    // bookingConfirmSalonName) shows the success message.
+                    LaunchedEffect(Unit) { viewModel.cancelCheckout() }
+                }
+
+                CheckoutUiState.Idle -> { /* nothing */ }
+            }
         }
 
         // ── Waitlist join confirmation ────────────────────────────────────────

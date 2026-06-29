@@ -146,3 +146,38 @@ data class NotificationDocument(
     val createdAt: Long = 0L,
     val relatedId: String = ""              // optional appointmentId or other related doc id
 )
+
+/**
+ * One payment record per booking. Created and updated exclusively by the
+ * createPaymentSession / hesabPayWebhook Cloud Functions — the client only reads
+ * it to observe payment status. The amount is split into the platform's
+ * commission and the provider's net (commission % is set globally by the admin).
+ *
+ * status: "PENDING" | "PAID" | "FAILED"
+ */
+data class PaymentDocument(
+    val id: String = "",
+    val appointmentId: String = "",
+    val customerId: String = "",
+    val providerId: String = "",
+    val salonId: String = "",
+    val serviceName: String = "",
+    val amount: Long = 0L,                  // total charged to the customer
+    val commissionPercent: Double = 0.0,
+    val commissionAmount: Long = 0L,        // platform's cut
+    val providerNet: Long = 0L,             // what the provider is owed
+    val currency: String = "AFN",
+    val status: String = "PENDING",
+    val hesabSessionId: String = "",
+    val createdAt: Long = 0L,
+    val paidAt: Long = 0L
+)
+
+/**
+ * Singleton platform-wide settings document at platform_config/general.
+ * Only admins may write it (see firestore.rules); the commission percent is
+ * read server-side by the payment Cloud Function so the client can't tamper.
+ */
+data class PlatformConfigDocument(
+    val commissionPercent: Double = 10.0
+)

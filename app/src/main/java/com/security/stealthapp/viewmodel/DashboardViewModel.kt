@@ -18,6 +18,8 @@ import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.NotificationDocument
+import com.security.stealthapp.data.firebase.PaymentRepository
+import com.security.stealthapp.data.firebase.CheckoutSession
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.LoyaltyTier
@@ -68,12 +70,22 @@ data class BookingStatusChange(
     val appointmentDate: Long = 0L
 )
 
+/** UI state machine for the prepay-at-booking HesabPay checkout. */
+sealed interface CheckoutUiState {
+    data object Idle : CheckoutUiState
+    data object Creating : CheckoutUiState                     // contacting the backend
+    data class AwaitingPayment(val session: CheckoutSession) : CheckoutUiState // open URL + poll
+    data class Paid(val salonName: String) : CheckoutUiState
+    data class Failed(val message: String) : CheckoutUiState
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
     private val storageRepository: StorageRepository,
+    private val paymentRepository: PaymentRepository,
     private val vaultRepository: VaultRepository,
     private val languageRepository: LanguageRepository,
     private val favoritesRepository: FavoritesRepository,
@@ -89,6 +101,7 @@ class DashboardViewModel @Inject constructor(
     private val _selectedNeighborhoodIndex  = MutableStateFlow(0)
     private val _currentUserName            = MutableStateFlow("")
     private val _currentUserPhone           = MutableStateFlow("")
+    private val _currentUserEmail           = MutableStateFlow("")
     private val _currentUserPhoto           = MutableStateFlow("")
     private val _isOffline                  = MutableStateFlow(false)
     private val _showFavoritesOnly          = MutableStateFlow(false)
@@ -159,6 +172,9 @@ class DashboardViewModel @Inject constructor(
 
     val myAppointments: StateFlow<List<AppointmentDocument>> =
         firestoreRepository.observeForCustomer(customerId)
+            // Hide unpaid bookings: an AWAITING_PAYMENT row exists only between
+            // creating the checkout and the payment webhook confirming it.
+            .map { list -> list.filter { it.status != "AWAITING_PAYMENT" } }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -231,6 +247,12 @@ class DashboardViewModel @Inject constructor(
     var waitlistJoinedSalonName by mutableStateOf<String?>(null)
         private set
 
+    // ── Payment / checkout flow (prepay at booking via HesabPay) ────────────────
+    var checkout by mutableStateOf<CheckoutUiState>(CheckoutUiState.Idle)
+        private set
+
+    private var paymentStatusJob: kotlinx.coroutines.Job? = null
+
     var lockTriggered by mutableStateOf(false)
         private set
 
@@ -262,6 +284,7 @@ class DashboardViewModel @Inject constructor(
                 ?.let {
                     _currentUserName.value = it.name
                     _currentUserPhone.value = it.phone
+                    _currentUserEmail.value = it.email
                     // Prefer Storage URL; fall back to legacy Base64 for pre-migration photos.
                     _currentUserPhoto.value = it.profilePhotoUrl.ifBlank { it.profilePhotoBase64 }
                     editName = it.name
@@ -467,40 +490,56 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Starts the prepay-at-booking flow: asks the backend to create the
+     * appointment (AWAITING_PAYMENT) plus a HesabPay checkout session. The UI then
+     * opens [CheckoutSession.checkoutUrl] and we poll the payment status until the
+     * webhook flips it to PAID (which also releases the booking to the provider).
+     */
     fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long, notes: String = "") {
+        checkout = CheckoutUiState.Creating
         viewModelScope.launch {
-            runCatching {
-                firestoreRepository.createAppointment(
-                    AppointmentDocument(
-                        customerId      = customerId,
-                        customerName    = _currentUserName.value,
-                        customerPhone   = _currentUserPhone.value,
-                        salonId         = salon.id,
-                        salonName       = salon.salonName,
-                        serviceName     = serviceName,
-                        appointmentDate = appointmentDateMs,
-                        createdAt       = System.currentTimeMillis(),
-                        notes           = notes
-                    )
-                )
-                vaultRepository.log(
-                    "APPOINTMENT_CREATED",
-                    "salonId=${salon.id} service=$serviceName"
-                )
-                runCatching {
-                    firestoreRepository.createNotification(
-                        NotificationDocument(
-                            recipientId = salon.providerId,
-                            type        = "NEW_BOOKING",
-                            title       = "New Booking Request",
-                            body        = "${_currentUserName.value} — $serviceName",
-                            createdAt   = System.currentTimeMillis()
-                        )
-                    )
+            val session = paymentRepository.createCheckout(
+                salonId           = salon.id,
+                serviceName       = serviceName,
+                appointmentDateMs = appointmentDateMs,
+                notes             = notes,
+                email             = _currentUserEmail.value
+            )
+            if (session == null) {
+                checkout = CheckoutUiState.Failed("checkout_failed")
+                return@launch
+            }
+            vaultRepository.log(
+                "PAYMENT_STARTED",
+                "salonId=${salon.id} service=$serviceName amount=${session.amount}"
+            )
+            checkout = CheckoutUiState.AwaitingPayment(session)
+            observePayment(session.paymentId, salon.salonName)
+        }
+    }
+
+    private fun observePayment(paymentId: String, salonName: String) {
+        paymentStatusJob?.cancel()
+        paymentStatusJob = viewModelScope.launch {
+            paymentRepository.observePaymentStatus(paymentId).collect { status ->
+                when (status) {
+                    "PAID" -> {
+                        vaultRepository.log("PAYMENT_PAID", "paymentId=$paymentId")
+                        checkout = CheckoutUiState.Paid(salonName)
+                        bookingConfirmSalonName = salonName
+                    }
+                    "FAILED" -> checkout = CheckoutUiState.Failed("payment_failed")
+                    else -> { /* PENDING — keep waiting */ }
                 }
-                bookingConfirmSalonName = salon.salonName
             }
         }
+    }
+
+    /** Called when the user backs out of the payment screen without paying. */
+    fun cancelCheckout() {
+        paymentStatusJob?.cancel()
+        checkout = CheckoutUiState.Idle
     }
 
     fun dismissConfirmation() { bookingConfirmSalonName = null }

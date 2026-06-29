@@ -107,9 +107,10 @@ service cloud.firestore {
                    || ownsThisSalon(resource.data.salonId)
                    || isAdmin());
 
-      // Customers book for themselves only.
-      allow create: if isCustomer() && isApproved()
-                 && request.resource.data.customerId == me();
+      // Appointments are created exclusively by the createPaymentSession Cloud
+      // Function (Admin SDK bypasses these rules). This enforces pay-first: a
+      // client cannot create a booking without going through HesabPay payment.
+      allow create: if false;
 
       // Provider confirms or cancels; admin can do anything.
       // Customer may cancel their own PENDING appointment (status field only).
@@ -203,6 +204,33 @@ service cloud.firestore {
       // Only the recipient marks as read / deletes.
       allow update: if resource.data.recipientId == me() || isAdmin();
       allow delete: if resource.data.recipientId == me() || isAdmin();
+    }
+
+    // ── payments ─────────────────────────────────────────────────────────────
+    // Written exclusively by the payment Cloud Functions (Admin SDK bypasses
+    // these rules). Clients may only READ their own payment to observe status.
+    match /payments/{paymentId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || resource.data.providerId == me()
+                   || isAdmin());
+      allow write: if false;
+    }
+
+    // ── platform_config ────────────────────────────────────────────────────────
+    // Global settings (e.g. commissionPercent). Readable by signed-in users;
+    // writable only by admins. The payment function reads it server-side.
+    match /platform_config/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── provider_balances ───────────────────────────────────────────────────────
+    // Ledger of what each provider is owed. Maintained by the webhook Cloud
+    // Function; a provider may read only their own balance.
+    match /provider_balances/{providerId} {
+      allow read:  if ownsDoc(providerId) || isAdmin();
+      allow write: if false;
     }
   }
 }
