@@ -43,6 +43,8 @@ class FirestoreRepository @Inject constructor(
     private val galleryCol      = db.collection("salon_gallery")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
+    private val platformConfigCol  = db.collection("platform_config")
+    private val providerBalancesCol = db.collection("provider_balances")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -538,6 +540,41 @@ class FirestoreRepository @Inject constructor(
     suspend fun deleteNotification(notificationId: String) {
         runCatching { notificationsCol.document(notificationId).delete().await() }
             .onFailure { CrashReporter.recordNonFatal(it, "firestore:deleteNotification") }
+    }
+
+    // ── Platform config (commission) ────────────────────────────────────────────
+
+    /** Live commission percent from platform_config/general (defaults to 10%). */
+    fun observeCommissionPercent(): Flow<Double> = callbackFlow {
+        val listener = platformConfigCol.document("general")
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(10.0); return@addSnapshotListener }
+                trySend(snap?.getDouble("commissionPercent") ?: 10.0)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /** Admin-only write (enforced by security rules). */
+    suspend fun setCommissionPercent(percent: Double) {
+        platformConfigCol.document("general")
+            .set(mapOf("commissionPercent" to percent), com.google.firebase.firestore.SetOptions.merge())
+            .await()
+    }
+
+    // ── Provider balances (payout ledger) ────────────────────────────────────────
+
+    /** Live list of what the platform owes each provider, highest first. */
+    fun observeProviderBalances(): Flow<List<ProviderBalance>> = callbackFlow {
+        val listener = providerBalancesCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(ProviderBalance::class.java) }
+                ?.filter { it.owedAmount > 0 }
+                ?.sortedByDescending { it.owedAmount }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────

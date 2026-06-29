@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Send
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.data.firebase.BroadcastDocument
+import com.security.stealthapp.data.firebase.ProviderBalance
 import com.security.stealthapp.data.firebase.SalonBadge
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
@@ -114,12 +117,14 @@ fun AdminDashboardScreen(
     val allSalons        by viewModel.allSalons.collectAsStateWithLifecycle()
     val stats            by viewModel.stats.collectAsStateWithLifecycle()
     val broadcasts       by viewModel.broadcasts.collectAsStateWithLifecycle()
+    val commissionPercent by viewModel.commissionPercent.collectAsStateWithLifecycle()
+    val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
         strings.approvalQueueSubtitle, strings.tabUsers,
-        strings.tabSalons, strings.tabStats, strings.tabBroadcast
+        strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance
     )
 
     DashboardTheme {
@@ -196,6 +201,7 @@ fun AdminDashboardScreen(
                     2 -> SalonsTab(allSalons, viewModel)
                     3 -> StatsTab(stats)
                     4 -> BroadcastTab(broadcasts, viewModel)
+                    5 -> FinanceTab(commissionPercent, providerBalances, viewModel)
                 }
             }
         }
@@ -774,6 +780,177 @@ private fun BroadcastCard(broadcast: BroadcastDocument, timeLabel: String) {
                 Spacer(Modifier.height(4.dp))
                 Text(timeLabel, fontSize = 11.sp, color = RoseGold)
             }
+        }
+    }
+}
+
+// ── Tab 5: Finance (commission + payouts) ──────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FinanceTab(
+    commissionPercent: Double,
+    balances: List<ProviderBalance>,
+    viewModel: AdminViewModel
+) {
+    val strings = LocalStrings.current
+
+    // Seed the editable field from the live value the first time it arrives.
+    LaunchedEffect(commissionPercent) {
+        if (viewModel.commissionInput.isBlank()) {
+            viewModel.commissionInput =
+                if (commissionPercent % 1.0 == 0.0) commissionPercent.toInt().toString()
+                else commissionPercent.toString()
+        }
+    }
+
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── Commission setting card ───────────────────────────────────────────
+        item {
+            ElevatedCard(
+                shape     = RoundedCornerShape(16.dp),
+                colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                modifier  = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(DeepRose.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(Icons.Default.Percent, null, tint = DeepRose, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            strings.financeCommissionTitle,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 16.sp,
+                            color      = DeepRose
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(strings.financeCommissionHint, fontSize = 12.sp, color = RoseGold)
+                    Spacer(Modifier.height(14.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value         = viewModel.commissionInput,
+                            onValueChange = { input ->
+                                // Allow digits and a single decimal point only.
+                                if (input.isEmpty() || input.matches(Regex("^\\d{0,3}(\\.\\d{0,2})?$"))) {
+                                    viewModel.commissionInput = input
+                                }
+                            },
+                            label       = { Text(strings.financeCommissionLabel, fontSize = 13.sp) },
+                            singleLine  = true,
+                            modifier    = Modifier.weight(1f),
+                            shape       = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal,
+                                imeAction    = ImeAction.Done
+                            ),
+                            colors      = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor   = DeepRose,
+                                unfocusedBorderColor = BlushPink,
+                                focusedLabelColor    = DeepRose
+                            )
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            onClick = { viewModel.saveCommission() },
+                            enabled = viewModel.commissionInput.toDoubleOrNull()?.let { it in 0.0..100.0 } == true,
+                            shape   = RoundedCornerShape(12.dp),
+                            colors  = ButtonDefaults.buttonColors(containerColor = DeepRose),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)
+                        ) {
+                            Text(strings.financeSave, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Provider payout ledger ────────────────────────────────────────────
+        item {
+            Text(
+                strings.financeBalancesTitle,
+                fontSize   = 13.sp,
+                color      = RoseGold,
+                fontWeight = FontWeight.SemiBold,
+                modifier   = Modifier.padding(top = 4.dp)
+            )
+        }
+
+        if (balances.isEmpty()) {
+            item {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Payments, null, tint = BlushPink, modifier = Modifier.size(56.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text(strings.financeBalancesNone, fontSize = 13.sp, color = RoseGold)
+                    }
+                }
+            }
+        } else {
+            items(balances, key = { it.providerId }) { balance ->
+                ProviderBalanceRow(balance)
+            }
+        }
+    }
+
+    if (viewModel.commissionSaved) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissCommissionSaved() },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissCommissionSaved() }) {
+                    Text(strings.ok, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = { Text(strings.financeSaved, color = DeepRose) }
+        )
+    }
+}
+
+@Composable
+private fun ProviderBalanceRow(balance: ProviderBalance) {
+    val strings = LocalStrings.current
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.padding(14.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(40.dp)
+                    .background(AvailableGreen.copy(alpha = 0.12f), CircleShape)
+            ) {
+                Icon(Icons.Default.Payments, null, tint = AvailableGreen, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(balance.providerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                Text(strings.financeOwed, fontSize = 11.sp, color = RoseGold)
+            }
+            Text(
+                "${balance.owedAmount} AFN",
+                fontWeight = FontWeight.Bold,
+                fontSize   = 16.sp,
+                color      = AvailableGreen
+            )
         }
     }
 }

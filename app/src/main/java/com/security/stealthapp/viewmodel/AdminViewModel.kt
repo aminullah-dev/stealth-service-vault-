@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
+import com.security.stealthapp.data.firebase.ProviderBalance
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
 import com.security.stealthapp.data.repository.VaultRepository
@@ -66,9 +67,44 @@ class AdminViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // ── Finance: commission + provider payout ledger ────────────────────────────
+
+    val commissionPercent: StateFlow<Double> =
+        firestoreRepository.observeCommissionPercent()
+            .catch { emit(10.0) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 10.0)
+
+    /** Provider balances joined with provider display names for the UI. */
+    val providerBalances: StateFlow<List<ProviderBalance>> =
+        combine(firestoreRepository.observeProviderBalances(), allUsers) { balances, users ->
+            val nameById = users.associate { it.uid to it.name }
+            balances.map { it.copy(providerName = nameById[it.providerId] ?: it.providerId) }
+        }
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    var commissionInput by mutableStateOf("")
+    var commissionSaved by mutableStateOf(false)
+        private set
+
     var broadcastText by mutableStateOf("")
     var lockTriggered by mutableStateOf(false)
         private set
+
+    /** Parses [commissionInput] (0–100) and persists it; ignores invalid input. */
+    fun saveCommission() {
+        val percent = commissionInput.trim().toDoubleOrNull() ?: return
+        if (percent < 0.0 || percent > 100.0) return
+        viewModelScope.launch {
+            runCatching { firestoreRepository.setCommissionPercent(percent) }
+                .onSuccess {
+                    commissionSaved = true
+                    vaultRepository.log("ADMIN_SET_COMMISSION", "percent=$percent")
+                }
+        }
+    }
+
+    fun dismissCommissionSaved() { commissionSaved = false }
 
     fun suspendUser(uid: String) {
         viewModelScope.launch {

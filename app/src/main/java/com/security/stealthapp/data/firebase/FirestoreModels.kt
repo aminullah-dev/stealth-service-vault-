@@ -181,3 +181,16 @@ data class PaymentDocument(
 data class PlatformConfigDocument(
     val commissionPercent: Double = 10.0
 )
+
+/**
+ * Running ledger of what the platform owes each provider. Maintained by the
+ * hesabPayWebhook Cloud Function (clients can't write it). owedAmount
+ * accumulates each booking's providerNet; the admin reads this to know payouts.
+ */
+data class ProviderBalance(
+    val providerId: String = "",
+    val owedAmount: Long = 0L,
+    val updatedAt: Long = 0L,
+    // Joined in client-side for display — not stored on the doc.
+    val providerName: String = ""
+)
