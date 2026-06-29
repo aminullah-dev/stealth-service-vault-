@@ -170,8 +170,23 @@ exports.createPaymentSession = onCall(
       if (!res.ok || !body) {
         throw new Error(`HesabPay create-session failed: ${res.status}`);
       }
-      sessionUrl = body.url || body.payment_url || body.sessionUrl || "";
-      sessionId = body.id || body.session_id || body.sessionId || "";
+      // Log the raw shape ONCE during integration so the exact field names can be
+      // confirmed from the Cloud Functions logs, then the fallbacks below trimmed.
+      // (Safe to keep — contains no card data, only the checkout URL + ids.)
+      logger.info("HesabPay create-session response", { body });
+      sessionUrl =
+        body.url ||
+        body.payment_url ||
+        body.sessionUrl ||
+        body.checkout_url ||
+        (body.data && (body.data.url || body.data.payment_url)) ||
+        "";
+      sessionId =
+        body.id ||
+        body.session_id ||
+        body.sessionId ||
+        (body.data && (body.data.id || body.data.session_id)) ||
+        "";
       if (!sessionUrl) throw new Error("HesabPay returned no checkout URL.");
     } catch (err) {
       // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings.
@@ -204,6 +219,13 @@ exports.hesabPayWebhook = onRequest(
     }
 
     const payload = req.body || {};
+
+    // Log the raw webhook ONCE during integration to confirm field names
+    // (status, metadata, signature header) against the HesabPay dashboard.
+    logger.info("HesabPay webhook received", {
+      headers: { signature: req.get("x-hesab-signature") },
+      body: payload,
+    });
 
     // Verify the webhook signature with HesabPay so a forged request can't mark
     // an unpaid booking as PAID.
