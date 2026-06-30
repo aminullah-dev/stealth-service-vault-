@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,10 +13,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.compose.rememberNavController
+import com.security.stealthapp.BuildConfig
 import com.security.stealthapp.navigation.AppNavGraph
 import com.security.stealthapp.navigation.NotificationDeeplink
 import com.security.stealthapp.security.SessionManager
+import com.security.stealthapp.ui.components.ForceUpdateDialog
 import com.security.stealthapp.util.NotificationHelper
+import com.security.stealthapp.viewmodel.ForceUpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -23,6 +27,8 @@ import javax.inject.Inject
 class MainActivity : FragmentActivity() {
 
     @Inject lateinit var sessionManager: SessionManager
+
+    private val forceUpdateViewModel: ForceUpdateViewModel by viewModels()
 
     // Persists across recompositions so AppNavGraph can consume it after login.
     private var pendingDeeplink by mutableStateOf<NotificationDeeplink?>(null)
@@ -38,6 +44,8 @@ class MainActivity : FragmentActivity() {
             }
         )
 
+        forceUpdateViewModel.check(BuildConfig.VERSION_CODE)
+
         pendingDeeplink = intent.toNotificationDeeplink()
 
         setContent {
@@ -48,6 +56,14 @@ class MainActivity : FragmentActivity() {
                 notifDeeplink      = pendingDeeplink,
                 onDeeplinkConsumed = { pendingDeeplink = null }
             )
+
+            // Overlay a non-dismissible dialog if a forced update is required.
+            forceUpdateViewModel.updateInfo?.let { info ->
+                ForceUpdateDialog(
+                    minVersionName = info.minVersionName,
+                    updateUrl      = info.updateUrl,
+                )
+            }
         }
     }
 
