@@ -53,26 +53,30 @@ service cloud.firestore {
 
     // ── users ──────────────────────────────────────────────────────────────────
     //
-    // ⚠️  ARCHITECTURE LIMITATION:
-    //    getUserByPhone() is called BEFORE Firebase Auth (the app needs the
-    //    synthetic firebaseEmail to call signInWithEmailAndPassword). Until this
-    //    lookup is moved to a Cloud Function (or Anonymous Auth is adopted as a
-    //    pre-step), list reads must remain open to unauthenticated callers.
-    //
-    //    Production hardening path:
-    //    1. Enable Anonymous Auth in Firebase Console.
-    //    2. Call signInAnonymously() in FirebaseAuthManager before getUserByPhone().
-    //    3. Change "allow list: if true" → "allow list: if isSignedIn()".
-    //    4. Or replace getUserByPhone() with a callable Cloud Function entirely.
+    // Login and the pre-auth phone lookup are now Cloud Functions
+    // (authenticateWithPin / lookupAccountByPhone) that run with the Admin SDK
+    // and bypass these rules. Clients therefore never need to read the users
+    // collection pre-auth, so reads are locked down: a user may read only their
+    // OWN document, and only an admin may list users. This closes the previous
+    // hole where the entire credential table (every pinHash/salt) was readable.
     //
     match /users/{uid} {
-      // Open read is required for the pre-auth phone lookup.
-      allow get:  if true;
-      allow list: if true; // ⚠️ see architecture note above
+      allow get:  if isSignedIn() && (ownsDoc(uid) || isAdmin());
+      allow list: if isAdmin();
 
       // Only the user themselves can register their own document (Firebase Auth
       // guarantees request.auth.uid == uid after createUserWithEmailAndPassword).
-      allow create: if isSignedIn() && me() == uid;
+      // A self-registration may ONLY be a CUSTOMER (auto-approved) or a PROVIDER
+      // (starts PENDING, awaiting admin approval) — never an ADMIN, and a provider
+      // may not self-approve. The first ADMIN is bootstrapped out-of-band (console
+      // / setup), not through this path.
+      allow create: if isSignedIn() && me() == uid
+                 && (
+                      (request.resource.data.role == 'CUSTOMER'
+                       && request.resource.data.status == 'APPROVED')
+                   || (request.resource.data.role == 'PROVIDER'
+                       && request.resource.data.status == 'PENDING')
+                    );
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are

@@ -6,15 +6,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.model.LoggedInUser
 import com.security.stealthapp.data.model.UserRole
 import com.security.stealthapp.data.repository.VaultRepository
+import com.security.stealthapp.security.BiometricVault
+import com.security.stealthapp.security.DatabaseKeyManager
 import com.security.stealthapp.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -23,14 +27,17 @@ class AuthViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher,
     private val vaultRepository: VaultRepository,
+    private val databaseKeyManager: DatabaseKeyManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
+
+    private val functions = FirebaseFunctions.getInstance()
 
     sealed class AuthState {
         object Idle           : AuthState()
         object Authenticating : AuthState()
         data class Success(val user: LoggedInUser) : AuthState()
-        object DecoyMode      : AuthState()   // decoy PIN entered → show fake notepad
+        object DecoyMode      : AuthState()   // decoy PIN entered → wipe + fake notepad
         object Failure        : AuthState()
     }
 
@@ -44,46 +51,63 @@ class AuthViewModel @Inject constructor(
             authState = AuthState.Authenticating
 
             runCatching {
-                val users = firestoreRepository.getAllUsersForAuth()
+                // PIN verification happens server-side now — the credential table
+                // is never downloaded to the device. We send only the PIN.
+                val result = functions
+                    .getHttpsCallable("authenticateWithPin")
+                    .call(hashMapOf("pin" to pin))
+                    .await()
 
-                // Real PIN check first — APPROVED users only
-                val matched = users.firstOrNull { u ->
-                    u.status == "APPROVED" &&
-                    pinHasher.verify(pin, u.salt, u.pinHash)
-                }
+                @Suppress("UNCHECKED_CAST")
+                val map = result.getData() as? Map<String, Any?> ?: emptyMap()
 
-                if (matched != null) {
-                    val authPassword = pinHasher.deriveAuthPassword(pin, matched.salt)
-                    firebaseAuth.signIn(matched.firebaseEmail, authPassword).getOrThrow()
+                when (map["mode"] as? String) {
+                    "REAL" -> {
+                        val uid     = map["uid"]           as? String ?: ""
+                        val name    = map["name"]          as? String ?: ""
+                        val email   = map["firebaseEmail"] as? String ?: ""
+                        val salt    = map["salt"]          as? String ?: ""
+                        val roleStr = map["role"]          as? String ?: "CUSTOMER"
 
-                    val role = when (matched.role) {
-                        "PROVIDER" -> UserRole.PROVIDER
-                        "ADMIN"    -> UserRole.ADMIN
-                        else       -> UserRole.CUSTOMER
+                        // Derive the Firebase Auth password from the PIN + salt and
+                        // sign in (unchanged auth mechanism — only the lookup moved).
+                        val authPassword = pinHasher.deriveAuthPassword(pin, salt)
+                        firebaseAuth.signIn(email, authPassword).getOrThrow()
+
+                        val role = when (roleStr) {
+                            "PROVIDER" -> UserRole.PROVIDER
+                            "ADMIN"    -> UserRole.ADMIN
+                            else       -> UserRole.CUSTOMER
+                        }
+                        vaultRepository.log("AUTH_SUCCESS", "uid=$uid role=$roleStr")
+
+                        val fcmToken = context
+                            .getSharedPreferences("fcm_prefs", Context.MODE_PRIVATE)
+                            .getString("fcm_token", null)
+                        if (!fcmToken.isNullOrBlank()) {
+                            runCatching { firestoreRepository.updateFcmToken(uid, fcmToken) }
+                        }
+
+                        authState = AuthState.Success(
+                            LoggedInUser(uid = uid, name = name, role = role)
+                        )
                     }
-                    val user = LoggedInUser(uid = matched.uid, name = matched.name, role = role)
-                    vaultRepository.log("AUTH_SUCCESS", "uid=${matched.uid} role=${matched.role}")
 
-                    val fcmToken = context
-                        .getSharedPreferences("fcm_prefs", Context.MODE_PRIVATE)
-                        .getString("fcm_token", null)
-                    if (!fcmToken.isNullOrBlank()) {
-                        runCatching { firestoreRepository.updateFcmToken(matched.uid, fcmToken) }
-                    }
-
-                    authState = AuthState.Success(user)
-                } else {
-                    // Decoy PIN check — any user with a configured decoy PIN
-                    val decoyMatch = users.firstOrNull { u ->
-                        u.decoyPinHash.isNotBlank() && u.decoySalt.isNotBlank() &&
-                        pinHasher.verify(pin, u.decoySalt, u.decoyPinHash)
-                    }
-                    if (decoyMatch != null) {
-                        vaultRepository.log("DECOY_PIN_USED", "uid=${decoyMatch.uid}")
+                    "DECOY" -> {
+                        // Duress: the server has already wiped the cloud account.
+                        // Now erase everything on the device — local DB rows, the
+                        // SQLCipher key (cryptographic wipe), and any biometric PIN —
+                        // BEFORE showing the fake notepad. No log is written, so the
+                        // decoy path is forensically indistinguishable from a normal
+                        // login. Order matters: clear DB rows while the key still
+                        // exists, then destroy the key.
+                        runCatching { vaultRepository.nukeAllData() }
+                        runCatching { BiometricVault.disable(context) }
+                        runCatching { databaseKeyManager.nukePassphrase() }
                         authState = AuthState.DecoyMode
-                    } else {
-                        authState = AuthState.Idle // silent fail
                     }
+
+                    else -> authState = AuthState.Idle // silent fail
                 }
             }.onFailure {
                 authState = AuthState.Idle // network error → silent fail

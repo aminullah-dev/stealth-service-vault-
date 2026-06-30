@@ -6,11 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,6 +22,8 @@ class SetNewPinViewModel @Inject constructor(
     private val auth: FirebaseAuthManager,
     private val pinHasher: PinHasher
 ) : ViewModel() {
+
+    private val functions = FirebaseFunctions.getInstance()
 
     val oobCode: String = checkNotNull(savedStateHandle["oobCode"])
 
@@ -53,8 +57,16 @@ class SetNewPinViewModel @Inject constructor(
         viewModelScope.launch {
             state = State.Loading
             runCatching {
-                val user = repo.getUserByPhone(p)
-                    ?: error("No account found for this phone number")
+                val result = functions
+                    .getHttpsCallable("lookupAccountByPhone")
+                    .call(hashMapOf("phone" to p))
+                    .await()
+
+                @Suppress("UNCHECKED_CAST")
+                val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+                if (map["found"] != true) error("No account found for this phone number")
+                val uid           = map["uid"]           as? String ?: error("No account found")
+                val firebaseEmail = map["firebaseEmail"] as? String ?: ""
 
                 val newSalt         = pinHasher.generateSalt()
                 val newHash         = pinHasher.hash(np, newSalt)
@@ -64,10 +76,10 @@ class SetNewPinViewModel @Inject constructor(
                 auth.confirmPasswordReset(oobCode, newAuthPassword).getOrThrow()
 
                 // Sign in with the new credentials to establish a session
-                auth.signIn(user.firebaseEmail, newAuthPassword).getOrThrow()
+                auth.signIn(firebaseEmail, newAuthPassword).getOrThrow()
 
                 // Sync Firestore PIN hash
-                repo.updateUserPin(user.uid, newHash, newSalt)
+                repo.updateUserPin(uid, newHash, newSalt)
 
                 newPin = ""; confirmPin = ""
                 state = State.Success

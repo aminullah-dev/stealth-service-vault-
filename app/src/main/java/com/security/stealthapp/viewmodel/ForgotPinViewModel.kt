@@ -5,17 +5,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
 import com.security.stealthapp.data.firebase.FirebaseAuthManager
-import com.security.stealthapp.data.firebase.FirestoreRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
 class ForgotPinViewModel @Inject constructor(
-    private val repo: FirestoreRepository,
     private val auth: FirebaseAuthManager
 ) : ViewModel() {
+
+    private val functions = FirebaseFunctions.getInstance()
 
     sealed class State {
         object Idle      : State()
@@ -38,16 +40,28 @@ class ForgotPinViewModel @Inject constructor(
         viewModelScope.launch {
             state = State.Loading
             runCatching {
-                val user = repo.getUserByPhone(p)
-                    ?: run { state = State.Error("No account found for this phone number"); return@runCatching }
+                val result = functions
+                    .getHttpsCallable("lookupAccountByPhone")
+                    .call(hashMapOf("phone" to p))
+                    .await()
+
+                @Suppress("UNCHECKED_CAST")
+                val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+                if (map["found"] != true) {
+                    state = State.Error("No account found for this phone number")
+                    return@runCatching
+                }
+
+                val firebaseEmail = map["firebaseEmail"] as? String ?: ""
+                val email         = map["email"]         as? String ?: ""
 
                 // Only new-style accounts (real email = firebaseEmail) support email reset
-                if (user.email.isBlank() || user.firebaseEmail.endsWith("@sb.app")) {
+                if (email.isBlank() || firebaseEmail.endsWith("@sb.app")) {
                     state = State.NoEmail
                     return@runCatching
                 }
 
-                auth.sendPasswordResetEmail(user.firebaseEmail).getOrThrow()
+                auth.sendPasswordResetEmail(firebaseEmail).getOrThrow()
                 state = State.EmailSent
             }.onFailure { e ->
                 if (state == State.Loading) {

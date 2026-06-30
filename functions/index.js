@@ -34,6 +34,7 @@ const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https")
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -425,6 +426,126 @@ exports.hesabPayWebhook = onRequest(
     }
   }
 );
+
+// ── Server-side PIN authentication ────────────────────────────────────────────
+//
+// Why this is server-side now:
+//   The app used to download the ENTIRE users collection (every pinHash, salt,
+//   and decoy hash) to the device and verify the PIN locally — meaning anyone
+//   who reached the login screen could exfiltrate the whole credential table and
+//   brute-force 6-digit PINs offline. Login now sends only the PIN here; the
+//   hashes never leave the server. Firestore rules lock `users` reads to the
+//   owner/admin, so the table can no longer be dumped.
+
+// Byte-for-byte mirror of the Android PinHasher: PBKDF2WithHmacSHA256, 65,536
+// iterations, 256-bit output, salt is Base64(NO_WRAP) bytes. Must match exactly
+// or every PIN verification fails.
+function pbkdf2Hash(pin, saltB64) {
+  const salt = Buffer.from(String(saltB64), "base64");
+  return crypto.pbkdf2Sync(String(pin), salt, 65536, 32, "sha256").toString("base64");
+}
+
+// Constant-time string compare to avoid leaking match progress via timing.
+function hashesEqual(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+/**
+ * Cryptographically/forensically erase a user under duress. Deletes their data
+ * across every collection plus the Firebase Auth account. Best-effort: a missing
+ * doc is fine. Called only when a decoy PIN is entered.
+ */
+async function wipeUserAccount(uid) {
+  const byField = [
+    ["appointments",  "customerId"],
+    ["payments",      "customerId"],
+    ["notifications", "recipientId"],
+    ["reviews",       "customerId"],
+    ["waitlist",      "customerId"],
+    ["chat_messages", "senderId"],
+  ];
+  for (const [name, field] of byField) {
+    const q = await db.collection(name).where(field, "==", uid).get();
+    if (!q.empty) {
+      const batch = db.batch();
+      q.docs.forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+  await db.doc(`provider_balances/${uid}`).delete().catch(() => {});
+  await db.doc(`users/${uid}`).delete().catch(() => {});
+  await admin.auth().deleteUser(uid).catch(() => {});
+}
+
+/**
+ * Verifies a PIN against every user server-side. Returns:
+ *   { mode: "REAL", uid, name, role, firebaseEmail, salt } — client then derives
+ *       the auth password and signs in (the hash never leaves the server).
+ *   { mode: "DECOY" } — a duress PIN matched; the account has been wiped.
+ *   { mode: "INVALID" } — no match.
+ * No auth required (this IS the pre-auth login step).
+ */
+exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) => {
+  const pin = String((request.data || {}).pin || "");
+  if (!/^\d{4,}$/.test(pin)) {
+    return { mode: "INVALID" };
+  }
+
+  const snap = await db.collection("users").get();
+
+  // Real PIN — APPROVED users only.
+  for (const doc of snap.docs) {
+    const u = doc.data();
+    if (u.status !== "APPROVED" || !u.pinHash || !u.salt) continue;
+    if (hashesEqual(pbkdf2Hash(pin, u.salt), u.pinHash)) {
+      return {
+        mode:          "REAL",
+        uid:           doc.id,
+        name:          u.name  || "",
+        role:          u.role  || "CUSTOMER",
+        firebaseEmail: u.firebaseEmail || "",
+        salt:          u.salt,
+      };
+    }
+  }
+
+  // Decoy/duress PIN — wipe the account, tell the client to wipe locally.
+  for (const doc of snap.docs) {
+    const u = doc.data();
+    if (!u.decoyPinHash || !u.decoySalt) continue;
+    if (hashesEqual(pbkdf2Hash(pin, u.decoySalt), u.decoyPinHash)) {
+      await wipeUserAccount(doc.id);
+      return { mode: "DECOY" };
+    }
+  }
+
+  return { mode: "INVALID" };
+});
+
+/**
+ * Pre-auth lookup of an account's Firebase Auth email by phone, for the
+ * password-reset flows (Forgot-PIN / Set-New-PIN). Returns ONLY the email
+ * fields — never pinHash/salt — so `users` reads can stay locked to owner/admin.
+ */
+exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request) => {
+  const phone = String((request.data || {}).phone || "").trim();
+  if (!phone) return { found: false };
+
+  const q = await db.collection("users").where("phone", "==", phone).limit(1).get();
+  if (q.empty) return { found: false };
+
+  const doc = q.docs[0];
+  const u   = doc.data();
+  return {
+    found:         true,
+    uid:           doc.id,
+    firebaseEmail: u.firebaseEmail || "",
+    email:         u.email || "",
+  };
+});
 
 // ── recordProviderPayout (callable, admin-only) ───────────────────────────────
 

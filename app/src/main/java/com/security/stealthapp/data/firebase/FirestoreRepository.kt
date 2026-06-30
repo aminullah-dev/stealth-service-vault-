@@ -49,11 +49,11 @@ class FirestoreRepository @Inject constructor(
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
-    suspend fun getAllUsersForAuth(): List<UserDocument> {
-        return usersCol.get().await().documents.mapNotNull { doc ->
-            doc.toObject(UserDocument::class.java)?.copy(uid = doc.id)
-        }
-    }
+    // NOTE: PIN authentication and the pre-auth phone lookup moved to Cloud
+    // Functions (authenticateWithPin / lookupAccountByPhone). The client no
+    // longer bulk-reads the users collection, so `users` reads are locked to
+    // owner/admin in firestore.rules. getUserById below only ever reads the
+    // caller's OWN document.
 
     suspend fun createUser(user: UserDocument) {
         usersCol.document(user.uid).set(user).await()
@@ -62,12 +62,6 @@ class FirestoreRepository @Inject constructor(
     suspend fun getUserById(uid: String): UserDocument? {
         return usersCol.document(uid).get().await()
             .toObject(UserDocument::class.java)?.copy(uid = uid)
-    }
-
-    suspend fun getUserByPhone(phone: String): UserDocument? {
-        val docs = usersCol.whereEqualTo("phone", phone).limit(1).get().await()
-        val doc  = docs.documents.firstOrNull() ?: return null
-        return doc.toObject(UserDocument::class.java)?.copy(uid = doc.id)
     }
 
     suspend fun setUserStatus(uid: String, status: String) {
