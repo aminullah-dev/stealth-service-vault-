@@ -44,8 +44,9 @@ sealed class Screen(val route: String) {
     object Login     : Screen("login")
     object Register  : Screen("register")
     object Disguise  : Screen("disguise")
-    object AccountStatus : Screen("accountStatus/{status}") {
-        fun build(status: String) = "accountStatus/${Uri.encode(status.ifBlank { "PENDING" })}"
+    object AccountStatus : Screen("accountStatus/{status}?reason={reason}") {
+        fun build(status: String, reason: String = "") =
+            "accountStatus/${Uri.encode(status.ifBlank { "PENDING" })}?reason=${Uri.encode(reason)}"
     }
 
     object CustomerDashboard : Screen("dashboard/customer/{userId}") {
@@ -137,7 +138,7 @@ fun AppNavGraph(
                         // approval, or a suspended user) to a status screen instead of
                         // a live dashboard. Customers/admins are always APPROVED.
                         val dashboardRoute = if (user.status != "APPROVED") {
-                            Screen.AccountStatus.build(user.status)
+                            Screen.AccountStatus.build(user.status, user.rejectionReason)
                         } else when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
@@ -175,7 +176,7 @@ fun AppNavGraph(
                     onAuthSuccess = { user ->
                         sessionVm.onLoggedIn()
                         val route = if (user.status != "APPROVED") {
-                            Screen.AccountStatus.build(user.status)
+                            Screen.AccountStatus.build(user.status, user.rejectionReason)
                         } else when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
@@ -194,10 +195,14 @@ fun AppNavGraph(
 
             composable(
                 route     = Screen.AccountStatus.route,
-                arguments = listOf(navArgument("status") { type = NavType.StringType })
+                arguments = listOf(
+                    navArgument("status") { type = NavType.StringType },
+                    navArgument("reason") { type = NavType.StringType; defaultValue = "" }
+                )
             ) { backStackEntry ->
                 AccountStatusScreen(
                     status = backStackEntry.arguments?.getString("status") ?: "PENDING",
+                    reason = backStackEntry.arguments?.getString("reason") ?: "",
                     onBack = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }

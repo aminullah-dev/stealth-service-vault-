@@ -34,7 +34,8 @@ import com.security.stealthapp.ui.theme.LocalStrings
 /**
  * Shown after login when the account is not APPROVED:
  *  - PENDING  → a provider whose salon is still awaiting admin review.
- *  - anything else (SUSPENDED / REJECTED) → a generic "account not active" message.
+ *  - REJECTED → shows the admin's rejection reason, if one was given.
+ *  - SUSPENDED / other → a generic "account not active" message.
  *
  * This is the UI gate that stops a non-approved provider from landing on a live
  * dashboard. (Provider writes are also blocked server-side by the Firestore
@@ -43,13 +44,23 @@ import com.security.stealthapp.ui.theme.LocalStrings
 @Composable
 fun AccountStatusScreen(
     status: String,
+    reason: String = "",
     onBack: () -> Unit,
 ) {
-    val strings = LocalStrings.current
-    val isPending = status.equals("PENDING", ignoreCase = true)
+    val strings   = LocalStrings.current
+    val isPending  = status.equals("PENDING", ignoreCase = true)
+    val isRejected = status.equals("REJECTED", ignoreCase = true)
 
-    val title = if (isPending) strings.registrationSubmittedTitle else strings.accountInactiveTitle
-    val message = if (isPending) strings.salonUnderReviewText else strings.accountInactiveText
+    val title = when {
+        isPending  -> strings.registrationSubmittedTitle
+        isRejected -> strings.rejected
+        else       -> strings.accountInactiveTitle
+    }
+    val message = when {
+        isPending  -> strings.salonUnderReviewText
+        isRejected -> reason.ifBlank { strings.accountInactiveText }
+        else       -> strings.accountInactiveText
+    }
     val icon = if (isPending) Icons.Default.HourglassEmpty else Icons.Default.Lock
 
     Box(

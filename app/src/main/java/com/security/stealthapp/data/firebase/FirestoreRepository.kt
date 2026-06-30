@@ -72,6 +72,13 @@ class FirestoreRepository @Inject constructor(
     suspend fun suspendUser(uid: String)   = setUserStatus(uid, "SUSPENDED")
     suspend fun unsuspendUser(uid: String) = setUserStatus(uid, "APPROVED")
 
+    /** Rejects a pending provider application with a reason shown on their AccountStatusScreen. */
+    suspend fun rejectProvider(uid: String, reason: String) {
+        usersCol.document(uid)
+            .update(mapOf("status" to "REJECTED", "rejectionReason" to reason))
+            .await()
+    }
+
     suspend fun updateUserName(uid: String, name: String) {
         usersCol.document(uid).update("name", name).await()
     }

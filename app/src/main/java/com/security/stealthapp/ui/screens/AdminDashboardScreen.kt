@@ -228,6 +228,9 @@ private fun ApprovalsTab(
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
+    var rejectTarget by remember { mutableStateOf<UserDocument?>(null) }
+    var rejectReason by remember { mutableStateOf("") }
+
     if (pendingProviders.isEmpty()) {
         CenteredEmpty(
             icon    = Icons.Default.AdminPanelSettings,
@@ -243,10 +246,52 @@ private fun ApprovalsTab(
                 PendingProviderCard(
                     provider  = provider,
                     onApprove = { viewModel.approveProvider(provider.uid) },
-                    onReject  = { viewModel.rejectProvider(provider.uid) }
+                    onReject  = { rejectReason = ""; rejectTarget = provider }
                 )
             }
         }
+    }
+
+    // Reject dialog — captures a reason so the applicant isn't left with zero
+    // feedback (previously rejectProvider() took no reason at all).
+    rejectTarget?.let { provider ->
+        AlertDialog(
+            onDismissRequest = { rejectTarget = null },
+            title = { Text(strings.rejectDialogTitle, color = DeepRose, fontWeight = FontWeight.Bold) },
+            text  = {
+                Column {
+                    Text(provider.name, color = RoseGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value         = rejectReason,
+                        onValueChange = { rejectReason = it },
+                        label         = { Text(strings.rejectionReasonLabel, fontSize = 13.sp) },
+                        placeholder   = { Text(strings.rejectReasonHint, fontSize = 12.sp) },
+                        modifier      = Modifier.fillMaxWidth(),
+                        shape         = RoundedCornerShape(12.dp),
+                        minLines      = 2,
+                        colors        = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor   = DeepRose,
+                            unfocusedBorderColor = BlushPink,
+                            focusedLabelColor    = DeepRose
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.rejectProvider(provider.uid, rejectReason)
+                    rejectTarget = null
+                }) {
+                    Text(strings.reject, color = Color(0xFFC0392B), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { rejectTarget = null }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            }
+        )
     }
 }
 

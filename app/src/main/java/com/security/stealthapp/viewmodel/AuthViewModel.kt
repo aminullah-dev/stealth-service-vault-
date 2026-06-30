@@ -69,6 +69,7 @@ class AuthViewModel @Inject constructor(
                         val salt    = map["salt"]          as? String ?: ""
                         val roleStr = map["role"]          as? String ?: "CUSTOMER"
                         val status  = map["status"]        as? String ?: "APPROVED"
+                        val rejectionReason = map["rejectionReason"] as? String ?: ""
 
                         // Derive the Firebase Auth password from the PIN + salt and
                         // sign in (unchanged auth mechanism — only the lookup moved).
@@ -90,7 +91,10 @@ class AuthViewModel @Inject constructor(
                         }
 
                         authState = AuthState.Success(
-                            LoggedInUser(uid = uid, name = name, role = role, status = status)
+                            LoggedInUser(
+                                uid = uid, name = name, role = role,
+                                status = status, rejectionReason = rejectionReason
+                            )
                         )
                     }
 

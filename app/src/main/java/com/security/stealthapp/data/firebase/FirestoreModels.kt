@@ -16,6 +16,7 @@ data class UserDocument(
     val pinHash: String = "",               // PBKDF2(pin, salt) — for local verification
     val salt: String = "",
     val status: String = "APPROVED",        // "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED"
+    val rejectionReason: String = "",       // set by admin when status becomes REJECTED
     val firebaseEmail: String = "",         // synthetic internal email for Firebase Auth
     val fcmToken: String = "",
     val createdAt: Long = 0L,

@@ -217,9 +217,9 @@ class AdminViewModel @Inject constructor(
         }
     }
 
-    fun rejectProvider(uid: String) {
+    fun rejectProvider(uid: String, reason: String) {
         viewModelScope.launch {
-            firestoreRepository.setUserStatus(uid, "REJECTED")
+            firestoreRepository.rejectProvider(uid, reason.trim())
             vaultRepository.log("ADMIN_REJECT", "uid=$uid")
         }
     }

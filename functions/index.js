@@ -507,13 +507,14 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
     if (!u.pinHash || !u.salt) continue;
     if (hashesEqual(pbkdf2Hash(pin, u.salt), u.pinHash)) {
       return {
-        mode:          "REAL",
-        uid:           doc.id,
-        name:          u.name  || "",
-        role:          u.role  || "CUSTOMER",
-        status:        u.status || "",
-        firebaseEmail: u.firebaseEmail || "",
-        salt:          u.salt,
+        mode:           "REAL",
+        uid:            doc.id,
+        name:           u.name  || "",
+        role:           u.role  || "CUSTOMER",
+        status:         u.status || "",
+        rejectionReason: u.rejectionReason || "",
+        firebaseEmail:  u.firebaseEmail || "",
+        salt:           u.salt,
       };
     }
   }
