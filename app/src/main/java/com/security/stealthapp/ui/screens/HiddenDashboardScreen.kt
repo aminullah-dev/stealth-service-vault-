@@ -195,27 +195,27 @@ fun HiddenDashboardScreen(
         }
     }
 
-    // Show a local notification when a booking status changes (PENDING → CONFIRMED/CANCELLED)
+    // Show a local notification when a booking status changes (PENDING → CONFIRMED/CANCELLED).
+    // The notification itself is deliberately content-free (neutral title + body) so a
+    // salon/service name never lands on the lock screen or shade — the real details are
+    // in the in-app Notification Center, behind the PIN.
     LaunchedEffect(Unit) {
-        viewModel.bookingStatusChange.collect { change ->
-            val title = latestStrings.bookingUpdatedTitle
-            val body  = if (change.newStatus == "CONFIRMED") {
-                val dateFmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
-                "${change.serviceName} at ${change.salonName}\n${dateFmt.format(Date(change.appointmentDate))}"
-            } else {
-                latestStrings.bookingDeclinedText(change.salonName)
-            }
-            NotificationHelper.showBookingUpdate(context, title, body)
+        viewModel.bookingStatusChange.collect { _ ->
+            NotificationHelper.showBookingUpdate(
+                context,
+                latestStrings.reminderTitle,
+                latestStrings.notifNeutralBody
+            )
         }
     }
 
-    // Show a local notification when a waitlist slot becomes available
+    // Show a local notification when a waitlist slot becomes available (neutral content).
     LaunchedEffect(Unit) {
-        viewModel.waitlistSlotAvailable.collect { salonName ->
+        viewModel.waitlistSlotAvailable.collect { _ ->
             NotificationHelper.showBookingUpdate(
                 context,
-                latestStrings.waitlistSlotAvailableTitle,
-                latestStrings.waitlistSlotAvailableText(salonName)
+                latestStrings.reminderTitle,
+                latestStrings.notifNeutralBody
             )
         }
     }

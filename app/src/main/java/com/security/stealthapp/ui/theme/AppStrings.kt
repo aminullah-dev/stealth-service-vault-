@@ -132,6 +132,9 @@ class AppStrings {
     var reminderTitle: String = ""
     var remindedTomorrow: (String) -> String = { "" }
     var remindedInHour: (String) -> String = { "" }
+    // Neutral body for lock-screen/system notifications — never names a salon,
+    // service or booking. Details are shown only inside the app, behind the PIN.
+    var notifNeutralBody: String = ""
     // Customer booking cancellation
     var cancelAppointment: String = ""
     var cancelConfirmTitle: String = ""
@@ -472,9 +475,12 @@ object StringResources {
         bookingUpdatedTitle        = "Booking Update"
         bookingConfirmedText       = { name -> "$name confirmed your appointment!" }
         bookingDeclinedText        = { name -> "$name has declined your appointment." }
-        reminderTitle              = "Appointment Reminder"
-        remindedTomorrow           = { name -> "Your appointment at $name is tomorrow." }
-        remindedInHour             = { name -> "Your appointment at $name starts in 1 hour." }
+        reminderTitle              = "Reminder"
+        // Neutral wording — no salon name, no "appointment". Details live behind
+        // the PIN; the notification only nudges the user to open the app.
+        remindedTomorrow           = { _ -> "You have a reminder for tomorrow. Tap to view." }
+        remindedInHour             = { _ -> "You have a reminder in 1 hour. Tap to view." }
+        notifNeutralBody           = "You have a new update. Tap to view."
         cancelAppointment          = "Cancel Appointment"
         cancelConfirmTitle         = "Cancel this booking?"
         cancelConfirmText          = "This will cancel your appointment. This cannot be undone."
@@ -777,9 +783,10 @@ object StringResources {
         bookingUpdatedTitle        = "به‌روزرسانی رزرو"
         bookingConfirmedText       = { name -> "$name رزرو شما را تایید کرد!" }
         bookingDeclinedText        = { name -> "$name رزرو شما را رد کرد." }
-        reminderTitle              = "یادآوری قرار ملاقات"
-        remindedTomorrow           = { name -> "قرار ملاقات شما در $name فردا است." }
-        remindedInHour             = { name -> "قرار ملاقات شما در $name یک ساعت دیگر شروع می‌شود." }
+        reminderTitle              = "یادآوری"
+        remindedTomorrow           = { _ -> "یک یادآوری برای فردا دارید. برای مشاهده ضربه بزنید." }
+        remindedInHour             = { _ -> "یک یادآوری تا یک ساعت دیگر دارید. برای مشاهده ضربه بزنید." }
+        notifNeutralBody           = "یک به‌روزرسانی جدید دارید. برای مشاهده ضربه بزنید."
         cancelAppointment          = "لغو رزرو"
         cancelConfirmTitle         = "لغو این رزرو؟"
         cancelConfirmText          = "این رزرو را لغو می‌کند. این عملیات قابل بازگشت نیست."
@@ -1082,9 +1089,10 @@ object StringResources {
         bookingUpdatedTitle        = "د بکینګ تازه خبر"
         bookingConfirmedText       = { name -> "$name ستاسو بکینګ تایید کړ!" }
         bookingDeclinedText        = { name -> "$name ستاسو بکینګ رد کړ." }
-        reminderTitle              = "د ملاقات یادونه"
-        remindedTomorrow           = { name -> "ستاسو ملاقات $name کې سبا دی." }
-        remindedInHour             = { name -> "ستاسو ملاقات $name کې یو ساعت وروسته پیلیږي." }
+        reminderTitle              = "یادونه"
+        remindedTomorrow           = { _ -> "تاسو د سبا لپاره یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
+        remindedInHour             = { _ -> "تاسو په یوه ساعت کې یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
+        notifNeutralBody           = "تاسو یوه نوې تازه معلومات لرئ. د لیدلو لپاره ټک وکړئ."
         cancelAppointment          = "بکینګ لغو کول"
         cancelConfirmTitle         = "دا بکینګ لغو کړئ؟"
         cancelConfirmText          = "دا به ستاسو ملاقات لغو کړي. دا عملیه بیرته نه راتلی شي."

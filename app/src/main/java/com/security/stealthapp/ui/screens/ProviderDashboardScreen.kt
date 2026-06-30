@@ -733,8 +733,8 @@ private fun ProviderStatusBadge(status: String) {
         else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     val label = when (status.uppercase()) {
-        "CONFIRMED" -> strings.accept
-        "CANCELLED" -> strings.decline
+        "CONFIRMED" -> strings.analyticsConfirmed
+        "CANCELLED" -> strings.analyticsCancelled
         else        -> strings.pending
     }
     Box(
