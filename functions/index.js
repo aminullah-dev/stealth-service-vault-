@@ -172,7 +172,7 @@ exports.createPaymentSession = onCall(
           method:  "POST",
           headers: hesabHeaders(apiKey),
           body: JSON.stringify({
-            email: email || user.email || "",
+            email: email || user.email || `user_${uid}@safebeauty.af`,
             items: [
               {
                 id:    paymentRef.id,
