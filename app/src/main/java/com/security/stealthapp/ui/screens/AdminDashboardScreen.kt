@@ -122,6 +122,7 @@ fun AdminDashboardScreen(
     val commissionPercent by viewModel.commissionPercent.collectAsStateWithLifecycle()
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
     val payouts          by viewModel.payouts.collectAsStateWithLifecycle()
+    val refundRequests   by viewModel.pendingRefundRequests.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
@@ -204,7 +205,7 @@ fun AdminDashboardScreen(
                     2 -> SalonsTab(allSalons, viewModel)
                     3 -> StatsTab(stats)
                     4 -> BroadcastTab(broadcasts, viewModel)
-                    5 -> FinanceTab(commissionPercent, providerBalances, payouts, viewModel)
+                    5 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
                 }
             }
         }
@@ -795,11 +796,13 @@ private fun FinanceTab(
     commissionPercent: Double,
     balances: List<ProviderBalance>,
     payouts: List<PayoutDocument>,
+    refundRequests: List<com.security.stealthapp.data.firebase.RefundRequestDocument>,
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
     val payoutFmt = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
     var confirmPayout by remember { mutableStateOf<ProviderBalance?>(null) }
+    var confirmRefund by remember { mutableStateOf<com.security.stealthapp.data.firebase.RefundRequestDocument?>(null) }
 
     // Seed the editable field from the live value the first time it arrives.
     LaunchedEffect(commissionPercent) {
@@ -930,6 +933,26 @@ private fun FinanceTab(
                 PayoutHistoryRow(payout, payoutFmt.format(Date(payout.createdAt)))
             }
         }
+
+        // ── Pending refund requests (from cancelled, already-paid bookings) ────
+        if (refundRequests.isNotEmpty()) {
+            item {
+                Text(
+                    strings.financeRefundsTitle,
+                    fontSize   = 13.sp,
+                    color      = RoseGold,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier   = Modifier.padding(top = 8.dp)
+                )
+            }
+            items(refundRequests, key = { it.id }) { refund ->
+                RefundRequestRow(
+                    refund        = refund,
+                    isProcessing  = viewModel.refundInProgress == refund.id,
+                    onMarkRefunded = { confirmRefund = refund }
+                )
+            }
+        }
     }
 
     // Confirm-payout dialog.
@@ -986,6 +1009,70 @@ private fun FinanceTab(
             text = { Text("${strings.financePayoutDone}: $amount AFN", color = DeepRose) }
         )
     }
+
+    // Confirm-refund dialog.
+    confirmRefund?.let { refund ->
+        AlertDialog(
+            onDismissRequest = { confirmRefund = null },
+            title = { Text(strings.financeRefundConfirmTitle, color = DeepRose, fontWeight = FontWeight.Bold) },
+            text  = {
+                Column {
+                    Text(strings.financeRefundConfirmText, color = RoseGold, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "${refund.customerName} · ${refund.amount} AFN",
+                        color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 14.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.processRefund(refund.id)
+                    confirmRefund = null
+                }) {
+                    Text(strings.financeMarkRefunded, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRefund = null }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            }
+        )
+    }
+
+    if (viewModel.refundResult) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissRefundResult() },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissRefundResult() }) {
+                    Text(strings.ok, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            },
+            text = { Text(strings.financeRefundDone, color = DeepRose) }
+        )
+    }
+
+    if (viewModel.payoutFailed || viewModel.commissionFailed || viewModel.refundFailed) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.dismissPayoutFailed()
+                viewModel.dismissCommissionFailed()
+                viewModel.dismissRefundFailed()
+            },
+            title = { Text(strings.actionFailedTitle, color = DeepRose, fontWeight = FontWeight.Bold) },
+            text  = { Text(strings.actionFailedText, color = RoseGold, fontSize = 13.sp) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.dismissPayoutFailed()
+                    viewModel.dismissCommissionFailed()
+                    viewModel.dismissRefundFailed()
+                }) {
+                    Text(strings.ok, color = DeepRose, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1038,6 +1125,62 @@ private fun ProviderBalanceRow(
                     Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(strings.financeMarkPaid, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefundRequestRow(
+    refund: com.security.stealthapp.data.firebase.RefundRequestDocument,
+    isProcessing: Boolean,
+    onMarkRefunded: () -> Unit
+) {
+    val strings = LocalStrings.current
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier
+                        .size(40.dp)
+                        .background(Color(0xFFC0392B).copy(alpha = 0.12f), CircleShape)
+                ) {
+                    Icon(Icons.Default.Payments, null, tint = Color(0xFFC0392B), modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(refund.customerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                    Text(refund.salonName, fontSize = 11.sp, color = RoseGold)
+                }
+                Text(
+                    "${refund.amount} AFN",
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 16.sp,
+                    color      = Color(0xFFC0392B)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick  = onMarkRefunded,
+                enabled  = !isProcessing,
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B)),
+                contentPadding = PaddingValues(vertical = 10.dp)
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(strings.financeMarkRefunded, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }

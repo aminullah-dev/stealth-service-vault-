@@ -256,6 +256,10 @@ class DashboardViewModel @Inject constructor(
     var lockTriggered by mutableStateOf(false)
         private set
 
+    var cancelFailed by mutableStateOf(false)
+        private set
+    fun dismissCancelFailed() { cancelFailed = false }
+
     var availableSlots by mutableStateOf<List<Long>>(emptyList())
         private set
     var slotsLoading by mutableStateOf(false)
@@ -375,15 +379,20 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch { runCatching { favoritesRepository.toggle(salonId) } }
     }
 
+    /**
+     * Cancels a PENDING or CONFIRMED appointment via the cancelAppointment Cloud
+     * Function. Every appointment in that state has already been paid, so the
+     * function also flags the payment for a manual refund — a direct Firestore
+     * status write can't do that safely, which is why this no longer touches
+     * Firestore directly (see firestore.rules' appointments.update comment).
+     */
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
-            runCatching {
-                val appt = myAppointments.value.find { it.id == appointmentId }
-                firestoreRepository.updateAppointmentStatus(appointmentId, "CANCELLED")
-                if (appt != null) {
-                    runCatching { firestoreRepository.notifyFirstWaiting(appt.salonId, appt.appointmentDate) }
-                }
+            val ok = paymentRepository.cancelAppointment(appointmentId)
+            if (ok) {
                 vaultRepository.log("APPOINTMENT_CANCELLED", "id=$appointmentId customerId=$customerId")
+            } else {
+                cancelFailed = true
             }
         }
     }

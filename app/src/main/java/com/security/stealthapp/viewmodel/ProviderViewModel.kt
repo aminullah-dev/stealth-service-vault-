@@ -11,6 +11,7 @@ import com.security.stealthapp.data.firebase.BroadcastDocument
 import com.security.stealthapp.data.firebase.FirestoreRepository
 import com.security.stealthapp.data.firebase.GalleryImageDocument
 import com.security.stealthapp.data.firebase.NotificationDocument
+import com.security.stealthapp.data.firebase.PaymentRepository
 import com.security.stealthapp.data.firebase.ReviewDocument
 import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.StorageRepository
@@ -47,6 +48,7 @@ class ProviderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
     private val storageRepository: StorageRepository,
+    private val paymentRepository: PaymentRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
@@ -211,7 +213,14 @@ class ProviderViewModel @Inject constructor(
     fun acceptAppointment(apptId: String) {
         viewModelScope.launch {
             val appt = allAppointments.value.find { it.id == apptId }
-            firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
+            runCatching {
+                firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
+            }.onFailure {
+                // The status write itself failed — surface it instead of silently
+                // proceeding to the (now-incorrect) loyalty/notification side effects.
+                showSaveError = true
+                return@launch
+            }
             salon.value?.id?.let { salonId ->
                 runCatching { firestoreRepository.incrementConfirmedCount(salonId) }
             }
@@ -234,27 +243,21 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Declines a PENDING appointment via the providerDeclineAppointment Cloud
+     * Function. The booking is already paid (PENDING only exists after the
+     * webhook confirms payment), so the function also flags it for a manual
+     * refund and notifies the customer + releases the slot to the waitlist —
+     * a direct Firestore status write could not do any of that safely.
+     */
     fun declineAppointment(apptId: String) {
         viewModelScope.launch {
-            val appt = allAppointments.value.find { it.id == apptId }
-            firestoreRepository.updateAppointmentStatus(apptId, "CANCELLED")
-            val salonId = salon.value?.id
-            if (appt != null && salonId != null) {
-                runCatching { firestoreRepository.notifyFirstWaiting(salonId, appt.appointmentDate) }
-                runCatching {
-                    firestoreRepository.createNotification(
-                        NotificationDocument(
-                            recipientId = appt.customerId,
-                            type        = "BOOKING_CANCELLED",
-                            title       = "Booking Declined",
-                            body        = "${appt.serviceName} at ${appt.salonName}",
-                            createdAt   = System.currentTimeMillis(),
-                            relatedId   = apptId
-                        )
-                    )
-                }
+            val ok = paymentRepository.providerDeclineAppointment(apptId)
+            if (ok) {
+                vaultRepository.log("APPOINTMENT_CANCELLED", "id=$apptId")
+            } else {
+                showSaveError = true
             }
-            vaultRepository.log("APPOINTMENT_CANCELLED", "id=$apptId")
         }
     }
 

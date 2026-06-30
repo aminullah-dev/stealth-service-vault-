@@ -90,6 +90,52 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:recordProviderPayout") }
             .getOrNull()
 
+    /**
+     * Admin-only: marks a refund request as processed (the admin has sent the
+     * money back outside the app) and flips the underlying payment to REFUNDED.
+     */
+    suspend fun recordRefundProcessed(refundRequestId: String): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("recordRefundProcessed")
+                .call(hashMapOf("refundRequestId" to refundRequestId))
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:recordRefundProcessed") }
+            .getOrDefault(false)
+
+    /**
+     * Cancels a PENDING or CONFIRMED appointment server-side. Every appointment
+     * in that state has already been paid, so this also flags the payment for a
+     * manual refund and reverses the provider's owed balance — a direct
+     * Firestore status write (the old client-side path) could not do that
+     * safely. Returns true on success.
+     */
+    suspend fun cancelAppointment(appointmentId: String): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("cancelAppointment")
+                .call(hashMapOf("appointmentId" to appointmentId))
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:cancelAppointment") }
+            .getOrDefault(false)
+
+    /**
+     * Provider declining a PENDING appointment — same money-correctness reasons
+     * as [cancelAppointment]: the booking is already paid, so this also flags
+     * the payment for a manual refund instead of a bare status flip.
+     */
+    suspend fun providerDeclineAppointment(appointmentId: String): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("providerDeclineAppointment")
+                .call(hashMapOf("appointmentId" to appointmentId))
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:providerDeclineAppointment") }
+            .getOrDefault(false)
+
     /** Emits the live status ("PENDING" | "PAID" | "FAILED") of a payment. */
     fun observePaymentStatus(paymentId: String): Flow<String> = callbackFlow {
         val listener = paymentsCol.document(paymentId)

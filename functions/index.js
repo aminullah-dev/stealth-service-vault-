@@ -31,6 +31,7 @@
  */
 
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -552,6 +553,194 @@ exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request)
   };
 });
 
+// ── cancelPaidAppointment (shared helper) ─────────────────────────────────────
+//
+// Every appointment that reaches PENDING or CONFIRMED has already been paid
+// (the webhook only flips AWAITING_PAYMENT -> PENDING after payment succeeds),
+// so ANY cancellation — by the customer OR by the provider declining — is a
+// paid-booking cancellation. The old client paths just flipped status to
+// CANCELLED via a direct Firestore write and never touched the payment —
+// money taken, no refund record, no one notified. This shared transaction
+// cancels the appointment AND creates a refund request the admin must action
+// (HesabPay has no automated refund API wired), used by both
+// cancelAppointment (customer) and providerDeclineAppointment (provider).
+//
+// `cancelledBy` is "CUSTOMER" or "PROVIDER" — it decides who gets notified
+// (the other party) and who is authorized to act, via `authorize(appt, payment)`.
+async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
+  const apptRef = db.doc(`appointments/${appointmentId}`);
+
+  const result = await db.runTransaction(async (tx) => {
+    const apptSnap = await tx.get(apptRef);
+    if (!apptSnap.exists) throw new HttpsError("not-found", "Appointment not found.");
+    const appt = apptSnap.data();
+    if (appt.status !== "PENDING" && appt.status !== "CONFIRMED") {
+      throw new HttpsError("failed-precondition", "This booking can no longer be cancelled.");
+    }
+
+    // AppointmentDocument has no providerId field — it lives on the payment
+    // (and salon) record, so the payment must be read before authorization.
+    const paySnap = await tx.get(
+      db.collection("payments").where("appointmentId", "==", appointmentId).limit(1)
+    );
+    const payDoc  = paySnap.empty ? null : paySnap.docs[0];
+    const payment = payDoc ? payDoc.data() : null;
+
+    if (!authorize(appt, payment)) {
+      throw new HttpsError("permission-denied", "Not authorized to cancel this booking.");
+    }
+
+    tx.update(apptRef, { status: "CANCELLED" });
+
+    let refundRequestId = null;
+    const providerId = payment ? (payment.providerId || "") : "";
+    if (payment && payment.status === "PAID") {
+      tx.update(payDoc.ref, { status: "REFUND_PENDING" });
+      const refundRef = db.collection("refund_requests").doc();
+      tx.set(refundRef, {
+        appointmentId,
+        paymentId:   payDoc.id,
+        customerId:  appt.customerId,
+        providerId,
+        salonId:     appt.salonId,
+        amount:      payment.amount,
+        status:      "PENDING",
+        createdAt:   Date.now(),
+      });
+      refundRequestId = refundRef.id;
+
+      // Reverse the provider's owed balance if it was already credited
+      // (it is, as soon as the webhook marked this payment PAID).
+      tx.set(
+        db.doc(`provider_balances/${providerId}`),
+        {
+          providerId,
+          owedAmount: admin.firestore.FieldValue.increment(-payment.providerNet),
+          updatedAt:  Date.now(),
+        },
+        { merge: true }
+      );
+    }
+
+    // Notify whichever party didn't initiate the cancellation.
+    if (cancelledBy === "CUSTOMER" && providerId) {
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: providerId,
+        type:        "BOOKING_CANCELLED",
+        title:       "Booking Cancelled",
+        body:        `${appt.serviceName || "A booking"} was cancelled by the customer.`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   appointmentId,
+      });
+    } else if (cancelledBy === "PROVIDER" && appt.customerId) {
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: appt.customerId,
+        type:        "BOOKING_CANCELLED",
+        title:       "Booking Declined",
+        body:        `${appt.serviceName || "Your booking"} at ${appt.salonName || "the salon"} was declined.`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   appointmentId,
+      });
+    }
+
+    return { refundRequestId, appt };
+  });
+
+  // Release the freed slot to the next waitlisted customer (best-effort,
+  // outside the transaction since it's a separate, non-critical write).
+  // Mirrors FirestoreRepository.notifyFirstWaiting's single-field query +
+  // in-memory filter so no new composite index is required.
+  try {
+    const dayStart = new Date(result.appt.appointmentDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const startOfDay = dayStart.getTime();
+
+    const entries = await db.collection("waitlist")
+      .where("salonId", "==", result.appt.salonId)
+      .get();
+    const first = entries.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((w) => w.requestedDate === startOfDay && w.status === "WAITING")
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0];
+    if (first) {
+      await db.doc(`waitlist/${first.id}`).update({ status: "SLOT_AVAILABLE" });
+    }
+  } catch (err) {
+    logger.error("cancelPaidAppointment: waitlist notify failed (non-fatal)", err);
+  }
+
+  return { cancelled: true, refundRequestId: result.refundRequestId };
+}
+
+// ── cancelAppointment (callable, customer) ────────────────────────────────────
+exports.cancelAppointment = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { appointmentId } = request.data || {};
+  if (!appointmentId) {
+    throw new HttpsError("invalid-argument", "appointmentId is required.");
+  }
+  return cancelPaidAppointment(appointmentId, "CUSTOMER", (appt) =>
+    appt.customerId === request.auth.uid
+  );
+});
+
+// ── providerDeclineAppointment (callable, provider) ───────────────────────────
+//
+// Replaces ProviderViewModel.declineAppointment's direct Firestore write,
+// which had the exact same gap as the old customer-cancel path: a PENDING
+// appointment is already paid, and a plain status flip to CANCELLED left that
+// payment marked PAID forever with no refund trail.
+exports.providerDeclineAppointment = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { appointmentId } = request.data || {};
+  if (!appointmentId) {
+    throw new HttpsError("invalid-argument", "appointmentId is required.");
+  }
+  return cancelPaidAppointment(appointmentId, "PROVIDER", (appt, payment) =>
+    !!payment && payment.providerId === request.auth.uid
+  );
+});
+
+// ── expireAbandonedPayments (scheduled) ───────────────────────────────────────
+//
+// A customer who opens HesabPay checkout and never completes (or never
+// returns) leaves an AWAITING_PAYMENT appointment + PENDING payment forever —
+// invisible clutter that also makes "is this slot really free" ambiguous.
+// Runs hourly; anything older than 2 hours and still unpaid is expired.
+const ABANDONED_PAYMENT_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+exports.expireAbandonedPayments = onSchedule(
+  { schedule: "every 60 minutes", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - ABANDONED_PAYMENT_WINDOW_MS;
+    const stale = await db.collection("payments")
+      .where("status", "==", "PENDING")
+      .where("createdAt", "<", cutoff)
+      .get();
+
+    if (stale.empty) return;
+
+    let count = 0;
+    for (const doc of stale.docs) {
+      const payment = doc.data();
+      const batch = db.batch();
+      batch.update(doc.ref, { status: "EXPIRED" });
+      if (payment.appointmentId) {
+        batch.update(db.doc(`appointments/${payment.appointmentId}`), { status: "CANCELLED" });
+      }
+      await batch.commit();
+      count++;
+    }
+    logger.log(`expireAbandonedPayments: expired ${count} stale payment(s)`);
+  }
+);
+
 // ── recordProviderPayout (callable, admin-only) ───────────────────────────────
 
 /**
@@ -609,4 +798,54 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
   });
 
   return result;
+});
+
+// ── recordRefundProcessed (callable, admin-only) ──────────────────────────────
+//
+// Marks a refund_requests entry as PROCESSED once the admin has actually sent
+// the money back outside the app (HesabPay has no automated refund API wired).
+// Also flips the underlying payment to REFUNDED so it stops showing as a
+// pending refund. Admin-only; clients cannot write refund_requests or payments.
+exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
+  if (!callerSnap.exists || callerSnap.data().role !== "ADMIN") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const { refundRequestId } = request.data || {};
+  if (!refundRequestId) {
+    throw new HttpsError("invalid-argument", "refundRequestId is required.");
+  }
+
+  const refundRef = db.doc(`refund_requests/${refundRequestId}`);
+
+  await db.runTransaction(async (tx) => {
+    const refundSnap = await tx.get(refundRef);
+    if (!refundSnap.exists) throw new HttpsError("not-found", "Refund request not found.");
+    const refund = refundSnap.data();
+    if (refund.status === "PROCESSED") return;
+
+    tx.update(refundRef, {
+      status:      "PROCESSED",
+      processedBy: request.auth.uid,
+      processedAt: Date.now(),
+    });
+    if (refund.paymentId) {
+      tx.update(db.doc(`payments/${refund.paymentId}`), { status: "REFUNDED" });
+    }
+    tx.set(db.collection("notifications").doc(), {
+      recipientId: refund.customerId,
+      type:        "SYSTEM",
+      title:       "Refund Processed",
+      body:        `Your refund of AFN ${refund.amount} has been processed.`,
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   refundRequestId,
+    });
+  });
+
+  return { processed: true };
 });

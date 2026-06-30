@@ -128,20 +128,24 @@ service cloud.firestore {
       // client cannot create a booking without going through HesabPay payment.
       allow create: if false;
 
-      // Provider confirms/cancels or reschedules their salon's appointment, but
+      // Provider confirms or reschedules their salon's appointment directly, but
       // may ONLY touch status + appointmentDate — never the customer's identity
-      // (customerId/customerName/customerPhone) or the price/service. Admin is
-      // unrestricted. Customer may cancel their own PENDING appointment.
+      // (customerId/customerName/customerPhone) or the price/service — and may
+      // NOT set status to CANCELLED. Admin is unrestricted.
+      //
+      // Neither customer NOR provider cancellation is allowed via a direct
+      // write here — every PENDING/CONFIRMED appointment has already been paid
+      // (the webhook only advances out of AWAITING_PAYMENT after payment
+      // succeeds), so a direct status flip to CANCELLED would leave the
+      // payment marked PAID with no refund record. Both must go through
+      // cancelAppointment / providerDeclineAppointment, which cancel AND
+      // create a refund_requests entry (Admin SDK bypasses this rule).
       allow update: if isAdmin()
                  || (ownsThisSalon(resource.data.salonId)
                      && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['status', 'appointmentDate'])
-                     && request.resource.data.customerId == resource.data.customerId)
-                 || (resource.data.customerId == me()
-                     && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['status'])
-                     && request.resource.data.status == 'CANCELLED'
-                     && resource.data.status   == 'PENDING');
+                     && request.resource.data.customerId == resource.data.customerId
+                     && request.resource.data.status != 'CANCELLED');
 
       allow delete: if isAdmin();
     }
@@ -244,6 +248,19 @@ service cloud.firestore {
     // by the hesabPayWebhook Cloud Function (Admin SDK). No client access.
     match /processed_webhooks/{transactionId} {
       allow read, write: if false;
+    }
+
+    // ── refund_requests ─────────────────────────────────────────────────────────
+    // Created exclusively by the cancelAppointment Cloud Function (Admin SDK)
+    // when a customer cancels a PAID booking. The customer/provider involved can
+    // see their own request; only admin can read all / will process it manually
+    // (no automated HesabPay refund API is wired yet).
+    match /refund_requests/{requestId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || resource.data.providerId == me()
+                   || isAdmin());
+      allow write: if false;
     }
 
     // ── platform_config ────────────────────────────────────────────────────────

@@ -46,6 +46,7 @@ class FirestoreRepository @Inject constructor(
     private val platformConfigCol  = db.collection("platform_config")
     private val providerBalancesCol = db.collection("provider_balances")
     private val payoutsCol           = db.collection("payouts")
+    private val refundRequestsCol    = db.collection("refund_requests")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -578,6 +579,19 @@ class FirestoreRepository @Inject constructor(
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
+                ?.sortedByDescending { it.createdAt }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    /** Live refund requests (most recent first). Admin reads all rows. */
+    fun observeRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
+        val listener = refundRequestsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
                 ?.sortedByDescending { it.createdAt }
                 ?: emptyList()
             trySend(list)

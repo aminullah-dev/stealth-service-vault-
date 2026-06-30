@@ -970,6 +970,21 @@ fun HiddenDashboardScreen(
             )
         }
 
+        if (viewModel.cancelFailed) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissCancelFailed() },
+                title = { Text(strings.actionFailedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissCancelFailed() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         // ── My Bookings sheet ─────────────────────────────────────────────────
         if (showBookingsSheet) {
             ModalBottomSheet(
@@ -1662,7 +1677,11 @@ private fun BookingCard(
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
     val canReview     = appt.status == "CONFIRMED"
-    val canCancel     = appt.status == "PENDING"
+    // PENDING (awaiting provider confirmation) is always cancellable. CONFIRMED
+    // (paid + accepted) can still be cancelled up until the appointment time —
+    // cancelAppointment() flags the payment for a manual refund either way.
+    val canCancel     = appt.status == "PENDING" ||
+        (appt.status == "CONFIRMED" && appt.appointmentDate > System.currentTimeMillis())
 
     Card(
         shape    = RoundedCornerShape(14.dp),
@@ -1958,7 +1977,7 @@ private fun CustomerProfileSheetContent(
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text       = if (appt.status == "CONFIRMED") strings.accept else strings.decline,
+                            text       = if (appt.status == "CONFIRMED") strings.analyticsConfirmed else strings.analyticsCancelled,
                             fontSize   = 10.sp,
                             color      = chipFg,
                             fontWeight = FontWeight.SemiBold

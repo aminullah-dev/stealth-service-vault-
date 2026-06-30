@@ -95,14 +95,46 @@ class AdminViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /** Refund requests joined with customer + salon names, most recent first. */
+    private val refundRequestsJoined: StateFlow<List<com.security.stealthapp.data.firebase.RefundRequestDocument>> =
+        combine(firestoreRepository.observeRefundRequests(), allUsers, allSalons) { refunds, users, salons ->
+            val nameById  = users.associate { it.uid to it.name }
+            val salonById = salons.associate { it.id to it.salonName }
+            refunds.map {
+                it.copy(
+                    customerName = nameById[it.customerId] ?: it.customerId,
+                    salonName    = salonById[it.salonId] ?: it.salonId
+                )
+            }
+        }
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val pendingRefundRequests: StateFlow<List<com.security.stealthapp.data.firebase.RefundRequestDocument>> =
+        refundRequestsJoined
+            .map { list -> list.filter { it.status == "PENDING" } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     var commissionInput by mutableStateOf("")
     var commissionSaved by mutableStateOf(false)
+        private set
+    var commissionFailed by mutableStateOf(false)
         private set
 
     // providerId currently being paid out (drives the per-row spinner); null = idle.
     var payoutInProgress by mutableStateOf<String?>(null)
         private set
     var payoutResult by mutableStateOf<Long?>(null)   // amount just paid (for the toast/dialog)
+        private set
+    var payoutFailed by mutableStateOf(false)
+        private set
+
+    // refundRequestId currently being processed; null = idle.
+    var refundInProgress by mutableStateOf<String?>(null)
+        private set
+    var refundResult by mutableStateOf(false)
+        private set
+    var refundFailed by mutableStateOf(false)
         private set
 
     var broadcastText by mutableStateOf("")
@@ -119,10 +151,12 @@ class AdminViewModel @Inject constructor(
                     commissionSaved = true
                     vaultRepository.log("ADMIN_SET_COMMISSION", "percent=$percent")
                 }
+                .onFailure { commissionFailed = true }
         }
     }
 
     fun dismissCommissionSaved() { commissionSaved = false }
+    fun dismissCommissionFailed() { commissionFailed = false }
 
     /** Records that [providerId] has been paid; the webhook ledger resets to 0. */
     fun payoutProvider(providerId: String) {
@@ -134,11 +168,33 @@ class AdminViewModel @Inject constructor(
             if (amount != null) {
                 payoutResult = amount
                 vaultRepository.log("ADMIN_PAYOUT", "providerId=$providerId amount=$amount")
+            } else {
+                payoutFailed = true
             }
         }
     }
 
     fun dismissPayoutResult() { payoutResult = null }
+    fun dismissPayoutFailed() { payoutFailed = false }
+
+    /** Marks a refund request as processed (admin sent the money back manually). */
+    fun processRefund(refundRequestId: String) {
+        if (refundInProgress != null) return
+        refundInProgress = refundRequestId
+        viewModelScope.launch {
+            val ok = paymentRepository.recordRefundProcessed(refundRequestId)
+            refundInProgress = null
+            if (ok) {
+                refundResult = true
+                vaultRepository.log("ADMIN_REFUND_PROCESSED", "refundRequestId=$refundRequestId")
+            } else {
+                refundFailed = true
+            }
+        }
+    }
+
+    fun dismissRefundResult() { refundResult = false }
+    fun dismissRefundFailed() { refundFailed = false }
 
     fun suspendUser(uid: String) {
         viewModelScope.launch {

@@ -209,3 +209,24 @@ data class PayoutDocument(
     // Joined client-side for display.
     val providerName: String = ""
 )
+
+/**
+ * A customer-cancellation refund awaiting manual processing. Written only by
+ * the cancelAppointment Cloud Function; admins mark it PROCESSED via
+ * recordRefundProcessed once the money has actually been sent back (HesabPay
+ * has no automated refund API wired).
+ */
+data class RefundRequestDocument(
+    val id: String = "",
+    val appointmentId: String = "",
+    val paymentId: String = "",
+    val customerId: String = "",
+    val providerId: String = "",
+    val salonId: String = "",
+    val amount: Long = 0L,
+    val status: String = "PENDING",          // "PENDING" | "PROCESSED"
+    val createdAt: Long = 0L,
+    // Joined client-side for display.
+    val customerName: String = "",
+    val salonName: String = ""
+)
