@@ -18,7 +18,7 @@ class AppStrings {
     var loginTagline: String = ""
     var loginWrongPin: String = ""
     var loginRegisterPrompt: String = ""
-    // Biometric fast-unlock (kept neutral to preserve the disguise)
+    // Biometric fast-unlock
     var biometricPromptTitle: String = ""
     var biometricPromptSubtitle: String = ""
     var biometricUsePin: String = ""
@@ -141,9 +141,6 @@ class AppStrings {
     var reminderTitle: String = ""
     var remindedTomorrow: (String) -> String = { "" }
     var remindedInHour: (String) -> String = { "" }
-    // Neutral body for lock-screen/system notifications — never names a salon,
-    // service or booking. Details are shown only inside the app, behind the PIN.
-    var notifNeutralBody: String = ""
     // Relative timestamps (notification list "X min ago" etc.)
     var timeJustNow: String = ""
     var timeMinsAgo: (Int) -> String = { "" }
@@ -402,7 +399,7 @@ object StringResources {
 
     val ENGLISH = AppStrings().apply {
         loginTitle                 = "SafeBeauty"
-        loginTagline               = "Private · Discreet · Trusted"
+        loginTagline               = "Trusted Beauty Booking"
         loginWrongPin              = "Wrong PIN. Try again."
         biometricPromptTitle       = "Unlock"
         biometricPromptSubtitle    = "Confirm it's you"
@@ -413,10 +410,10 @@ object StringResources {
         biometricEnableSkip        = "Not now"
         biometricUnlockCd          = "Unlock with biometrics"
         loginRegisterPrompt        = "New account? Register →"
-        taglineCustomer            = "Private · Discreet · Safe"
-        taglineProvider            = "Provider · Private · Discreet"
+        taglineCustomer            = "Find & Book Beauty Services"
+        taglineProvider            = "Provider Dashboard"
         taglineAdmin               = "Provider approval queue"
-        taglineRegister            = "Private · Secure · Discreet"
+        taglineRegister            = "Create Your Account"
         categoryAll                = "All"
         categoryHair               = "Hair"
         categoryMakeup             = "Makeup"
@@ -443,7 +440,7 @@ object StringResources {
         selectTime                 = "Select time"
         confirmBooking             = "Confirm booking"
         bookingRequestSent         = "Booking Request Sent"
-        bookingConfirmText         = { name -> "Request sent to $name. She will contact you discreetly." }
+        bookingConfirmText         = { name -> "Request sent to $name. She will contact you shortly." }
         ok                         = "OK"
         noBookingsTitle            = "No bookings yet."
         noBookingsSubtext          = "Find a provider and tap Book to get started."
@@ -471,7 +468,7 @@ object StringResources {
         actionFailedTitle          = "Something went wrong"
         actionFailedText           = "Please check your connection and try again."
         createAccount              = "Create Account"
-        taglineSecure              = "Private · Secure · Discreet"
+        taglineSecure              = "Private & Secure"
         sectionPersonalInfo        = "Personal Information"
         sectionSalonDetails        = "Salon Details"
         roleProvider               = "Service Provider"
@@ -480,7 +477,7 @@ object StringResources {
         roleCustomerDesc           = "Find and book beauty services"
         fullName                   = "Full Name"
         phoneNumber                = "Phone Number"
-        secretPin                  = "Secret PIN (6+ digits)"
+        secretPin                  = "PIN (6+ digits)"
         confirmPin                 = "Confirm PIN"
         salonName                  = "Salon Name"
         addServiceExample          = "Add a service (e.g. Hair)"
@@ -511,12 +508,9 @@ object StringResources {
         bookingUpdatedTitle        = "Booking Update"
         bookingConfirmedText       = { name -> "$name confirmed your appointment!" }
         bookingDeclinedText        = { name -> "$name has declined your appointment." }
-        reminderTitle              = "Reminder"
-        // Neutral wording — no salon name, no "appointment". Details live behind
-        // the PIN; the notification only nudges the user to open the app.
-        remindedTomorrow           = { _ -> "You have a reminder for tomorrow. Tap to view." }
-        remindedInHour             = { _ -> "You have a reminder in 1 hour. Tap to view." }
-        notifNeutralBody           = "You have a new update. Tap to view."
+        reminderTitle              = "Appointment Reminder"
+        remindedTomorrow           = { name -> "Your appointment at $name is tomorrow." }
+        remindedInHour             = { name -> "Your appointment at $name starts in 1 hour." }
         timeJustNow                = "Just now"
         timeMinsAgo                = { m -> "$m min ago" }
         timeHoursAgo               = { h -> "${h}h ago" }
@@ -732,7 +726,7 @@ object StringResources {
 
     val DARI = AppStrings().apply {
         loginTitle                 = "سیف بیوتی"
-        loginTagline               = "خصوصی · محرمانه · قابل اعتماد"
+        loginTagline               = "رزرو معتبر خدمات زیبایی"
         loginWrongPin              = "رمز پین اشتباه است. دوباره امتحان کنید."
         biometricPromptTitle       = "باز کردن قفل"
         biometricPromptSubtitle    = "هویت خود را تأیید کنید"
@@ -743,10 +737,10 @@ object StringResources {
         biometricEnableSkip        = "حالا نه"
         biometricUnlockCd          = "باز کردن با بیومتریک"
         loginRegisterPrompt        = "حساب جدید؟ ثبت‌نام →"
-        taglineCustomer            = "خصوصی · مخفیانه · امن"
-        taglineProvider            = "ارائه‌دهنده · خصوصی · مخفیانه"
+        taglineCustomer            = "جستجو و رزرو خدمات زیبایی"
+        taglineProvider            = "پنل ارائه‌دهنده"
         taglineAdmin               = "صف تایید ارائه‌دهندگان"
-        taglineRegister            = "خصوصی · امن · مخفیانه"
+        taglineRegister            = "ایجاد حساب کاربری"
         categoryAll                = "همه"
         categoryHair               = "مو"
         categoryMakeup             = "آرایش"
@@ -773,7 +767,7 @@ object StringResources {
         selectTime                 = "انتخاب زمان"
         confirmBooking             = "تایید رزرو"
         bookingRequestSent         = "درخواست رزرو ارسال شد"
-        bookingConfirmText         = { name -> "درخواست به $name ارسال شد. او مخفیانه با شما تماس می‌گیرد." }
+        bookingConfirmText         = { name -> "درخواست به $name ارسال شد. او به‌زودی با شما تماس می‌گیرد." }
         ok                         = "تایید"
         noBookingsTitle            = "هنوز رزروی ندارید."
         noBookingsSubtext          = "یک ارائه‌دهنده پیدا کنید و روی رزرو ضربه بزنید."
@@ -801,7 +795,7 @@ object StringResources {
         actionFailedTitle          = "خطایی رخ داد"
         actionFailedText           = "لطفاً اتصال خود را بررسی کرده و دوباره تلاش کنید."
         createAccount              = "ایجاد حساب"
-        taglineSecure              = "خصوصی · امن · مخفیانه"
+        taglineSecure              = "خصوصی و امن"
         sectionPersonalInfo        = "اطلاعات شخصی"
         sectionSalonDetails        = "جزئیات سالن"
         roleProvider               = "ارائه‌دهنده خدمات"
@@ -810,7 +804,7 @@ object StringResources {
         roleCustomerDesc           = "خدمات زیبایی را پیدا کنید و رزرو کنید"
         fullName                   = "نام کامل"
         phoneNumber                = "شماره تلفن"
-        secretPin                  = "رمز پین محرمانه (۶+ رقم)"
+        secretPin                  = "پین (۶+ رقم)"
         confirmPin                 = "تایید پین"
         salonName                  = "نام سالن"
         addServiceExample          = "افزودن خدمت (مثلاً مو)"
@@ -841,10 +835,9 @@ object StringResources {
         bookingUpdatedTitle        = "به‌روزرسانی رزرو"
         bookingConfirmedText       = { name -> "$name رزرو شما را تایید کرد!" }
         bookingDeclinedText        = { name -> "$name رزرو شما را رد کرد." }
-        reminderTitle              = "یادآوری"
-        remindedTomorrow           = { _ -> "یک یادآوری برای فردا دارید. برای مشاهده ضربه بزنید." }
-        remindedInHour             = { _ -> "یک یادآوری تا یک ساعت دیگر دارید. برای مشاهده ضربه بزنید." }
-        notifNeutralBody           = "یک به‌روزرسانی جدید دارید. برای مشاهده ضربه بزنید."
+        reminderTitle              = "یادآوری قرار ملاقات"
+        remindedTomorrow           = { name -> "قرار ملاقات شما در $name فردا است." }
+        remindedInHour             = { name -> "قرار ملاقات شما در $name یک ساعت دیگر شروع می‌شود." }
         timeJustNow                = "همین حالا"
         timeMinsAgo                = { m -> "$m دقیقه پیش" }
         timeHoursAgo               = { h -> "$h ساعت پیش" }
@@ -1060,7 +1053,7 @@ object StringResources {
 
     val PASHTO = AppStrings().apply {
         loginTitle                 = "سیف بیوتي"
-        loginTagline               = "شخصي · محرمانه · د اعتماد وړ"
+        loginTagline               = "د ښکلا د خدماتو باوري بکینګ"
         loginWrongPin              = "PIN غلط دی. بیا هڅه وکړئ."
         biometricPromptTitle       = "خلاصول"
         biometricPromptSubtitle    = "خپله پیژندنه تایید کړئ"
@@ -1071,10 +1064,10 @@ object StringResources {
         biometricEnableSkip        = "اوس نه"
         biometricUnlockCd          = "په بایومتریک خلاصول"
         loginRegisterPrompt        = "نوی حساب؟ راجستر →"
-        taglineCustomer            = "شخصي · پټ · خوندي"
-        taglineProvider            = "چمتو کوونکی · شخصي · پټ"
+        taglineCustomer            = "د ښکلا خدمتونه ومومئ او بک کړئ"
+        taglineProvider            = "د چمتو کوونکي ډشبورډ"
         taglineAdmin               = "د چمتو کوونکو د تایید کتار"
-        taglineRegister            = "شخصي · خوندي · پټ"
+        taglineRegister            = "خپل حساب جوړ کړئ"
         categoryAll                = "ټول"
         categoryHair               = "ویښتان"
         categoryMakeup             = "سینګار"
@@ -1101,7 +1094,7 @@ object StringResources {
         selectTime                 = "وخت وټاکئ"
         confirmBooking             = "د بکینګ تایید"
         bookingRequestSent         = "د بکینګ غوښتنه واستول شوه"
-        bookingConfirmText         = { name -> "غوښتنه $name ته واستول شوه. هغه به له تاسو سره پټ اړیکه وکړي." }
+        bookingConfirmText         = { name -> "غوښتنه $name ته واستول شوه. هغه به ډېر ژر له تاسو سره اړیکه ونیسي." }
         ok                         = "سمه ده"
         noBookingsTitle            = "لا هیڅ بکینګ نشته."
         noBookingsSubtext          = "یو چمتو کوونکی ومومئ او د بک کولو تڼۍ ووهئ."
@@ -1129,7 +1122,7 @@ object StringResources {
         actionFailedTitle          = "یوه ستونزه رامنځته شوه"
         actionFailedText           = "مهرباني وکړئ خپله اړیکه وګورئ او بیا هڅه وکړئ."
         createAccount              = "حساب جوړ کړئ"
-        taglineSecure              = "شخصي · خوندي · پټ"
+        taglineSecure              = "شخصي او خوندي"
         sectionPersonalInfo        = "شخصي معلومات"
         sectionSalonDetails        = "د سالون توضیحات"
         roleProvider               = "د خدماتو چمتو کوونکی"
@@ -1138,7 +1131,7 @@ object StringResources {
         roleCustomerDesc           = "د ښکلا خدمتونه ومومئ او بک کړئ"
         fullName                   = "بشپړ نوم"
         phoneNumber                = "د تلیفون شمیره"
-        secretPin                  = "محرمانه PIN (۶+ شمیرې)"
+        secretPin                  = "PIN (۶+ شمیرې)"
         confirmPin                 = "PIN تایید کړئ"
         salonName                  = "د سالون نوم"
         addServiceExample          = "خدمت اضافه کړئ (لکه ویښتان)"
@@ -1169,10 +1162,9 @@ object StringResources {
         bookingUpdatedTitle        = "د بکینګ تازه خبر"
         bookingConfirmedText       = { name -> "$name ستاسو بکینګ تایید کړ!" }
         bookingDeclinedText        = { name -> "$name ستاسو بکینګ رد کړ." }
-        reminderTitle              = "یادونه"
-        remindedTomorrow           = { _ -> "تاسو د سبا لپاره یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
-        remindedInHour             = { _ -> "تاسو په یوه ساعت کې یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
-        notifNeutralBody           = "تاسو یوه نوې تازه معلومات لرئ. د لیدلو لپاره ټک وکړئ."
+        reminderTitle              = "د ملاقات یادونه"
+        remindedTomorrow           = { name -> "ستاسو ملاقات $name کې سبا دی." }
+        remindedInHour             = { name -> "ستاسو ملاقات $name کې یو ساعت وروسته پیلیږي." }
         timeJustNow                = "همدا اوس"
         timeMinsAgo                = { m -> "$m دقیقې وړاندې" }
         timeHoursAgo               = { h -> "$h ساعته وړاندې" }

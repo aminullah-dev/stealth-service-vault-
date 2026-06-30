@@ -19,18 +19,13 @@ object NotificationHelper {
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Neutral channel name — shown in Android's system notification
-            // settings, so it must NOT reveal this is a salon-booking app.
             val channel = NotificationChannel(
                 CHANNEL_BOOKINGS,
-                "Reminders",
+                "Booking Updates",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 enableVibration(true)
                 enableLights(true)
-                // Hide all content from the lock screen — a beauty-salon line on
-                // a seized/shared phone's lock screen would defeat the disguise.
-                lockscreenVisibility = android.app.Notification.VISIBILITY_SECRET
             }
             context.getSystemService(NotificationManager::class.java)
                 .createNotificationChannel(channel)
@@ -70,16 +65,6 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-            // Belt-and-suspenders: even if the channel default were ever changed,
-            // keep the actual content off the lock screen. The neutral public
-            // version is what shows there (nothing identifying).
-            .setVisibility(NotificationCompat.VISIBILITY_SECRET)
-            .setPublicVersion(
-                NotificationCompat.Builder(context, CHANNEL_BOOKINGS)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
-                    .setContentTitle("Reminder")
-                    .build()
-            )
             .build()
 
         try {
