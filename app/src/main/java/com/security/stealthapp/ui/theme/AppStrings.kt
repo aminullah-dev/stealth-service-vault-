@@ -290,6 +290,10 @@ class AppStrings {
     var a11yCall: String = ""
     var a11yRemoveService: (String) -> String = { "" }
     var a11yBackspace: String = ""
+    // Admin user-search/filter
+    var searchUsersHint: String = ""
+    var filterAll: String = ""
+    var noUsersMatchSearch: String = ""
     // Portfolio gallery
     var portfolioTitle: String = ""
     var addPhoto: String = ""
@@ -664,6 +668,9 @@ object StringResources {
         a11yCall                = "Call"
         a11yRemoveService       = { s -> "Remove $s" }
         a11yBackspace           = "Backspace"
+        searchUsersHint         = "Search by name or phone…"
+        filterAll               = "All"
+        noUsersMatchSearch      = "No users match your search"
         portfolioTitle             = "Portfolio"
         addPhoto                   = "Add Photo"
         noPhotosYet                = "No sample work added yet"
@@ -1018,6 +1025,9 @@ object StringResources {
         a11yCall                = "تماس"
         a11yRemoveService       = { s -> "حذف $s" }
         a11yBackspace           = "حذف کاراکتر"
+        searchUsersHint         = "جستجو با نام یا شماره تلفن…"
+        filterAll               = "همه"
+        noUsersMatchSearch      = "هیچ کاربری با این جستجو مطابقت ندارد"
         portfolioTitle             = "نمونه کارها"
         addPhoto                   = "افزودن عکس"
         noPhotosYet                = "هنوز نمونه کاری اضافه نشده"
@@ -1372,6 +1382,9 @@ object StringResources {
         a11yCall                = "اړیکه"
         a11yRemoveService       = { s -> "$s لرې کول" }
         a11yBackspace           = "حرف ړنګول"
+        searchUsersHint         = "د نوم یا تلیفون شمیرې له مخې لټون…"
+        filterAll               = "ټول"
+        noUsersMatchSearch      = "ستاسو له لټون سره هیڅوک سمون نه خوري"
         portfolioTitle             = "د کار نمونې"
         addPhoto                   = "انځور اضافه کول"
         noPhotosYet                = "تر اوسه د کار نمونه نه ده اضافه شوې"

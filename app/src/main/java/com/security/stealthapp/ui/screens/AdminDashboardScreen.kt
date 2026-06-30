@@ -1,6 +1,7 @@
 package com.security.stealthapp.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,9 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
@@ -381,21 +384,69 @@ private fun PendingProviderCard(
 private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
     val strings = LocalStrings.current
     var deleteTarget by remember { mutableStateOf<UserDocument?>(null) }
+    var searchQuery  by remember { mutableStateOf("") }
+    var roleFilter   by remember { mutableStateOf<String?>(null) }   // null = all roles
 
-    if (users.isEmpty()) {
-        CenteredEmpty(Icons.Default.Group, strings.statsTotalUsers, "")
-    } else {
-        LazyColumn(
-            contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+    val filtered = remember(users, searchQuery, roleFilter) {
+        users
+            .filter { roleFilter == null || it.role == roleFilter }
+            .filter {
+                searchQuery.isBlank() ||
+                    it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.phone.contains(searchQuery, ignoreCase = true)
+            }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value         = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder   = { Text(strings.searchUsersHint, fontSize = 13.sp, color = RoseGold) },
+            leadingIcon   = { Icon(Icons.Default.Search, null, tint = RoseGold, modifier = Modifier.size(20.dp)) },
+            trailingIcon  = if (searchQuery.isNotBlank()) {
+                { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null, tint = RoseGold) } }
+            } else null,
+            singleLine = true,
+            shape      = RoundedCornerShape(14.dp),
+            modifier   = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            colors     = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor   = DeepRose,
+                unfocusedBorderColor = BlushPink
+            )
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 8.dp)
         ) {
-            items(users, key = { it.uid }) { user ->
-                UserRow(
-                    user        = user,
-                    onDelete    = { deleteTarget = user },
-                    onSuspend   = { viewModel.suspendUser(user.uid) },
-                    onUnsuspend = { viewModel.unsuspendUser(user.uid) }
-                )
+            RoleFilterChip(strings.filterAll, roleFilter == null) { roleFilter = null }
+            RoleFilterChip(strings.roleBadgeCustomer, roleFilter == "CUSTOMER") { roleFilter = "CUSTOMER" }
+            RoleFilterChip(strings.roleBadgeProvider, roleFilter == "PROVIDER") { roleFilter = "PROVIDER" }
+            RoleFilterChip(strings.roleBadgeAdmin, roleFilter == "ADMIN") { roleFilter = "ADMIN" }
+        }
+
+        if (filtered.isEmpty()) {
+            CenteredEmpty(
+                Icons.Default.Group,
+                strings.statsTotalUsers,
+                if (searchQuery.isNotBlank() || roleFilter != null) strings.noUsersMatchSearch else ""
+            )
+        } else {
+            LazyColumn(
+                contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(filtered, key = { it.uid }) { user ->
+                    UserRow(
+                        user        = user,
+                        onDelete    = { deleteTarget = user },
+                        onSuspend   = { viewModel.suspendUser(user.uid) },
+                        onUnsuspend = { viewModel.unsuspendUser(user.uid) }
+                    )
+                }
             }
         }
     }
@@ -418,6 +469,24 @@ private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
                     Text(strings.cancel, color = RoseGold)
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun RoleFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) DeepRose else BlushPink.copy(alpha = 0.5f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(
+            label,
+            fontSize   = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color      = if (selected) Color.White else DeepRose
         )
     }
 }
