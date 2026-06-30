@@ -128,6 +128,7 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
@@ -1346,13 +1347,80 @@ private fun IncomeTab(viewModel: ProviderViewModel) {
     val strings          = LocalStrings.current
     val analytics        by viewModel.analytics.collectAsStateWithLifecycle()
     val estimatedRevenue by viewModel.estimatedRevenue.collectAsStateWithLifecycle()
+    val owedBalance      by viewModel.owedBalance.collectAsStateWithLifecycle()
+    val myPayouts        by viewModel.myPayouts.collectAsStateWithLifecycle()
     val prices           = viewModel.editPrices
+    val payoutFmt         = remember { java.text.SimpleDateFormat("d MMM, h:mm a", java.util.Locale.getDefault()) }
 
     LazyColumn(
         contentPadding      = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Revenue summary ────────────────────────────────────────────────
+        // ── Real owed balance — what the platform actually owes this provider,
+        // net of commission, distinct from the price-based estimate below ─────
+        item {
+            ElevatedCard(
+                shape     = RoundedCornerShape(20.dp),
+                colors    = CardDefaults.elevatedCardColors(containerColor = AvailableGreen.copy(alpha = 0.10f)),
+                elevation = CardDefaults.elevatedCardElevation(2.dp),
+                modifier  = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Payments, null, tint = AvailableGreen, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(strings.incomeOwedBalance, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text       = "${owedBalance.format()} ${strings.incomeAFN}",
+                        fontSize   = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = AvailableGreen
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(strings.incomeOwedHint, fontSize = 11.sp, color = RoseGold)
+                }
+            }
+        }
+
+        if (myPayouts.isNotEmpty()) {
+            item {
+                Text(
+                    strings.incomePayoutHistory,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize   = 13.sp,
+                    color      = RoseGold,
+                    modifier   = Modifier.padding(top = 2.dp)
+                )
+            }
+            items(myPayouts, key = { it.id }) { payout ->
+                ElevatedCard(
+                    shape     = RoundedCornerShape(12.dp),
+                    colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                    elevation = CardDefaults.elevatedCardElevation(1.dp),
+                    modifier  = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier          = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                payoutFmt.format(java.util.Date(payout.createdAt)),
+                                fontSize = 12.sp, color = RoseGold
+                            )
+                        }
+                        Text(
+                            "${payout.amount.format()} ${strings.incomeAFN}",
+                            fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Revenue summary (estimate, from self-entered prices) ──────────────
         item {
             ElevatedCard(
                 shape     = RoundedCornerShape(20.dp),
@@ -1511,6 +1579,10 @@ private fun MiniStatCard(label: String, value: String, tint: Color, modifier: Mo
 }
 
 private fun Int.format(): String {
+    return "%,d".format(this)
+}
+
+private fun Long.format(): String {
     return "%,d".format(this)
 }
 

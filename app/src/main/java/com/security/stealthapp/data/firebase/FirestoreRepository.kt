@@ -573,6 +573,30 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    /** Live owed balance for one provider — what they see on their own Income tab. */
+    fun observeProviderBalance(providerId: String): Flow<Long> = callbackFlow {
+        val listener = providerBalancesCol.document(providerId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(0L); return@addSnapshotListener }
+                trySend(snap?.getLong("owedAmount") ?: 0L)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /** Live payout history for one provider (most recent first). */
+    fun observePayoutsForProvider(providerId: String): Flow<List<PayoutDocument>> = callbackFlow {
+        val listener = payoutsCol.whereEqualTo("providerId", providerId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     /** Live payout history (most recent first). Admin reads all rows. */
     fun observePayouts(): Flow<List<PayoutDocument>> = callbackFlow {
         val listener = payoutsCol.addSnapshotListener { snap, err ->

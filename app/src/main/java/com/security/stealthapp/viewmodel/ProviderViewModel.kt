@@ -117,6 +117,21 @@ class ProviderViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
+    // ── Real earnings (actual paid/owed amounts, distinct from the price-based
+    // estimate above) ────────────────────────────────────────────────────────
+
+    /** What the platform currently owes this provider (net of commission). */
+    val owedBalance: StateFlow<Long> =
+        firestoreRepository.observeProviderBalance(providerId)
+            .catch { emit(0L) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
+    /** This provider's own payout history, most recent first. */
+    val myPayouts: StateFlow<List<com.security.stealthapp.data.firebase.PayoutDocument>> =
+        firestoreRepository.observePayoutsForProvider(providerId)
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // ── Portfolio gallery ─────────────────────────────────────────────────────
 
     val gallery: StateFlow<List<GalleryImageDocument>> = salon
