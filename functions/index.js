@@ -121,10 +121,14 @@ exports.createPaymentSession = onCall(
     const commissionAmount  = Math.round((price * commissionPercent) / 100);
     const providerNet       = price - commissionAmount;
 
-    // Create the appointment up-front in AWAITING_PAYMENT so it won't show to
-    // the provider until the payment webhook flips it to PENDING.
-    const apptRef = db.collection("appointments").doc();
-    await apptRef.set({
+    // Create the appointment (AWAITING_PAYMENT, hidden from the provider until
+    // the webhook flips it to PENDING) and the payment row (PENDING, so the
+    // webhook always has a row to update) atomically in one batch — so we can
+    // never end up with one without the other if the function dies mid-write.
+    const apptRef    = db.collection("appointments").doc();
+    const paymentRef = db.collection("payments").doc();
+    const createBatch = db.batch();
+    createBatch.set(apptRef, {
       customerId:    uid,
       customerName:  user.name  || "",
       customerPhone: user.phone || "",
@@ -136,11 +140,7 @@ exports.createPaymentSession = onCall(
       createdAt: Date.now(),
       notes:     notes || "",
     });
-
-    // Create the payment record (PENDING) before contacting HesabPay so the
-    // webhook always has a row to update.
-    const paymentRef = db.collection("payments").doc();
-    await paymentRef.set({
+    createBatch.set(paymentRef, {
       appointmentId:     apptRef.id,
       customerId:        uid,
       providerId:        salon.providerId || "",
@@ -155,6 +155,7 @@ exports.createPaymentSession = onCall(
       hesabSessionId:    "",
       createdAt:         Date.now(),
     });
+    await createBatch.commit();
 
     // ── Call HesabPay create-session ─────────────────────────────────────────
     // Field names confirmed from developers.hesab.com:

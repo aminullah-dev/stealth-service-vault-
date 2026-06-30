@@ -22,7 +22,9 @@ service firebase.storage {
 
     function isValidImage() {
       return request.resource.size  < 2 * 1024 * 1024    // max 2 MB
-          && request.resource.contentType.matches('image/.*');
+          // Raster formats only — 'image/.*' would also accept image/svg+xml,
+          // which is XML and can carry scripts (stored-XSS if ever rendered).
+          && request.resource.contentType.matches('image/(jpeg|png|webp)');
     }
 
     // ── Profile photos ─────────────────────────────────────────────────────────
