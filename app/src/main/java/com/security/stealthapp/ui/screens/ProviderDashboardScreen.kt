@@ -347,6 +347,22 @@ fun ProviderDashboardScreen(
             )
         }
 
+        // ── Save error dialog ─────────────────────────────────────────────
+        if (viewModel.showSaveError) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { viewModel.dismissSaveError() },
+                title = { Text(strings.actionFailedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissSaveError() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         if (showLangPicker) {
             LanguagePickerDialog(
                 current   = currentLanguage,

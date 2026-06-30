@@ -170,6 +170,7 @@ class ProviderViewModel @Inject constructor(
     var editServices     by mutableStateOf<List<String>>(emptyList())
     var newServiceDraft  by mutableStateOf("")
     var showSaveSuccess  by mutableStateOf(false)
+    var showSaveError    by mutableStateOf(false)
     var lockTriggered    by mutableStateOf(false)
     var editWorkingHours by mutableStateOf<List<WorkingHours>>(emptyList())
         private set
@@ -306,21 +307,28 @@ class ProviderViewModel @Inject constructor(
     fun saveProfile() {
         val current = salon.value ?: return
         viewModelScope.launch {
-            firestoreRepository.updateSalon(
-                current.copy(
-                    district            = editDistrict,
-                    services            = editServices,
-                    workingHours        = editWorkingHours,
-                    slotDurationMinutes = editSlotDuration,
-                    pricePerService     = editPrices
+            runCatching {
+                firestoreRepository.updateSalon(
+                    current.copy(
+                        district            = editDistrict,
+                        services            = editServices,
+                        workingHours        = editWorkingHours,
+                        slotDurationMinutes = editSlotDuration,
+                        pricePerService     = editPrices
+                    )
                 )
-            )
-            vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")
-            showSaveSuccess = true
+            }.onSuccess {
+                vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")
+                showSaveSuccess = true
+            }.onFailure {
+                // Surface the failure instead of silently claiming success.
+                showSaveError = true
+            }
         }
     }
 
     fun dismissSaveSuccess() { showSaveSuccess = false }
+    fun dismissSaveError()   { showSaveError = false }
 
     fun replyToReview(reviewId: String, reply: String) {
         val trimmed = reply.trim()
