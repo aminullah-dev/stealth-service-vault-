@@ -6,5 +6,8 @@ enum class UserRole { CUSTOMER, PROVIDER, ADMIN }
 data class LoggedInUser(
     val uid: String,
     val name: String,
-    val role: UserRole
+    val role: UserRole,
+    // Account status from the server ("APPROVED" | "PENDING" | "SUSPENDED" | "REJECTED").
+    // Drives the post-login gate: a non-APPROVED provider is sent to a status screen.
+    val status: String = "APPROVED"
 )

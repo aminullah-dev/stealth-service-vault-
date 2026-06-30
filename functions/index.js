@@ -496,16 +496,21 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
 
   const snap = await db.collection("users").get();
 
-  // Real PIN — APPROVED users only.
+  // Real PIN. We return the account status too so the client can gate a
+  // non-APPROVED provider (PENDING → "under review", SUSPENDED → blocked)
+  // instead of dropping them into a live dashboard. Provider WRITES are also
+  // blocked server-side by the Firestore rules' isApproved() checks, so this
+  // is defense-in-depth, not the only gate.
   for (const doc of snap.docs) {
     const u = doc.data();
-    if (u.status !== "APPROVED" || !u.pinHash || !u.salt) continue;
+    if (!u.pinHash || !u.salt) continue;
     if (hashesEqual(pbkdf2Hash(pin, u.salt), u.pinHash)) {
       return {
         mode:          "REAL",
         uid:           doc.id,
         name:          u.name  || "",
         role:          u.role  || "CUSTOMER",
+        status:        u.status || "",
         firebaseEmail: u.firebaseEmail || "",
         salt:          u.salt,
       };

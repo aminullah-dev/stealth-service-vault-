@@ -14,6 +14,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.security.stealthapp.data.model.UserRole
+import com.security.stealthapp.ui.screens.AccountStatusScreen
 import com.security.stealthapp.ui.screens.AdminDashboardScreen
 import com.security.stealthapp.ui.screens.ChatScreen
 import com.security.stealthapp.ui.screens.DisguiseScreen
@@ -43,6 +44,9 @@ sealed class Screen(val route: String) {
     object Login     : Screen("login")
     object Register  : Screen("register")
     object Disguise  : Screen("disguise")
+    object AccountStatus : Screen("accountStatus/{status}") {
+        fun build(status: String) = "accountStatus/${Uri.encode(status.ifBlank { "PENDING" })}"
+    }
 
     object CustomerDashboard : Screen("dashboard/customer/{userId}") {
         fun build(userId: String) = "dashboard/customer/$userId"
@@ -129,7 +133,12 @@ fun AppNavGraph(
                 LoginScreen(
                     onAuthSuccess = { user ->
                         sessionVm.onLoggedIn()
-                        val dashboardRoute = when (user.role) {
+                        // Gate non-APPROVED accounts (e.g. a provider awaiting admin
+                        // approval, or a suspended user) to a status screen instead of
+                        // a live dashboard. Customers/admins are always APPROVED.
+                        val dashboardRoute = if (user.status != "APPROVED") {
+                            Screen.AccountStatus.build(user.status)
+                        } else when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
                             UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
@@ -163,6 +172,21 @@ fun AppNavGraph(
 
             composable(Screen.Disguise.route) {
                 DisguiseScreen()
+            }
+
+            composable(
+                route     = Screen.AccountStatus.route,
+                arguments = listOf(navArgument("status") { type = NavType.StringType })
+            ) { backStackEntry ->
+                AccountStatusScreen(
+                    status = backStackEntry.arguments?.getString("status") ?: "PENDING",
+                    onBack = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
 
             composable(Screen.Register.route) {
