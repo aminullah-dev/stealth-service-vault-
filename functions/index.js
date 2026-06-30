@@ -230,6 +230,11 @@ exports.hesabPayWebhook = onRequest(
 
     const payload = req.body || {};
 
+    const { signature, timestamp } = payload;
+    if (!signature || !timestamp) {
+      return res.status(400).send("Missing signature or timestamp");
+    }
+
     // Verify the webhook signature before trusting the payload so a forged
     // request can't mark an unpaid booking as PAID.
     try {
@@ -241,10 +246,7 @@ exports.hesabPayWebhook = onRequest(
         {
           method:  "POST",
           headers: hesabHeaders(HESAB_API_KEY.value()),
-          body: JSON.stringify({
-            signature: payload.signature || req.get("x-hesab-signature") || "",
-            timestamp: payload.timestamp || "",
-          }),
+          body: JSON.stringify({ signature, timestamp }),
         }
       );
       const verifyBody = await verifyRes.json().catch(() => ({}));
