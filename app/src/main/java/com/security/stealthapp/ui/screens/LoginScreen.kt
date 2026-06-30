@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.security.stealthapp.R
 import com.security.stealthapp.data.model.LoggedInUser
 import com.security.stealthapp.security.BiometricVault
+import com.security.stealthapp.security.RootDetector
 import com.security.stealthapp.ui.theme.ChipInactive
 import com.security.stealthapp.ui.theme.DashboardSurface
 import com.security.stealthapp.ui.theme.DashboardTheme
@@ -88,6 +89,10 @@ fun LoginScreen(
     var pin          by remember { mutableStateOf("") }
     var showError    by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
+
+    // Root / emulator warning — checked once per screen entry.
+    val securityCheck = remember { RootDetector.check(context) }
+    var showSecurityWarning by remember { mutableStateOf(securityCheck.isRisky) }
 
     // Biometric fast-unlock state.
     var biometricEnabled by remember { mutableStateOf(BiometricVault.isEnabled(context)) }
@@ -436,6 +441,26 @@ fun LoginScreen(
                 current   = currentLanguage,
                 onPick    = { langVm.setLanguage(it); showLangPicker = false },
                 onDismiss = { showLangPicker = false }
+            )
+        }
+
+        // ── Root / emulator security warning ─────────────────────────────────
+        if (showSecurityWarning) {
+            val warningBody = buildString {
+                if (securityCheck.isRooted) append(strings.securityWarningRooted)
+                if (securityCheck.isRooted && securityCheck.isEmulator) append("\n\n")
+                if (securityCheck.isEmulator) append(strings.securityWarningEmulator)
+            }
+            AlertDialog(
+                onDismissRequest = { showSecurityWarning = false },
+                title  = { Text(strings.securityWarningTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text   = { Text(warningBody, color = RoseGold, fontSize = 14.sp) },
+                confirmButton = {
+                    TextButton(onClick = { showSecurityWarning = false }) {
+                        Text(strings.gotIt, color = DeepRose, fontWeight = FontWeight.Bold)
+                    }
+                },
+                containerColor = ElegantCream
             )
         }
 
