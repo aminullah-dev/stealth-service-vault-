@@ -171,7 +171,25 @@ fun AppNavGraph(
             }
 
             composable(Screen.Disguise.route) {
-                DisguiseScreen()
+                DisguiseScreen(
+                    onAuthSuccess = { user ->
+                        sessionVm.onLoggedIn()
+                        val route = if (user.status != "APPROVED") {
+                            Screen.AccountStatus.build(user.status)
+                        } else when (user.role) {
+                            UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
+                            UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
+                            UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
+                        }
+                        navController.navigate(route) {
+                            popUpTo(Screen.Disguise.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onRegisterTapped = {
+                        navController.navigate(Screen.Register.route) { launchSingleTop = true }
+                    }
+                )
             }
 
             composable(

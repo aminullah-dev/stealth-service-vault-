@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.Search
@@ -69,21 +71,12 @@ import com.security.stealthapp.ui.theme.NotepadSecondary
 import com.security.stealthapp.ui.theme.NotepadSurface
 import com.security.stealthapp.ui.theme.NotepadTheme
 import com.security.stealthapp.viewmodel.AuthViewModel
+import com.security.stealthapp.viewmodel.DisguiseNote
 import com.security.stealthapp.viewmodel.DisguiseViewModel
 import com.security.stealthapp.viewmodel.LanguageViewModel
-
-// ── Static mock data ──────────────────────────────────────────────────────────
-
-private data class MockNote(val id: Int, val title: String, val body: String, val date: String)
-
-private val MOCK_NOTES = listOf(
-    MockNote(1, "Grocery List",         "Tomatoes, onions, naan bread, yogurt, rice, lentils, cooking oil, cardamom…",   "Today"),
-    MockNote(2, "Mom's Bolani Recipe",  "Dough: 2 cups flour, ½ tsp salt, warm water. Fill with potato & leek. Pan-fry.", "Yesterday"),
-    MockNote(3, "Phone Numbers",        "Doctor Ahmadi: 0700-112233\nSchool: 0700-445566\nNeighbour Fatima: 0799-887766", "Jun 15"),
-    MockNote(4, "Reminders",            "- Pick up package from post office\n- Pay electricity bill before the 20th",      "Jun 12"),
-    MockNote(5, "Monthly Budget",       "Rent: 8,000 AFN\nFood: 4,000 AFN\nSchool fees: 1,500 AFN\nTransport: 800 AFN",   "Jun 05"),
-    MockNote(6, "Reading List",         "1. Khaled Hosseini – A Thousand Splendid Suns\n2. Rumi – Masnavi",               "Jun 01")
-)
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -106,21 +99,33 @@ fun DisguiseScreen(
 
     val strings         = LocalStrings.current
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
-    var searchQuery     by remember { mutableStateOf("") }
-    var selectedNoteId  by remember { mutableStateOf(MOCK_NOTES.first().id) }
-    var showAddDialog   by remember { mutableStateOf(false) }
-    var showEditor      by remember { mutableStateOf(false) }
-    var showMenu        by remember { mutableStateOf(false) }
-    var showLangPicker  by remember { mutableStateOf(false) }
 
-    val selectedNote = MOCK_NOTES.find { it.id == selectedNoteId } ?: MOCK_NOTES.first()
-    val visibleNotes = remember(searchQuery) {
-        if (searchQuery.isBlank()) MOCK_NOTES
-        else MOCK_NOTES.filter {
+    // Seed a few believable starter notes on first ever open (localized).
+    LaunchedEffect(Unit) {
+        noteViewModel.seedIfEmpty(
+            listOf(
+                strings.notepadSeed1Title to strings.notepadSeed1Body,
+                strings.notepadSeed2Title to strings.notepadSeed2Body,
+                strings.notepadSeed3Title to strings.notepadSeed3Body,
+            )
+        )
+    }
+
+    val notes = noteViewModel.notes
+    var searchQuery    by remember { mutableStateOf("") }
+    var openNoteId     by remember { mutableStateOf<Long?>(null) }
+    var showAddDialog  by remember { mutableStateOf(false) }
+    var showMenu       by remember { mutableStateOf(false) }
+    var showLangPicker by remember { mutableStateOf(false) }
+
+    val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
+    val openNote = notes.find { it.id == openNoteId }
+
+    val visibleNotes = if (searchQuery.isBlank()) notes
+        else notes.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
             it.body.contains(searchQuery, ignoreCase = true)
         }
-    }
 
     NotepadTheme {
         Scaffold(
@@ -129,7 +134,7 @@ fun DisguiseScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text       = "My Notes",
+                            text       = strings.notepadTitle,
                             fontFamily = FontFamily.Serif,
                             fontWeight = FontWeight.Normal,
                             fontSize   = 22.sp,
@@ -150,11 +155,11 @@ fun DisguiseScreen(
                                 onDismissRequest = { showMenu = false }
                             ) {
                                 DropdownMenuItem(
-                                    text    = { Text("Sort by date", fontSize = 14.sp, color = NotepadPrimary) },
-                                    onClick = { showMenu = false }
+                                    text    = { Text(strings.notepadSortByDate, fontSize = 14.sp, color = NotepadPrimary) },
+                                    onClick = { showMenu = false; noteViewModel.sortByDate() }
                                 )
                                 DropdownMenuItem(
-                                    text    = { Text("New account", fontSize = 14.sp, color = NotepadPrimary) },
+                                    text    = { Text(strings.notepadNewAccount, fontSize = 14.sp, color = NotepadPrimary) },
                                     onClick = { showMenu = false; onRegisterTapped() }
                                 )
                                 DropdownMenuItem(
@@ -168,7 +173,7 @@ fun DisguiseScreen(
                 )
             },
             floatingActionButton = {
-                if (!showEditor) {
+                if (openNote == null) {
                     FloatingActionButton(
                         onClick        = { showAddDialog = true },
                         containerColor = NotepadPrimary
@@ -180,7 +185,7 @@ fun DisguiseScreen(
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
 
-                // ── Search bar — also the PIN entry point ─────────────────────
+                // ── Search bar — also the hidden PIN entry point ──────────────
                 OutlinedTextField(
                     value         = searchQuery,
                     onValueChange = { q ->
@@ -190,7 +195,7 @@ fun DisguiseScreen(
                         }
                     },
                     placeholder = {
-                        Text("Search notes…", color = Color.Gray, fontSize = 14.sp)
+                        Text(strings.notepadSearchHint, color = Color.Gray, fontSize = 14.sp)
                     },
                     leadingIcon  = {
                         Icon(Icons.Default.Search, null, tint = Color.Gray)
@@ -215,24 +220,33 @@ fun DisguiseScreen(
                     )
                 )
 
-                if (showEditor) {
+                if (openNote != null) {
                     NoteEditorPanel(
-                        title     = selectedNote.title,
+                        title     = openNote.title,
                         content   = noteViewModel.noteContent,
-                        onChanged = noteViewModel::onNoteContentChanged,
-                        onBack    = { showEditor = false },
+                        backLabel = strings.notepadBack,
+                        deleteLabel = strings.notepadDelete,
+                        onChanged = { text ->
+                            noteViewModel.onNoteContentChanged(text)
+                            noteViewModel.updateNoteBody(openNote.id, text)
+                        },
+                        onDelete  = { noteViewModel.deleteNote(openNote.id); openNoteId = null },
+                        onBack    = { openNoteId = null },
                         modifier  = Modifier.fillMaxSize()
                     )
+                } else if (visibleNotes.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(strings.notepadEmpty, color = Color(0xFF9E9E9E), fontSize = 14.sp)
+                    }
                 } else {
                     LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
                         items(visibleNotes, key = { it.id }) { note ->
                             NoteListRow(
-                                note       = note,
-                                isSelected = note.id == selectedNoteId,
-                                onClick    = {
-                                    selectedNoteId = note.id
+                                note    = note,
+                                dateText = dateFmt.format(Date(note.updatedAt)),
+                                onClick = {
                                     noteViewModel.onNoteContentChanged(note.body)
-                                    showEditor = true
+                                    openNoteId = note.id
                                 }
                             )
                             HorizontalDivider(color = NotepadLines.copy(alpha = 0.6f))
@@ -242,7 +256,19 @@ fun DisguiseScreen(
             }
 
             if (showAddDialog) {
-                AddNoteDialog(onDismiss = { showAddDialog = false }, onConfirm = { showAddDialog = false })
+                AddNoteDialog(
+                    titleHint   = strings.notepadNoteTitleHint,
+                    heading     = strings.notepadNewNote,
+                    createLabel = strings.notepadCreate,
+                    cancelLabel = strings.cancel,
+                    untitled    = strings.notepadUntitled,
+                    onDismiss   = { showAddDialog = false },
+                    onConfirm   = { title ->
+                        showAddDialog = false
+                        noteViewModel.onNoteContentChanged("")
+                        openNoteId = noteViewModel.addNote(title)
+                    }
+                )
             }
         }
 
@@ -259,24 +285,15 @@ fun DisguiseScreen(
 // ── Private composable helpers ────────────────────────────────────────────────
 
 @Composable
-private fun NoteListRow(note: MockNote, isSelected: Boolean, onClick: () -> Unit) {
+private fun NoteListRow(note: DisguiseNote, dateText: String, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isSelected) NotepadSurface else NotepadBg)
+            .background(NotepadBg)
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(
-                    color = if (isSelected) NotepadSecondary else Color.Transparent,
-                    shape = RoundedCornerShape(4.dp)
-                )
-        )
-        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text       = note.title,
@@ -287,10 +304,16 @@ private fun NoteListRow(note: MockNote, isSelected: Boolean, onClick: () -> Unit
                 overflow   = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(3.dp))
-            Text(text = note.body, fontSize = 12.sp, color = Color(0xFF757575), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = note.body.ifBlank { " " },
+                fontSize = 12.sp,
+                color = Color(0xFF757575),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Spacer(Modifier.width(8.dp))
-        Text(text = note.date, fontSize = 10.sp, color = Color(0xFFBDBDBD))
+        Text(text = dateText, fontSize = 10.sp, color = Color(0xFFBDBDBD))
     }
 }
 
@@ -298,7 +321,10 @@ private fun NoteListRow(note: MockNote, isSelected: Boolean, onClick: () -> Unit
 private fun NoteEditorPanel(
     title: String,
     content: String,
+    backLabel: String,
+    deleteLabel: String,
     onChanged: (String) -> Unit,
+    onDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -306,16 +332,30 @@ private fun NoteEditorPanel(
     Column(modifier = modifier.background(NotepadBg)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier.fillMaxWidth().background(NotepadSurface).padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Text(
-                text     = "← Notes",
-                fontSize = 14.sp,
-                color    = NotepadSecondary,
-                modifier = Modifier.clickable(onClick = onBack).padding(end = 8.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = NotepadPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Text(
+                    text     = "← $backLabel",
+                    fontSize = 14.sp,
+                    color    = NotepadSecondary,
+                    modifier = Modifier.clickable(onClick = onBack).padding(end = 8.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = NotepadPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = deleteLabel, tint = NotepadSecondary)
+            }
         }
         HorizontalDivider(color = NotepadLines)
         BasicTextField(
@@ -339,14 +379,34 @@ private fun NoteEditorPanel(
 }
 
 @Composable
-private fun AddNoteDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+private fun AddNoteDialog(
+    titleHint: String,
+    heading: String,
+    createLabel: String,
+    cancelLabel: String,
+    untitled: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
     var titleInput by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title            = { Text("New Note", fontFamily = FontFamily.Serif) },
-        text             = { OutlinedTextField(value = titleInput, onValueChange = { titleInput = it }, label = { Text("Note title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-        confirmButton    = { TextButton(onClick = onConfirm) { Text("Create") } },
-        dismissButton    = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        title            = { Text(heading, fontFamily = FontFamily.Serif) },
+        text             = {
+            OutlinedTextField(
+                value = titleInput,
+                onValueChange = { titleInput = it },
+                label = { Text(titleHint) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton    = {
+            TextButton(onClick = { onConfirm(titleInput.trim().ifBlank { untitled }) }) {
+                Text(createLabel)
+            }
+        },
+        dismissButton    = { TextButton(onClick = onDismiss) { Text(cancelLabel) } },
         containerColor   = NotepadBg
     )
 }
