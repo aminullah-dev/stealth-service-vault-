@@ -14,11 +14,14 @@ import com.security.stealthapp.data.firebase.SalonDocument
 import com.security.stealthapp.data.firebase.UserDocument
 import com.security.stealthapp.data.repository.VaultRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -39,20 +42,36 @@ class AdminViewModel @Inject constructor(
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
+    // Each "*Loaded" flag flips true on the underlying listener's FIRST emission
+    // (success or error) so the UI can tell "still loading" apart from a
+    // genuinely empty result — both used to render the exact same empty state.
+    private val _approvalsLoaded = MutableStateFlow(false)
+    val approvalsLoaded: StateFlow<Boolean> = _approvalsLoaded.asStateFlow()
     val pendingProviders: StateFlow<List<UserDocument>> =
         firestoreRepository.observePendingProviders()
-            .catch { emit(emptyList()) }
+            .onEach { _approvalsLoaded.value = true }
+            .catch { _approvalsLoaded.value = true; emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _usersLoaded = MutableStateFlow(false)
+    val usersLoaded: StateFlow<Boolean> = _usersLoaded.asStateFlow()
     val allUsers: StateFlow<List<UserDocument>> =
         firestoreRepository.observeAllUsers()
-            .catch { emit(emptyList()) }
+            .onEach { _usersLoaded.value = true }
+            .catch { _usersLoaded.value = true; emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _salonsLoaded = MutableStateFlow(false)
     val allSalons: StateFlow<List<SalonDocument>> =
         firestoreRepository.observeAllSalons()
-            .catch { emit(emptyList()) }
+            .onEach { _salonsLoaded.value = true }
+            .catch { _salonsLoaded.value = true; emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** True once both users and salons have settled — drives the Stats tab's loading state. */
+    val statsLoaded: StateFlow<Boolean> =
+        combine(_usersLoaded, _salonsLoaded) { u, s -> u && s }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     val stats: StateFlow<SystemStats> = combine(allUsers, allSalons) { users, salons ->
         SystemStats(

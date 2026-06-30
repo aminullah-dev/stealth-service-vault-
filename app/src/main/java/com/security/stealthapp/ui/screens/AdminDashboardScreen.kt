@@ -118,9 +118,12 @@ fun AdminDashboardScreen(
     val strings          = LocalStrings.current
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()
+    val approvalsLoaded  by viewModel.approvalsLoaded.collectAsStateWithLifecycle()
     val allUsers         by viewModel.allUsers.collectAsStateWithLifecycle()
+    val usersLoaded      by viewModel.usersLoaded.collectAsStateWithLifecycle()
     val allSalons        by viewModel.allSalons.collectAsStateWithLifecycle()
     val stats            by viewModel.stats.collectAsStateWithLifecycle()
+    val statsLoaded      by viewModel.statsLoaded.collectAsStateWithLifecycle()
     val broadcasts       by viewModel.broadcasts.collectAsStateWithLifecycle()
     val commissionPercent by viewModel.commissionPercent.collectAsStateWithLifecycle()
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
@@ -203,10 +206,10 @@ fun AdminDashboardScreen(
                 }
 
                 when (selectedTab) {
-                    0 -> ApprovalsTab(pendingProviders, viewModel)
-                    1 -> UsersTab(allUsers, viewModel)
+                    0 -> ApprovalsTab(pendingProviders, approvalsLoaded, viewModel)
+                    1 -> UsersTab(allUsers, usersLoaded, viewModel)
                     2 -> SalonsTab(allSalons, viewModel)
-                    3 -> StatsTab(stats)
+                    3 -> StatsTab(stats, statsLoaded)
                     4 -> BroadcastTab(broadcasts, viewModel)
                     5 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
                 }
@@ -223,18 +226,33 @@ fun AdminDashboardScreen(
     }
 }
 
+// ── Shared loading indicator ───────────────────────────────────────────────────
+// Distinguishes "the first Firestore snapshot hasn't arrived yet" from a
+// genuinely empty result — both used to render the exact same empty state,
+// which made a slow/broken connection indistinguishable from "no data".
+
+@Composable
+private fun LoadingBox() {
+    Box(modifier = Modifier.fillMaxSize().padding(48.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = DeepRose, strokeWidth = 2.dp)
+    }
+}
+
 // ── Tab 0: Approvals ──────────────────────────────────────────────────────────
 
 @Composable
 private fun ApprovalsTab(
     pendingProviders: List<UserDocument>,
+    isLoaded: Boolean,
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
     var rejectTarget by remember { mutableStateOf<UserDocument?>(null) }
     var rejectReason by remember { mutableStateOf("") }
 
-    if (pendingProviders.isEmpty()) {
+    if (!isLoaded) {
+        LoadingBox()
+    } else if (pendingProviders.isEmpty()) {
         CenteredEmpty(
             icon    = Icons.Default.AdminPanelSettings,
             title   = strings.noPendingAppsTitle,
@@ -381,7 +399,7 @@ private fun PendingProviderCard(
 // ── Tab 1: All Users ──────────────────────────────────────────────────────────
 
 @Composable
-private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
+private fun UsersTab(users: List<UserDocument>, isLoaded: Boolean, viewModel: AdminViewModel) {
     val strings = LocalStrings.current
     var deleteTarget by remember { mutableStateOf<UserDocument?>(null) }
     var searchQuery  by remember { mutableStateOf("") }
@@ -428,7 +446,9 @@ private fun UsersTab(users: List<UserDocument>, viewModel: AdminViewModel) {
             RoleFilterChip(strings.roleBadgeAdmin, roleFilter == "ADMIN") { roleFilter = "ADMIN" }
         }
 
-        if (filtered.isEmpty()) {
+        if (!isLoaded) {
+            LoadingBox()
+        } else if (filtered.isEmpty()) {
             CenteredEmpty(
                 Icons.Default.Group,
                 strings.statsTotalUsers,
@@ -594,8 +614,12 @@ private fun StatusBadge(status: String, color: Color) {
 // ── Tab 2: Stats ──────────────────────────────────────────────────────────────
 
 @Composable
-private fun StatsTab(stats: SystemStats) {
+private fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
     val strings = LocalStrings.current
+    if (!isLoaded) {
+        LoadingBox()
+        return
+    }
     LazyColumn(
         contentPadding      = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
