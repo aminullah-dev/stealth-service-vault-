@@ -29,9 +29,14 @@ service firebase.storage {
 
     // ── Profile photos ─────────────────────────────────────────────────────────
     // Path: profile_photos/{uid}.jpg
-    match /profile_photos/{uid}.jpg {
+    // Storage Rules path segments can't mix a wildcard capture with a literal
+    // suffix (e.g. "{uid}.jpg" is invalid syntax) — so the whole segment is
+    // captured as fileName and checked against "<uid>.jpg" in the rule body.
+    match /profile_photos/{fileName} {
       allow read:   if isSignedIn();
-      allow write:  if request.auth.uid == uid && isValidImage();
+      allow write:  if isSignedIn()
+                  && fileName == request.auth.uid + '.jpg'
+                  && isValidImage();
     }
 
     // ── Salon gallery ──────────────────────────────────────────────────────────
