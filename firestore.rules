@@ -82,8 +82,8 @@ service cloud.firestore {
       // A self-update may NOT change privileged fields — role and status are
       // admin-controlled. Without this, any user could set role='ADMIN' or
       // un-suspend themselves (status='APPROVED') by writing their own doc.
-      // pinHash/salt/decoy* stay editable here (the Change-PIN flow verifies the
-      // old PIN first); name/photo/loyaltyPoints/fcmToken remain editable too.
+      // pinHash/salt stay editable here (the Change-PIN flow verifies the old
+      // PIN first); name/photo/loyaltyPoints/fcmToken remain editable too.
       allow update: if isAdmin()
                  || (ownsDoc(uid)
                      && request.resource.data.role   == resource.data.role

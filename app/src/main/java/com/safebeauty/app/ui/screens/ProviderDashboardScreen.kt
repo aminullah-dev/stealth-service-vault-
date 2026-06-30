@@ -118,7 +118,6 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
-import com.safebeauty.app.viewmodel.DecoyPinViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -941,10 +940,6 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         ) {
             Text(strings.saveProfile, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
         }
-
-        // ── Decoy PIN ─────────────────────────────────────────────────────
-        val decoyVm: DecoyPinViewModel = hiltViewModel()
-        DecoyPinSection(uid = viewModel.providerId, decoyVm = decoyVm)
 
         // ── Change PIN ────────────────────────────────────────────────────
         val changePinVm: ChangePinViewModel = hiltViewModel()

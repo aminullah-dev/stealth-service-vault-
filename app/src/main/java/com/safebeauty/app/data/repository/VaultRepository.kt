@@ -68,12 +68,4 @@ class VaultRepository @Inject constructor(
         bookingDao.purgeErased()
         return count
     }
-
-    // ── Emergency wipe ────────────────────────────────────────────────────────
-
-    suspend fun nukeAllData() {
-        logDao.deleteAll()
-        messageDao.deleteAll()
-        bookingDao.deleteAll()
-    }
 }

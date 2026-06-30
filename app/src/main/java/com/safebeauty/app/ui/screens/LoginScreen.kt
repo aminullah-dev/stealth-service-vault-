@@ -73,7 +73,6 @@ private const val PIN_LENGTH = 6
 @Composable
 fun LoginScreen(
     onAuthSuccess: (LoggedInUser) -> Unit,
-    onDecoyMode: () -> Unit = {},
     onRegisterTapped: () -> Unit,
     onForgotPinTapped: () -> Unit = {},
     authViewModel: AuthViewModel   = hiltViewModel(),
@@ -138,10 +137,6 @@ fun LoginScreen(
                 } else {
                     onAuthSuccess(user)
                 }
-            }
-            is AuthViewModel.AuthState.DecoyMode -> {
-                authViewModel.resetState()
-                onDecoyMode()
             }
             is AuthViewModel.AuthState.Failure -> {
                 wasAuthenticating = false

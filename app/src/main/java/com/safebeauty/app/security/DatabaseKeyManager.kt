@@ -13,8 +13,7 @@ import javax.inject.Singleton
  * EncryptedSharedPreferences backed by the Android Keystore (AES-256-GCM).
  *
  * Uses the stable security-crypto 1.0.0 API (MasterKeys / EncryptedSharedPreferences).
- * The passphrase never leaves the device in plain form. [nukePassphrase] makes the
- * encrypted database permanently unreadable without wiping it first.
+ * The passphrase never leaves the device in plain form.
  */
 @Singleton
 class DatabaseKeyManager @Inject constructor(private val context: Context) {
@@ -51,13 +50,5 @@ class DatabaseKeyManager @Inject constructor(private val context: Context) {
             .putString(PREF_KEY, Base64.encodeToString(fresh, Base64.DEFAULT))
             .apply()
         return fresh
-    }
-
-    /**
-     * Deletes the stored passphrase. The encrypted database file becomes permanently
-     * unreadable — a cryptographic wipe without touching the file itself.
-     */
-    fun nukePassphrase() {
-        encryptedPrefs.edit().remove(PREF_KEY).apply()
     }
 }

@@ -4,19 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val NotepadColorScheme = lightColorScheme(
-    primary          = NotepadPrimary,
-    onPrimary        = NotepadOnPrimary,
-    secondary        = NotepadSecondary,
-    background       = NotepadBg,
-    surface          = NotepadSurface,
-    onBackground     = NotepadPrimary,
-    onSurface        = NotepadPrimary
-)
-
 private val DashboardColorScheme = lightColorScheme(
     primary          = RoseGold,
-    onPrimary        = NotepadOnPrimary,
+    onPrimary        = OnPrimaryWhite,
     primaryContainer = BlushPink,
     secondary        = SoftPurple,
     tertiary         = WarmGold,
@@ -25,15 +15,6 @@ private val DashboardColorScheme = lightColorScheme(
     onBackground     = DeepRose,
     onSurface        = DeepRose
 )
-
-@Composable
-fun NotepadTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = NotepadColorScheme,
-        typography  = NotepadTypography,
-        content     = content
-    )
-}
 
 @Composable
 fun DashboardTheme(content: @Composable () -> Unit) {

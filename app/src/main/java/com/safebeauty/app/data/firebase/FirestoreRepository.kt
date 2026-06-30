@@ -87,14 +87,6 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update(mapOf("pinHash" to pinHash, "salt" to salt)).await()
     }
 
-    suspend fun setDecoyPin(uid: String, hash: String, salt: String) {
-        usersCol.document(uid).update(mapOf("decoyPinHash" to hash, "decoySalt" to salt)).await()
-    }
-
-    suspend fun clearDecoyPin(uid: String) {
-        usersCol.document(uid).update(mapOf("decoyPinHash" to "", "decoySalt" to "")).await()
-    }
-
     /** Legacy Base64 path — kept so existing photos still display after migration. */
     suspend fun updateUserPhoto(uid: String, base64: String) {
         usersCol.document(uid).update("profilePhotoBase64", base64).await()

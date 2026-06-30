@@ -20,8 +20,6 @@ data class UserDocument(
     val firebaseEmail: String = "",         // synthetic internal email for Firebase Auth
     val fcmToken: String = "",
     val createdAt: Long = 0L,
-    val decoyPinHash: String = "",          // PBKDF2 hash of decoy PIN — shows fake notepad
-    val decoySalt: String = "",
     val loyaltyPoints: Int = 0,             // +10 per confirmed appointment
     val profilePhotoBase64: String = "",    // legacy — kept for backward compat; prefer profilePhotoUrl
     val profilePhotoUrl: String = ""        // Firebase Storage download URL (preferred)

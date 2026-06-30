@@ -430,11 +430,11 @@ exports.hesabPayWebhook = onRequest(
 
 // ── Server-side PIN authentication ────────────────────────────────────────────
 //
-// Why this is server-side now:
-//   The app used to download the ENTIRE users collection (every pinHash, salt,
-//   and decoy hash) to the device and verify the PIN locally — meaning anyone
-//   who reached the login screen could exfiltrate the whole credential table and
-//   brute-force 6-digit PINs offline. Login now sends only the PIN here; the
+// Why this is server-side:
+//   Verifying client-side would require downloading the ENTIRE users
+//   collection (every pinHash + salt) to the device — meaning anyone who
+//   reached the login screen could exfiltrate the whole credential table and
+//   brute-force 6-digit PINs offline. Login sends only the PIN here; the
 //   hashes never leave the server. Firestore rules lock `users` reads to the
 //   owner/admin, so the table can no longer be dumped.
 
@@ -455,37 +455,9 @@ function hashesEqual(a, b) {
 }
 
 /**
- * Cryptographically/forensically erase a user under duress. Deletes their data
- * across every collection plus the Firebase Auth account. Best-effort: a missing
- * doc is fine. Called only when a decoy PIN is entered.
- */
-async function wipeUserAccount(uid) {
-  const byField = [
-    ["appointments",  "customerId"],
-    ["payments",      "customerId"],
-    ["notifications", "recipientId"],
-    ["reviews",       "customerId"],
-    ["waitlist",      "customerId"],
-    ["chat_messages", "senderId"],
-  ];
-  for (const [name, field] of byField) {
-    const q = await db.collection(name).where(field, "==", uid).get();
-    if (!q.empty) {
-      const batch = db.batch();
-      q.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-    }
-  }
-  await db.doc(`provider_balances/${uid}`).delete().catch(() => {});
-  await db.doc(`users/${uid}`).delete().catch(() => {});
-  await admin.auth().deleteUser(uid).catch(() => {});
-}
-
-/**
  * Verifies a PIN against every user server-side. Returns:
  *   { mode: "REAL", uid, name, role, firebaseEmail, salt } — client then derives
  *       the auth password and signs in (the hash never leaves the server).
- *   { mode: "DECOY" } — a duress PIN matched; the account has been wiped.
  *   { mode: "INVALID" } — no match.
  * No auth required (this IS the pre-auth login step).
  */
@@ -497,11 +469,11 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
 
   const snap = await db.collection("users").get();
 
-  // Real PIN. We return the account status too so the client can gate a
-  // non-APPROVED provider (PENDING → "under review", SUSPENDED → blocked)
-  // instead of dropping them into a live dashboard. Provider WRITES are also
-  // blocked server-side by the Firestore rules' isApproved() checks, so this
-  // is defense-in-depth, not the only gate.
+  // We return the account status too so the client can gate a non-APPROVED
+  // provider (PENDING → "under review", SUSPENDED → blocked) instead of
+  // dropping them into a live dashboard. Provider WRITES are also blocked
+  // server-side by the Firestore rules' isApproved() checks, so this is
+  // defense-in-depth, not the only gate.
   for (const doc of snap.docs) {
     const u = doc.data();
     if (!u.pinHash || !u.salt) continue;
@@ -516,16 +488,6 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
         firebaseEmail:  u.firebaseEmail || "",
         salt:           u.salt,
       };
-    }
-  }
-
-  // Decoy/duress PIN — wipe the account, tell the client to wipe locally.
-  for (const doc of snap.docs) {
-    const u = doc.data();
-    if (!u.decoyPinHash || !u.decoySalt) continue;
-    if (hashesEqual(pbkdf2Hash(pin, u.decoySalt), u.decoyPinHash)) {
-      await wipeUserAccount(doc.id);
-      return { mode: "DECOY" };
     }
   }
 

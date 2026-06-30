@@ -12,8 +12,6 @@ import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.model.LoggedInUser
 import com.safebeauty.app.data.model.UserRole
 import com.safebeauty.app.data.repository.VaultRepository
-import com.safebeauty.app.security.BiometricVault
-import com.safebeauty.app.security.DatabaseKeyManager
 import com.safebeauty.app.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,7 +25,6 @@ class AuthViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher,
     private val vaultRepository: VaultRepository,
-    private val databaseKeyManager: DatabaseKeyManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -37,7 +34,6 @@ class AuthViewModel @Inject constructor(
         object Idle           : AuthState()
         object Authenticating : AuthState()
         data class Success(val user: LoggedInUser) : AuthState()
-        object DecoyMode      : AuthState()   // decoy PIN entered → wipe + fake notepad
         object Failure        : AuthState()
     }
 
@@ -96,20 +92,6 @@ class AuthViewModel @Inject constructor(
                                 status = status, rejectionReason = rejectionReason
                             )
                         )
-                    }
-
-                    "DECOY" -> {
-                        // Duress: the server has already wiped the cloud account.
-                        // Now erase everything on the device — local DB rows, the
-                        // SQLCipher key (cryptographic wipe), and any biometric PIN —
-                        // BEFORE showing the fake notepad. No log is written, so the
-                        // decoy path is forensically indistinguishable from a normal
-                        // login. Order matters: clear DB rows while the key still
-                        // exists, then destroy the key.
-                        runCatching { vaultRepository.nukeAllData() }
-                        runCatching { BiometricVault.disable(context) }
-                        runCatching { databaseKeyManager.nukePassphrase() }
-                        authState = AuthState.DecoyMode
                     }
 
                     else -> authState = AuthState.Idle // silent fail

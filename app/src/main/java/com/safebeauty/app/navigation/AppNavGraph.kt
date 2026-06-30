@@ -17,9 +17,8 @@ import com.safebeauty.app.data.model.UserRole
 import com.safebeauty.app.ui.screens.AccountStatusScreen
 import com.safebeauty.app.ui.screens.AdminDashboardScreen
 import com.safebeauty.app.ui.screens.ChatScreen
-import com.safebeauty.app.ui.screens.DisguiseScreen
+import com.safebeauty.app.ui.screens.CustomerDashboardScreen
 import com.safebeauty.app.ui.screens.ForgotPinScreen
-import com.safebeauty.app.ui.screens.HiddenDashboardScreen
 import com.safebeauty.app.ui.screens.LoginScreen
 import com.safebeauty.app.ui.screens.NotificationCenterScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
@@ -43,7 +42,6 @@ data class NotificationDeeplink(
 sealed class Screen(val route: String) {
     object Login     : Screen("login")
     object Register  : Screen("register")
-    object Disguise  : Screen("disguise")
     object AccountStatus : Screen("accountStatus/{status}?reason={reason}") {
         fun build(status: String, reason: String = "") =
             "accountStatus/${Uri.encode(status.ifBlank { "PENDING" })}?reason=${Uri.encode(reason)}"
@@ -155,40 +153,11 @@ fun AppNavGraph(
                             onDeeplinkConsumed()
                         }
                     },
-                    onDecoyMode = {
-                        // Clear back stack so back-press from fake notepad can't return to SafeBeauty
-                        navController.navigate(Screen.Disguise.route) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
                     onRegisterTapped  = {
                         navController.navigate(Screen.Register.route) { launchSingleTop = true }
                     },
                     onForgotPinTapped = {
                         navController.navigate(Screen.ForgotPin.route) { launchSingleTop = true }
-                    }
-                )
-            }
-
-            composable(Screen.Disguise.route) {
-                DisguiseScreen(
-                    onAuthSuccess = { user ->
-                        sessionVm.onLoggedIn()
-                        val route = if (user.status != "APPROVED") {
-                            Screen.AccountStatus.build(user.status, user.rejectionReason)
-                        } else when (user.role) {
-                            UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
-                            UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
-                            UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
-                        }
-                        navController.navigate(route) {
-                            popUpTo(Screen.Disguise.route) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    onRegisterTapped = {
-                        navController.navigate(Screen.Register.route) { launchSingleTop = true }
                     }
                 )
             }
@@ -220,7 +189,7 @@ fun AppNavGraph(
                 route     = Screen.CustomerDashboard.route,
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
-                HiddenDashboardScreen(
+                CustomerDashboardScreen(
                     onLockTriggered = lockAndReturn,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
