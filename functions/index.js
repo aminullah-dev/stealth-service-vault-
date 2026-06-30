@@ -259,15 +259,33 @@ exports.hesabPayWebhook = onRequest(
     }
 
     // ── Resolve paymentId from the webhook payload ────────────────────────────
-    // HesabPay sends session_id back; we stored it at creation time so we can
-    // look up the matching payment document.
+    // Actual HesabPay webhook payload (from developers.hesab.com):
+    //   { status_code, success, message, sender_account, transaction_id,
+    //     amount, memo, signature, timestamp, transaction_date,
+    //     items[]{id, name, price}, email }
+    //
+    // We set items[0].id = paymentRef.id at session creation, so we can look
+    // up the payment document directly by ID — no Firestore query needed.
+    const itemId    = (Array.isArray(payload.items) && payload.items.length > 0)
+      ? String(payload.items[0].id || "")
+      : "";
+    // Keep session_id fallback for any future HesabPay API changes.
     const webhookSessionId = payload.session_id || payload.sessionId || "";
-    const status = String(payload.status || "").toUpperCase();
 
     let paymentId   = "";
     let paymentSnap = null;
 
-    if (webhookSessionId) {
+    if (itemId) {
+      // Direct document lookup — O(1), no index required.
+      const snap = await db.collection("payments").doc(itemId).get();
+      if (snap.exists) {
+        paymentSnap = snap;
+        paymentId   = snap.id;
+      }
+    }
+
+    if (!paymentId && webhookSessionId) {
+      // Fallback: look up by stored HesabPay session ID.
       const q = await db
         .collection("payments")
         .where("hesabSessionId", "==", webhookSessionId)
@@ -280,7 +298,7 @@ exports.hesabPayWebhook = onRequest(
     }
 
     if (!paymentId || !paymentSnap) {
-      logger.error("Webhook: no payment found for session", { webhookSessionId, payload });
+      logger.error("Webhook: no payment found", { itemId, webhookSessionId, payload });
       return res.status(404).send("Payment not found");
     }
 
@@ -292,8 +310,13 @@ exports.hesabPayWebhook = onRequest(
       return res.status(200).send("Already processed");
     }
 
+    // HesabPay marks success with success:true / status_code:10.
+    // Accept legacy status strings as a defensive fallback.
+    const statusStr = String(payload.status || "").toUpperCase();
     const paid =
-      status === "PAID" || status === "SUCCESS" || status === "COMPLETED";
+      payload.success === true ||
+      payload.status_code === 10 ||
+      statusStr === "PAID" || statusStr === "SUCCESS" || statusStr === "COMPLETED";
 
     const batch = db.batch();
     if (paid) {
