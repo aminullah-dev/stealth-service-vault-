@@ -309,55 +309,119 @@ exports.hesabPayWebhook = onRequest(
     const payment = paymentSnap.data();
     const paymentRef = db.doc(`payments/${paymentId}`);
 
-    // Idempotency — HesabPay may retry the webhook.
-    if (payment.status === "PAID") {
-      return res.status(200).send("Already processed");
-    }
+    // HesabPay's signature is computed over the timestamp, not the body — so a
+    // captured (signature, timestamp) pair could be replayed with a swapped
+    // items[0].id to mark a DIFFERENT booking as paid. Two defenses below:
+    //   1. transaction_id replay guard (a transaction_id can settle exactly one
+    //      payment, ever) — see the processed_webhooks doc in the transaction.
+    //   2. amount binding — the amount HesabPay reports must equal what we asked
+    //      the customer to pay. A AFN 1 payment can't settle a AFN 5000 booking.
+    const transactionId = String(payload.transaction_id || payload.transactionId || "");
+    const reportedAmount = Number(payload.amount);
 
     // HesabPay marks success with success:true / status_code:10.
     // Accept legacy status strings as a defensive fallback.
     const statusStr = String(payload.status || "").toUpperCase();
-    const paid =
+    const paidSignal =
       payload.success === true ||
       payload.status_code === 10 ||
       statusStr === "PAID" || statusStr === "SUCCESS" || statusStr === "COMPLETED";
+    // Only an EXPLICIT failure marks the payment FAILED. An unknown/intermediate
+    // callback is a no-op (returns 200) so it can't destroy a payment that is
+    // still in flight — which would show the customer a false "payment failed".
+    const failSignal =
+      payload.success === false ||
+      statusStr === "FAILED" || statusStr === "CANCELLED" || statusStr === "DECLINED";
 
-    const batch = db.batch();
-    if (paid) {
-      batch.update(paymentRef, { status: "PAID", paidAt: Date.now() });
-
-      // Release the appointment to the provider's pending queue.
-      batch.update(db.doc(`appointments/${payment.appointmentId}`), {
-        status: "PENDING",
-      });
-
-      // Track what the provider is owed (platform pays out separately).
-      batch.set(
-        db.doc(`provider_balances/${payment.providerId}`),
-        {
-          providerId:  payment.providerId,
-          owedAmount:  admin.firestore.FieldValue.increment(payment.providerNet),
-          updatedAt:   Date.now(),
-        },
-        { merge: true }
-      );
-
-      // Notify the provider of the new (paid) booking.
-      batch.set(db.collection("notifications").doc(), {
-        recipientId: payment.providerId,
-        type:        "NEW_BOOKING",
-        title:       "New Paid Booking",
-        body:        `${payment.serviceName} — paid AFN ${payment.amount}`,
-        isRead:      false,
-        createdAt:   Date.now(),
-        relatedId:   payment.appointmentId,
-      });
-    } else {
-      batch.update(paymentRef, { status: "FAILED" });
+    // Amount binding — reject only a clear UNDERPAYMENT (paid less than the
+    // recorded price), which is the actual attack: settle a AFN 5000 booking
+    // with a AFN 1 payment. We don't hard-reject other mismatches because the
+    // exact unit of HesabPay's `amount` field isn't yet confirmed against a real
+    // sample (could be AFN vs. pul), and a false reject would block real
+    // customers. The transaction_id replay guard is the primary defense.
+    if (paidSignal && Number.isFinite(reportedAmount)) {
+      if (reportedAmount < Number(payment.amount)) {
+        logger.error("Webhook: underpayment rejected", {
+          paymentId, expected: payment.amount, reported: reportedAmount,
+        });
+        return res.status(400).send("Amount too low");
+      }
+      if (reportedAmount !== Number(payment.amount)) {
+        logger.warn("Webhook: amount differs from expected (allowed)", {
+          paymentId, expected: payment.amount, reported: reportedAmount,
+        });
+      }
     }
-    await batch.commit();
 
-    return res.status(200).send("OK");
+    try {
+      const result = await db.runTransaction(async (tx) => {
+        // Re-read inside the transaction so two concurrent retries can't both
+        // pass the PAID check and double-credit the provider.
+        const freshSnap = await tx.get(paymentRef);
+        if (!freshSnap.exists) return "not_found";
+        const fresh = freshSnap.data();
+
+        // Idempotency — already settled.
+        if (fresh.status === "PAID") return "already_paid";
+
+        // Replay guard — a transaction_id may settle exactly one payment.
+        let webhookRef = null;
+        if (transactionId) {
+          webhookRef = db.doc(`processed_webhooks/${transactionId}`);
+          const seen = await tx.get(webhookRef);
+          if (seen.exists) return "replay";
+        }
+
+        if (paidSignal) {
+          tx.update(paymentRef, {
+            status: "PAID",
+            paidAt: Date.now(),
+            transactionId: transactionId || null,
+          });
+          // Release the appointment to the provider's pending queue.
+          tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
+          // Track what the provider is owed (platform pays out separately).
+          tx.set(
+            db.doc(`provider_balances/${fresh.providerId}`),
+            {
+              providerId: fresh.providerId,
+              owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
+              updatedAt:  Date.now(),
+            },
+            { merge: true }
+          );
+          // Notify the provider of the new (paid) booking.
+          tx.set(db.collection("notifications").doc(), {
+            recipientId: fresh.providerId,
+            type:        "NEW_BOOKING",
+            title:       "New Paid Booking",
+            body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
+            isRead:      false,
+            createdAt:   Date.now(),
+            relatedId:   fresh.appointmentId,
+          });
+          if (webhookRef) {
+            tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+          }
+          return "paid";
+        }
+
+        if (failSignal) {
+          tx.update(paymentRef, { status: "FAILED" });
+          return "failed";
+        }
+
+        // Unknown/intermediate callback — leave the payment untouched.
+        return "ignored";
+      });
+
+      if (result === "not_found") return res.status(404).send("Payment not found");
+      if (result === "replay")    return res.status(409).send("Duplicate transaction");
+      return res.status(200).send("OK");
+    } catch (err) {
+      logger.error("Webhook processing error", err);
+      return res.status(500).send("Processing error");
+    }
   }
 );
 

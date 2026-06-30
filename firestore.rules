@@ -235,6 +235,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── processed_webhooks ───────────────────────────────────────────────────────
+    // Replay-guard ledger keyed by HesabPay transaction_id. Written exclusively
+    // by the hesabPayWebhook Cloud Function (Admin SDK). No client access.
+    match /processed_webhooks/{transactionId} {
+      allow read, write: if false;
+    }
+
     // ── platform_config ────────────────────────────────────────────────────────
     // Global settings (e.g. commissionPercent). Readable by signed-in users;
     // writable only by admins. The payment function reads it server-side.
