@@ -233,22 +233,24 @@ exports.hesabPayWebhook = onRequest(
     // Verify the webhook signature before trusting the payload so a forged
     // request can't mark an unpaid booking as PAID.
     try {
+      // Per developers.hesab.com step 4: send signature + timestamp from the
+      // payload to the verify-signature endpoint. The secret was registered in
+      // HesabPay portal so the server can verify without us resending it.
       const verifyRes = await fetch(
         `${HESAB_BASE_URL.value()}/hesab/webhooks/verify-signature`,
         {
           method:  "POST",
           headers: hesabHeaders(HESAB_API_KEY.value()),
           body: JSON.stringify({
-            signature: req.get("x-hesab-signature") || payload.signature || "",
-            secret:    HESAB_WEBHOOK_SECRET.value(),
-            payload,
+            signature: payload.signature || req.get("x-hesab-signature") || "",
+            timestamp: payload.timestamp || "",
           }),
         }
       );
       const verifyBody = await verifyRes.json().catch(() => ({}));
       const valid =
         verifyRes.ok &&
-        (verifyBody.valid === true || verifyBody.verified === true);
+        (verifyBody.valid === true || verifyBody.verified === true || verifyBody.success === true);
       if (!valid) {
         logger.error("Webhook signature verification failed");
         return res.status(401).send("Invalid signature");
