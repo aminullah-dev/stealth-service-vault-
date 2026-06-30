@@ -23,6 +23,11 @@
  *   firebase functions:secrets:set HESAB_WEBHOOK_SECRET
  *   # Optional non-secret base URL via functions/.env:
  *   #   HESAB_BASE_URL=https://api.hesab.com/api/v1
+ *
+ * HesabPay API — confirmed field names (from developers.hesab.com):
+ *   Request  : items[]{id, name, price}, email, redirect_success_url, redirect_failure_url
+ *   Response : { status_code, success, message, session_id, payment_url, expires_at }
+ *   Webhook  : lookup by session_id stored at payment creation time
  */
 
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
@@ -33,10 +38,16 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 const db = admin.firestore();
 
-const HESAB_API_KEY = defineSecret("HESAB_API_KEY");
+const HESAB_API_KEY        = defineSecret("HESAB_API_KEY");
 const HESAB_WEBHOOK_SECRET = defineSecret("HESAB_WEBHOOK_SECRET");
-const HESAB_BASE_URL = defineString("HESAB_BASE_URL", {
+const HESAB_BASE_URL       = defineString("HESAB_BASE_URL", {
   default: "https://api.hesab.com/api/v1",
+});
+
+// Redirect URLs after checkout — the mobile app polls Firestore for status so
+// these just need to be valid URLs that close the HesabPay checkout page.
+const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
+  default: "https://checkout.hesabpay.com",
 });
 
 // Default commission if the platform_config doc is missing (percent).
@@ -56,12 +67,13 @@ async function getCommissionPercent() {
 
 function hesabHeaders(apiKey) {
   return {
-    "Content-Type": "application/json",
-    Authorization: `API-KEY ${apiKey}`,
+    "Content-Type":  "application/json",
+    "Accept":        "application/json",
+    "Authorization": `API-KEY ${apiKey}`,
   };
 }
 
-// ── createPaymentSession (callable) ────────────────────────────────────────────
+// ── createPaymentSession (callable) ──────────────────────────────────────────
 
 exports.createPaymentSession = onCall(
   { secrets: [HESAB_API_KEY], region: "us-central1" },
@@ -103,113 +115,111 @@ exports.createPaymentSession = onCall(
     }
 
     const userSnap = await db.doc(`users/${uid}`).get();
-    const user = userSnap.exists ? userSnap.data() : {};
+    const user     = userSnap.exists ? userSnap.data() : {};
 
     const commissionPercent = await getCommissionPercent();
-    const commissionAmount = Math.round((price * commissionPercent) / 100);
-    const providerNet = price - commissionAmount;
+    const commissionAmount  = Math.round((price * commissionPercent) / 100);
+    const providerNet       = price - commissionAmount;
 
-    // Create the appointment up-front in AWAITING_PAYMENT so it won't show to the
-    // provider until the payment webhook flips it to PENDING.
+    // Create the appointment up-front in AWAITING_PAYMENT so it won't show to
+    // the provider until the payment webhook flips it to PENDING.
     const apptRef = db.collection("appointments").doc();
     await apptRef.set({
-      customerId: uid,
-      customerName: user.name || "",
+      customerId:    uid,
+      customerName:  user.name  || "",
       customerPhone: user.phone || "",
       salonId,
-      salonName: salon.salonName || "",
+      salonName:     salon.salonName || "",
       serviceName,
       appointmentDate,
-      status: "AWAITING_PAYMENT",
+      status:    "AWAITING_PAYMENT",
       createdAt: Date.now(),
-      notes: notes || "",
+      notes:     notes || "",
     });
 
     // Create the payment record (PENDING) before contacting HesabPay so the
     // webhook always has a row to update.
     const paymentRef = db.collection("payments").doc();
     await paymentRef.set({
-      appointmentId: apptRef.id,
-      customerId: uid,
-      providerId: salon.providerId || "",
+      appointmentId:     apptRef.id,
+      customerId:        uid,
+      providerId:        salon.providerId || "",
       salonId,
       serviceName,
-      amount: price,
+      amount:            price,
       commissionPercent,
       commissionAmount,
       providerNet,
-      currency: "AFN",
-      status: "PENDING",
-      hesabSessionId: "",
-      createdAt: Date.now(),
+      currency:          "AFN",
+      status:            "PENDING",
+      hesabSessionId:    "",
+      createdAt:         Date.now(),
     });
 
-    // Ask HesabPay to create a checkout session.
+    // ── Call HesabPay create-session ─────────────────────────────────────────
+    // Field names confirmed from developers.hesab.com:
+    //   Request : items[]{id, name, price}, email,
+    //             redirect_success_url, redirect_failure_url
+    //   Response: { success, status_code, message,
+    //               session_id, payment_url, expires_at }
     let sessionUrl = "";
-    let sessionId = "";
+    let sessionId  = "";
     try {
-      const res = await fetch(`${HESAB_BASE_URL.value()}/payment/create-session`, {
-        method: "POST",
-        headers: hesabHeaders(apiKey),
-        body: JSON.stringify({
-          email: email || user.email || "",
-          items: [
-            {
-              id: paymentRef.id,
-              name: `${salon.salonName || "Salon"} — ${serviceName}`,
-              price,
-              quantity: 1,
-            },
-          ],
-          // HesabPay echoes metadata back on the webhook so we can match the row.
-          metadata: { paymentId: paymentRef.id, appointmentId: apptRef.id },
-        }),
-      });
+      const redirectBase = HESAB_REDIRECT_BASE.value();
+      const res = await fetch(
+        `${HESAB_BASE_URL.value()}/payment/create-session`,
+        {
+          method:  "POST",
+          headers: hesabHeaders(apiKey),
+          body: JSON.stringify({
+            email: email || user.email || "",
+            items: [
+              {
+                id:    paymentRef.id,
+                name:  `${salon.salonName || "Salon"} — ${serviceName}`,
+                price: price,
+              },
+            ],
+            redirect_success_url: `${redirectBase}/payment/success?paymentId=${paymentRef.id}`,
+            redirect_failure_url: `${redirectBase}/payment/failure?paymentId=${paymentRef.id}`,
+          }),
+        }
+      );
 
       const body = await res.json();
-      if (!res.ok || !body) {
-        throw new Error(`HesabPay create-session failed: ${res.status}`);
+
+      if (!res.ok || !body.success) {
+        throw new Error(
+          `HesabPay error ${res.status}: ${body.message || JSON.stringify(body)}`
+        );
       }
-      // Log the raw shape ONCE during integration so the exact field names can be
-      // confirmed from the Cloud Functions logs, then the fallbacks below trimmed.
-      // (Safe to keep — contains no card data, only the checkout URL + ids.)
-      logger.info("HesabPay create-session response", { body });
-      sessionUrl =
-        body.url ||
-        body.payment_url ||
-        body.sessionUrl ||
-        body.checkout_url ||
-        (body.data && (body.data.url || body.data.payment_url)) ||
-        "";
-      sessionId =
-        body.id ||
-        body.session_id ||
-        body.sessionId ||
-        (body.data && (body.data.id || body.data.session_id)) ||
-        "";
-      if (!sessionUrl) throw new Error("HesabPay returned no checkout URL.");
+
+      sessionUrl = body.payment_url || "";
+      sessionId  = body.session_id  || "";
+
+      if (!sessionUrl) throw new Error("HesabPay returned no payment_url.");
     } catch (err) {
       // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings.
       await paymentRef.update({ status: "FAILED" });
       await apptRef.delete();
-      logger.error("create-session failed", err);
+      logger.error("createPaymentSession failed", err);
       throw new HttpsError("internal", String(err.message || err));
     }
 
     await paymentRef.update({ hesabSessionId: sessionId });
 
     return {
-      paymentId: paymentRef.id,
+      paymentId:     paymentRef.id,
       appointmentId: apptRef.id,
-      checkoutUrl: sessionUrl,
-      amount: price,
+      checkoutUrl:   sessionUrl,
+      amount:        price,
       commissionAmount,
       providerNet,
     };
   }
 );
 
-// ── hesabPayWebhook (HTTP) ─────────────────────────────────────────────────────
+// ── hesabPayWebhook (HTTP) ────────────────────────────────────────────────────
 
 exports.hesabPayWebhook = onRequest(
   { secrets: [HESAB_API_KEY, HESAB_WEBHOOK_SECRET], region: "us-central1" },
@@ -220,24 +230,17 @@ exports.hesabPayWebhook = onRequest(
 
     const payload = req.body || {};
 
-    // Log the raw webhook ONCE during integration to confirm field names
-    // (status, metadata, signature header) against the HesabPay dashboard.
-    logger.info("HesabPay webhook received", {
-      headers: { signature: req.get("x-hesab-signature") },
-      body: payload,
-    });
-
-    // Verify the webhook signature with HesabPay so a forged request can't mark
-    // an unpaid booking as PAID.
+    // Verify the webhook signature before trusting the payload so a forged
+    // request can't mark an unpaid booking as PAID.
     try {
       const verifyRes = await fetch(
         `${HESAB_BASE_URL.value()}/hesab/webhooks/verify-signature`,
         {
-          method: "POST",
+          method:  "POST",
           headers: hesabHeaders(HESAB_API_KEY.value()),
           body: JSON.stringify({
             signature: req.get("x-hesab-signature") || payload.signature || "",
-            secret: HESAB_WEBHOOK_SECRET.value(),
+            secret:    HESAB_WEBHOOK_SECRET.value(),
             payload,
           }),
         }
@@ -255,20 +258,34 @@ exports.hesabPayWebhook = onRequest(
       return res.status(401).send("Signature verification error");
     }
 
-    const meta = payload.metadata || {};
-    const paymentId = meta.paymentId || payload.paymentId;
+    // ── Resolve paymentId from the webhook payload ────────────────────────────
+    // HesabPay sends session_id back; we stored it at creation time so we can
+    // look up the matching payment document.
+    const webhookSessionId = payload.session_id || payload.sessionId || "";
     const status = String(payload.status || "").toUpperCase();
 
-    if (!paymentId) {
-      return res.status(400).send("Missing paymentId");
+    let paymentId   = "";
+    let paymentSnap = null;
+
+    if (webhookSessionId) {
+      const q = await db
+        .collection("payments")
+        .where("hesabSessionId", "==", webhookSessionId)
+        .limit(1)
+        .get();
+      if (!q.empty) {
+        paymentSnap = q.docs[0];
+        paymentId   = paymentSnap.id;
+      }
     }
 
-    const paymentRef = db.doc(`payments/${paymentId}`);
-    const paymentSnap = await paymentRef.get();
-    if (!paymentSnap.exists) {
+    if (!paymentId || !paymentSnap) {
+      logger.error("Webhook: no payment found for session", { webhookSessionId, payload });
       return res.status(404).send("Payment not found");
     }
+
     const payment = paymentSnap.data();
+    const paymentRef = db.doc(`payments/${paymentId}`);
 
     // Idempotency — HesabPay may retry the webhook.
     if (payment.status === "PAID") {
@@ -281,29 +298,32 @@ exports.hesabPayWebhook = onRequest(
     const batch = db.batch();
     if (paid) {
       batch.update(paymentRef, { status: "PAID", paidAt: Date.now() });
+
       // Release the appointment to the provider's pending queue.
       batch.update(db.doc(`appointments/${payment.appointmentId}`), {
         status: "PENDING",
       });
+
       // Track what the provider is owed (platform pays out separately).
       batch.set(
         db.doc(`provider_balances/${payment.providerId}`),
         {
-          providerId: payment.providerId,
-          owedAmount: admin.firestore.FieldValue.increment(payment.providerNet),
-          updatedAt: Date.now(),
+          providerId:  payment.providerId,
+          owedAmount:  admin.firestore.FieldValue.increment(payment.providerNet),
+          updatedAt:   Date.now(),
         },
         { merge: true }
       );
+
       // Notify the provider of the new (paid) booking.
       batch.set(db.collection("notifications").doc(), {
         recipientId: payment.providerId,
-        type: "NEW_BOOKING",
-        title: "New Paid Booking",
-        body: `${payment.serviceName} — paid AFN ${payment.amount}`,
-        isRead: false,
-        createdAt: Date.now(),
-        relatedId: payment.appointmentId,
+        type:        "NEW_BOOKING",
+        title:       "New Paid Booking",
+        body:        `${payment.serviceName} — paid AFN ${payment.amount}`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   payment.appointmentId,
       });
     } else {
       batch.update(paymentRef, { status: "FAILED" });
@@ -314,7 +334,7 @@ exports.hesabPayWebhook = onRequest(
   }
 );
 
-// ── recordProviderPayout (callable, admin-only) ─────────────────────────────────
+// ── recordProviderPayout (callable, admin-only) ───────────────────────────────
 
 /**
  * Records that the platform has paid a provider their owed balance (cash,
@@ -326,7 +346,6 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
-  // Verify the caller is an admin (role is stored on the user document).
   const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
   if (!callerSnap.exists || callerSnap.data().role !== "ADMIN") {
     throw new HttpsError("permission-denied", "Admins only.");
@@ -339,20 +358,18 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
 
   const balanceRef = db.doc(`provider_balances/${providerId}`);
 
-  // Transaction so a concurrent webhook crediting the balance can't be lost:
-  // we record exactly what was owed at payout time and zero it.
   const result = await db.runTransaction(async (tx) => {
     const balSnap = await tx.get(balanceRef);
-    const owed = balSnap.exists ? Number(balSnap.data().owedAmount || 0) : 0;
+    const owed    = balSnap.exists ? Number(balSnap.data().owedAmount || 0) : 0;
     if (owed <= 0) {
       throw new HttpsError("failed-precondition", "Nothing owed to this provider.");
     }
     const payoutRef = db.collection("payouts").doc();
     tx.set(payoutRef, {
       providerId,
-      amount: owed,
-      method: method || "MANUAL",
-      paidBy: request.auth.uid,
+      amount:    owed,
+      method:    method || "MANUAL",
+      paidBy:    request.auth.uid,
       createdAt: Date.now(),
     });
     tx.set(
@@ -363,15 +380,14 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
     return { payoutId: payoutRef.id, amount: owed };
   });
 
-  // Notify the provider (outside the transaction).
   await db.collection("notifications").doc().set({
     recipientId: providerId,
-    type: "SYSTEM",
-    title: "Payout Sent",
-    body: `You have been paid AFN ${result.amount}.`,
-    isRead: false,
-    createdAt: Date.now(),
-    relatedId: result.payoutId,
+    type:        "SYSTEM",
+    title:       "Payout Sent",
+    body:        `You have been paid AFN ${result.amount}.`,
+    isRead:      false,
+    createdAt:   Date.now(),
+    relatedId:   result.payoutId,
   });
 
   return result;
