@@ -75,9 +75,15 @@ service cloud.firestore {
       allow create: if isSignedIn() && me() == uid;
 
       // Users can update their own profile; admins can change status / verify.
-      // pinHash + salt are intentionally not whitelisted — changing them goes
-      // through the dedicated Change-PIN flow which verifies the old PIN first.
-      allow update: if ownsDoc(uid) || isAdmin();
+      // A self-update may NOT change privileged fields — role and status are
+      // admin-controlled. Without this, any user could set role='ADMIN' or
+      // un-suspend themselves (status='APPROVED') by writing their own doc.
+      // pinHash/salt/decoy* stay editable here (the Change-PIN flow verifies the
+      // old PIN first); name/photo/loyaltyPoints/fcmToken remain editable too.
+      allow update: if isAdmin()
+                 || (ownsDoc(uid)
+                     && request.resource.data.role   == resource.data.role
+                     && request.resource.data.status == resource.data.status);
 
       allow delete: if isAdmin();
     }
@@ -92,8 +98,14 @@ service cloud.firestore {
                  && request.resource.data.providerId == me();
 
       // Provider can edit their own salon; admin can edit any.
-      allow update: if (isProvider() && isApproved() && resource.data.providerId == me())
-                 || isAdmin();
+      // A provider may NOT flip isVerified — the VERIFIED badge is a trust signal
+      // granted only by an admin (setSalonVerified). Without this guard a provider
+      // could self-award the badge to look legitimate.
+      allow update: if isAdmin()
+                 || (isProvider() && isApproved()
+                     && resource.data.providerId == me()
+                     && request.resource.data.providerId == resource.data.providerId
+                     && request.resource.data.isVerified  == resource.data.isVerified);
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());
@@ -112,9 +124,15 @@ service cloud.firestore {
       // client cannot create a booking without going through HesabPay payment.
       allow create: if false;
 
-      // Provider confirms or cancels; admin can do anything.
-      // Customer may cancel their own PENDING appointment (status field only).
-      allow update: if (ownsThisSalon(resource.data.salonId) || isAdmin())
+      // Provider confirms/cancels or reschedules their salon's appointment, but
+      // may ONLY touch status + appointmentDate — never the customer's identity
+      // (customerId/customerName/customerPhone) or the price/service. Admin is
+      // unrestricted. Customer may cancel their own PENDING appointment.
+      allow update: if isAdmin()
+                 || (ownsThisSalon(resource.data.salonId)
+                     && request.resource.data.diff(resource.data).affectedKeys()
+                            .hasOnly(['status', 'appointmentDate'])
+                     && request.resource.data.customerId == resource.data.customerId)
                  || (resource.data.customerId == me()
                      && request.resource.data.diff(resource.data).affectedKeys()
                             .hasOnly(['status'])
