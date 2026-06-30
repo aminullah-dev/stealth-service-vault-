@@ -141,6 +141,11 @@ class AppStrings {
     // Neutral body for lock-screen/system notifications — never names a salon,
     // service or booking. Details are shown only inside the app, behind the PIN.
     var notifNeutralBody: String = ""
+    // Relative timestamps (notification list "X min ago" etc.)
+    var timeJustNow: String = ""
+    var timeMinsAgo: (Int) -> String = { "" }
+    var timeHoursAgo: (Int) -> String = { "" }
+    var timeYesterday: String = ""
     // Customer booking cancellation
     var cancelAppointment: String = ""
     var cancelConfirmTitle: String = ""
@@ -268,6 +273,20 @@ class AppStrings {
     var suspendUser: String = ""
     var unsuspendUser: String = ""
     var suspended: String = ""
+    var approved: String = ""
+    var rejected: String = ""
+    // Compact role/status badges (admin user list) — distinct from the longer
+    // registration-screen roleProvider/roleCustomer labels.
+    var roleBadgeAdmin: String = ""
+    var roleBadgeProvider: String = ""
+    var roleBadgeCustomer: String = ""
+    var noPhoneProvided: String = ""
+    var salonOpen: String = ""
+    var salonClosed: String = ""
+    // Accessibility-only labels (TalkBack), not visible UI text.
+    var a11yCall: String = ""
+    var a11yRemoveService: (String) -> String = { "" }
+    var a11yBackspace: String = ""
     // Portfolio gallery
     var portfolioTitle: String = ""
     var addPhoto: String = ""
@@ -519,6 +538,10 @@ object StringResources {
         remindedTomorrow           = { _ -> "You have a reminder for tomorrow. Tap to view." }
         remindedInHour             = { _ -> "You have a reminder in 1 hour. Tap to view." }
         notifNeutralBody           = "You have a new update. Tap to view."
+        timeJustNow                = "Just now"
+        timeMinsAgo                = { m -> "$m min ago" }
+        timeHoursAgo               = { h -> "${h}h ago" }
+        timeYesterday              = "Yesterday"
         cancelAppointment          = "Cancel Appointment"
         cancelConfirmTitle         = "Cancel this booking?"
         cancelConfirmText          = "This will cancel your appointment. Since you already paid, a refund request will be sent to our team and processed manually. This cannot be undone."
@@ -624,6 +647,17 @@ object StringResources {
         suspendUser             = "Suspend"
         unsuspendUser           = "Unsuspend"
         suspended               = "Suspended"
+        approved                = "Approved"
+        rejected                = "Rejected"
+        roleBadgeAdmin          = "Admin"
+        roleBadgeProvider       = "Provider"
+        roleBadgeCustomer       = "Customer"
+        noPhoneProvided         = "No phone provided"
+        salonOpen               = "Open"
+        salonClosed             = "Closed"
+        a11yCall                = "Call"
+        a11yRemoveService       = { s -> "Remove $s" }
+        a11yBackspace           = "Backspace"
         portfolioTitle             = "Portfolio"
         addPhoto                   = "Add Photo"
         noPhotosYet                = "No sample work added yet"
@@ -855,6 +889,10 @@ object StringResources {
         remindedTomorrow           = { _ -> "یک یادآوری برای فردا دارید. برای مشاهده ضربه بزنید." }
         remindedInHour             = { _ -> "یک یادآوری تا یک ساعت دیگر دارید. برای مشاهده ضربه بزنید." }
         notifNeutralBody           = "یک به‌روزرسانی جدید دارید. برای مشاهده ضربه بزنید."
+        timeJustNow                = "همین حالا"
+        timeMinsAgo                = { m -> "$m دقیقه پیش" }
+        timeHoursAgo               = { h -> "$h ساعت پیش" }
+        timeYesterday              = "دیروز"
         cancelAppointment          = "لغو رزرو"
         cancelConfirmTitle         = "لغو این رزرو؟"
         cancelConfirmText          = "این رزرو را لغو می‌کند. چون قبلاً پرداخت کرده‌اید، درخواست بازپرداخت به تیم ما ارسال شده و به‌صورت دستی پردازش می‌شود. این عملیات قابل بازگشت نیست."
@@ -960,6 +998,17 @@ object StringResources {
         suspendUser             = "تعلیق"
         unsuspendUser           = "رفع تعلیق"
         suspended               = "تعلیق"
+        approved                = "تایید شده"
+        rejected                = "رد شده"
+        roleBadgeAdmin          = "ادمین"
+        roleBadgeProvider       = "آرایشگر"
+        roleBadgeCustomer       = "مشتری"
+        noPhoneProvided         = "شماره تلفن ثبت نشده"
+        salonOpen               = "باز"
+        salonClosed             = "بسته"
+        a11yCall                = "تماس"
+        a11yRemoveService       = { s -> "حذف $s" }
+        a11yBackspace           = "حذف کاراکتر"
         portfolioTitle             = "نمونه کارها"
         addPhoto                   = "افزودن عکس"
         noPhotosYet                = "هنوز نمونه کاری اضافه نشده"
@@ -1191,6 +1240,10 @@ object StringResources {
         remindedTomorrow           = { _ -> "تاسو د سبا لپاره یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
         remindedInHour             = { _ -> "تاسو په یوه ساعت کې یوه یادونه لرئ. د لیدلو لپاره ټک وکړئ." }
         notifNeutralBody           = "تاسو یوه نوې تازه معلومات لرئ. د لیدلو لپاره ټک وکړئ."
+        timeJustNow                = "همدا اوس"
+        timeMinsAgo                = { m -> "$m دقیقې وړاندې" }
+        timeHoursAgo               = { h -> "$h ساعته وړاندې" }
+        timeYesterday              = "پرون"
         cancelAppointment          = "بکینګ لغو کول"
         cancelConfirmTitle         = "دا بکینګ لغو کړئ؟"
         cancelConfirmText          = "دا به ستاسو ملاقات لغو کړي. ځکه چې تاسو دمخه تادیه کړې، د بیرته‌ورکړې غوښتنه به زموږ ټیم ته واستول شي او لاسي پروسس به شي. دا عملیه بیرته نه راتلی شي."
@@ -1296,6 +1349,17 @@ object StringResources {
         suspendUser             = "معلق کول"
         unsuspendUser           = "له معلق کولو وتل"
         suspended               = "معلق"
+        approved                = "تایید شوی"
+        rejected                = "رد شوی"
+        roleBadgeAdmin          = "اډمین"
+        roleBadgeProvider       = "چمتو کوونکی"
+        roleBadgeCustomer       = "پیرودونکی"
+        noPhoneProvided         = "د تلیفون شمیره نشته"
+        salonOpen               = "خلاص"
+        salonClosed             = "بند"
+        a11yCall                = "اړیکه"
+        a11yRemoveService       = { s -> "$s لرې کول" }
+        a11yBackspace           = "حرف ړنګول"
         portfolioTitle             = "د کار نمونې"
         addPhoto                   = "انځور اضافه کول"
         noPhotosYet                = "تر اوسه د کار نمونه نه ده اضافه شوې"

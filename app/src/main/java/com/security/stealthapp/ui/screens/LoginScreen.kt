@@ -355,7 +355,7 @@ fun LoginScreen(
                                         ) {
                                             Icon(
                                                 imageVector        = Icons.Default.Backspace,
-                                                contentDescription = "Backspace",
+                                                contentDescription = strings.a11yBackspace,
                                                 tint               = RoseGold,
                                                 modifier           = Modifier.size(24.dp)
                                             )

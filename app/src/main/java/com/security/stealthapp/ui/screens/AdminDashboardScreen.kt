@@ -282,7 +282,7 @@ private fun PendingProviderCard(
                         color      = DeepRose
                     )
                     Text(
-                        text     = provider.phone.ifBlank { "No phone provided" },
+                        text     = provider.phone.ifBlank { strings.noPhoneProvided },
                         fontSize = 12.sp,
                         color    = RoseGold
                     )
@@ -444,23 +444,36 @@ private fun UserRow(
 
 @Composable
 private fun RoleBadge(role: String, color: Color) {
+    val strings = LocalStrings.current
+    val label = when (role) {
+        "ADMIN"    -> strings.roleBadgeAdmin
+        "PROVIDER" -> strings.roleBadgeProvider
+        else       -> strings.roleBadgeCustomer
+    }
     Box(
         modifier = Modifier
             .background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(role, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
 private fun StatusBadge(status: String, color: Color) {
+    val strings = LocalStrings.current
+    val label = when (status) {
+        "APPROVED"  -> strings.approved
+        "REJECTED"  -> strings.rejected
+        "SUSPENDED" -> strings.suspended
+        else        -> strings.pending
+    }
     Box(
         modifier = Modifier
             .background(color.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
-        Text(status, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
+        Text(label, fontSize = 10.sp, color = color, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -681,7 +694,7 @@ private fun SalonAdminRow(salon: SalonDocument, onVerifyToggle: () -> Unit) {
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
-                    if (salon.isAvailable) "OPEN" else "CLOSED",
+                    if (salon.isAvailable) strings.salonOpen else strings.salonClosed,
                     fontSize   = 10.sp,
                     color      = availColor,
                     fontWeight = FontWeight.Bold

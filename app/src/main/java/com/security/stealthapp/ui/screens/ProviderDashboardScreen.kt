@@ -664,7 +664,7 @@ private fun BookingRequestCard(
                         ) {
                             Icon(
                                 Icons.Default.Phone,
-                                contentDescription = "Call",
+                                contentDescription = strings.a11yCall,
                                 tint     = AvailableGreen,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -838,7 +838,7 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
                                     ) {
                                         Icon(
                                             Icons.Default.Close,
-                                            contentDescription = "Remove $service",
+                                            contentDescription = strings.a11yRemoveService(service),
                                             modifier           = Modifier.size(14.dp)
                                         )
                                     }

@@ -335,16 +335,18 @@ private fun notifIconAndColor(type: String): Pair<ImageVector, Color> = when (ty
     else                -> Icons.Default.Info        to ChipInactive
 }
 
+@Composable
 private fun formatNotifTime(epochMs: Long): String {
-    val diffMs = System.currentTimeMillis() - epochMs
-    val mins   = diffMs / 60_000
-    val hours  = diffMs / 3_600_000
-    val days   = diffMs / 86_400_000
+    val strings = LocalStrings.current
+    val diffMs  = System.currentTimeMillis() - epochMs
+    val mins    = diffMs / 60_000
+    val hours   = diffMs / 3_600_000
+    val days    = diffMs / 86_400_000
     return when {
-        mins  < 1  -> "Just now"
-        mins  < 60 -> "$mins min ago"
-        hours < 24 -> "${hours}h ago"
-        days  == 1L -> "Yesterday"
+        mins  < 1   -> strings.timeJustNow
+        mins  < 60  -> strings.timeMinsAgo(mins.toInt())
+        hours < 24  -> strings.timeHoursAgo(hours.toInt())
+        days  == 1L -> strings.timeYesterday
         else        -> SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(epochMs))
     }
 }
