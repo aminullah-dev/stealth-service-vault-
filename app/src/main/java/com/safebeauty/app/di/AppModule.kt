@@ -1,0 +1,93 @@
+package com.safebeauty.app.di
+
+import android.content.Context
+import com.safebeauty.app.data.db.AppDatabase
+import com.safebeauty.app.data.db.dao.BookingDao
+import com.safebeauty.app.data.db.dao.FavoriteSalonDao
+import com.safebeauty.app.data.db.dao.MessageDao
+import com.safebeauty.app.data.db.dao.SalonCacheDao
+import com.safebeauty.app.data.db.dao.SecureLogDao
+import com.safebeauty.app.data.firebase.FirebaseAuthManager
+import com.safebeauty.app.data.firebase.FirestoreRepository
+import com.safebeauty.app.data.firebase.FirestoreSeeder
+import com.safebeauty.app.data.firebase.PaymentRepository
+import com.safebeauty.app.data.firebase.StorageRepository
+import com.safebeauty.app.data.repository.FavoritesRepository
+import com.safebeauty.app.data.repository.LanguageRepository
+import com.safebeauty.app.data.repository.VaultRepository
+import com.safebeauty.app.security.DatabaseKeyManager
+import com.safebeauty.app.security.PinHasher
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+
+    @Provides @Singleton
+    fun provideDatabaseKeyManager(@ApplicationContext ctx: Context): DatabaseKeyManager =
+        DatabaseKeyManager(ctx)
+
+    @Provides @Singleton
+    fun providePinHasher(): PinHasher = PinHasher()
+
+    @Provides @Singleton
+    fun provideAppDatabase(
+        @ApplicationContext ctx: Context,
+        keyManager: DatabaseKeyManager
+    ): AppDatabase = AppDatabase.create(ctx, keyManager)
+
+    @Provides @Singleton
+    fun provideSecureLogDao(db: AppDatabase): SecureLogDao = db.secureLogDao()
+
+    @Provides @Singleton
+    fun provideMessageDao(db: AppDatabase): MessageDao = db.messageDao()
+
+    @Provides @Singleton
+    fun provideBookingDao(db: AppDatabase): BookingDao = db.bookingDao()
+
+    @Provides @Singleton
+    fun provideSalonCacheDao(db: AppDatabase): SalonCacheDao = db.salonCacheDao()
+
+    @Provides @Singleton
+    fun provideFavoriteSalonDao(db: AppDatabase): FavoriteSalonDao = db.favoriteSalonDao()
+
+    @Provides @Singleton
+    fun provideVaultRepository(
+        logDao: SecureLogDao,
+        msgDao: MessageDao,
+        bookDao: BookingDao
+    ): VaultRepository = VaultRepository(logDao, msgDao, bookDao)
+
+    @Provides @Singleton
+    fun provideLanguageRepository(@ApplicationContext ctx: Context): LanguageRepository =
+        LanguageRepository(ctx)
+
+    @Provides @Singleton
+    fun provideFirebaseAuthManager(): FirebaseAuthManager = FirebaseAuthManager()
+
+    @Provides @Singleton
+    fun provideFirestoreRepository(salonCacheDao: SalonCacheDao): FirestoreRepository =
+        FirestoreRepository(salonCacheDao)
+
+    @Provides @Singleton
+    fun provideStorageRepository(): StorageRepository = StorageRepository()
+
+    @Provides @Singleton
+    fun providePaymentRepository(): PaymentRepository = PaymentRepository()
+
+    @Provides @Singleton
+    fun provideFavoritesRepository(favoriteSalonDao: FavoriteSalonDao): FavoritesRepository =
+        FavoritesRepository(favoriteSalonDao)
+
+    @Provides @Singleton
+    fun provideFirestoreSeeder(
+        repo: FirestoreRepository,
+        auth: FirebaseAuthManager,
+        pinHasher: PinHasher
+    ): FirestoreSeeder = FirestoreSeeder(repo, auth, pinHasher)
+}

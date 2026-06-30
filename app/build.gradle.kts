@@ -16,7 +16,7 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.security.stealthapp"
+    namespace = "com.safebeauty.app"
     compileSdk = 35
 
     defaultConfig {
