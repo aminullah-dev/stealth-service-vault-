@@ -76,6 +76,32 @@ function hesabHeaders(apiKey) {
   };
 }
 
+// The app's `users/{uid}` documents are keyed by a UUID the client generates
+// at registration (see RegisterViewModel) — NOT by the Firebase Auth uid that
+// `request.auth.uid` carries. The two are only linked via `firebaseEmail`.
+// Every callable that needs "who is this app user" must resolve through here
+// instead of using request.auth.uid directly, or it silently tags data with
+// an identity the rest of the app (which queries by the app-level uid) can
+// never match — the appointment becomes invisible everywhere.
+async function resolveAppUser(request) {
+  const email = request.auth.token.email;
+  if (!email) {
+    throw new HttpsError("failed-precondition", "No email on the auth token.");
+  }
+  const q = await db.collection("users").where("firebaseEmail", "==", email).limit(1).get();
+  if (q.empty) {
+    throw new HttpsError("not-found", "User profile not found.");
+  }
+  const doc = q.docs[0];
+  // Opportunistically keep uid_map fresh (see syncUidMap) so firestore.rules'
+  // me() resolves correctly even for app versions that predate the explicit
+  // post-signin sync call. Best-effort — never blocks the actual request.
+  db.doc(`uid_map/${request.auth.uid}`)
+    .set({ appUid: doc.id, updatedAt: Date.now() })
+    .catch((err) => logger.error("resolveAppUser: uid_map sync failed", err));
+  return { uid: doc.id, ...doc.data() };
+}
+
 // ── createPaymentSession (callable) ──────────────────────────────────────────
 
 exports.createPaymentSession = onCall(
@@ -92,7 +118,9 @@ exports.createPaymentSession = onCall(
       );
     }
 
-    const uid = request.auth.uid;
+    const appUser = await resolveAppUser(request);
+    const uid     = appUser.uid;
+    const user    = appUser;
     const { salonId, serviceName, appointmentDate, notes, email } =
       request.data || {};
 
@@ -116,9 +144,6 @@ exports.createPaymentSession = onCall(
         "This service has no valid price."
       );
     }
-
-    const userSnap = await db.doc(`users/${uid}`).get();
-    const user     = userSnap.exists ? userSnap.data() : {};
 
     const commissionPercent = await getCommissionPercent();
     const commissionAmount  = Math.round((price * commissionPercent) / 100);
@@ -499,6 +524,39 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
 });
 
 /**
+ * Bridges the two identity schemes: Firebase Auth's uid (request.auth.uid,
+ * what firestore.rules' me() sees) and the app's own uid (the client-
+ * generated UUID that is the actual users/{uid} document ID — see
+ * RegisterViewModel). The client calls this right after firebaseAuth.signIn
+ * succeeds so security rules can resolve `me()` to the real app uid via this
+ * map. Verifies the claimed appUid actually belongs to the signed-in account
+ * (its firebaseEmail must match the auth token's email) before trusting it,
+ * so a client can't claim someone else's identity.
+ */
+exports.syncUidMap = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const appUid = String((request.data || {}).appUid || "");
+  if (!appUid) {
+    throw new HttpsError("invalid-argument", "appUid is required.");
+  }
+  const email = request.auth.token.email;
+  if (!email) {
+    throw new HttpsError("failed-precondition", "No email on the auth token.");
+  }
+  const userSnap = await db.doc(`users/${appUid}`).get();
+  if (!userSnap.exists || userSnap.data().firebaseEmail !== email) {
+    throw new HttpsError("permission-denied", "appUid does not match the signed-in account.");
+  }
+  await db.doc(`uid_map/${request.auth.uid}`).set({
+    appUid,
+    updatedAt: Date.now(),
+  });
+  return { synced: true };
+});
+
+/**
  * Pre-auth lookup of an account's Firebase Auth email by phone, for the
  * password-reset flows (Forgot-PIN / Set-New-PIN). Returns ONLY the email
  * fields — never pinHash/salt — so `users` reads can stay locked to owner/admin.
@@ -650,8 +708,9 @@ exports.cancelAppointment = onCall({ region: "us-central1" }, async (request) =>
   if (!appointmentId) {
     throw new HttpsError("invalid-argument", "appointmentId is required.");
   }
+  const appUser = await resolveAppUser(request);
   return cancelPaidAppointment(appointmentId, "CUSTOMER", (appt) =>
-    appt.customerId === request.auth.uid
+    appt.customerId === appUser.uid
   );
 });
 
@@ -669,8 +728,9 @@ exports.providerDeclineAppointment = onCall({ region: "us-central1" }, async (re
   if (!appointmentId) {
     throw new HttpsError("invalid-argument", "appointmentId is required.");
   }
+  const appUser = await resolveAppUser(request);
   return cancelPaidAppointment(appointmentId, "PROVIDER", (appt, payment) =>
-    !!payment && payment.providerId === request.auth.uid
+    !!payment && payment.providerId === appUser.uid
   );
 });
 
@@ -720,8 +780,8 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
-  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
-  if (!callerSnap.exists || callerSnap.data().role !== "ADMIN") {
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") {
     throw new HttpsError("permission-denied", "Admins only.");
   }
 
@@ -743,7 +803,7 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
       providerId,
       amount:    owed,
       method:    method || "MANUAL",
-      paidBy:    request.auth.uid,
+      paidBy:    appUser.uid,
       createdAt: Date.now(),
     });
     tx.set(
@@ -777,8 +837,8 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
-  const callerSnap = await db.doc(`users/${request.auth.uid}`).get();
-  if (!callerSnap.exists || callerSnap.data().role !== "ADMIN") {
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") {
     throw new HttpsError("permission-denied", "Admins only.");
   }
 
@@ -797,7 +857,7 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
 
     tx.update(refundRef, {
       status:      "PROCESSED",
-      processedBy: request.auth.uid,
+      processedBy: appUser.uid,
       processedAt: Date.now(),
     });
     if (refund.paymentId) {

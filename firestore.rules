@@ -8,8 +8,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // The app's own uid scheme (the client-generated UUID that is the actual
+    // users/{uid} document ID — see RegisterViewModel) is NOT the same value
+    // as request.auth.uid (Firebase Auth's own, separately-generated uid).
+    // uid_map/{request.auth.uid} bridges the two (written by syncUidMap /
+    // resolveAppUser in Cloud Functions right after sign-in) so every rule
+    // below that compares against a stored customerId/providerId/etc. — all
+    // of which are the app-level uid — resolves correctly.
     function me() {
-      return request.auth.uid;
+      return get(/databases/$(database)/documents/uid_map/$(request.auth.uid)).data.appUid;
     }
 
     function myData() {
@@ -64,13 +71,20 @@ service cloud.firestore {
       allow get:  if isSignedIn() && (ownsDoc(uid) || isAdmin());
       allow list: if isAdmin();
 
-      // Only the user themselves can register their own document (Firebase Auth
-      // guarantees request.auth.uid == uid after createUserWithEmailAndPassword).
-      // A self-registration may ONLY be a CUSTOMER (auto-approved) or a PROVIDER
-      // (starts PENDING, awaiting admin approval) — never an ADMIN, and a provider
-      // may not self-approve. The first ADMIN is bootstrapped out-of-band (console
-      // / setup), not through this path.
-      allow create: if isSignedIn() && me() == uid
+      // {uid} is a UUID the CLIENT generates at registration (see
+      // RegisterViewModel) — independent of Firebase Auth's own uid, and
+      // uid_map (which backs me()) can't be populated yet at this point
+      // anyway, since it's only ever written by looking up an EXISTING
+      // users/{uid} doc. So this can't check "me() == uid"; what actually
+      // prevents hijacking someone else's profile is Firestore's own
+      // create-vs-update semantics (this rule only ever fires for a document
+      // that doesn't exist yet — a colliding UUID is cryptographically
+      // negligible) plus the role/status constraints below. A self-registration
+      // may ONLY be a CUSTOMER (auto-approved) or a PROVIDER (starts PENDING,
+      // awaiting admin approval) — never an ADMIN, and a provider may not
+      // self-approve. The first ADMIN is bootstrapped out-of-band (console /
+      // setup), not through this path.
+      allow create: if isSignedIn()
                  && (
                       (request.resource.data.role == 'CUSTOMER'
                        && request.resource.data.status == 'APPROVED')
@@ -287,6 +301,15 @@ service cloud.firestore {
       allow read:  if isSignedIn()
                && (resource.data.providerId == me() || isAdmin());
       allow write: if false;
+    }
+
+    // ── uid_map ─────────────────────────────────────────────────────────────────
+    // Bridges request.auth.uid to the app's own uid scheme (see me()). Written
+    // exclusively by syncUidMap / resolveAppUser (Admin SDK, Cloud Functions).
+    // No client access — it's read only via the internal get() inside me(),
+    // which is not subject to this (or any) document's own rules.
+    match /uid_map/{authUid} {
+      allow read, write: if false;
     }
   }
 }

@@ -72,6 +72,15 @@ class AuthViewModel @Inject constructor(
                         val authPassword = pinHasher.deriveAuthPassword(pin, salt)
                         firebaseAuth.signIn(email, authPassword).getOrThrow()
 
+                        // Bridge Firebase Auth's uid to this account's app-level uid so
+                        // firestore.rules' me() can resolve identity correctly (the two
+                        // schemes are different — see resolveAppUser in Cloud Functions).
+                        runCatching {
+                            functions.getHttpsCallable("syncUidMap")
+                                .call(hashMapOf("appUid" to uid))
+                                .await()
+                        }
+
                         val role = when (roleStr) {
                             "PROVIDER" -> UserRole.PROVIDER
                             "ADMIN"    -> UserRole.ADMIN
