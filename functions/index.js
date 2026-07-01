@@ -24,9 +24,9 @@
  *   # Optional non-secret base URL via functions/.env:
  *   #   HESAB_BASE_URL=https://api.hesab.com/api/v1
  *
- * HesabPay API — confirmed field names (from developers.hesab.com):
+ * HesabPay API — confirmed live field names (create-session):
  *   Request  : items[]{id, name, price}, email, redirect_success_url, redirect_failure_url
- *   Response : { status_code, success, message, session_id, payment_url, expires_at }
+ *   Response : { success, session_id, url, expires_at } — checkout link is `url`
  *   Webhook  : lookup by session_id stored at payment creation time
  */
 
@@ -160,11 +160,11 @@ exports.createPaymentSession = onCall(
     await createBatch.commit();
 
     // ── Call HesabPay create-session ─────────────────────────────────────────
-    // Field names confirmed from developers.hesab.com:
-    //   Request : items[]{id, name, price}, email,
-    //             redirect_success_url, redirect_failure_url
-    //   Response: { success, status_code, message,
-    //               session_id, payment_url, expires_at }
+    // Request : items[]{id, name, price}, email,
+    //           redirect_success_url, redirect_failure_url
+    // Response (confirmed live from the create-session call): { success,
+    //           session_id, url, expires_at } — the checkout link field is
+    //           `url`, NOT `payment_url` as developers.hesab.com's docs imply.
     let sessionUrl = "";
     let sessionId  = "";
     try {
@@ -197,14 +197,12 @@ exports.createPaymentSession = onCall(
         );
       }
 
-      sessionUrl = body.payment_url || "";
+      sessionUrl = body.url || body.payment_url || "";
       sessionId  = body.session_id  || "";
 
       if (!sessionUrl) {
-        // Log the full response once so we can see HesabPay's actual field
-        // names if they differ from what developers.hesab.com documents.
-        logger.error("HesabPay create-session response missing payment_url", { body });
-        throw new Error("HesabPay returned no payment_url.");
+        logger.error("HesabPay create-session response missing url", { body });
+        throw new Error("HesabPay returned no checkout url.");
       }
     } catch (err) {
       // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings.
