@@ -557,6 +557,59 @@ exports.syncUidMap = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
+ * Creates a provider's salon at registration. Server-side because the salon's
+ * providerId must be authoritative (the app-level uid, not the Firebase Auth
+ * uid) and because at registration time the uid_map bridge isn't populated yet,
+ * so firestore.rules' me() can't resolve — a direct client write can't be
+ * verified. resolveAppUser looks the provider up by their auth-token email
+ * (their users/{uid} doc already exists at this point) and sets providerId to
+ * the real app uid. The salon starts hidden (isAvailable=false) and unverified
+ * until an admin approves the provider.
+ */
+exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "PROVIDER") {
+    throw new HttpsError("permission-denied", "Only providers can create a salon.");
+  }
+
+  const { salonName, district, services } = request.data || {};
+  if (!salonName || !district || !Array.isArray(services) || services.length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "salonName, district and at least one service are required."
+    );
+  }
+
+  // One salon per provider — return the existing one instead of duplicating
+  // (e.g. if the client retries after a dropped response).
+  const existing = await db.collection("salons")
+    .where("providerId", "==", appUser.uid).limit(1).get();
+  if (!existing.empty) {
+    return { salonId: existing.docs[0].id, alreadyExisted: true };
+  }
+
+  const ref = db.collection("salons").doc();
+  await ref.set({
+    providerId:          appUser.uid,
+    providerName:        appUser.name || "",
+    salonName:           String(salonName),
+    district:            String(district),
+    services:            services.map(String),
+    isAvailable:         false,   // hidden until an admin approves the provider
+    rating:              0,
+    workingHours:        [],
+    slotDurationMinutes: 60,
+    pricePerService:     {},
+    confirmedCount:      0,
+    isVerified:          false,
+  });
+  return { salonId: ref.id };
+});
+
+/**
  * Pre-auth lookup of an account's Firebase Auth email by phone, for the
  * password-reset flows (Forgot-PIN / Set-New-PIN). Returns ONLY the email
  * fields — never pinHash/salt — so `users` reads can stay locked to owner/admin.

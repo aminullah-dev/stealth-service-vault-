@@ -110,10 +110,12 @@ service cloud.firestore {
     match /salons/{salonId} {
       allow read: if isSignedIn();
 
-      // Only an approved provider can create a salon, and they must set themselves
-      // as the owner.
-      allow create: if isProvider() && isApproved()
-                 && request.resource.data.providerId == me();
+      // Salons are created exclusively by the createProviderSalon Cloud Function
+      // (Admin SDK bypasses these rules). It runs at registration — before the
+      // uid_map bridge exists — so me() can't resolve here, and the providerId
+      // must be set authoritatively server-side (to the app-level uid) rather
+      // than trusted from the client.
+      allow create: if false;
 
       // Provider can edit their own salon; admin can edit any.
       // A provider may NOT flip isVerified — the VERIFIED badge is a trust signal

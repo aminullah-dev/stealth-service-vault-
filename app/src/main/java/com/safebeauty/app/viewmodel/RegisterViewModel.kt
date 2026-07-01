@@ -6,13 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
-import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.UserDocument
 import com.safebeauty.app.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import javax.inject.Inject
 
@@ -22,6 +23,8 @@ class RegisterViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher
 ) : ViewModel() {
+
+    private val functions = FirebaseFunctions.getInstance()
 
     sealed class RegisterState {
         object Idle       : RegisterState()
@@ -125,17 +128,18 @@ class RegisterViewModel @Inject constructor(
                 )
 
                 if (isProvider) {
-                    firestoreRepository.createSalon(
-                        SalonDocument(
-                            providerId   = uid,
-                            providerName = name.trim(),
-                            salonName    = salonName.trim(),
-                            district     = district.trim(),
-                            services     = services,
-                            isAvailable  = false,  // starts offline until admin approves
-                            rating       = 0.0
-                        )
-                    )
+                    // Salon creation is server-side (createProviderSalon): the
+                    // providerId must be the authoritative app-level uid, and at
+                    // registration the uid_map bridge isn't populated yet, so a
+                    // direct client write can't pass the security rules.
+                    functions
+                        .getHttpsCallable("createProviderSalon")
+                        .call(hashMapOf(
+                            "salonName" to salonName.trim(),
+                            "district"  to district.trim(),
+                            "services"  to services
+                        ))
+                        .await()
                     state = RegisterState.ProviderPending
                 } else {
                     state = RegisterState.CustomerSuccess(name.trim())
