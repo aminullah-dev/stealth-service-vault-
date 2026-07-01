@@ -200,7 +200,12 @@ exports.createPaymentSession = onCall(
       sessionUrl = body.payment_url || "";
       sessionId  = body.session_id  || "";
 
-      if (!sessionUrl) throw new Error("HesabPay returned no payment_url.");
+      if (!sessionUrl) {
+        // Log the full response once so we can see HesabPay's actual field
+        // names if they differ from what developers.hesab.com documents.
+        logger.error("HesabPay create-session response missing payment_url", { body });
+        throw new Error("HesabPay returned no payment_url.");
+      }
     } catch (err) {
       // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings.
       await paymentRef.update({ status: "FAILED" });
