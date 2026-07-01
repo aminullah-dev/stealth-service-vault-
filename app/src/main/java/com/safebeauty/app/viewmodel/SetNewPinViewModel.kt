@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
-import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -18,7 +17,6 @@ import javax.inject.Inject
 @HiltViewModel
 class SetNewPinViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repo: FirestoreRepository,
     private val auth: FirebaseAuthManager,
     private val pinHasher: PinHasher
 ) : ViewModel() {
@@ -65,8 +63,8 @@ class SetNewPinViewModel @Inject constructor(
                 @Suppress("UNCHECKED_CAST")
                 val map = result.getData() as? Map<String, Any?> ?: emptyMap()
                 if (map["found"] != true) error("No account found for this phone number")
-                val uid           = map["uid"]           as? String ?: error("No account found")
-                val firebaseEmail = map["firebaseEmail"] as? String ?: ""
+                val firebaseEmail = (map["firebaseEmail"] as? String).orEmpty()
+                if (firebaseEmail.isBlank()) error("No account found")
 
                 val newSalt         = pinHasher.generateSalt()
                 val newHash         = pinHasher.hash(np, newSalt)
@@ -78,8 +76,15 @@ class SetNewPinViewModel @Inject constructor(
                 // Sign in with the new credentials to establish a session
                 auth.signIn(firebaseEmail, newAuthPassword).getOrThrow()
 
-                // Sync Firestore PIN hash
-                repo.updateUserPin(uid, newHash, newSalt)
+                // Sync the Firestore PIN hash server-side. A direct client write
+                // here can be denied by the security rules (this fresh session has
+                // no uid_map entry yet) AFTER the Auth password was already reset,
+                // which would desync the two and lock the account out. The function
+                // resolves the caller by auth-token email and repopulates uid_map.
+                functions
+                    .getHttpsCallable("updatePinHash")
+                    .call(hashMapOf("pinHash" to newHash, "salt" to newSalt))
+                    .await()
 
                 newPin = ""; confirmPin = ""
                 state = State.Success

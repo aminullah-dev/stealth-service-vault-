@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.security.BiometricVault
@@ -14,6 +15,7 @@ import com.safebeauty.app.security.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 
 @HiltViewModel
@@ -26,6 +28,8 @@ class ChangePinViewModel @Inject constructor(
 ) : ViewModel() {
 
     val userId: String = checkNotNull(savedStateHandle["userId"])
+
+    private val functions = FirebaseFunctions.getInstance()
 
     sealed class State {
         object Idle    : State()
@@ -83,7 +87,13 @@ class ChangePinViewModel @Inject constructor(
 
                 auth.reauthenticate(user.firebaseEmail, oldAuthPassword).getOrThrow()
                 auth.updatePassword(newAuthPassword).getOrThrow()
-                repo.updateUserPin(userId, newHash, newSalt)
+                // Server-side (see updatePinHash in Cloud Functions): keeps the
+                // pinHash write from ever being rules-denied after the Auth
+                // password has already changed, which would lock the account out.
+                functions
+                    .getHttpsCallable("updatePinHash")
+                    .call(hashMapOf("pinHash" to newHash, "salt" to newSalt))
+                    .await()
 
                 // The stored biometric PIN is now stale — clear it so the user is
                 // re-offered fast-unlock with the new PIN on next login.

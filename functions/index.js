@@ -557,6 +557,30 @@ exports.syncUidMap = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
+ * Updates the caller's OWN pinHash + salt (used by both Change-PIN and
+ * Forgot-PIN). Server-side because the Forgot-PIN flow signs in fresh and has
+ * no uid_map entry yet, so a direct client write can be denied by the rules'
+ * me() lookup AFTER the Firebase Auth password was already reset — leaving
+ * pinHash pointing at the old PIN and locking the account out entirely.
+ * resolveAppUser identifies the caller by their auth-token email (the same
+ * ownership the rules grant for direct writes) and also repopulates uid_map,
+ * so the session is fully usable right after a PIN reset.
+ */
+exports.updatePinHash = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const pinHash = String((request.data || {}).pinHash || "");
+  const salt    = String((request.data || {}).salt || "");
+  if (!pinHash || !salt) {
+    throw new HttpsError("invalid-argument", "pinHash and salt are required.");
+  }
+  const appUser = await resolveAppUser(request);
+  await db.doc(`users/${appUser.uid}`).update({ pinHash, salt });
+  return { updated: true };
+});
+
+/**
  * Creates a provider's salon at registration. Server-side because the salon's
  * providerId must be authoritative (the app-level uid, not the Firebase Auth
  * uid) and because at registration time the uid_map bridge isn't populated yet,

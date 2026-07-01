@@ -83,9 +83,10 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("name", name).await()
     }
 
-    suspend fun updateUserPin(uid: String, pinHash: String, salt: String) {
-        usersCol.document(uid).update(mapOf("pinHash" to pinHash, "salt" to salt)).await()
-    }
+    // NOTE: PIN hash updates go through the updatePinHash Cloud Function — a
+    // direct client write can be rules-denied after the Firebase Auth password
+    // has already changed (Forgot-PIN signs in fresh, before uid_map exists),
+    // which would desync the two credentials and lock the account out.
 
     /** Legacy Base64 path — kept so existing photos still display after migration. */
     suspend fun updateUserPhoto(uid: String, base64: String) {
