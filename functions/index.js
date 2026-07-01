@@ -32,6 +32,7 @@
 
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -966,3 +967,47 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
 
   return { processed: true };
 });
+
+// ── pushOnNotificationCreated (Firestore trigger) ─────────────────────────────
+//
+// Single delivery point for real push notifications: every notifications/{id}
+// doc — written by the functions above AND by client-side flows (booking
+// confirmed, waitlist slot available) — becomes an FCM push to the recipient's
+// registered device. Without this, "notifications" only ever appeared inside
+// the app's Notification Center while it was open; a salon would never learn
+// about a new paid booking until they happened to open the app.
+exports.pushOnNotificationCreated = onDocumentCreated(
+  { document: "notifications/{notifId}", region: "us-central1" },
+  async (event) => {
+    const n = event.data ? event.data.data() : null;
+    if (!n || !n.recipientId || !n.title) return;
+
+    const userSnap = await db.doc(`users/${n.recipientId}`).get();
+    const token = userSnap.exists ? String(userSnap.data().fcmToken || "") : "";
+    if (!token) return; // user never logged in on a push-capable device
+
+    try {
+      await admin.messaging().send({
+        token,
+        notification: { title: String(n.title), body: String(n.body || "") },
+        // Duplicated under both key styles: the foreground handler
+        // (SafeBeautyMessagingService) reads "type"/"relatedId", while a tap on
+        // a background notification delivers data keys as raw intent extras,
+        // where MainActivity expects "notif_type"/"notif_related_id".
+        data: {
+          type:             String(n.type || ""),
+          relatedId:        String(n.relatedId || ""),
+          notif_type:       String(n.type || ""),
+          notif_related_id: String(n.relatedId || ""),
+        },
+        android: { priority: "high" },
+      });
+    } catch (err) {
+      // Expired/rotated tokens are routine — log and move on, never retry-loop.
+      logger.warn("pushOnNotificationCreated: send failed", {
+        recipientId: n.recipientId,
+        error: String(err.message || err),
+      });
+    }
+  }
+);
