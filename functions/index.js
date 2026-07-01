@@ -84,12 +84,22 @@ function hesabHeaders(apiKey) {
 // an identity the rest of the app (which queries by the app-level uid) can
 // never match — the appointment becomes invisible everywhere.
 async function resolveAppUser(request) {
-  const email = request.auth.token.email;
+  // Lowercased on both sides: Firebase Auth normalizes emails to lowercase,
+  // and registration stores firebaseEmail lowercased to match.
+  const email = String(request.auth.token.email || "").toLowerCase();
   if (!email) {
     throw new HttpsError("failed-precondition", "No email on the auth token.");
   }
   const q = await db.collection("users").where("firebaseEmail", "==", email).limit(1).get();
   if (q.empty) {
+    // Fallback for older docs whose stored firebaseEmail casing differs from
+    // the (always-lowercase) token email: the uid_map bridge written at login
+    // (syncUidMap verifies ownership case-insensitively) still resolves them.
+    const mapSnap = await db.doc(`uid_map/${request.auth.uid}`).get();
+    if (mapSnap.exists) {
+      const mapped = await db.doc(`users/${mapSnap.data().appUid}`).get();
+      if (mapped.exists) return { uid: mapped.id, ...mapped.data() };
+    }
     throw new HttpsError("not-found", "User profile not found.");
   }
   const doc = q.docs[0];
@@ -541,12 +551,15 @@ exports.syncUidMap = onCall({ region: "us-central1" }, async (request) => {
   if (!appUid) {
     throw new HttpsError("invalid-argument", "appUid is required.");
   }
-  const email = request.auth.token.email;
+  const email = String(request.auth.token.email || "").toLowerCase();
   if (!email) {
     throw new HttpsError("failed-precondition", "No email on the auth token.");
   }
   const userSnap = await db.doc(`users/${appUid}`).get();
-  if (!userSnap.exists || userSnap.data().firebaseEmail !== email) {
+  // Case-insensitive: older docs may store firebaseEmail as typed, while the
+  // auth token's email is always lowercase.
+  if (!userSnap.exists ||
+      String(userSnap.data().firebaseEmail || "").toLowerCase() !== email) {
     throw new HttpsError("permission-denied", "appUid does not match the signed-in account.");
   }
   await db.doc(`uid_map/${request.auth.uid}`).set({

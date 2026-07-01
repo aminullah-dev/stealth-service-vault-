@@ -106,7 +106,10 @@ class RegisterViewModel @Inject constructor(
                 val authPassword  = pinHasher.deriveAuthPassword(pin, salt)
                 // Real email → Firebase Auth email (enables PIN recovery via email).
                 // Synthetic fallback for users who skip the optional email field.
-                val firebaseEmail = email.trim().ifBlank { "${uid.replace("-", "")}@sb.app" }
+                // Lowercased because Firebase Auth normalizes emails to lowercase —
+                // the server resolves this account by the auth token's email, so a
+                // mixed-case value stored here would never match it again.
+                val firebaseEmail = email.trim().lowercase().ifBlank { "${uid.replace("-", "")}@sb.app" }
                 val role          = if (isProvider) "PROVIDER" else "CUSTOMER"
                 val status        = if (isProvider) "PENDING" else "APPROVED"
 
