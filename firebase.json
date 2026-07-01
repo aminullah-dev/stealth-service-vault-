@@ -12,5 +12,10 @@
       "codebase": "default",
       "runtime": "nodejs20"
     }
-  ]
+  ],
+  "hosting": {
+    "public": "public",
+    "cleanUrls": true,
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
 }

@@ -47,9 +47,10 @@ const HESAB_BASE_URL       = defineString("HESAB_BASE_URL", {
 });
 
 // Redirect URLs after checkout — the mobile app polls Firestore for status so
-// these just need to be valid URLs that close the HesabPay checkout page.
+// these just need to be valid, reachable URLs; the page content is cosmetic.
+// Served by Firebase Hosting (see public/payment/{success,failure}.html).
 const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
-  default: "https://checkout.hesabpay.com",
+  default: "https://safebeauty.web.app",
 });
 
 // Default commission if the platform_config doc is missing (percent).
