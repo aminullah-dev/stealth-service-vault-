@@ -96,11 +96,17 @@ class AdminViewModel @Inject constructor(
             .catch { emit(10.0) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 10.0)
 
-    /** Provider balances joined with provider display names for the UI. */
+    /** Provider balances joined with provider display names + payout destination for the UI. */
     val providerBalances: StateFlow<List<ProviderBalance>> =
         combine(firestoreRepository.observeProviderBalances(), allUsers) { balances, users ->
-            val nameById = users.associate { it.uid to it.name }
-            balances.map { it.copy(providerName = nameById[it.providerId] ?: it.providerId) }
+            val userById = users.associateBy { it.uid }
+            balances.map {
+                val u = userById[it.providerId]
+                it.copy(
+                    providerName       = u?.name ?: it.providerId,
+                    hesabAccountNumber = u?.hesabAccountNumber ?: ""
+                )
+            }
         }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())

@@ -194,6 +194,7 @@ class ProviderViewModel @Inject constructor(
     var editSlotDuration by mutableStateOf(60)
         private set
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
+    var editHesabAccountNumber by mutableStateOf("")
 
     init {
         viewModelScope.launch {
@@ -206,6 +207,11 @@ class ProviderViewModel @Inject constructor(
                     editPrices = s.pricePerService
                 }
             }
+        }
+        viewModelScope.launch {
+            runCatching { firestoreRepository.getUserById(providerId) }
+                .getOrNull()
+                ?.let { editHesabAccountNumber = it.hesabAccountNumber }
         }
     }
 
@@ -277,6 +283,7 @@ class ProviderViewModel @Inject constructor(
     }
 
     fun onDistrictChanged(v: String)        { editDistrict = v }
+    fun onHesabAccountNumberChanged(v: String) { editHesabAccountNumber = v }
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
     fun setPriceForService(service: String, price: Int) {
         editPrices = editPrices + (service to price)
@@ -335,6 +342,7 @@ class ProviderViewModel @Inject constructor(
                         pricePerService     = editPrices
                     )
                 )
+                firestoreRepository.updateHesabAccountNumber(providerId, editHesabAccountNumber)
             }.onSuccess {
                 vaultRepository.log("PROFILE_UPDATED", "district=$editDistrict")
                 showSaveSuccess = true

@@ -22,7 +22,12 @@ data class UserDocument(
     val createdAt: Long = 0L,
     val loyaltyPoints: Int = 0,             // +10 per confirmed appointment
     val profilePhotoBase64: String = "",    // legacy — kept for backward compat; prefer profilePhotoUrl
-    val profilePhotoUrl: String = ""        // Firebase Storage download URL (preferred)
+    val profilePhotoUrl: String = "",       // Firebase Storage download URL (preferred)
+    // Provider's HesabPay account number (phone number), where the admin sends
+    // payouts. Not yet used to automate a transfer via the HesabPay Multi-Vendor
+    // Payment API — just recorded so the admin knows where to send money for
+    // the current manual payout flow.
+    val hesabAccountNumber: String = ""
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }
@@ -191,7 +196,8 @@ data class ProviderBalance(
     val owedAmount: Long = 0L,
     val updatedAt: Long = 0L,
     // Joined in client-side for display — not stored on the doc.
-    val providerName: String = ""
+    val providerName: String = "",
+    val hesabAccountNumber: String = ""
 )
 
 /**

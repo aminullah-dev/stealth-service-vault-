@@ -1253,6 +1253,13 @@ private fun ProviderBalanceRow(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(balance.providerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
                     Text(strings.financeOwed, fontSize = 11.sp, color = RoseGold)
+                    Text(
+                        if (balance.hesabAccountNumber.isNotBlank())
+                            strings.financeHesabAccountLabel(balance.hesabAccountNumber)
+                        else strings.financeHesabAccountMissing,
+                        fontSize = 11.sp,
+                        color    = if (balance.hesabAccountNumber.isNotBlank()) Color(0xFF777777) else Color(0xFFB00020)
+                    )
                 }
                 Text(
                     "${balance.owedAmount} AFN",

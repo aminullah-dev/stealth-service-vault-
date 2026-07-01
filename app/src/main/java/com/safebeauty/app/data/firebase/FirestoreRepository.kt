@@ -97,6 +97,11 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("profilePhotoUrl", url).await()
     }
 
+    /** Provider's HesabPay account number, so the admin knows where to send payouts. */
+    suspend fun updateHesabAccountNumber(uid: String, hesabAccountNumber: String) {
+        usersCol.document(uid).update("hesabAccountNumber", hesabAccountNumber).await()
+    }
+
     suspend fun incrementLoyaltyPoints(customerId: String) {
         runCatching {
             usersCol.document(customerId).update("loyaltyPoints", FieldValue.increment(10)).await()

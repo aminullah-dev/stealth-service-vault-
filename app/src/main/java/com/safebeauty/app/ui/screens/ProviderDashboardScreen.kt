@@ -929,6 +929,31 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Portfolio / sample-work photos ────────────────────────────────
         PortfolioSection(viewModel = viewModel)
 
+        // ── Payout card ───────────────────────────────────────────────────
+        Card(
+            shape  = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+        ) {
+            Column(
+                modifier            = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(strings.sectionPayout, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+                HorizontalDivider(color = BlushPink)
+                OutlinedTextField(
+                    value         = viewModel.editHesabAccountNumber,
+                    onValueChange = viewModel::onHesabAccountNumberChanged,
+                    label         = { Text(strings.hesabAccountNumberLabel, fontSize = 13.sp) },
+                    supportingText = { Text(strings.hesabAccountNumberHint, fontSize = 11.sp) },
+                    singleLine    = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier      = Modifier.fillMaxWidth(),
+                    shape         = RoundedCornerShape(12.dp),
+                    colors        = fieldColors
+                )
+            }
+        }
+
         // ── Save button ───────────────────────────────────────────────────
         Button(
             onClick  = { viewModel.saveProfile() },
