@@ -269,7 +269,8 @@ class DashboardViewModel @Inject constructor(
     // apart from a genuine "NONE".
     val kycStatus: StateFlow<String?> =
         firestoreRepository.observeUser(customerId)
-            .map { it?.kycStatus ?: "NONE" }
+            // Widened to String? so the catch below can emit null ("unknown").
+            .map { it?.kycStatus ?: ("NONE" as String?) }
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
