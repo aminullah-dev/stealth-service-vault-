@@ -11,5 +11,9 @@ data class LoggedInUser(
     // Drives the post-login gate: a non-APPROVED provider is sent to a status screen.
     val status: String = "APPROVED",
     // Set by the admin when status is REJECTED; shown on AccountStatusScreen.
-    val rejectionReason: String = ""
+    val rejectionReason: String = "",
+    // Identity-verification state ("NONE" | "PENDING" | "APPROVED" | "REJECTED").
+    // Gates the first action: a provider must be APPROVED before their salon can
+    // go live; a customer before booking.
+    val kycStatus: String = "NONE"
 )

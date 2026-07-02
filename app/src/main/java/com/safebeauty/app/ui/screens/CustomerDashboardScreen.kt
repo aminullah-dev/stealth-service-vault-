@@ -810,12 +810,20 @@ fun CustomerDashboardScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes)
-                            showNotesDialog = false
-                            pendingSlotMs   = 0L
-                            bookingNotes    = ""
-                            bookingIntent   = null
-                            viewModel.clearSlots()
+                            // Identity must be verified before a customer can book.
+                            if (viewModel.needsKycBeforeBooking()) {
+                                showNotesDialog = false
+                                bookingIntent   = null
+                                viewModel.clearSlots()
+                                onNavigate(Screen.Kyc.build(viewModel.customerId))
+                            } else {
+                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes)
+                                showNotesDialog = false
+                                pendingSlotMs   = 0L
+                                bookingNotes    = ""
+                                bookingIntent   = null
+                                viewModel.clearSlots()
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
                     ) { Text(strings.confirmBooking, color = Color.White) }

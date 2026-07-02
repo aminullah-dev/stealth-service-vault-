@@ -19,6 +19,7 @@ import com.safebeauty.app.ui.screens.AdminDashboardScreen
 import com.safebeauty.app.ui.screens.ChatScreen
 import com.safebeauty.app.ui.screens.CustomerDashboardScreen
 import com.safebeauty.app.ui.screens.ForgotPinScreen
+import com.safebeauty.app.ui.screens.KycScreen
 import com.safebeauty.app.ui.screens.LoginScreen
 import com.safebeauty.app.ui.screens.NotificationCenterScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
@@ -70,6 +71,9 @@ sealed class Screen(val route: String) {
     }
     object Notifications : Screen("notifications/{userId}") {
         fun build(userId: String) = "notifications/$userId"
+    }
+    object Kyc : Screen("kyc/{userId}") {
+        fun build(userId: String) = "kyc/$userId"
     }
 }
 
@@ -137,6 +141,11 @@ fun AppNavGraph(
                         // a live dashboard. Customers/admins are always APPROVED.
                         val dashboardRoute = if (user.status != "APPROVED") {
                             Screen.AccountStatus.build(user.status, user.rejectionReason)
+                        } else if (user.role == UserRole.PROVIDER && user.kycStatus != "APPROVED") {
+                            // A provider can't operate until identity-verified — send
+                            // them straight to the KYC screen (submit / under review /
+                            // rejected). Customers verify later, gated at booking.
+                            Screen.Kyc.build(user.uid)
                         } else when (user.role) {
                             UserRole.CUSTOMER -> Screen.CustomerDashboard.build(user.uid)
                             UserRole.PROVIDER -> Screen.ProviderDashboard.build(user.uid)
@@ -256,6 +265,13 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 NotificationCenterScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(
+                route     = Screen.Kyc.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) {
+                KycScreen(onDone = { navController.popBackStack() })
             }
         }
     }

@@ -260,6 +260,31 @@ class DashboardViewModel @Inject constructor(
         private set
     fun dismissCancelFailed() { cancelFailed = false }
 
+    // Live identity-verification state, so the booking flow can require an
+    // APPROVED customer before taking payment (see needsKycBeforeBooking).
+    // Eagerly (not WhileSubscribed) because the gate reads .value directly at
+    // the booking tap without collecting the flow — WhileSubscribed would leave
+    // it stuck at the "NONE" seed and wrongly force even verified customers
+    // through KYC. Started as null (unknown) so we can tell "not loaded yet"
+    // apart from a genuine "NONE".
+    val kycStatus: StateFlow<String?> =
+        firestoreRepository.observeUser(customerId)
+            .map { it?.kycStatus ?: "NONE" }
+            .catch { emit(null) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /**
+     * True when the customer must verify their identity before they can book.
+     * While the status is still loading (null) we do NOT block — the server's
+     * createPaymentSession is not KYC-gated, so the worst case of letting an
+     * unverified booking through here is caught at review, whereas wrongly
+     * blocking a verified customer on a slow first load is a real annoyance.
+     */
+    fun needsKycBeforeBooking(): Boolean {
+        val s = kycStatus.value ?: return false
+        return s != "APPROVED"
+    }
+
     var availableSlots by mutableStateOf<List<Long>>(emptyList())
         private set
     var slotsLoading by mutableStateOf(false)

@@ -21,7 +21,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Block
@@ -41,6 +44,8 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -129,11 +134,13 @@ fun AdminDashboardScreen(
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
     val payouts          by viewModel.payouts.collectAsStateWithLifecycle()
     val refundRequests   by viewModel.pendingRefundRequests.collectAsStateWithLifecycle()
+    val kycPending       by viewModel.kycPending.collectAsStateWithLifecycle()
+    val kycLoaded        by viewModel.kycLoaded.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
     val tabs = listOf(
-        strings.approvalQueueSubtitle, strings.tabUsers,
+        strings.approvalQueueSubtitle, strings.tabKyc, strings.tabUsers,
         strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance
     )
 
@@ -207,11 +214,12 @@ fun AdminDashboardScreen(
 
                 when (selectedTab) {
                     0 -> ApprovalsTab(pendingProviders, approvalsLoaded, viewModel)
-                    1 -> UsersTab(allUsers, usersLoaded, viewModel)
-                    2 -> SalonsTab(allSalons, viewModel)
-                    3 -> StatsTab(stats, statsLoaded)
-                    4 -> BroadcastTab(broadcasts, viewModel)
-                    5 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
+                    1 -> KycReviewTab(kycPending, kycLoaded, viewModel)
+                    2 -> UsersTab(allUsers, usersLoaded, viewModel)
+                    3 -> SalonsTab(allSalons, viewModel)
+                    4 -> StatsTab(stats, statsLoaded)
+                    5 -> BroadcastTab(broadcasts, viewModel)
+                    6 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
                 }
             }
         }
@@ -313,6 +321,144 @@ private fun ApprovalsTab(
                 }
             }
         )
+    }
+}
+
+// ── KYC review tab ────────────────────────────────────────────────────────────
+
+@Composable
+private fun KycReviewTab(
+    pending: List<UserDocument>,
+    isLoaded: Boolean,
+    viewModel: AdminViewModel
+) {
+    val strings = LocalStrings.current
+    var rejectTarget by remember { mutableStateOf<UserDocument?>(null) }
+    var rejectReason by remember { mutableStateOf("") }
+
+    if (!isLoaded) {
+        LoadingBox()
+    } else if (pending.isEmpty()) {
+        CenteredEmpty(icon = Icons.Default.Badge, title = strings.kycReviewNone, subtext = "")
+    } else {
+        LazyColumn(
+            contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(pending, key = { it.uid }) { u ->
+                KycReviewCard(
+                    user      = u,
+                    busy      = viewModel.kycReviewInProgress == u.uid,
+                    onApprove = { viewModel.approveKyc(u.uid) },
+                    onReject  = { rejectReason = ""; rejectTarget = u }
+                )
+            }
+        }
+    }
+
+    rejectTarget?.let { u ->
+        AlertDialog(
+            onDismissRequest = { rejectTarget = null },
+            title = { Text(strings.rejectDialogTitle, color = DeepRose, fontWeight = FontWeight.Bold) },
+            text  = {
+                Column {
+                    Text(u.name, color = RoseGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value         = rejectReason,
+                        onValueChange = { rejectReason = it },
+                        label         = { Text(strings.rejectionReasonLabel, fontSize = 13.sp) },
+                        placeholder   = { Text(strings.rejectReasonHint, fontSize = 12.sp) },
+                        modifier      = Modifier.fillMaxWidth(),
+                        shape         = RoundedCornerShape(12.dp),
+                        minLines      = 2,
+                        colors        = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor   = DeepRose,
+                            unfocusedBorderColor = BlushPink,
+                            focusedLabelColor    = DeepRose
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = rejectReason.isNotBlank(),
+                    onClick = {
+                        viewModel.rejectKyc(u.uid, rejectReason)
+                        rejectTarget = null
+                    }
+                ) { Text(strings.reject, color = Color(0xFFC0392B), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { rejectTarget = null }) {
+                    Text(strings.cancel, color = RoseGold)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun KycReviewCard(
+    user: UserDocument,
+    busy: Boolean,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    fun openUrl(url: String) {
+        if (url.isBlank()) return
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    }
+
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(user.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = DeepRose)
+            Text(strings.kycReviewTazkiraNo(user.tazkiraNumber), fontSize = 12.sp, color = RoseGold)
+            Text("${user.addressProvince} — ${user.addressDetail}", fontSize = 12.sp, color = Color(0xFF777777))
+
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { openUrl(user.tazkiraPhotoUrl) }, shape = RoundedCornerShape(10.dp)) {
+                    Text(strings.kycReviewViewTazkira, color = RoseGold, fontSize = 12.sp)
+                }
+                OutlinedButton(onClick = { openUrl(user.selfiePhotoUrl) }, shape = RoundedCornerShape(10.dp)) {
+                    Text(strings.kycReviewViewSelfie, color = RoseGold, fontSize = 12.sp)
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick  = onApprove,
+                    enabled  = !busy,
+                    modifier = Modifier.weight(1f),
+                    shape    = RoundedCornerShape(12.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = AvailableGreen)
+                ) {
+                    Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(strings.kycReviewApprove, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick  = onReject,
+                    enabled  = !busy,
+                    modifier = Modifier.weight(1f),
+                    shape    = RoundedCornerShape(12.dp),
+                    colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))
+                ) {
+                    Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(strings.kycReviewReject, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
     }
 }
 

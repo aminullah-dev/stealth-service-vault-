@@ -53,6 +53,40 @@ class AdminViewModel @Inject constructor(
             .catch { _approvalsLoaded.value = true; emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val _kycLoaded = MutableStateFlow(false)
+    val kycLoaded: StateFlow<Boolean> = _kycLoaded.asStateFlow()
+    /** Users awaiting identity-verification review. */
+    val kycPending: StateFlow<List<UserDocument>> =
+        firestoreRepository.observeKycPending()
+            .onEach { _kycLoaded.value = true }
+            .catch { _kycLoaded.value = true; emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    var kycReviewInProgress by mutableStateOf<String?>(null)
+        private set
+
+    /** Admin approves a user's identity verification. */
+    fun approveKyc(uid: String) {
+        if (kycReviewInProgress != null) return
+        kycReviewInProgress = uid
+        viewModelScope.launch {
+            paymentRepository.reviewKyc(uid, approve = true)
+            kycReviewInProgress = null
+            vaultRepository.log("ADMIN_KYC_APPROVE", "uid=$uid")
+        }
+    }
+
+    /** Admin rejects a user's identity verification with a reason. */
+    fun rejectKyc(uid: String, reason: String) {
+        if (kycReviewInProgress != null) return
+        kycReviewInProgress = uid
+        viewModelScope.launch {
+            paymentRepository.reviewKyc(uid, approve = false, rejectionReason = reason.trim())
+            kycReviewInProgress = null
+            vaultRepository.log("ADMIN_KYC_REJECT", "uid=$uid")
+        }
+    }
+
     private val _usersLoaded = MutableStateFlow(false)
     val usersLoaded: StateFlow<Boolean> = _usersLoaded.asStateFlow()
     val allUsers: StateFlow<List<UserDocument>> =

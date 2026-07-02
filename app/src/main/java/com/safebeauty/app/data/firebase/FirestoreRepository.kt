@@ -119,6 +119,30 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    /** Live view of a single user's own document (used to gate on kycStatus). */
+    fun observeUser(uid: String): Flow<UserDocument?> = callbackFlow {
+        val listener = usersCol.document(uid).addSnapshotListener { snap, err ->
+            if (err != null) { trySend(null); return@addSnapshotListener }
+            trySend(snap?.toObject(UserDocument::class.java)?.copy(uid = snap.id))
+        }
+        awaitClose { listener.remove() }
+    }
+
+    /** Users awaiting KYC review, oldest first — for the admin verification tab. */
+    fun observeKycPending(): Flow<List<UserDocument>> = callbackFlow {
+        val listener = usersCol
+            .whereEqualTo("kycStatus", "PENDING")
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
+                    ?.sortedBy { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun updateFcmToken(uid: String, token: String) {
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }

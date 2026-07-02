@@ -130,6 +130,11 @@ exports.createPaymentSession = onCall(
     }
 
     const appUser = await resolveAppUser(request);
+    // Identity must be verified before booking. The client gates this too and
+    // routes to the KYC screen; this is the non-bypassable server enforcement.
+    if ((appUser.kycStatus || "NONE") !== "APPROVED") {
+      throw new HttpsError("failed-precondition", "Verify your identity before booking.");
+    }
     const uid     = appUser.uid;
     const user    = appUser;
     const { salonId, serviceName, appointmentDate, notes, email } =
@@ -525,6 +530,7 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
         role:           u.role  || "CUSTOMER",
         status:         u.status || "",
         rejectionReason: u.rejectionReason || "",
+        kycStatus:      u.kycStatus || "NONE",
         firebaseEmail:  u.firebaseEmail || "",
         salt:           u.salt,
       };

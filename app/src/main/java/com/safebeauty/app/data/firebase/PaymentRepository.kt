@@ -168,6 +168,26 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:providerDeclineAppointment") }
             .getOrDefault(false)
 
+    /**
+     * Admin-only: approves or rejects a user's KYC submission. On reject, a
+     * [rejectionReason] is required and shown to the user. Returns true on success.
+     */
+    suspend fun reviewKyc(targetUid: String, approve: Boolean, rejectionReason: String = ""): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("reviewKyc")
+                .call(
+                    hashMapOf(
+                        "targetUid"       to targetUid,
+                        "approve"         to approve,
+                        "rejectionReason" to rejectionReason
+                    )
+                )
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:reviewKyc") }
+            .getOrDefault(false)
+
     /** Emits the live status ("PENDING" | "PAID" | "FAILED") of a payment. */
     fun observePaymentStatus(paymentId: String): Flow<String> = callbackFlow {
         val listener = paymentsCol.document(paymentId)
