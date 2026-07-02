@@ -144,24 +144,12 @@ service cloud.firestore {
       // client cannot create a booking without going through HesabPay payment.
       allow create: if false;
 
-      // Provider confirms or reschedules their salon's appointment directly, but
-      // may ONLY touch status + appointmentDate — never the customer's identity
-      // (customerId/customerName/customerPhone) or the price/service — and may
-      // NOT set status to CANCELLED. Admin is unrestricted.
-      //
-      // Neither customer NOR provider cancellation is allowed via a direct
-      // write here — every PENDING/CONFIRMED appointment has already been paid
-      // (the webhook only advances out of AWAITING_PAYMENT after payment
-      // succeeds), so a direct status flip to CANCELLED would leave the
-      // payment marked PAID with no refund record. Both must go through
-      // cancelAppointment / providerDeclineAppointment, which cancel AND
-      // create a refund_requests entry (Admin SDK bypasses this rule).
-      allow update: if isAdmin()
-                 || (ownsThisSalon(resource.data.salonId)
-                     && request.resource.data.diff(resource.data).affectedKeys()
-                            .hasOnly(['status', 'appointmentDate'])
-                     && request.resource.data.customerId == resource.data.customerId
-                     && request.resource.data.status != 'CANCELLED');
+      // Every appointment mutation goes through a Cloud Function now —
+      // confirmAppointment (provider), rescheduleAppointment (customer),
+      // cancelAppointment / providerDeclineAppointment (paid-booking
+      // cancellation with refund trail), and the payment webhook. The Admin
+      // SDK bypasses these rules; clients have no direct write path left.
+      allow update: if isAdmin();
 
       allow delete: if isAdmin();
     }

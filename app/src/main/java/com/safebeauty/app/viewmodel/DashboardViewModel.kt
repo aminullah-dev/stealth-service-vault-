@@ -437,9 +437,12 @@ class DashboardViewModel @Inject constructor(
 
     fun rescheduleAppointment(appointmentId: String, newDateMs: Long) {
         viewModelScope.launch {
-            runCatching {
-                firestoreRepository.rescheduleAppointment(appointmentId, newDateMs)
+            val ok = paymentRepository.rescheduleAppointment(appointmentId, newDateMs)
+            if (ok) {
                 vaultRepository.log("APPOINTMENT_RESCHEDULED", "id=$appointmentId date=$newDateMs")
+            } else {
+                // Reuses the generic action-failed dialog.
+                cancelFailed = true
             }
         }
     }

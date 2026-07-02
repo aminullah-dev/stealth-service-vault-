@@ -122,6 +122,21 @@ class PaymentRepository @Inject constructor() {
             .getOrDefault(false)
 
     /**
+     * Customer moving a booking to a new time. Server-side because appointment
+     * updates are rules-denied for clients; the function validates ownership,
+     * returns the booking to PENDING, and notifies the provider to re-confirm.
+     */
+    suspend fun rescheduleAppointment(appointmentId: String, newDateMs: Long): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("rescheduleAppointment")
+                .call(hashMapOf("appointmentId" to appointmentId, "newDate" to newDateMs))
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:rescheduleAppointment") }
+            .getOrDefault(false)
+
+    /**
      * Provider confirming a PENDING appointment. Server-side so the status
      * flip, salon confirmed-count, customer loyalty points, and the customer's
      * notification happen in ONE atomic transaction — and so `notifications`

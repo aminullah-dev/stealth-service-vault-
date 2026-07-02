@@ -825,6 +825,92 @@ exports.providerDeclineAppointment = onCall({ region: "us-central1" }, async (re
   );
 });
 
+// ── getBookedSlots (callable) ─────────────────────────────────────────────────
+//
+// Returns only the taken time-slots for a salon within a day window. The
+// client must not read other customers' appointment docs (they carry names
+// and phone numbers), and the rules rightly deny such a query — which
+// silently broke the client-side availability check: the denied read came
+// back empty, so every slot looked free and double-booking was possible.
+exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { salonId, dayStart, dayEnd } = request.data || {};
+  const start = Number(dayStart);
+  const end   = Number(dayEnd);
+  if (!salonId || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    throw new HttpsError("invalid-argument", "salonId, dayStart and dayEnd are required.");
+  }
+
+  const snap = await db.collection("appointments")
+    .where("salonId", "==", salonId)
+    .get();
+  const slots = snap.docs
+    .map((d) => d.data())
+    .filter((a) =>
+      a.status !== "CANCELLED" &&
+      Number(a.appointmentDate) >= start &&
+      Number(a.appointmentDate) <= end)
+    .map((a) => Number(a.appointmentDate));
+
+  return { slots };
+});
+
+// ── rescheduleAppointment (callable, customer) ────────────────────────────────
+//
+// Replaces the customer's direct Firestore write, which the rules had no
+// customer branch for (appointment updates were provider/admin-only) — so
+// rescheduling always failed, silently. Runs server-side like every other
+// appointment mutation: validates ownership + status, moves the date, drops
+// the booking back to PENDING for re-confirmation, and notifies the provider.
+exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { appointmentId, newDate } = request.data || {};
+  const dateMs = Number(newDate);
+  if (!appointmentId || !Number.isFinite(dateMs)) {
+    throw new HttpsError("invalid-argument", "appointmentId and newDate are required.");
+  }
+  if (dateMs < Date.now()) {
+    throw new HttpsError("invalid-argument", "The new time must be in the future.");
+  }
+  const appUser = await resolveAppUser(request);
+  const apptRef = db.doc(`appointments/${appointmentId}`);
+
+  await db.runTransaction(async (tx) => {
+    const apptSnap = await tx.get(apptRef);
+    if (!apptSnap.exists) throw new HttpsError("not-found", "Appointment not found.");
+    const appt = apptSnap.data();
+
+    if (appt.customerId !== appUser.uid && appUser.role !== "ADMIN") {
+      throw new HttpsError("permission-denied", "Not authorized to reschedule this booking.");
+    }
+    if (appt.status !== "PENDING" && appt.status !== "CONFIRMED") {
+      throw new HttpsError("failed-precondition", "This booking can no longer be rescheduled.");
+    }
+
+    const salonSnap  = await tx.get(db.doc(`salons/${appt.salonId}`));
+    const providerId = salonSnap.exists ? (salonSnap.data().providerId || "") : "";
+
+    tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING" });
+    if (providerId) {
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: providerId,
+        type:        "BOOKING_RESCHEDULED",
+        title:       "Booking Rescheduled",
+        body:        `${appt.serviceName || "A booking"} was moved to a new time — please re-confirm.`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   appointmentId,
+      });
+    }
+  });
+
+  return { rescheduled: true };
+});
+
 // ── confirmAppointment (callable, provider) ───────────────────────────────────
 //
 // Replaces ProviderViewModel.acceptAppointment's four separate client writes

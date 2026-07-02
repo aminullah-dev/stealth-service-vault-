@@ -2,6 +2,7 @@ package com.safebeauty.app.data.firebase
 
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
 import com.safebeauty.app.util.CrashReporter
@@ -33,6 +34,7 @@ class FirestoreRepository @Inject constructor(
 ) {
 
     private val db: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val functions = FirebaseFunctions.getInstance()
 
     private val usersCol        = db.collection("users")
     private val salonsCol       = db.collection("salons")
@@ -258,15 +260,8 @@ class FirestoreRepository @Inject constructor(
     // NOTE: appointments are created exclusively by the createPaymentSession
     // Cloud Function (pay-first); the rules deny client creation.
 
-    /**
-     * Move an appointment to a new time. The booking returns to PENDING so the
-     * provider re-confirms the new slot.
-     */
-    suspend fun rescheduleAppointment(appointmentId: String, newDateMs: Long) {
-        appointmentsCol.document(appointmentId)
-            .update(mapOf("appointmentDate" to newDateMs, "status" to "PENDING"))
-            .await()
-    }
+    // NOTE: rescheduling goes through the rescheduleAppointment Cloud Function —
+    // appointment updates are rules-denied for clients.
 
     suspend fun sweepOldAppointments(windowMs: Long) {
         val cutoff = System.currentTimeMillis() - windowMs
@@ -278,17 +273,30 @@ class FirestoreRepository @Inject constructor(
             .forEach { it.reference.delete().await() }
     }
 
+    /**
+     * Taken time-slots for a salon on the day containing [dateMs]. Served by
+     * the getBookedSlots Cloud Function: a customer cannot (and must not) read
+     * other customers' appointment docs directly — the rules deny that query,
+     * so the old direct read silently returned empty and every slot looked
+     * free, allowing double-booking.
+     */
     suspend fun getBookedSlotsForSalon(salonId: String, dateMs: Long): List<Long> {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = dateMs }
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0)
         cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
         val startOfDay = cal.timeInMillis
         cal.set(java.util.Calendar.HOUR_OF_DAY, 23); cal.set(java.util.Calendar.MINUTE, 59)
+        cal.set(java.util.Calendar.SECOND, 59); cal.set(java.util.Calendar.MILLISECOND, 999)
         val endOfDay = cal.timeInMillis
-        return appointmentsCol.whereEqualTo("salonId", salonId).get().await()
-            .documents.mapNotNull { it.toObject(AppointmentDocument::class.java) }
-            .filter { it.status != "CANCELLED" && it.appointmentDate in startOfDay..endOfDay }
-            .map { it.appointmentDate }
+
+        val result = functions
+            .getHttpsCallable("getBookedSlots")
+            .call(hashMapOf("salonId" to salonId, "dayStart" to startOfDay, "dayEnd" to endOfDay))
+            .await()
+
+        @Suppress("UNCHECKED_CAST")
+        val map = result.getData() as? Map<String, Any?> ?: return emptyList()
+        return (map["slots"] as? List<*>)?.mapNotNull { (it as? Number)?.toLong() } ?: emptyList()
     }
 
     // ── Chat ──────────────────────────────────────────────────────────────────
