@@ -10,7 +10,6 @@ import com.safebeauty.app.data.firebase.AppointmentDocument
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.GalleryImageDocument
-import com.safebeauty.app.data.firebase.NotificationDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
@@ -231,36 +230,20 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Confirms a PENDING appointment via the confirmAppointment Cloud Function,
+     * which atomically flips the status, bumps the salon's confirmed count,
+     * awards the customer's loyalty points, and notifies them — the old four
+     * separate client writes could partially fail and drift out of sync.
+     */
     fun acceptAppointment(apptId: String) {
         viewModelScope.launch {
-            val appt = allAppointments.value.find { it.id == apptId }
-            runCatching {
-                firestoreRepository.updateAppointmentStatus(apptId, "CONFIRMED")
-            }.onFailure {
-                // The status write itself failed — surface it instead of silently
-                // proceeding to the (now-incorrect) loyalty/notification side effects.
+            val ok = paymentRepository.confirmAppointment(apptId)
+            if (ok) {
+                vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
+            } else {
                 showSaveError = true
-                return@launch
             }
-            salon.value?.id?.let { salonId ->
-                runCatching { firestoreRepository.incrementConfirmedCount(salonId) }
-            }
-            if (appt != null) {
-                runCatching { firestoreRepository.incrementLoyaltyPoints(appt.customerId) }
-                runCatching {
-                    firestoreRepository.createNotification(
-                        NotificationDocument(
-                            recipientId = appt.customerId,
-                            type        = "BOOKING_CONFIRMED",
-                            title       = "Booking Confirmed",
-                            body        = "${appt.serviceName} at ${appt.salonName}",
-                            createdAt   = System.currentTimeMillis(),
-                            relatedId   = apptId
-                        )
-                    )
-                }
-            }
-            vaultRepository.log("APPOINTMENT_CONFIRMED", "id=$apptId")
         }
     }
 

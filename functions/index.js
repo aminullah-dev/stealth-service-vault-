@@ -825,6 +825,78 @@ exports.providerDeclineAppointment = onCall({ region: "us-central1" }, async (re
   );
 });
 
+// ── confirmAppointment (callable, provider) ───────────────────────────────────
+//
+// Replaces ProviderViewModel.acceptAppointment's four separate client writes
+// (status flip, confirmedCount increment, loyalty points, notification) with
+// one atomic transaction. Also required so `notifications` creation could be
+// locked to the Admin SDK — with real FCM pushes now sent for every
+// notification doc, an open client create rule would let any signed-in user
+// push arbitrary text to any user's phone.
+exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { appointmentId } = request.data || {};
+  if (!appointmentId) {
+    throw new HttpsError("invalid-argument", "appointmentId is required.");
+  }
+  const appUser = await resolveAppUser(request);
+  const apptRef = db.doc(`appointments/${appointmentId}`);
+
+  await db.runTransaction(async (tx) => {
+    const apptSnap = await tx.get(apptRef);
+    if (!apptSnap.exists) throw new HttpsError("not-found", "Appointment not found.");
+    const appt = apptSnap.data();
+
+    if (appt.status === "CONFIRMED") return; // idempotent re-tap
+    if (appt.status !== "PENDING") {
+      throw new HttpsError("failed-precondition", "Only a pending booking can be confirmed.");
+    }
+
+    const salonRef  = db.doc(`salons/${appt.salonId}`);
+    const salonSnap = await tx.get(salonRef);
+    const salon     = salonSnap.exists ? salonSnap.data() : null;
+    if ((!salon || salon.providerId !== appUser.uid) && appUser.role !== "ADMIN") {
+      throw new HttpsError("permission-denied", "Not authorized to confirm this booking.");
+    }
+
+    // The customer doc can be missing (e.g. legacy data written under a
+    // different uid scheme) — never let that block the confirmation itself.
+    let customerRef = null;
+    let customerExists = false;
+    if (appt.customerId) {
+      customerRef = db.doc(`users/${appt.customerId}`);
+      customerExists = (await tx.get(customerRef)).exists;
+    }
+
+    tx.update(apptRef, { status: "CONFIRMED" });
+    if (salonSnap.exists) {
+      tx.update(salonRef, {
+        confirmedCount: admin.firestore.FieldValue.increment(1),
+      });
+    }
+    if (customerExists) {
+      tx.update(customerRef, {
+        loyaltyPoints: admin.firestore.FieldValue.increment(10),
+      });
+    }
+    if (appt.customerId) {
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: appt.customerId,
+        type:        "BOOKING_CONFIRMED",
+        title:       "Booking Confirmed",
+        body:        `${appt.serviceName || "Your booking"} at ${appt.salonName || "the salon"}`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   appointmentId,
+      });
+    }
+  });
+
+  return { confirmed: true };
+});
+
 // ── expireAbandonedPayments (scheduled) ───────────────────────────────────────
 //
 // A customer who opens HesabPay checkout and never completes (or never

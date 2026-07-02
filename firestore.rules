@@ -238,10 +238,11 @@ service cloud.firestore {
       allow read: if isSignedIn()
                && (resource.data.recipientId == me() || isAdmin());
 
-      // Any authenticated user may create — needed for the booking flow where the
-      // client writes a notification for a different user (e.g. provider gets a
-      // "new booking" notification when a customer books).
-      allow create: if isSignedIn();
+      // Created exclusively by the Cloud Functions (Admin SDK bypasses these
+      // rules). Every notification doc becomes a real FCM push
+      // (pushOnNotificationCreated), so an open client create path would let
+      // any signed-in user push arbitrary text to any user's phone.
+      allow create: if false;
 
       // Only the recipient marks as read / deletes.
       allow update: if resource.data.recipientId == me() || isAdmin();

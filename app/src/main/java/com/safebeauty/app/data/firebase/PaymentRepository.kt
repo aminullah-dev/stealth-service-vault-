@@ -122,6 +122,23 @@ class PaymentRepository @Inject constructor() {
             .getOrDefault(false)
 
     /**
+     * Provider confirming a PENDING appointment. Server-side so the status
+     * flip, salon confirmed-count, customer loyalty points, and the customer's
+     * notification happen in ONE atomic transaction — and so `notifications`
+     * creation can stay locked to the Admin SDK (every notification doc now
+     * becomes a real FCM push).
+     */
+    suspend fun confirmAppointment(appointmentId: String): Boolean =
+        runCatching {
+            functions
+                .getHttpsCallable("confirmAppointment")
+                .call(hashMapOf("appointmentId" to appointmentId))
+                .await()
+            true
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:confirmAppointment") }
+            .getOrDefault(false)
+
+    /**
      * Provider declining a PENDING appointment — same money-correctness reasons
      * as [cancelAppointment]: the booking is already paid, so this also flags
      * the payment for a manual refund instead of a bare status flip.

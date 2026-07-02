@@ -202,11 +202,9 @@ class FirestoreRepository @Inject constructor(
         salonsCol.document(salonId).update("isAvailable", isAvailable).await()
     }
 
-    suspend fun incrementConfirmedCount(salonId: String) {
-        runCatching {
-            salonsCol.document(salonId).update("confirmedCount", FieldValue.increment(1)).await()
-        }
-    }
+    // NOTE: confirming an appointment (status flip + confirmedCount + loyalty
+    // points + notification) is one atomic transaction in the confirmAppointment
+    // Cloud Function — not client-side writes.
 
     suspend fun setSalonVerified(salonId: String, verified: Boolean) {
         salonsCol.document(salonId).update("isVerified", verified).await()
@@ -257,14 +255,8 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    suspend fun createAppointment(appt: AppointmentDocument): String {
-        val ref = appointmentsCol.add(appt).await()
-        return ref.id
-    }
-
-    suspend fun updateAppointmentStatus(appointmentId: String, status: String) {
-        appointmentsCol.document(appointmentId).update("status", status).await()
-    }
+    // NOTE: appointments are created exclusively by the createPaymentSession
+    // Cloud Function (pay-first); the rules deny client creation.
 
     /**
      * Move an appointment to a new time. The booking returns to PENDING so the
@@ -514,12 +506,10 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    suspend fun createNotification(notification: NotificationDocument) {
-        runCatching {
-            val ref = notificationsCol.document()
-            notificationsCol.document(ref.id).set(notification.copy(id = ref.id)).await()
-        }.onFailure { CrashReporter.recordNonFatal(it, "firestore:createNotification") }
-    }
+    // NOTE: notification documents are created exclusively by the Cloud
+    // Functions (Admin SDK) — every doc becomes a real FCM push, so an open
+    // client create path would let any signed-in user push arbitrary text to
+    // any user's phone. The Firestore rules enforce this (create: if false).
 
     suspend fun markNotificationRead(notificationId: String) {
         runCatching { notificationsCol.document(notificationId).update("isRead", true).await() }
