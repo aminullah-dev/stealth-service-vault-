@@ -10,8 +10,10 @@ import javax.inject.Singleton
  * Handles all Firebase Storage uploads and deletes for the app.
  *
  * Storage layout:
- *   profile_photos/{uid}.jpg          — customer profile photos
- *   salon_gallery/{salonId}/{docId}.jpg — salon portfolio images
+ *   profile_photos/{uid}.jpg            — customer profile photos (public-read)
+ *   salon_gallery/{salonId}/{docId}.jpg — salon portfolio images (public-read)
+ *   kyc/{uid}/tazkira.jpg               — national-ID photo (private: owner+admin)
+ *   kyc/{uid}/selfie.jpg                — verification selfie (private: owner+admin)
  *
  * Each upload returns a permanent HTTPS download URL stored in Firestore
  * so the app can display images via URL without reading from Storage directly.
@@ -39,6 +41,27 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadGalleryImage(salonId: String, docId: String, bytes: ByteArray): String {
         val ref = storage.reference.child("salon_gallery/$salonId/$docId.jpg")
+        ref.putBytes(bytes).await()
+        return ref.downloadUrl.await().toString()
+    }
+
+    /**
+     * Uploads the user's national-ID (tazkira) photo to the private KYC path.
+     * Returns the HTTPS download URL (readable only by the owner + admins per
+     * storage.rules), or throws on failure.
+     */
+    suspend fun uploadKycTazkira(uid: String, bytes: ByteArray): String {
+        val ref = storage.reference.child("kyc/$uid/tazkira.jpg")
+        ref.putBytes(bytes).await()
+        return ref.downloadUrl.await().toString()
+    }
+
+    /**
+     * Uploads the user's verification selfie to the private KYC path.
+     * Returns the HTTPS download URL, or throws on failure.
+     */
+    suspend fun uploadKycSelfie(uid: String, bytes: ByteArray): String {
+        val ref = storage.reference.child("kyc/$uid/selfie.jpg")
         ref.putBytes(bytes).await()
         return ref.downloadUrl.await().toString()
     }

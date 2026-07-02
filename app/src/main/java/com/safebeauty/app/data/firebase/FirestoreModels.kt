@@ -27,7 +27,19 @@ data class UserDocument(
     // payouts. Not yet used to automate a transfer via the HesabPay Multi-Vendor
     // Payment API — just recorded so the admin knows where to send money for
     // the current manual payout flow.
-    val hesabAccountNumber: String = ""
+    val hesabAccountNumber: String = "",
+    // ── Identity verification (KYC) ────────────────────────────────────────────
+    // Sensitive PII — the tazkira/selfie photos live in a private Storage path
+    // (kyc/{uid}/…) readable only by the owner and admins. All KYC fields below
+    // are written ONLY by the submitKyc / reviewKyc Cloud Functions; the rules
+    // freeze them against direct client writes so a user can't self-approve.
+    val kycStatus: String = "NONE",         // NONE | PENDING | APPROVED | REJECTED
+    val kycRejectionReason: String = "",
+    val tazkiraNumber: String = "",
+    val tazkiraPhotoUrl: String = "",
+    val selfiePhotoUrl: String = "",
+    val addressProvince: String = "",
+    val addressDetail: String = ""
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }

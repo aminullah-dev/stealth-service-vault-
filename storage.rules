@@ -6,10 +6,21 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // The app keys documents by its own uid (a client-generated UUID), NOT the
+    // Firebase Auth uid that request.auth.uid carries. uid_map bridges the two
+    // (written by the Cloud Functions at login). Every ownership/role check
+    // below must resolve through this or it compares the wrong two ids and
+    // silently denies every legitimate upload.
+    function appUid() {
+      return firestore.get(
+               /databases/(default)/documents/uid_map/$(request.auth.uid)
+             ).data.appUid;
+    }
+
     function isAdmin() {
       return isSignedIn()
           && firestore.get(
-               /databases/(default)/documents/users/$(request.auth.uid)
+               /databases/(default)/documents/users/$(appUid())
              ).data.role == 'ADMIN';
     }
 
@@ -17,7 +28,7 @@ service firebase.storage {
       return isSignedIn()
           && firestore.get(
                /databases/(default)/documents/salons/$(salonId)
-             ).data.providerId == request.auth.uid;
+             ).data.providerId == appUid();
     }
 
     function isValidImage() {
@@ -28,14 +39,14 @@ service firebase.storage {
     }
 
     // ── Profile photos ─────────────────────────────────────────────────────────
-    // Path: profile_photos/{uid}.jpg
+    // Path: profile_photos/{uid}.jpg  (uid = the app-level uid, via appUid())
     // Storage Rules path segments can't mix a wildcard capture with a literal
     // suffix (e.g. "{uid}.jpg" is invalid syntax) — so the whole segment is
     // captured as fileName and checked against "<uid>.jpg" in the rule body.
     match /profile_photos/{fileName} {
       allow read:   if isSignedIn();
       allow write:  if isSignedIn()
-                  && fileName == request.auth.uid + '.jpg'
+                  && fileName == appUid() + '.jpg'
                   && isValidImage();
     }
 
@@ -46,6 +57,17 @@ service firebase.storage {
       allow create: if salonOwner(salonId) && isValidImage();
       allow update: if false;                    // replace by delete + re-upload
       allow delete: if salonOwner(salonId) || isAdmin();
+    }
+
+    // ── KYC documents (private) ──────────────────────────────────────────────────
+    // Path: kyc/{uid}/{fileName}  — tazkira.jpg, selfie.jpg. Sensitive PII, so
+    // unlike profile photos these are NOT world-readable to signed-in users:
+    // only the owner and admins can read, and only the owner can upload.
+    match /kyc/{uid}/{fileName} {
+      allow read:   if isSignedIn() && (uid == appUid() || isAdmin());
+      allow create: if isSignedIn() && uid == appUid() && isValidImage();
+      allow update: if false;                    // replace by delete + re-upload
+      allow delete: if uid == appUid() || isAdmin();
     }
   }
 }

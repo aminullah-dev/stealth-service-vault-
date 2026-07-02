@@ -94,14 +94,31 @@ service cloud.firestore {
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
-      // admin-controlled. Without this, any user could set role='ADMIN' or
-      // un-suspend themselves (status='APPROVED') by writing their own doc.
-      // pinHash/salt stay editable here (the Change-PIN flow verifies the old
-      // PIN first); name/photo/loyaltyPoints/fcmToken remain editable too.
+      // admin-controlled, and every KYC field is written only by the submitKyc /
+      // reviewKyc Cloud Functions (Admin SDK), so a user can't self-approve their
+      // own identity verification. Without these freezes any user could set
+      // role='ADMIN', un-suspend themselves, or set kycStatus='APPROVED' by
+      // writing their own doc. name/photo/loyaltyPoints/fcmToken stay editable.
+      // .get(...) with a default keeps this working for older docs that predate
+      // these fields (a bare access to a missing field would error and deny).
       allow update: if isAdmin()
                  || (ownsDoc(uid)
                      && request.resource.data.role   == resource.data.role
-                     && request.resource.data.status == resource.data.status);
+                     && request.resource.data.status == resource.data.status
+                     && request.resource.data.get('kycStatus', 'NONE')
+                          == resource.data.get('kycStatus', 'NONE')
+                     && request.resource.data.get('kycRejectionReason', '')
+                          == resource.data.get('kycRejectionReason', '')
+                     && request.resource.data.get('tazkiraNumber', '')
+                          == resource.data.get('tazkiraNumber', '')
+                     && request.resource.data.get('tazkiraPhotoUrl', '')
+                          == resource.data.get('tazkiraPhotoUrl', '')
+                     && request.resource.data.get('selfiePhotoUrl', '')
+                          == resource.data.get('selfiePhotoUrl', '')
+                     && request.resource.data.get('addressProvince', '')
+                          == resource.data.get('addressProvince', '')
+                     && request.resource.data.get('addressDetail', '')
+                          == resource.data.get('addressDetail', ''));
 
       allow delete: if isAdmin();
     }

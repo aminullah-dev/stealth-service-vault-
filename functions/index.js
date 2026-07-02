@@ -595,6 +595,106 @@ exports.updatePinHash = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
+ * Submits the caller's identity-verification (KYC) documents for admin review.
+ * The tazkira/selfie photos were already uploaded client-side to the private
+ * kyc/{uid}/ Storage path; only their URLs + the text fields are passed here.
+ * Server-side so kycStatus can't be self-set to APPROVED — the whole point of
+ * verification. Allowed only from NONE/REJECTED (can't resubmit while PENDING
+ * or overwrite an APPROVED verification).
+ */
+exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const d = request.data || {};
+  const tazkiraNumber   = String(d.tazkiraNumber || "").trim();
+  const addressProvince = String(d.addressProvince || "").trim();
+  const addressDetail   = String(d.addressDetail || "").trim();
+  const tazkiraPhotoUrl = String(d.tazkiraPhotoUrl || "").trim();
+  const selfiePhotoUrl  = String(d.selfiePhotoUrl || "").trim();
+
+  if (!tazkiraNumber || !addressProvince || !addressDetail ||
+      !tazkiraPhotoUrl || !selfiePhotoUrl) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Tazkira number, address, and both photos are required."
+    );
+  }
+
+  const appUser = await resolveAppUser(request);
+  const current = appUser.kycStatus || "NONE";
+  if (current === "PENDING") {
+    throw new HttpsError("failed-precondition", "Your verification is already under review.");
+  }
+  if (current === "APPROVED") {
+    throw new HttpsError("failed-precondition", "You are already verified.");
+  }
+
+  await db.doc(`users/${appUser.uid}`).update({
+    kycStatus:          "PENDING",
+    kycRejectionReason: "",
+    tazkiraNumber,
+    addressProvince,
+    addressDetail,
+    tazkiraPhotoUrl,
+    selfiePhotoUrl,
+  });
+  return { submitted: true };
+});
+
+/**
+ * Admin approves or rejects a user's KYC submission. Admin-only. On approval,
+ * kycStatus → APPROVED (unlocking booking for customers / go-live for
+ * providers); on rejection, → REJECTED with a reason the user sees so they can
+ * resubmit. Notifies the user either way.
+ */
+exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const reviewer = await resolveAppUser(request);
+  if (reviewer.role !== "ADMIN") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const d = request.data || {};
+  const targetUid = String(d.targetUid || "");
+  const approve   = d.approve === true;
+  const reason    = String(d.rejectionReason || "").trim();
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  if (!approve && !reason) {
+    throw new HttpsError("invalid-argument", "A rejection reason is required.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  await targetRef.update({
+    kycStatus:          approve ? "APPROVED" : "REJECTED",
+    kycRejectionReason: approve ? "" : reason,
+  });
+
+  await db.collection("notifications").doc().set({
+    recipientId: targetUid,
+    type:        "SYSTEM",
+    title:       approve ? "Identity Verified" : "Verification Rejected",
+    body:        approve
+      ? "Your identity has been verified. You can now continue."
+      : `Your verification was rejected: ${reason}`,
+    isRead:      false,
+    createdAt:   Date.now(),
+    relatedId:   targetUid,
+  });
+
+  return { reviewed: true };
+});
+
+/**
  * Creates a provider's salon at registration. Server-side because the salon's
  * providerId must be authoritative (the app-level uid, not the Firebase Auth
  * uid) and because at registration time the uid_map bridge isn't populated yet,
