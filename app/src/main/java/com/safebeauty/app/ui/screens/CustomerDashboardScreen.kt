@@ -94,6 +94,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -150,17 +151,20 @@ import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
 
 // Avatar colors cycle through the brand palette based on name's first character
-private val avatarColors = listOf(
-    Color(0xFFB76E79),
-    Color(0xFF9C6B8A),
-    Color(0xFFD4A853),
-    Color(0xFF8B3A47),
-    Color(0xFF6D8B74),
-    Color(0xFF7B6FA0),
+// Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
+// family so a list of salons reads as one designed system rather than a grab
+// bag of random hues. Each entry is a (top, bottom) gradient pair.
+private val avatarGradients = listOf(
+    Color(0xFFC98490) to Color(0xFF8B3A47),   // rose
+    Color(0xFFB08BAB) to Color(0xFF7C5273),   // plum
+    Color(0xFFE0BC76) to Color(0xFFB08430),   // gold
+    Color(0xFFD79AA4) to Color(0xFFA05661),   // blush
+    Color(0xFF9E86B8) to Color(0xFF64517E),   // violet
+    Color(0xFFCB9D82) to Color(0xFF96603F),   // bronze
 )
 
-private fun avatarColor(name: String): Color =
-    avatarColors[name.first().lowercaseChar().code % avatarColors.size]
+private fun avatarGradient(name: String): Pair<Color, Color> =
+    avatarGradients[name.first().lowercaseChar().code % avatarGradients.size]
 
 private data class BookingIntent(
     val salon: SalonDocument,
@@ -1215,8 +1219,8 @@ private fun SalonCard(
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit
 ) {
-    val strings = LocalStrings.current
-    val color   = remember(salon.salonName) { avatarColor(salon.salonName) }
+    val strings  = LocalStrings.current
+    val gradient = remember(salon.salonName) { avatarGradient(salon.salonName) }
 
     ElevatedCard(
         shape     = RoundedCornerShape(20.dp),
@@ -1231,8 +1235,10 @@ private fun SalonCard(
                     contentAlignment = Alignment.Center,
                     modifier         = Modifier
                         .size(54.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(color)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.linearGradient(listOf(gradient.first, gradient.second))
+                        )
                 ) {
                     Text(
                         text       = salon.salonName.first().toString(),
@@ -1989,14 +1995,16 @@ private fun CustomerProfileSheetContent(
 
 @Composable
 private fun ProfileInitialsAvatar(name: String, size: Int) {
-    val initial = if (name.isNotBlank()) name.first().toString().uppercase() else "?"
-    val color   = remember(name) { if (name.isNotBlank()) avatarColor(name) else Color(0xFFB76E79) }
+    val initial  = if (name.isNotBlank()) name.first().toString().uppercase() else "?"
+    val gradient = remember(name) {
+        if (name.isNotBlank()) avatarGradient(name) else avatarGradients.first()
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier         = Modifier
             .size(size.dp)
             .clip(CircleShape)
-            .background(color)
+            .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
     ) {
         Text(
             text       = initial,
@@ -2020,8 +2028,8 @@ private fun SalonDetailSheetContent(
     onBook: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val strings = LocalStrings.current
-    val color   = remember(salon.salonName) { avatarColor(salon.salonName) }
+    val strings  = LocalStrings.current
+    val gradient = remember(salon.salonName) { avatarGradient(salon.salonName) }
 
     Column(
         modifier = Modifier
@@ -2049,7 +2057,7 @@ private fun SalonDetailSheetContent(
                 modifier         = Modifier
                     .size(68.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(color)
+                    .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
             ) {
                 Text(
                     text       = salon.salonName.first().toString(),

@@ -18,6 +18,7 @@ import com.safebeauty.app.navigation.AppNavGraph
 import com.safebeauty.app.navigation.NotificationDeeplink
 import com.safebeauty.app.security.SessionManager
 import com.safebeauty.app.ui.components.ForceUpdateDialog
+import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.ForceUpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -49,20 +50,24 @@ class MainActivity : FragmentActivity() {
         pendingDeeplink = intent.toNotificationDeeplink()
 
         setContent {
-            val navController = rememberNavController()
-            AppNavGraph(
-                navController      = navController,
-                deepLink           = intent?.data?.toString(),
-                notifDeeplink      = pendingDeeplink,
-                onDeeplinkConsumed = { pendingDeeplink = null }
-            )
-
-            // Overlay a non-dismissible dialog if a forced update is required.
-            forceUpdateViewModel.updateInfo?.let { info ->
-                ForceUpdateDialog(
-                    minVersionName = info.minVersionName,
-                    updateUrl      = info.updateUrl,
+            // Themed at the root so every screen (and any future one) gets the
+            // brand colors and the Vazirmatn typography without wrapping itself.
+            DashboardTheme {
+                val navController = rememberNavController()
+                AppNavGraph(
+                    navController      = navController,
+                    deepLink           = intent?.data?.toString(),
+                    notifDeeplink      = pendingDeeplink,
+                    onDeeplinkConsumed = { pendingDeeplink = null }
                 )
+
+                // Overlay a non-dismissible dialog if a forced update is required.
+                forceUpdateViewModel.updateInfo?.let { info ->
+                    ForceUpdateDialog(
+                        minVersionName = info.minVersionName,
+                        updateUrl      = info.updateUrl,
+                    )
+                }
             }
         }
     }
