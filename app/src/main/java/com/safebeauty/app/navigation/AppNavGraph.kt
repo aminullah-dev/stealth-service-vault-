@@ -25,6 +25,7 @@ import com.safebeauty.app.ui.screens.NotificationCenterScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
 import com.safebeauty.app.ui.screens.RegisterScreen
 import com.safebeauty.app.ui.screens.SetNewPinScreen
+import com.safebeauty.app.ui.screens.SupportScreen
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.StringResources
 import com.safebeauty.app.ui.theme.layoutDirection
@@ -75,6 +76,7 @@ sealed class Screen(val route: String) {
     object Kyc : Screen("kyc/{userId}") {
         fun build(userId: String) = "kyc/$userId"
     }
+    object Support : Screen("support")
 }
 
 // ── Nav graph ─────────────────────────────────────────────────────────────────
@@ -218,7 +220,10 @@ fun AppNavGraph(
                 route     = Screen.AdminDashboard.route,
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
-                AdminDashboardScreen(onLockTriggered = lockAndReturn)
+                AdminDashboardScreen(
+                    onLockTriggered = lockAndReturn,
+                    onNavigate      = { route -> navController.navigate(route) }
+                )
             }
 
             composable(
@@ -272,6 +277,10 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 KycScreen(onDone = { navController.popBackStack() })
+            }
+
+            composable(Screen.Support.route) {
+                SupportScreen(onBack = { navController.popBackStack() })
             }
         }
     }

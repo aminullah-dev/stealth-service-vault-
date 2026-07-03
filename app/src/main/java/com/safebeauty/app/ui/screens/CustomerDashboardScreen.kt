@@ -51,9 +51,14 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -335,27 +340,6 @@ fun CustomerDashboardScreen(
                                 tint               = RoseGold
                             )
                         }
-                        IconButton(onClick = { viewModel.toggleFavoritesOnly() }) {
-                            Icon(
-                                imageVector        = if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                contentDescription = strings.favorites,
-                                tint               = if (showFavoritesOnly) DeepRose else RoseGold
-                            )
-                        }
-                        IconButton(onClick = { showBookingsSheet = true }) {
-                            BadgedBox(badge = {
-                                if (myAppointments.isNotEmpty()) {
-                                    Badge(containerColor = DeepRose) {
-                                        Text("${myAppointments.size}", color = Color.White, fontSize = 10.sp)
-                                    }
-                                }
-                            }) {
-                                Icon(Icons.Default.CalendarMonth, strings.myBookings, tint = DeepRose)
-                            }
-                        }
-                        IconButton(onClick = { showProfileSheet = true }) {
-                            Icon(Icons.Default.Person, strings.myProfile, tint = RoseGold)
-                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
                         }
@@ -365,6 +349,67 @@ fun CustomerDashboardScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
                 )
+            },
+            bottomBar = {
+                // Primary navigation moved off the cramped top-bar icon row into a
+                // labeled bottom tab bar. Explore is the persistent content;
+                // Bookings/Profile open their sheets, Favorites toggles the filter
+                // (so its selected state reflects showFavoritesOnly), Support opens
+                // its own screen.
+                NavigationBar(containerColor = DashboardSurface, tonalElevation = 0.dp) {
+                    val itemColors = NavigationBarItemDefaults.colors(
+                        selectedIconColor   = DeepRose,
+                        selectedTextColor   = DeepRose,
+                        unselectedIconColor = RoseGold,
+                        unselectedTextColor = RoseGold,
+                        indicatorColor      = BlushPink.copy(alpha = 0.6f)
+                    )
+                    NavigationBarItem(
+                        selected = !showFavoritesOnly,
+                        onClick  = { if (showFavoritesOnly) viewModel.toggleFavoritesOnly() },
+                        icon     = { Icon(Icons.Default.Storefront, null) },
+                        label    = { Text(strings.tabExplore, fontSize = 11.sp) },
+                        colors   = itemColors
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick  = { showBookingsSheet = true },
+                        icon     = {
+                            BadgedBox(badge = {
+                                if (myAppointments.isNotEmpty()) {
+                                    Badge(containerColor = DeepRose) {
+                                        Text("${myAppointments.size}", color = Color.White, fontSize = 10.sp)
+                                    }
+                                }
+                            }) { Icon(Icons.Default.CalendarMonth, null) }
+                        },
+                        label    = { Text(strings.myBookings, fontSize = 11.sp) },
+                        colors   = itemColors
+                    )
+                    NavigationBarItem(
+                        selected = showFavoritesOnly,
+                        onClick  = { if (!showFavoritesOnly) viewModel.toggleFavoritesOnly() },
+                        icon     = {
+                            Icon(if (showFavoritesOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder, null)
+                        },
+                        label    = { Text(strings.favorites, fontSize = 11.sp) },
+                        colors   = itemColors
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick  = { showProfileSheet = true },
+                        icon     = { Icon(Icons.Default.Person, null) },
+                        label    = { Text(strings.myProfile, fontSize = 11.sp) },
+                        colors   = itemColors
+                    )
+                    NavigationBarItem(
+                        selected = false,
+                        onClick  = { onNavigate(Screen.Support.route) },
+                        icon     = { Icon(Icons.Default.SupportAgent, null) },
+                        label    = { Text(strings.tabSupport, fontSize = 11.sp) },
+                        colors   = itemColors
+                    )
+                }
             }
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {

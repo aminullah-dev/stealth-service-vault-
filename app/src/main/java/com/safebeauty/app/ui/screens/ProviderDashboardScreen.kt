@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
@@ -203,6 +204,9 @@ fun ProviderDashboardScreen(
                             }) {
                                 Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
                             }
+                        }
+                        IconButton(onClick = { onNavigate(Screen.Support.route) }) {
+                            Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
                         }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)

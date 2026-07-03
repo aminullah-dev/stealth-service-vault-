@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.safebeauty.app.navigation.Screen
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.PayoutDocument
 import com.safebeauty.app.data.firebase.ProviderBalance
@@ -110,6 +112,7 @@ import java.util.Locale
 @Composable
 fun AdminDashboardScreen(
     onLockTriggered: () -> Unit,
+    onNavigate: (String) -> Unit = {},
     viewModel: AdminViewModel = hiltViewModel(),
     langVm: LanguageViewModel = hiltViewModel()
 ) {
@@ -173,6 +176,9 @@ fun AdminDashboardScreen(
                         )
                     },
                     actions = {
+                        IconButton(onClick = { onNavigate(Screen.Support.route) }) {
+                            Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
+                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
