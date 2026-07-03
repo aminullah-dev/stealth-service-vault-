@@ -130,6 +130,7 @@ import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
+import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -313,7 +314,14 @@ fun CustomerDashboardScreen(
                 TopAppBar(
                     title = {
                         Column {
-                            Text("SafeBeauty", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = DeepRose)
+                            Text(
+                                "SafeBeauty",
+                                style = androidx.compose.ui.text.TextStyle(
+                                    brush = Gradients.BrandRose,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp
+                                )
+                            )
                             Text(strings.taglineCustomer, fontSize = 11.sp, color = RoseGold)
                         }
                     },
@@ -412,7 +420,12 @@ fun CustomerDashboardScreen(
                 }
             }
         ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Gradients.ScreenBg)
+                    .padding(padding)
+            ) {
 
                 // ── Offline banner ────────────────────────────────────────────
                 AnimatedVisibility(visible = isOffline) {

@@ -49,7 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.DeepRose
-import com.safebeauty.app.ui.theme.ElegantCream
+import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.util.ImageUtils
@@ -74,7 +74,7 @@ fun KycScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ElegantCream)
+            .background(Gradients.ScreenBg)
     ) {
         Column(
             modifier = Modifier

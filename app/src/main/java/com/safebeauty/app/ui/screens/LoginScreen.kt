@@ -61,6 +61,7 @@ import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
+import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.viewmodel.AuthViewModel
@@ -178,7 +179,7 @@ fun LoginScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ElegantCream)
+                .background(Gradients.ScreenBg)
         ) {
             // Language picker button — top-right
             IconButton(
@@ -234,12 +235,14 @@ fun LoginScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // ── App name ──────────────────────────────────────────────────
+                // ── App name (brand gradient) ─────────────────────────────────
                 Text(
-                    text       = strings.loginTitle,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 32.sp,
-                    color      = DeepRose
+                    text  = strings.loginTitle,
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush      = Gradients.BrandRose,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 32.sp
+                    )
                 )
 
                 Spacer(Modifier.height(6.dp))

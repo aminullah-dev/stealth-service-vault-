@@ -98,6 +98,7 @@ import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
+import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -190,7 +191,7 @@ fun AdminDashboardScreen(
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize().background(Gradients.ScreenBg).padding(padding)) {
 
                 TabRow(
                     selectedTabIndex  = selectedTab,
