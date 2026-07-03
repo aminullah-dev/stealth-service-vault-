@@ -59,7 +59,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
@@ -193,10 +193,11 @@ fun AdminDashboardScreen(
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().background(Gradients.ScreenBg).padding(padding)) {
 
-                TabRow(
+                ScrollableTabRow(
                     selectedTabIndex  = selectedTab,
-                    containerColor    = ElegantCream,
+                    containerColor    = Color.Transparent,
                     contentColor      = DeepRose,
+                    edgePadding       = 12.dp,
                     indicator         = { tabPositions ->
                         TabRowDefaults.SecondaryIndicator(
                             Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -861,9 +862,9 @@ private fun AdminStatCard(
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
-        shape     = RoundedCornerShape(16.dp),
-        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        shape     = RoundedCornerShape(18.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
         modifier  = modifier
     ) {
         Column(
@@ -874,9 +875,14 @@ private fun AdminStatCard(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(52.dp)
-                    .background(tint.copy(alpha = 0.12f), CircleShape)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(tint.copy(alpha = 0.85f), tint)
+                        ),
+                        CircleShape
+                    )
             ) {
-                Icon(icon, null, tint = tint, modifier = Modifier.size(28.dp))
+                Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
             }
             Spacer(Modifier.height(10.dp))
             Text(

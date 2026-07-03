@@ -72,7 +72,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
@@ -90,6 +90,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -242,10 +243,11 @@ fun ProviderDashboardScreen(
                 Spacer(Modifier.height(4.dp))
 
                 // ── Tabs ──────────────────────────────────────────────────
-                TabRow(
+                ScrollableTabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor   = ElegantCream,
+                    containerColor   = Color.Transparent,
                     contentColor     = DeepRose,
+                    edgePadding      = 12.dp,
                     indicator        = { tabPositions ->
                         TabRowDefaults.SecondaryIndicator(
                             modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
@@ -1385,27 +1387,35 @@ private fun IncomeTab(viewModel: ProviderViewModel) {
         // ── Real owed balance — what the platform actually owes this provider,
         // net of commission, distinct from the price-based estimate below ─────
         item {
-            ElevatedCard(
-                shape     = RoundedCornerShape(20.dp),
-                colors    = CardDefaults.elevatedCardColors(containerColor = AvailableGreen.copy(alpha = 0.10f)),
-                elevation = CardDefaults.elevatedCardElevation(2.dp),
-                modifier  = Modifier.fillMaxWidth()
+            // Gradient hero card — the provider's earnings are the emotional
+            // centre of this tab, so it gets the strongest treatment on the screen.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(8.dp, RoundedCornerShape(22.dp), clip = false)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(
+                        androidx.compose.ui.graphics.Brush.linearGradient(
+                            listOf(Color(0xFF57B36B), Color(0xFF2E7D46))
+                        )
+                    )
+                    .padding(22.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Payments, null, tint = AvailableGreen, modifier = Modifier.size(24.dp))
+                        Icon(Icons.Default.Payments, null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text(strings.incomeOwedBalance, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                        Text(strings.incomeOwedBalance, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White.copy(alpha = 0.92f))
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
                         text       = "${owedBalance.format()} ${strings.incomeAFN}",
-                        fontSize   = 28.sp,
+                        fontSize   = 34.sp,
                         fontWeight = FontWeight.Bold,
-                        color      = AvailableGreen
+                        color      = Color.White
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(strings.incomeOwedHint, fontSize = 11.sp, color = RoseGold)
+                    Text(strings.incomeOwedHint, fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
                 }
             }
         }
