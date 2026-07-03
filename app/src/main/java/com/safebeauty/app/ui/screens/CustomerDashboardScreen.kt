@@ -98,7 +98,9 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -1401,17 +1403,29 @@ private fun SalonCard(
                     fontWeight = FontWeight.Medium,
                     modifier   = Modifier.weight(1f)
                 )
-                Button(
-                    onClick        = onBook,
-                    enabled        = salon.isAvailable,
-                    shape          = RoundedCornerShape(12.dp),
-                    colors         = ButtonDefaults.buttonColors(
-                        containerColor         = RoseGold,
-                        disabledContainerColor = UnavailableGrey.copy(alpha = 0.25f)
-                    ),
-                    contentPadding = PaddingValues(horizontal = 22.dp, vertical = 8.dp)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .then(
+                            if (salon.isAvailable)
+                                Modifier
+                                    .shadow(4.dp, RoundedCornerShape(12.dp), clip = false)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Gradients.BrandRose)
+                                    .clickable(onClick = onBook)
+                            else
+                                Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(UnavailableGrey.copy(alpha = 0.22f))
+                        )
+                        .padding(horizontal = 24.dp, vertical = 9.dp)
                 ) {
-                    Text(strings.book, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text(
+                        strings.book,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (salon.isAvailable) Color.White else UnavailableGrey
+                    )
                 }
             }
         }
@@ -2262,17 +2276,30 @@ private fun SalonDetailSheetContent(
         }
 
         // ── Book button ───────────────────────────────────────────────
-        Button(
-            onClick  = onBook,
-            enabled  = salon.isAvailable,
-            modifier = Modifier.fillMaxWidth().height(52.dp),
-            shape    = RoundedCornerShape(14.dp),
-            colors   = ButtonDefaults.buttonColors(
-                containerColor         = RoseGold,
-                disabledContainerColor = UnavailableGrey.copy(alpha = 0.25f)
-            )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .then(
+                    if (salon.isAvailable)
+                        Modifier
+                            .shadow(6.dp, RoundedCornerShape(16.dp), clip = false)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Gradients.BrandRose)
+                            .clickable(onClick = onBook)
+                    else
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(UnavailableGrey.copy(alpha = 0.22f))
+                )
         ) {
-            Text(strings.book, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                strings.book,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (salon.isAvailable) Color.White else UnavailableGrey
+            )
         }
 
         Spacer(Modifier.height(22.dp))
