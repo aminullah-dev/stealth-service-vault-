@@ -13,6 +13,7 @@ import com.safebeauty.app.data.model.LoggedInUser
 import com.safebeauty.app.data.model.UserRole
 import com.safebeauty.app.data.repository.VaultRepository
 import com.safebeauty.app.security.PinHasher
+import com.safebeauty.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.launch
@@ -40,18 +41,20 @@ class AuthViewModel @Inject constructor(
     var authState: AuthState by mutableStateOf(AuthState.Idle)
         private set
 
-    fun authenticate(pin: String) {
+    fun authenticate(phoneRaw: String, password: String) {
         if (authState is AuthState.Authenticating) return
 
         viewModelScope.launch {
             authState = AuthState.Authenticating
 
             runCatching {
-                // PIN verification happens server-side now — the credential table
-                // is never downloaded to the device. We send only the PIN.
+                // Password verification happens server-side (authenticateWithPassword)
+                // keyed by phone, so the credential table is never downloaded to the
+                // device. We send only the phone + password.
+                val phone = PhoneUtils.normalizeForLogin(phoneRaw)
                 val result = functions
-                    .getHttpsCallable("authenticateWithPin")
-                    .call(hashMapOf("pin" to pin))
+                    .getHttpsCallable("authenticateWithPassword")
+                    .call(hashMapOf("phone" to phone, "password" to password))
                     .await()
 
                 @Suppress("UNCHECKED_CAST")
@@ -68,9 +71,9 @@ class AuthViewModel @Inject constructor(
                         val rejectionReason = map["rejectionReason"] as? String ?: ""
                         val kycStatus = map["kycStatus"]   as? String ?: "NONE"
 
-                        // Derive the Firebase Auth password from the PIN + salt and
-                        // sign in (unchanged auth mechanism — only the lookup moved).
-                        val authPassword = pinHasher.deriveAuthPassword(pin, salt)
+                        // Derive the Firebase Auth password from the password + salt
+                        // and sign in (unchanged auth mechanism — only the lookup moved).
+                        val authPassword = pinHasher.deriveAuthPassword(password, salt)
                         firebaseAuth.signIn(email, authPassword).getOrThrow()
 
                         // Bridge Firebase Auth's uid to this account's app-level uid so
@@ -105,10 +108,12 @@ class AuthViewModel @Inject constructor(
                         )
                     }
 
-                    else -> authState = AuthState.Idle // silent fail
+                    // Wrong phone/password — show an explicit error on the form.
+                    else -> authState = AuthState.Failure
                 }
             }.onFailure {
-                authState = AuthState.Idle // network error → silent fail
+                // Network error, or the derived password didn't match Firebase Auth.
+                authState = AuthState.Failure
             }
         }
     }

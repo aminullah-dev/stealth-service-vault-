@@ -541,6 +541,57 @@ exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) 
 });
 
 /**
+ * Password login, keyed by phone number (the app's login identifier now that
+ * PINs are gone). Unlike authenticateWithPin — which matched a numeric PIN
+ * against EVERY user — this resolves the ONE account for the given phone and
+ * checks its password hash, so two users sharing a password can never collide.
+ * Returns the same shape as authenticateWithPin: on success the client derives
+ * the auth password from (password + salt) and signs in; the hash never leaves
+ * the server. No auth required (this IS the pre-auth login step).
+ */
+exports.authenticateWithPassword = onCall({ region: "us-central1" }, async (request) => {
+  const d = request.data || {};
+  const phone    = String(d.phone || "").trim();
+  const password = String(d.password || "");
+  if (!phone || !password) {
+    return { mode: "INVALID" };
+  }
+
+  // Match on trailing digits so a number stored as "0700..", "+93700..",
+  // "93700.." or a legacy un-normalized value all resolve to the same account.
+  const inDigits = phone.replace(/\D/g, "");
+  const matchable = (stored) => {
+    const s = String(stored || "").replace(/\D/g, "");
+    if (!s || !inDigits) return false;
+    const shorter = s.length <= inDigits.length ? s : inDigits;
+    const longer  = s.length <= inDigits.length ? inDigits : s;
+    return shorter.length >= 7 && longer.endsWith(shorter);
+  };
+
+  const snap = await db.collection("users").get();
+  const doc = snap.docs.find((dd) => matchable(dd.data().phone));
+  if (!doc) return { mode: "INVALID" };
+
+  const u = doc.data();
+  if (!u.pinHash || !u.salt) return { mode: "INVALID" };
+  if (!hashesEqual(pbkdf2Hash(password, u.salt), u.pinHash)) {
+    return { mode: "INVALID" };
+  }
+
+  return {
+    mode:            "REAL",
+    uid:             doc.id,
+    name:            u.name  || "",
+    role:            u.role  || "CUSTOMER",
+    status:          u.status || "",
+    rejectionReason: u.rejectionReason || "",
+    kycStatus:       u.kycStatus || "NONE",
+    firebaseEmail:   u.firebaseEmail || "",
+    salt:            u.salt,
+  };
+});
+
+/**
  * Bridges the two identity schemes: Firebase Auth's uid (request.auth.uid,
  * what firestore.rules' me() sees) and the app's own uid (the client-
  * generated UUID that is the actual users/{uid} document ID — see

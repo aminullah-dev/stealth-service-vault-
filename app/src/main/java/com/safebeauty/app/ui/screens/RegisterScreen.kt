@@ -213,31 +213,31 @@ fun RegisterScreen(
                     FormField(
                         value         = viewModel.phone,
                         onValueChange = { viewModel.phone = it },
-                        label         = strings.phoneNumber,
+                        label         = "${strings.phoneNumber} (+93)",
                         leadingIcon   = Icons.Default.Phone,
                         keyboard      = KeyboardType.Phone
                     )
                     FormField(
                         value         = viewModel.email,
                         onValueChange = { viewModel.email = it },
-                        label         = strings.emailAddress,
+                        label         = "${strings.emailAddress} (${strings.optional})",
                         leadingIcon   = Icons.Default.Email,
                         keyboard      = KeyboardType.Email
                     )
                     FormField(
-                        value         = viewModel.pin,
-                        onValueChange = { viewModel.pin = it },
-                        label         = strings.secretPin,
+                        value         = viewModel.password,
+                        onValueChange = { viewModel.password = it },
+                        label         = strings.passwordLabel,
                         leadingIcon   = Icons.Default.Lock,
-                        keyboard      = KeyboardType.NumberPassword,
+                        keyboard      = KeyboardType.Password,
                         password      = true
                     )
                     FormField(
-                        value         = viewModel.confirmPin,
-                        onValueChange = { viewModel.confirmPin = it },
-                        label         = strings.confirmPin,
+                        value         = viewModel.confirmPassword,
+                        onValueChange = { viewModel.confirmPassword = it },
+                        label         = strings.confirmPassword,
                         leadingIcon   = Icons.Default.Lock,
-                        keyboard      = KeyboardType.NumberPassword,
+                        keyboard      = KeyboardType.Password,
                         password      = true
                     )
                 }

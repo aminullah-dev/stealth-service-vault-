@@ -54,20 +54,14 @@ class ChangePinViewModel @Inject constructor(
         if (curPin.isBlank() || nPin.isBlank() || cPin.isBlank()) {
             state = State.Error("All fields are required"); return
         }
-        if (!nPin.all { it.isDigit() }) {
-            state = State.Error("PIN must contain digits only"); return
-        }
         if (nPin.length < 6) {
-            state = State.Error("New PIN must be at least 6 digits"); return
+            state = State.Error("New password must be at least 6 characters"); return
         }
         if (nPin == curPin) {
-            state = State.Error("New PIN must be different from the current PIN"); return
+            state = State.Error("New password must be different from the current one"); return
         }
         if (nPin != cPin) {
-            state = State.Error("New PINs do not match"); return
-        }
-        if (isWeakPin(nPin)) {
-            state = State.Error("PIN is too easy to guess. Avoid sequences like 123456 or repeated digits."); return
+            state = State.Error("Passwords do not match"); return
         }
 
         viewModelScope.launch {
@@ -109,11 +103,4 @@ class ChangePinViewModel @Inject constructor(
         }
     }
 
-    private fun isWeakPin(pin: String): Boolean {
-        if (pin.all { it == pin[0] }) return true
-        val d = pin.map { it.digitToInt() }
-        if (d.zipWithNext().all { (a, b) -> b - a == 1 }) return true
-        if (d.zipWithNext().all { (a, b) -> a - b == 1 }) return true
-        return false
-    }
 }

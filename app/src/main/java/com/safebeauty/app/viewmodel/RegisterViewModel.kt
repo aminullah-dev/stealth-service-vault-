@@ -11,6 +11,7 @@ import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.UserDocument
 import com.safebeauty.app.security.PinHasher
+import com.safebeauty.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -36,12 +37,12 @@ class RegisterViewModel @Inject constructor(
 
     // ── Form fields ───────────────────────────────────────────────────────────
 
-    var name         by mutableStateOf("")
-    var phone        by mutableStateOf("")
-    var email        by mutableStateOf("")
-    var pin          by mutableStateOf("")
-    var confirmPin   by mutableStateOf("")
-    var isProvider   by mutableStateOf(false)
+    var name            by mutableStateOf("")
+    var phone           by mutableStateOf("")
+    var email           by mutableStateOf("")
+    var password        by mutableStateOf("")
+    var confirmPassword by mutableStateOf("")
+    var isProvider      by mutableStateOf(false)
 
     var salonName    by mutableStateOf("")
     var district     by mutableStateOf("")
@@ -70,24 +71,18 @@ class RegisterViewModel @Inject constructor(
     private fun validate(): String? {
         if (name.isBlank())            return "Name is required"
         if (phone.isBlank())           return "Phone number is required"
+        // Self-registration is customer/provider only, and those must be Afghan
+        // (+93) numbers. Admin accounts (any country) are created out-of-band.
+        if (!PhoneUtils.isValidAfghan(phone))
+            return "Enter a valid Afghan phone number (e.g. 0700123456)"
         if (email.isNotBlank() && !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches())
             return "Please enter a valid email address"
-        if (!pin.all { it.isDigit() }) return "PIN must contain digits only"
-        if (pin.length < 6)            return "PIN must be at least 6 digits"
-        if (isWeakPin(pin))            return "PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000."
-        if (pin != confirmPin)         return "PINs do not match"
+        if (password.length < 6)       return "Password must be at least 6 characters"
+        if (password != confirmPassword) return "Passwords do not match"
         if (isProvider && salonName.isBlank()) return "Salon name is required"
         if (isProvider && district.isBlank())  return "District is required"
         if (isProvider && services.isEmpty())  return "Add at least one service"
         return null
-    }
-
-    private fun isWeakPin(pin: String): Boolean {
-        if (pin.all { it == pin[0] }) return true
-        val digits = pin.map { it.digitToInt() }
-        if (digits.zipWithNext().all { (a, b) -> b - a == 1 }) return true
-        if (digits.zipWithNext().all { (a, b) -> a - b == 1 }) return true
-        return false
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
@@ -100,15 +95,22 @@ class RegisterViewModel @Inject constructor(
             state = RegisterState.Loading
 
             runCatching {
+                val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
+                // The phone is the login identifier now, so it must be unique.
+                if (firestoreRepository.phoneExists(normalizedPhone)) {
+                    state = RegisterState.Error("An account with this phone number already exists.")
+                    return@launch
+                }
+
                 val uid           = UUID.randomUUID().toString()
                 val salt          = pinHasher.generateSalt()
-                val pinHash       = pinHasher.hash(pin, salt)
-                val authPassword  = pinHasher.deriveAuthPassword(pin, salt)
-                // Real email → Firebase Auth email (enables PIN recovery via email).
-                // Synthetic fallback for users who skip the optional email field.
-                // Lowercased because Firebase Auth normalizes emails to lowercase —
-                // the server resolves this account by the auth token's email, so a
-                // mixed-case value stored here would never match it again.
+                // pinHash/salt now hash the chosen PASSWORD (same PBKDF2 machinery
+                // as before; only the human-facing credential changed).
+                val pinHash       = pinHasher.hash(password, salt)
+                val authPassword  = pinHasher.deriveAuthPassword(password, salt)
+                // Real email → Firebase Auth email (enables password recovery via
+                // email). Synthetic fallback for users who skip the optional field.
+                // Lowercased because Firebase Auth normalizes emails to lowercase.
                 val firebaseEmail = email.trim().lowercase().ifBlank { "${uid.replace("-", "")}@sb.app" }
                 val role          = if (isProvider) "PROVIDER" else "CUSTOMER"
                 val status        = if (isProvider) "PENDING" else "APPROVED"
@@ -119,7 +121,7 @@ class RegisterViewModel @Inject constructor(
                     UserDocument(
                         uid           = uid,
                         name          = name.trim(),
-                        phone         = phone.trim(),
+                        phone         = normalizedPhone,
                         email         = email.trim(),
                         role          = role,
                         pinHash       = pinHash,

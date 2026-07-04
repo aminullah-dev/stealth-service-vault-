@@ -62,6 +62,12 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(user.uid).set(user).await()
     }
 
+    /** True if any account already uses [phone] — the login identifier must be unique. */
+    suspend fun phoneExists(phone: String): Boolean =
+        runCatching {
+            !usersCol.whereEqualTo("phone", phone).limit(1).get().await().isEmpty
+        }.getOrDefault(false)
+
     suspend fun getUserById(uid: String): UserDocument? {
         return usersCol.document(uid).get().await()
             .toObject(UserDocument::class.java)?.copy(uid = uid)
