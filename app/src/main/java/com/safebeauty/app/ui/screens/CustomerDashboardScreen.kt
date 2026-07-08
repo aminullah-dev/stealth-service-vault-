@@ -34,10 +34,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -1796,7 +1796,7 @@ private fun BookingCard(
                     onClick  = { onChatClick(appt) },
                     modifier = Modifier.size(36.dp)
                 ) {
-                    Icon(Icons.Default.Chat, contentDescription = strings.chat, tint = RoseGold, modifier = Modifier.size(20.dp))
+                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = strings.chat, tint = RoseGold, modifier = Modifier.size(20.dp))
                 }
                 StatusChip(appt.status)
             }
@@ -2587,19 +2587,19 @@ fun ChangePinSection(
             }
             ChangePinField(
                 value         = changePinVm.currentPin,
-                onValueChange = { changePinVm.currentPin = it.filter(Char::isDigit) },
+                onValueChange = { changePinVm.currentPin = it },
                 label         = strings.changePinCurrentPin,
                 fieldColors   = fieldColors
             )
             ChangePinField(
                 value         = changePinVm.newPin,
-                onValueChange = { changePinVm.newPin = it.filter(Char::isDigit) },
+                onValueChange = { changePinVm.newPin = it },
                 label         = strings.changePinNewPin,
                 fieldColors   = fieldColors
             )
             ChangePinField(
                 value         = changePinVm.confirmPin,
-                onValueChange = { changePinVm.confirmPin = it.filter(Char::isDigit) },
+                onValueChange = { changePinVm.confirmPin = it },
                 label         = strings.changePinConfirmNew,
                 fieldColors   = fieldColors
             )
@@ -2654,7 +2654,7 @@ private fun ChangePinField(
         onValueChange        = onValueChange,
         label                = { Text(label, fontSize = 12.sp) },
         singleLine           = true,
-        keyboardOptions      = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        keyboardOptions      = KeyboardOptions(keyboardType = KeyboardType.Password),
         visualTransformation = PasswordVisualTransformation(),
         modifier             = Modifier.fillMaxWidth(),
         shape                = RoundedCornerShape(12.dp),

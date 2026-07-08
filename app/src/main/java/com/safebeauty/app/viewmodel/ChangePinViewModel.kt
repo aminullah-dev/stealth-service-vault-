@@ -70,7 +70,7 @@ class ChangePinViewModel @Inject constructor(
                 val user = repo.getUserById(userId) ?: error("User not found")
 
                 if (!pinHasher.verify(curPin, user.salt, user.pinHash)) {
-                    state = State.Error("Current PIN is incorrect")
+                    state = State.Error("Current password is incorrect")
                     return@runCatching
                 }
 
@@ -89,15 +89,15 @@ class ChangePinViewModel @Inject constructor(
                     .call(hashMapOf("pinHash" to newHash, "salt" to newSalt))
                     .await()
 
-                // The stored biometric PIN is now stale — clear it so the user is
-                // re-offered fast-unlock with the new PIN on next login.
+                // The stored biometric secret is now stale — clear it so the user is
+                // re-offered fast-unlock with the new password on next login.
                 BiometricVault.disable(context)
 
                 currentPin = ""; newPin = ""; confirmPin = ""
                 state = State.Success
             }.onFailure { e ->
                 if (state == State.Loading) {
-                    state = State.Error(e.message ?: "Failed to change PIN. Try again.")
+                    state = State.Error(e.message ?: "Failed to change password. Try again.")
                 }
             }
         }

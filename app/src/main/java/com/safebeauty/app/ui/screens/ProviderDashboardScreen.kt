@@ -34,17 +34,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SupportAgent
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -131,7 +132,6 @@ import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -682,7 +682,7 @@ private fun BookingRequestCard(
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            Icons.Default.Chat,
+                            Icons.AutoMirrored.Filled.Chat,
                             contentDescription = null,
                             tint     = RoseGold,
                             modifier = Modifier.size(20.dp)
@@ -1474,7 +1474,7 @@ private fun IncomeTab(viewModel: ProviderViewModel) {
                             .size(60.dp)
                             .background(DeepRose.copy(alpha = 0.1f), CircleShape)
                     ) {
-                        Icon(Icons.Default.TrendingUp, null, tint = DeepRose, modifier = Modifier.size(32.dp))
+                        Icon(Icons.AutoMirrored.Filled.TrendingUp, null, tint = DeepRose, modifier = Modifier.size(32.dp))
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -1697,7 +1697,7 @@ private fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                         selectedDay = null
                         if (displayMonth == 0) { displayMonth = 11; displayYear-- } else displayMonth--
                     }) {
-                        Icon(Icons.Default.KeyboardArrowLeft, contentDescription = null, tint = RoseGold)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = RoseGold)
                     }
                     val monthLabel = remember(displayYear, displayMonth) {
                         java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()).format(
@@ -1709,7 +1709,7 @@ private fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                         selectedDay = null
                         if (displayMonth == 11) { displayMonth = 0; displayYear++ } else displayMonth++
                     }) {
-                        Icon(Icons.Default.KeyboardArrowRight, contentDescription = null, tint = RoseGold)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = RoseGold)
                     }
                 }
 

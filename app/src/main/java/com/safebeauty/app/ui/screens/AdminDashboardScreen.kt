@@ -37,10 +37,10 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -1046,7 +1046,7 @@ private fun BroadcastTab(
                         shape    = RoundedCornerShape(12.dp),
                         colors   = ButtonDefaults.buttonColors(containerColor = DeepRose)
                     ) {
-                        Icon(Icons.Default.Send, null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(strings.broadcastSend, fontWeight = FontWeight.Bold)
                     }

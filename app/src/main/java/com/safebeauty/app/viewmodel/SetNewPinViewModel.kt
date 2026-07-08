@@ -46,7 +46,7 @@ class SetNewPinViewModel @Inject constructor(
         val cp = confirmPin.trim()
 
         if (p.isBlank())                       { state = State.Error("Phone number is required"); return }
-        if (np.isBlank())                      { state = State.Error("New PIN is required"); return }
+        if (np.isBlank())                      { state = State.Error("New password is required"); return }
         if (np.length < 6)                     { state = State.Error("Password must be at least 6 characters"); return }
         if (np != cp)                          { state = State.Error("Passwords do not match"); return }
 
@@ -88,7 +88,7 @@ class SetNewPinViewModel @Inject constructor(
                 state = State.Success
             }.onFailure { e ->
                 if (state == State.Loading) {
-                    state = State.Error(e.message ?: "Failed to reset PIN. The link may have expired.")
+                    state = State.Error(e.message ?: "Failed to reset password. The link may have expired.")
                 }
             }
         }
