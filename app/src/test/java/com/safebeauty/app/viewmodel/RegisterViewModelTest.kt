@@ -1,6 +1,7 @@
 package com.safebeauty.app.viewmodel
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import com.google.firebase.auth.FirebaseUser
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.security.PinHasher
@@ -49,12 +50,12 @@ class RegisterViewModelTest {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun fillValidCustomer() {
-        viewModel.name       = "Sara"
-        viewModel.phone      = "0700000000"
-        viewModel.email      = ""          // optional
-        viewModel.pin        = "142857"
-        viewModel.confirmPin = "142857"
-        viewModel.isProvider = false
+        viewModel.name            = "Sara"
+        viewModel.phone           = "0700000000"
+        viewModel.email           = ""          // optional
+        viewModel.password        = "142857"
+        viewModel.confirmPassword = "142857"
+        viewModel.isProvider      = false
     }
 
     private fun fillValidProvider() {
@@ -107,70 +108,34 @@ class RegisterViewModelTest {
         assertNotEquals("Please enter a valid email address", errorMessage())
     }
 
-    // ── PIN validation ────────────────────────────────────────────────────────
+    // ── Password validation ──────────────────────────────────────────────────
 
     @Test
-    fun `non-digit pin produces error`() {
+    fun `password shorter than 6 characters produces error`() {
         fillValidCustomer()
-        viewModel.pin = "12345a"
+        viewModel.password        = "1234"
+        viewModel.confirmPassword = "1234"
         viewModel.register()
-        assertEquals("PIN must contain digits only", errorMessage())
+        assertEquals("Password must be at least 6 characters", errorMessage())
     }
 
     @Test
-    fun `pin shorter than 6 digits produces error`() {
+    fun `mismatched passwords produce error`() {
         fillValidCustomer()
-        viewModel.pin        = "1234"
-        viewModel.confirmPin = "1234"
+        viewModel.password        = "142857"
+        viewModel.confirmPassword = "142858"
         viewModel.register()
-        assertEquals("PIN must be at least 6 digits", errorMessage())
+        assertEquals("Passwords do not match", errorMessage())
     }
 
     @Test
-    fun `mismatched pins produce error`() {
+    fun `alphanumeric password of valid length passes validation`() {
         fillValidCustomer()
-        viewModel.pin        = "142857"
-        viewModel.confirmPin = "142858"
+        viewModel.password        = "correcthorse"
+        viewModel.confirmPassword = "correcthorse"
         viewModel.register()
-        assertEquals("PINs do not match", errorMessage())
-    }
-
-    // ── Weak PIN detection ────────────────────────────────────────────────────
-
-    @Test
-    fun `all-same-digit pin is rejected`() {
-        fillValidCustomer()
-        viewModel.pin        = "111111"
-        viewModel.confirmPin = "111111"
-        viewModel.register()
-        assertTrue(errorMessage()?.contains("too easy") == true)
-    }
-
-    @Test
-    fun `ascending sequence pin is rejected`() {
-        fillValidCustomer()
-        viewModel.pin        = "123456"
-        viewModel.confirmPin = "123456"
-        viewModel.register()
-        assertTrue(errorMessage()?.contains("too easy") == true)
-    }
-
-    @Test
-    fun `descending sequence pin is rejected`() {
-        fillValidCustomer()
-        viewModel.pin        = "987654"
-        viewModel.confirmPin = "987654"
-        viewModel.register()
-        assertTrue(errorMessage()?.contains("too easy") == true)
-    }
-
-    @Test
-    fun `non-sequential pin passes weak check`() {
-        fillValidCustomer()
-        viewModel.pin        = "142857"
-        viewModel.confirmPin = "142857"
-        viewModel.register()
-        assertNotEquals("PIN is too easy to guess. Avoid sequences like 123456 or repeated digits like 000000.", errorMessage())
+        assertNotEquals("Password must be at least 6 characters", errorMessage())
+        assertNotEquals("Passwords do not match", errorMessage())
     }
 
     // ── Provider-specific validation ──────────────────────────────────────────
@@ -244,7 +209,7 @@ class RegisterViewModelTest {
 
     @Test
     fun `valid customer registration reaches Success state`() {
-        coEvery { mockAuth.createAccount(any(), any()) } returns Result.success(Unit)
+        coEvery { mockAuth.createAccount(any(), any()) } returns Result.success(mockk<FirebaseUser>(relaxed = true))
         coEvery { mockRepo.createUser(any()) } returns Unit
 
         fillValidCustomer()

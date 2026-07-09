@@ -93,88 +93,55 @@ class ChangePinViewModelTest {
         assertEquals("All fields are required", errorMessage())
     }
 
-    // ── PIN format ────────────────────────────────────────────────────────────
+    // ── New password format ──────────────────────────────────────────────────
 
     @Test
-    fun `non-digit new pin produces error`() {
-        fillValid()
-        viewModel.newPin     = "12345a"
-        viewModel.confirmPin = "12345a"
-        viewModel.changePin()
-        assertEquals("PIN must contain digits only", errorMessage())
-    }
-
-    @Test
-    fun `new pin shorter than 6 digits produces error`() {
+    fun `new password shorter than 6 characters produces error`() {
         fillValid()
         viewModel.newPin     = "1234"
         viewModel.confirmPin = "1234"
         viewModel.changePin()
-        assertEquals("New PIN must be at least 6 digits", errorMessage())
+        assertEquals("New password must be at least 6 characters", errorMessage())
     }
 
-    // ── PIN change logic ──────────────────────────────────────────────────────
+    @Test
+    fun `alphanumeric new password of valid length passes format check`() {
+        fillValid()
+        viewModel.newPin     = "correcthorse"
+        viewModel.confirmPin = "correcthorse"
+        viewModel.changePin()
+        assertNotEquals("New password must be at least 6 characters", errorMessage())
+    }
+
+    // ── Password change logic ────────────────────────────────────────────────
 
     @Test
-    fun `new pin same as current produces error`() {
+    fun `new password same as current produces error`() {
         viewModel.currentPin = "142857"
         viewModel.newPin     = "142857"
         viewModel.confirmPin = "142857"
         viewModel.changePin()
-        assertEquals("New PIN must be different from the current PIN", errorMessage())
+        assertEquals("New password must be different from the current one", errorMessage())
     }
 
     @Test
-    fun `mismatched new pins produce error`() {
+    fun `mismatched new passwords produce error`() {
         fillValid()
         viewModel.confirmPin = "999999"
         viewModel.changePin()
-        assertEquals("New PINs do not match", errorMessage())
-    }
-
-    // ── Weak PIN detection ────────────────────────────────────────────────────
-
-    @Test
-    fun `all-same-digit new pin is rejected`() {
-        viewModel.currentPin = "142857"
-        viewModel.newPin     = "000000"
-        viewModel.confirmPin = "000000"
-        viewModel.changePin()
-        assertTrue(errorMessage()?.contains("too easy") == true)
+        assertEquals("Passwords do not match", errorMessage())
     }
 
     @Test
-    fun `ascending sequence new pin is rejected`() {
-        viewModel.currentPin = "142857"
-        viewModel.newPin     = "123456"
-        viewModel.confirmPin = "123456"
-        viewModel.changePin()
-        assertTrue(errorMessage()?.contains("too easy") == true)
-    }
-
-    @Test
-    fun `descending sequence new pin is rejected`() {
-        viewModel.currentPin = "142857"
-        viewModel.newPin     = "987654"
-        viewModel.confirmPin = "987654"
-        viewModel.changePin()
-        assertTrue(errorMessage()?.contains("too easy") == true)
-    }
-
-    @Test
-    fun `valid non-sequential pin passes weak check and advances to Loading`() {
+    fun `valid password change passes local validation and advances to Loading`() {
         fillValid()
         viewModel.changePin()
         // Passes all local validation; next step is async Firebase lookup
         // State is Loading (not an early validation Error)
         assertNotEquals("All fields are required", errorMessage())
-        assertNotEquals("PIN must contain digits only", errorMessage())
-        assertNotEquals("New PIN must be at least 6 digits", errorMessage())
-        assertNotEquals("New PIN must be different from the current PIN", errorMessage())
-        assertNotEquals("New PINs do not match", errorMessage())
-        assertTrue(
-            errorMessage()?.contains("too easy") != true
-        )
+        assertNotEquals("New password must be at least 6 characters", errorMessage())
+        assertNotEquals("New password must be different from the current one", errorMessage())
+        assertNotEquals("Passwords do not match", errorMessage())
     }
 
     // ── State management ──────────────────────────────────────────────────────
