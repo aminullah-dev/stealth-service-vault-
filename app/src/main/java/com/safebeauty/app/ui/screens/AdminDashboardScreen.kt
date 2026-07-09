@@ -1195,6 +1195,14 @@ private fun FinanceTab(
         }
 
         // ── Provider payout ledger ────────────────────────────────────────────
+        // Cash-booking commission debt makes owedAmount go negative for a salon
+        // (they owe the platform, not the other way around) — split those out
+        // into their own read-only warning section instead of mixing them into
+        // the payable list below, where a negative amount would render as a
+        // (nonsensical) payable balance with an active "Mark Paid" button.
+        val owedToProviders  = balances.filter { it.owedAmount > 0 }
+        val owedByProviders  = balances.filter { it.owedAmount < 0 }
+
         item {
             Text(
                 strings.financeBalancesTitle,
@@ -1205,7 +1213,7 @@ private fun FinanceTab(
             )
         }
 
-        if (balances.isEmpty()) {
+        if (owedToProviders.isEmpty()) {
             item {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -1219,12 +1227,25 @@ private fun FinanceTab(
                 }
             }
         } else {
-            items(balances, key = { it.providerId }) { balance ->
+            items(owedToProviders, key = { it.providerId }) { balance ->
                 ProviderBalanceRow(
                     balance    = balance,
                     isPayingOut = viewModel.payoutInProgress == balance.providerId,
                     onMarkPaid = { confirmPayout = balance }
                 )
+            }
+        }
+
+        // ── Cash-commission debt (salons that owe the platform) ────────────────
+        if (owedByProviders.isNotEmpty()) {
+            item {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text(strings.financeDebtTitle, fontSize = 13.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                    Text(strings.financeDebtHint, fontSize = 11.sp, color = Color(0xFF999999))
+                }
+            }
+            items(owedByProviders, key = { "debt_${it.providerId}" }) { balance ->
+                ProviderDebtRow(balance)
             }
         }
 
@@ -1444,6 +1465,42 @@ private fun ProviderBalanceRow(
                     Text(strings.financeMarkPaid, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProviderDebtRow(balance: ProviderBalance) {
+    val strings = LocalStrings.current
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.fillMaxWidth().padding(14.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier         = Modifier
+                    .size(40.dp)
+                    .background(Color(0xFFB00020).copy(alpha = 0.12f), CircleShape)
+            ) {
+                Icon(Icons.Default.Percent, null, tint = Color(0xFFB00020), modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(balance.providerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
+                Text(strings.financeOwesPlatform, fontSize = 11.sp, color = RoseGold)
+            }
+            Text(
+                "${-balance.owedAmount} AFN",
+                fontWeight = FontWeight.Bold,
+                fontSize   = 16.sp,
+                color      = Color(0xFFB00020)
+            )
         }
     }
 }

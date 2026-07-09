@@ -76,6 +76,9 @@ sealed interface CheckoutUiState {
     data object Creating : CheckoutUiState                     // contacting the backend
     data class AwaitingPayment(val session: CheckoutSession) : CheckoutUiState // open URL + poll
     data class Paid(val salonName: String) : CheckoutUiState
+    // Cash booking: already confirmed server-side, nothing to open or poll —
+    // just tell the customer how much to bring to the salon.
+    data class CashConfirmed(val salonName: String, val amount: Long) : CheckoutUiState
     data class Failed(val message: String) : CheckoutUiState
 }
 
@@ -243,6 +246,10 @@ class DashboardViewModel @Inject constructor(
     fun setActiveSalon(id: String) { _activeSalonId.value = id }
 
     var bookingConfirmSalonName  by mutableStateOf<String?>(null)
+        private set
+    // Non-null only when the confirmed booking is a cash payment — drives the
+    // "bring AFN X in cash" variant of the confirmation dialog.
+    var bookingConfirmCashAmount by mutableStateOf<Long?>(null)
         private set
     var waitlistJoinedSalonName by mutableStateOf<String?>(null)
         private set
@@ -529,12 +536,20 @@ class DashboardViewModel @Inject constructor(
     }
 
     /**
-     * Starts the prepay-at-booking flow: asks the backend to create the
-     * appointment (AWAITING_PAYMENT) plus a HesabPay checkout session. The UI then
-     * opens [CheckoutSession.checkoutUrl] and we poll the payment status until the
-     * webhook flips it to PAID (which also releases the booking to the provider).
+     * Starts the booking flow. For [paymentMethod] = "ONLINE" (the default) this
+     * asks the backend to create the appointment (AWAITING_PAYMENT) plus a
+     * HesabPay checkout session; the UI then opens [CheckoutSession.checkoutUrl]
+     * and we poll the payment status until the webhook flips it to PAID (which
+     * also releases the booking to the provider). For "CASH" the backend
+     * confirms the booking immediately — there is nothing to open or poll.
      */
-    fun bookService(salon: SalonDocument, serviceName: String, appointmentDateMs: Long, notes: String = "") {
+    fun bookService(
+        salon: SalonDocument,
+        serviceName: String,
+        appointmentDateMs: Long,
+        notes: String = "",
+        paymentMethod: String = "ONLINE"
+    ) {
         checkout = CheckoutUiState.Creating
         viewModelScope.launch {
             val session = paymentRepository.createCheckout(
@@ -542,7 +557,8 @@ class DashboardViewModel @Inject constructor(
                 serviceName       = serviceName,
                 appointmentDateMs = appointmentDateMs,
                 notes             = notes,
-                email             = _currentUserEmail.value
+                email             = _currentUserEmail.value,
+                method            = paymentMethod
             )
             if (session == null) {
                 checkout = CheckoutUiState.Failed("checkout_failed")
@@ -550,10 +566,16 @@ class DashboardViewModel @Inject constructor(
             }
             vaultRepository.log(
                 "PAYMENT_STARTED",
-                "salonId=${salon.id} service=$serviceName amount=${session.amount}"
+                "salonId=${salon.id} service=$serviceName amount=${session.amount} method=${session.method}"
             )
-            checkout = CheckoutUiState.AwaitingPayment(session)
-            observePayment(session.paymentId, salon.salonName)
+            if (session.method == "CASH") {
+                checkout = CheckoutUiState.CashConfirmed(salon.salonName, session.amount)
+                bookingConfirmSalonName  = salon.salonName
+                bookingConfirmCashAmount = session.amount
+            } else {
+                checkout = CheckoutUiState.AwaitingPayment(session)
+                observePayment(session.paymentId, salon.salonName)
+            }
         }
     }
 
@@ -580,7 +602,10 @@ class DashboardViewModel @Inject constructor(
         checkout = CheckoutUiState.Idle
     }
 
-    fun dismissConfirmation() { bookingConfirmSalonName = null }
+    fun dismissConfirmation() {
+        bookingConfirmSalonName  = null
+        bookingConfirmCashAmount = null
+    }
 
     fun loadSlotsForDate(salon: SalonDocument, dateMs: Long) {
         viewModelScope.launch {

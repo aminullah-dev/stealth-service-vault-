@@ -11,14 +11,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Result of asking the backend to start a HesabPay checkout.
- * [checkoutUrl] is opened in a browser / Custom Tab; the rest is shown to the
- * customer so they see exactly what they're paying and the salon's net.
+ * Result of asking the backend to start a booking + payment.
+ * For an "ONLINE" booking, [checkoutUrl] is opened in a browser / Custom Tab.
+ * For a "CASH" booking the appointment is already confirmed server-side and
+ * [checkoutUrl] is blank — nothing to open, just show the confirmation.
  */
 data class CheckoutSession(
     val paymentId: String,
     val appointmentId: String,
     val checkoutUrl: String,
+    val method: String,
     val amount: Long,
     val commissionAmount: Long,
     val providerNet: Long
@@ -37,22 +39,27 @@ class PaymentRepository @Inject constructor() {
     private val paymentsCol = FirebaseFirestore.getInstance().collection("payments")
 
     /**
-     * Asks the backend to create an appointment (AWAITING_PAYMENT) and a HesabPay
-     * checkout session for it. Returns null on failure.
+     * Asks the backend to create a booking, either via a HesabPay checkout
+     * session ([method] = "ONLINE") or confirmed immediately for in-person cash
+     * payment ([method] = "CASH", server debits the platform's commission from
+     * the provider's payout balance since no online transaction occurs).
+     * Returns null on failure.
      */
     suspend fun createCheckout(
         salonId: String,
         serviceName: String,
         appointmentDateMs: Long,
         notes: String,
-        email: String
+        email: String,
+        method: String = "ONLINE"
     ): CheckoutSession? = runCatching {
         val payload = hashMapOf(
             "salonId" to salonId,
             "serviceName" to serviceName,
             "appointmentDate" to appointmentDateMs,
             "notes" to notes,
-            "email" to email
+            "email" to email,
+            "method" to method
         )
         val result = functions
             .getHttpsCallable("createPaymentSession")
@@ -62,14 +69,18 @@ class PaymentRepository @Inject constructor() {
         @Suppress("UNCHECKED_CAST")
         val map = result.getData() as? Map<String, Any?> ?: return@runCatching null
 
-        CheckoutSession(
+        val session = CheckoutSession(
             paymentId        = map["paymentId"] as? String ?: "",
             appointmentId    = map["appointmentId"] as? String ?: "",
             checkoutUrl      = map["checkoutUrl"] as? String ?: "",
+            method           = map["method"] as? String ?: method,
             amount           = (map["amount"] as? Number)?.toLong() ?: 0L,
             commissionAmount = (map["commissionAmount"] as? Number)?.toLong() ?: 0L,
             providerNet      = (map["providerNet"] as? Number)?.toLong() ?: 0L
-        ).takeIf { it.checkoutUrl.isNotBlank() }
+        )
+        // Online bookings must have a checkout URL to be usable; cash bookings
+        // never have one (nothing to open) and are already confirmed.
+        session.takeIf { it.method == "CASH" || it.checkoutUrl.isNotBlank() }
     }.onFailure { CrashReporter.recordNonFatal(it, "payment:createCheckout") }
         .getOrNull()
 

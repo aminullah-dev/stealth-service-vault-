@@ -103,7 +103,10 @@ data class AppointmentDocument(
     val appointmentDate: Long = 0L,         // epoch millis (date + time)
     val status: String = "PENDING",         // "PENDING" | "CONFIRMED" | "CANCELLED"
     val createdAt: Long = 0L,
-    val notes: String = ""               // optional customer request/note
+    val notes: String = "",              // optional customer request/note
+    // Denormalized from the payment doc at booking time so the provider's
+    // requests list can show a "Cash" badge without an extra read per row.
+    val paymentMethod: String = "ONLINE"    // "ONLINE" | "CASH"
 )
 
 data class ReviewDocument(
@@ -169,7 +172,10 @@ data class NotificationDocument(
  * it to observe payment status. The amount is split into the platform's
  * commission and the provider's net (commission % is set globally by the admin).
  *
- * status: "PENDING" | "PAID" | "FAILED"
+ * status: "PENDING" | "PAID" | "FAILED" | "PENDING_CASH" | "CANCELLED" | "REFUND_PENDING"
+ * method: "ONLINE" (paid via HesabPay) | "CASH" (paid in person at the salon —
+ *   the platform never receives the money, so its commission is instead
+ *   debited from the provider's payout balance; see createPaymentSession).
  */
 data class PaymentDocument(
     val id: String = "",
@@ -184,6 +190,7 @@ data class PaymentDocument(
     val providerNet: Long = 0L,             // what the provider is owed
     val currency: String = "AFN",
     val status: String = "PENDING",
+    val method: String = "ONLINE",
     val hesabSessionId: String = "",
     val createdAt: Long = 0L,
     val paidAt: Long = 0L
@@ -200,8 +207,12 @@ data class PlatformConfigDocument(
 
 /**
  * Running ledger of what the platform owes each provider. Maintained by the
- * hesabPayWebhook Cloud Function (clients can't write it). owedAmount
- * accumulates each booking's providerNet; the admin reads this to know payouts.
+ * hesabPayWebhook / createPaymentSession Cloud Functions (clients can't write
+ * it). owedAmount increases by providerNet on each online payment and
+ * decreases by commissionAmount on each cash booking (the platform's cut on a
+ * cash sale can only be recovered by deducting it from a future online-payout,
+ * since no money changed hands online) — so it CAN go negative, meaning the
+ * provider currently owes the platform rather than the other way around.
  */
 data class ProviderBalance(
     val providerId: String = "",

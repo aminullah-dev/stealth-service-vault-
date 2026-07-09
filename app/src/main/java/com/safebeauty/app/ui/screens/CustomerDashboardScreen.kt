@@ -294,6 +294,7 @@ fun CustomerDashboardScreen(
     var pendingSlotMs     by remember { mutableStateOf(0L) }
     var showNotesDialog   by remember { mutableStateOf(false) }
     var bookingNotes      by remember { mutableStateOf("") }
+    var paymentMethod     by remember { mutableStateOf("ONLINE") } // "ONLINE" | "CASH"
 
     // Feature 1: photo confirmation
     var pendingPhotoBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -838,6 +839,7 @@ fun CustomerDashboardScreen(
                     showNotesDialog = false
                     pendingSlotMs   = 0L
                     bookingNotes    = ""
+                    paymentMethod   = "ONLINE"
                     bookingIntent   = null
                     viewModel.clearSlots()
                 },
@@ -869,6 +871,31 @@ fun CustomerDashboardScreen(
                                 focusedLabelColor    = RoseGold
                             )
                         )
+                        Text(strings.paymentMethodLabel, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = paymentMethod == "ONLINE",
+                                onClick  = { paymentMethod = "ONLINE" },
+                                label    = { Text(strings.paymentMethodOnline, fontSize = 13.sp) },
+                                colors   = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = ChipActive,
+                                    selectedLabelColor     = Color.White,
+                                    containerColor         = ChipInactive,
+                                    labelColor             = DeepRose
+                                )
+                            )
+                            FilterChip(
+                                selected = paymentMethod == "CASH",
+                                onClick  = { paymentMethod = "CASH" },
+                                label    = { Text(strings.paymentMethodCash, fontSize = 13.sp) },
+                                colors   = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = ChipActive,
+                                    selectedLabelColor     = Color.White,
+                                    containerColor         = ChipInactive,
+                                    labelColor             = DeepRose
+                                )
+                            )
+                        }
                     }
                 },
                 confirmButton = {
@@ -881,10 +908,11 @@ fun CustomerDashboardScreen(
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
-                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes)
+                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes, paymentMethod)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
+                                paymentMethod   = "ONLINE"
                                 bookingIntent   = null
                                 viewModel.clearSlots()
                             }
@@ -897,6 +925,7 @@ fun CustomerDashboardScreen(
                         showNotesDialog = false
                         pendingSlotMs   = 0L
                         bookingNotes    = ""
+                        paymentMethod   = "ONLINE"
                         bookingIntent   = null
                         viewModel.clearSlots()
                     }) {
@@ -994,6 +1023,13 @@ fun CustomerDashboardScreen(
                     LaunchedEffect(Unit) { viewModel.cancelCheckout() }
                 }
 
+                is CheckoutUiState.CashConfirmed -> {
+                    // Same as Paid — the booking-confirmation dialog (driven by
+                    // bookingConfirmSalonName / bookingConfirmCashAmount) shows
+                    // the "bring cash" success message.
+                    LaunchedEffect(Unit) { viewModel.cancelCheckout() }
+                }
+
                 CheckoutUiState.Idle -> { /* nothing */ }
             }
         }
@@ -1017,11 +1053,19 @@ fun CustomerDashboardScreen(
 
         // ── Booking confirmation ──────────────────────────────────────────────
         viewModel.bookingConfirmSalonName?.let { salonName ->
+            val cashAmount = viewModel.bookingConfirmCashAmount
             AlertDialog(
                 onDismissRequest = { viewModel.dismissConfirmation() },
                 icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
                 title = { Text(strings.bookingRequestSent, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(strings.bookingConfirmText(salonName), fontSize = 14.sp, color = Color(0xFF555555)) },
+                text  = {
+                    Text(
+                        if (cashAmount != null) strings.cashBookingConfirmText(salonName, cashAmount)
+                        else strings.bookingConfirmText(salonName),
+                        fontSize = 14.sp,
+                        color    = Color(0xFF555555)
+                    )
+                },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissConfirmation() },

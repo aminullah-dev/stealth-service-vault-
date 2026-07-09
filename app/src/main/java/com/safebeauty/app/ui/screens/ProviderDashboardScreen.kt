@@ -633,11 +633,29 @@ private fun BookingRequestCard(
                             fontSize   = 15.sp,
                             color      = DeepRose
                         )
-                        Text(
-                            text     = appointment.serviceName,
-                            fontSize = 13.sp,
-                            color    = RoseGold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text     = appointment.serviceName,
+                                fontSize = 13.sp,
+                                color    = RoseGold
+                            )
+                            if (appointment.paymentMethod == "CASH") {
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text       = strings.paymentMethodCash,
+                                        fontSize   = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color      = Color(0xFFB00020)
+                                    )
+                                }
+                            }
+                        }
                         if (appointment.customerPhone.isNotBlank()) {
                             Spacer(Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {

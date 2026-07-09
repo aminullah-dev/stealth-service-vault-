@@ -121,13 +121,6 @@ exports.createPaymentSession = onCall(
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Sign in before paying.");
     }
-    const apiKey = HESAB_API_KEY.value();
-    if (!apiKey) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Payment is not configured. Set the HESAB_API_KEY secret."
-      );
-    }
 
     const appUser = await resolveAppUser(request);
     // Identity must be verified before booking. The client gates this too and
@@ -137,8 +130,20 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName, appointmentDate, notes, email } =
+    const { salonId, serviceName, appointmentDate, notes, email, method } =
       request.data || {};
+    const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
+
+    // The HesabPay secret is only needed for the online path — cash bookings
+    // never call out to HesabPay, so a missing/unconfigured key must not block
+    // customers who chose to pay in person.
+    const apiKey = paymentMethod === "ONLINE" ? HESAB_API_KEY.value() : "";
+    if (paymentMethod === "ONLINE" && !apiKey) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Payment is not configured. Set the HESAB_API_KEY secret."
+      );
+    }
 
     if (!salonId || !serviceName || !appointmentDate) {
       throw new HttpsError(
@@ -164,6 +169,78 @@ exports.createPaymentSession = onCall(
     const commissionPercent = await getCommissionPercent();
     const commissionAmount  = Math.round((price * commissionPercent) / 100);
     const providerNet       = price - commissionAmount;
+    const providerId        = salon.providerId || "";
+
+    // ── Cash path: the customer pays the salon in person, so the platform
+    // never receives the money. The booking is confirmed immediately (no
+    // payment to await) and the platform's commission becomes a debt the
+    // provider owes, deducted automatically from their next online-payment
+    // payout (see recordProviderPayout, which refuses to pay out <= 0).
+    if (paymentMethod === "CASH") {
+      const apptRef    = db.collection("appointments").doc();
+      const paymentRef = db.collection("payments").doc();
+      const batch = db.batch();
+      batch.set(apptRef, {
+        customerId:     uid,
+        customerName:   user.name  || "",
+        customerPhone:  user.phone || "",
+        salonId,
+        salonName:      salon.salonName || "",
+        serviceName,
+        appointmentDate,
+        status:         "PENDING",
+        paymentMethod:  "CASH",
+        createdAt:      Date.now(),
+        notes:          notes || "",
+      });
+      batch.set(paymentRef, {
+        appointmentId:     apptRef.id,
+        customerId:        uid,
+        providerId,
+        salonId,
+        serviceName,
+        amount:            price,
+        commissionPercent,
+        commissionAmount,
+        providerNet,
+        currency:          "AFN",
+        status:            "PENDING_CASH",
+        method:            "CASH",
+        hesabSessionId:    "",
+        createdAt:         Date.now(),
+      });
+      if (providerId) {
+        batch.set(
+          db.doc(`provider_balances/${providerId}`),
+          {
+            providerId,
+            owedAmount: admin.firestore.FieldValue.increment(-commissionAmount),
+            updatedAt:  Date.now(),
+          },
+          { merge: true }
+        );
+        batch.set(db.collection("notifications").doc(), {
+          recipientId: providerId,
+          type:        "NEW_BOOKING",
+          title:       "New Cash Booking",
+          body:        `${serviceName} — AFN ${price} to collect in person`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   apptRef.id,
+        });
+      }
+      await batch.commit();
+
+      return {
+        paymentId:     paymentRef.id,
+        appointmentId: apptRef.id,
+        checkoutUrl:   "",
+        method:        "CASH",
+        amount:        price,
+        commissionAmount,
+        providerNet,
+      };
+    }
 
     // Create the appointment (AWAITING_PAYMENT, hidden from the provider until
     // the webhook flips it to PENDING) and the payment row (PENDING, so the
@@ -180,14 +257,15 @@ exports.createPaymentSession = onCall(
       salonName:     salon.salonName || "",
       serviceName,
       appointmentDate,
-      status:    "AWAITING_PAYMENT",
-      createdAt: Date.now(),
-      notes:     notes || "",
+      status:        "AWAITING_PAYMENT",
+      paymentMethod: "ONLINE",
+      createdAt:     Date.now(),
+      notes:         notes || "",
     });
     createBatch.set(paymentRef, {
       appointmentId:     apptRef.id,
       customerId:        uid,
-      providerId:        salon.providerId || "",
+      providerId,
       salonId,
       serviceName,
       amount:            price,
@@ -196,6 +274,7 @@ exports.createPaymentSession = onCall(
       providerNet,
       currency:          "AFN",
       status:            "PENDING",
+      method:            "ONLINE",
       hesabSessionId:    "",
       createdAt:         Date.now(),
     });
@@ -867,7 +946,22 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
 
     let refundRequestId = null;
     const providerId = payment ? (payment.providerId || "") : "";
-    if (payment && payment.status === "PAID") {
+    if (payment && payment.method === "CASH") {
+      // No online money ever moved, so there's nothing to refund — just undo
+      // the commission debt that was charged to the provider at booking time.
+      tx.update(payDoc.ref, { status: "CANCELLED" });
+      if (providerId) {
+        tx.set(
+          db.doc(`provider_balances/${providerId}`),
+          {
+            providerId,
+            owedAmount: admin.firestore.FieldValue.increment(payment.commissionAmount || 0),
+            updatedAt:  Date.now(),
+          },
+          { merge: true }
+        );
+      }
+    } else if (payment && payment.status === "PAID") {
       tx.update(payDoc.ref, { status: "REFUND_PENDING" });
       const refundRef = db.collection("refund_requests").doc();
       tx.set(refundRef, {

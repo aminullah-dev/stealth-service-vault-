@@ -63,6 +63,10 @@ class AppStrings {
     var confirmBooking: String = ""
     var bookingRequestSent: String = ""
     var bookingConfirmText: (String) -> String = { "" }
+    var paymentMethodLabel: String = ""
+    var paymentMethodOnline: String = ""
+    var paymentMethodCash: String = ""
+    var cashBookingConfirmText: (String, Long) -> String = { _, _ -> "" }
     var ok: String = ""
     var noBookingsTitle: String = ""
     var noBookingsSubtext: String = ""
@@ -261,6 +265,10 @@ class AppStrings {
     var financeRefundConfirmText: String = ""
     var financeMarkRefunded: String = ""
     var financeRefundDone: String = ""
+    // Cash-booking commission debt (deducted from the provider's next payout)
+    var financeDebtTitle: String = ""
+    var financeDebtHint: String = ""
+    var financeOwesPlatform: String = ""
     // Export / Backup
     var exportTitle: String = ""
     var exportStart: String = ""
@@ -491,6 +499,10 @@ object StringResources {
         confirmBooking             = "Confirm booking"
         bookingRequestSent         = "Booking Request Sent"
         bookingConfirmText         = { name -> "Request sent to $name. She will contact you shortly." }
+        paymentMethodLabel         = "How would you like to pay?"
+        paymentMethodOnline        = "Pay online now"
+        paymentMethodCash          = "Pay cash at salon"
+        cashBookingConfirmText     = { name, amount -> "Request sent to $name. Please bring AFN $amount in cash to pay at the salon." }
         ok                         = "OK"
         noBookingsTitle            = "No bookings yet."
         noBookingsSubtext          = "Find a provider and tap Book to get started."
@@ -656,6 +668,9 @@ object StringResources {
         financeBalancesTitle       = "Provider Payouts Owed"
         financeBalancesNone        = "No balances owed yet"
         financeOwed                = "Owed"
+        financeDebtTitle           = "Commission Owed by Salons"
+        financeDebtHint            = "From cash bookings — deducted automatically from their next payout."
+        financeOwesPlatform        = "Owes platform"
         financeHesabAccountLabel   = { number -> "HesabPay: $number" }
         financeHesabAccountMissing = "No HesabPay account number on file"
         financeMarkPaid            = "Mark Paid"
@@ -866,6 +881,10 @@ object StringResources {
         confirmBooking             = "تایید رزرو"
         bookingRequestSent         = "درخواست رزرو ارسال شد"
         bookingConfirmText         = { name -> "درخواست به $name ارسال شد. او به‌زودی با شما تماس می‌گیرد." }
+        paymentMethodLabel         = "چطور می‌خواهید پرداخت کنید؟"
+        paymentMethodOnline        = "پرداخت آنلاین همین حالا"
+        paymentMethodCash          = "پرداخت نقدی در سالن"
+        cashBookingConfirmText     = { name, amount -> "درخواست به $name ارسال شد. لطفاً $amount افغانی نقد برای پرداخت در سالن همراه داشته باشید." }
         ok                         = "تایید"
         noBookingsTitle            = "هنوز رزروی ندارید."
         noBookingsSubtext          = "یک ارائه‌دهنده پیدا کنید و روی رزرو ضربه بزنید."
@@ -1031,6 +1050,9 @@ object StringResources {
         financeBalancesTitle       = "بدهی به سالن‌ها"
         financeBalancesNone        = "هنوز بدهی‌ای وجود ندارد"
         financeOwed                = "بدهی"
+        financeDebtTitle           = "کمیسیون بدهکار سالن‌ها"
+        financeDebtHint            = "از رزروهای نقدی — به‌صورت خودکار از پرداختی بعدی آن‌ها کسر می‌شود."
+        financeOwesPlatform        = "بدهکار به پلتفرم"
         financeHesabAccountLabel   = { number -> "HesabPay: $number" }
         financeHesabAccountMissing = "شماره حساب HesabPay ثبت نشده"
         financeMarkPaid            = "پرداخت شد"
@@ -1241,6 +1263,10 @@ object StringResources {
         confirmBooking             = "د بکینګ تایید"
         bookingRequestSent         = "د بکینګ غوښتنه واستول شوه"
         bookingConfirmText         = { name -> "غوښتنه $name ته واستول شوه. هغه به ډېر ژر له تاسو سره اړیکه ونیسي." }
+        paymentMethodLabel         = "تاسو غواړئ څنګه تادیه وکړئ؟"
+        paymentMethodOnline        = "همدا اوس آنلاین تادیه"
+        paymentMethodCash          = "په سالون کې نغدې تادیه"
+        cashBookingConfirmText     = { name, amount -> "غوښتنه $name ته واستول شوه. مهرباني وکړئ $amount افغانۍ نغدې د سالون په تادیه لپاره ورسره ولرئ." }
         ok                         = "سمه ده"
         noBookingsTitle            = "لا هیڅ بکینګ نشته."
         noBookingsSubtext          = "یو چمتو کوونکی ومومئ او د بک کولو تڼۍ ووهئ."
@@ -1406,6 +1432,9 @@ object StringResources {
         financeBalancesTitle       = "سالونونو ته پورونه"
         financeBalancesNone        = "لا تر اوسه هیڅ پور نشته"
         financeOwed                = "پور"
+        financeDebtTitle           = "د سالونونو پاتې کمیسیون"
+        financeDebtHint            = "د نغدو بکینګونو څخه — په اوتومات ډول د راتلونکې تادیې څخه کمیږي."
+        financeOwesPlatform        = "پلیټ‌فورم ته پور لري"
         financeHesabAccountLabel   = { number -> "HesabPay: $number" }
         financeHesabAccountMissing = "د HesabPay حساب شمېره ثبت شوې نه ده"
         financeMarkPaid            = "تادیه شو"
