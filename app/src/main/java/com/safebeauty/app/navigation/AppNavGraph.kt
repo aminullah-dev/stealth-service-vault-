@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,6 +23,7 @@ import com.safebeauty.app.ui.screens.ForgotPinScreen
 import com.safebeauty.app.ui.screens.KycScreen
 import com.safebeauty.app.ui.screens.LoginScreen
 import com.safebeauty.app.ui.screens.NotificationCenterScreen
+import com.safebeauty.app.ui.screens.OnboardingScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
 import com.safebeauty.app.ui.screens.RegisterScreen
 import com.safebeauty.app.ui.screens.SetNewPinScreen
@@ -30,6 +32,7 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.StringResources
 import com.safebeauty.app.ui.theme.layoutDirection
 import com.safebeauty.app.viewmodel.LanguageViewModel
+import com.safebeauty.app.viewmodel.OnboardingViewModel
 import com.safebeauty.app.viewmodel.SessionViewModel
 
 // ── Deeplink payload carried from a tapped push notification ──────────────────
@@ -42,6 +45,7 @@ data class NotificationDeeplink(
 // ── Route constants ────────────────────────────────────────────────────────────
 
 sealed class Screen(val route: String) {
+    object Onboarding : Screen("onboarding")
     object Login     : Screen("login")
     object Register  : Screen("register")
     object AccountStatus : Screen("accountStatus/{status}?reason={reason}") {
@@ -91,9 +95,15 @@ fun AppNavGraph(
 
     val langVm: LanguageViewModel = hiltViewModel()
     val sessionVm: SessionViewModel = hiltViewModel()
+    val onboardingVm: OnboardingViewModel = hiltViewModel()
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     val shouldLock      by sessionVm.shouldLock.collectAsStateWithLifecycle()
     val strings = StringResources.forLanguage(currentLanguage)
+    // Read once at nav-graph creation (plain SharedPreferences, synchronous) —
+    // decides whether the one-time intro is the first screen the user sees.
+    val startDestination = remember {
+        if (onboardingVm.hasSeenOnboarding) Screen.Login.route else Screen.Onboarding.route
+    }
 
     // Auto-lock: when session expires after 5 min of inactivity, return to Login.
     LaunchedEffect(shouldLock) {
@@ -131,8 +141,19 @@ fun AppNavGraph(
 
         NavHost(
             navController    = navController,
-            startDestination = Screen.Login.route
+            startDestination = startDestination
         ) {
+
+            composable(Screen.Onboarding.route) {
+                OnboardingScreen(
+                    onFinish = {
+                        onboardingVm.markSeen()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
 
             composable(Screen.Login.route) {
                 LoginScreen(

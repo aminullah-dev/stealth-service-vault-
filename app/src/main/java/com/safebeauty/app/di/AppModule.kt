@@ -14,6 +14,7 @@ import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.repository.FavoritesRepository
 import com.safebeauty.app.data.repository.LanguageRepository
+import com.safebeauty.app.data.repository.OnboardingRepository
 import com.safebeauty.app.data.repository.VaultRepository
 import com.safebeauty.app.security.DatabaseKeyManager
 import com.safebeauty.app.security.PinHasher
@@ -66,6 +67,10 @@ object AppModule {
     @Provides @Singleton
     fun provideLanguageRepository(@ApplicationContext ctx: Context): LanguageRepository =
         LanguageRepository(ctx)
+
+    @Provides @Singleton
+    fun provideOnboardingRepository(@ApplicationContext ctx: Context): OnboardingRepository =
+        OnboardingRepository(ctx)
 
     @Provides @Singleton
     fun provideFirebaseAuthManager(): FirebaseAuthManager = FirebaseAuthManager()
