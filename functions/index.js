@@ -192,6 +192,7 @@ exports.createPaymentSession = onCall(
         paymentMethod:  "CASH",
         createdAt:      Date.now(),
         notes:          notes || "",
+        reminderSent:   false,
       });
       batch.set(paymentRef, {
         appointmentId:     apptRef.id,
@@ -261,6 +262,7 @@ exports.createPaymentSession = onCall(
       paymentMethod: "ONLINE",
       createdAt:     Date.now(),
       notes:         notes || "",
+      reminderSent:  false,
     });
     createBatch.set(paymentRef, {
       appointmentId:     apptRef.id,
@@ -1145,7 +1147,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     const salonSnap  = await tx.get(db.doc(`salons/${appt.salonId}`));
     const providerId = salonSnap.exists ? (salonSnap.data().providerId || "") : "";
 
-    tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING" });
+    tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
     if (providerId) {
       tx.set(db.collection("notifications").doc(), {
         recipientId: providerId,
@@ -1265,6 +1267,59 @@ exports.expireAbandonedPayments = onSchedule(
       count++;
     }
     logger.log(`expireAbandonedPayments: expired ${count} stale payment(s)`);
+  }
+);
+
+// ── sendBookingReminders (scheduled) ──────────────────────────────────────────
+//
+// Confirmed appointments starting within the next ~2 hours get a one-time
+// reminder notification (reused notifications → FCM pipeline, same as every
+// other notification in this file). reminderSent starts false at booking
+// time (see createPaymentSession) and is reset to false on reschedule (see
+// rescheduleAppointment) — flipping it to true here makes a slow or retried
+// run idempotent instead of double-sending.
+const REMINDER_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+exports.sendBookingReminders = onSchedule(
+  { schedule: "every 15 minutes", region: "us-central1" },
+  async () => {
+    const now       = Date.now();
+    const windowEnd = now + REMINDER_WINDOW_MS;
+
+    const upcoming = await db.collection("appointments")
+      .where("status", "==", "CONFIRMED")
+      .where("reminderSent", "==", false)
+      .where("appointmentDate", "<=", windowEnd)
+      .get();
+
+    if (upcoming.empty) return;
+
+    let count = 0;
+    for (const doc of upcoming.docs) {
+      const appt = doc.data();
+      // Already in the past (e.g. this function was down for a while) —
+      // nothing useful to remind about; just stop it from being re-scanned.
+      if (appt.appointmentDate < now) {
+        await doc.ref.update({ reminderSent: true });
+        continue;
+      }
+      const batch = db.batch();
+      batch.update(doc.ref, { reminderSent: true });
+      if (appt.customerId) {
+        batch.set(db.collection("notifications").doc(), {
+          recipientId: appt.customerId,
+          type:        "BOOKING_REMINDER",
+          title:       "Upcoming Appointment",
+          body:        `${appt.serviceName || "Your appointment"} at ${appt.salonName || "the salon"} is coming up soon.`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   doc.id,
+        });
+      }
+      await batch.commit();
+      count++;
+    }
+    logger.log(`sendBookingReminders: reminded ${count} upcoming appointment(s)`);
   }
 );
 

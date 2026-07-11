@@ -95,7 +95,10 @@ fun NotificationCenterScreen(
             NotifFilter.ALL      -> notifications
             NotifFilter.UNREAD   -> notifications.filter { !it.isRead }
             NotifFilter.BOOKINGS -> notifications.filter {
-                it.type in listOf("BOOKING_CONFIRMED", "BOOKING_CANCELLED", "NEW_BOOKING")
+                it.type in listOf(
+                    "BOOKING_CONFIRMED", "BOOKING_CANCELLED", "NEW_BOOKING",
+                    "BOOKING_RESCHEDULED", "BOOKING_REMINDER"
+                )
             }
             NotifFilter.WAITLIST -> notifications.filter { it.type == "WAITLIST" }
             NotifFilter.SYSTEM   -> notifications.filter {
@@ -327,12 +330,14 @@ private fun NotificationCard(
 }
 
 private fun notifIconAndColor(type: String): Pair<ImageVector, Color> = when (type) {
-    "BOOKING_CONFIRMED" -> Icons.Default.CheckCircle to AvailableGreen
-    "BOOKING_CANCELLED" -> Icons.Default.Cancel      to Color(0xFFD32F2F)
-    "NEW_BOOKING"       -> Icons.Default.CalendarMonth to RoseGold
-    "WAITLIST"          -> Icons.Default.Schedule    to WarmGold
-    "BROADCAST"         -> Icons.Default.Campaign    to Color(0xFF7B6FA0)
-    else                -> Icons.Default.Info        to ChipInactive
+    "BOOKING_CONFIRMED"   -> Icons.Default.CheckCircle   to AvailableGreen
+    "BOOKING_CANCELLED"   -> Icons.Default.Cancel         to Color(0xFFD32F2F)
+    "NEW_BOOKING"         -> Icons.Default.CalendarMonth  to RoseGold
+    "BOOKING_RESCHEDULED" -> Icons.Default.CalendarMonth  to WarmGold
+    "BOOKING_REMINDER"    -> Icons.Default.Schedule       to RoseGold
+    "WAITLIST"            -> Icons.Default.Schedule       to WarmGold
+    "BROADCAST"           -> Icons.Default.Campaign       to Color(0xFF7B6FA0)
+    else                  -> Icons.Default.Info           to ChipInactive
 }
 
 @Composable
