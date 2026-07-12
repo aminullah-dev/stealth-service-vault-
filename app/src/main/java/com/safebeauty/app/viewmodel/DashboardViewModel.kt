@@ -20,6 +20,7 @@ import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.NotificationDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.CheckoutSession
+import com.safebeauty.app.data.firebase.PromoPreview
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.LoyaltyTier
@@ -259,6 +260,42 @@ class DashboardViewModel @Inject constructor(
         private set
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
+
+    // ── Promo code (validated before booking) ───────────────────────────────────
+    var promoInput   by mutableStateOf("")
+    var promoChecking by mutableStateOf(false)
+        private set
+    var promoApplied by mutableStateOf<PromoPreview?>(null)
+        private set
+    var promoError   by mutableStateOf<String?>(null)
+        private set
+
+    /** Validates [promoInput] against the given salon service and, on success,
+     *  stores the applied discount so the booking dialog can show it. */
+    fun applyPromo(salonId: String, serviceName: String) {
+        val code = promoInput.trim()
+        if (code.isBlank()) return
+        promoChecking = true
+        promoError = null
+        viewModelScope.launch {
+            val preview = paymentRepository.previewPromo(code, salonId, serviceName)
+            promoChecking = false
+            if (preview.valid) {
+                promoApplied = preview
+                promoError = null
+            } else {
+                promoApplied = null
+                promoError = preview.errorMessage ?: "Invalid code"
+            }
+        }
+    }
+
+    fun clearPromo() {
+        promoInput = ""
+        promoApplied = null
+        promoError = null
+        promoChecking = false
+    }
 
     var lockTriggered by mutableStateOf(false)
         private set
@@ -551,6 +588,9 @@ class DashboardViewModel @Inject constructor(
         paymentMethod: String = "ONLINE"
     ) {
         checkout = CheckoutUiState.Creating
+        // Only send a code that was actually validated for THIS service, so a
+        // stale/mismatched code can't slip into the charge.
+        val appliedCode = promoApplied?.code.orEmpty()
         viewModelScope.launch {
             val session = paymentRepository.createCheckout(
                 salonId           = salon.id,
@@ -558,12 +598,14 @@ class DashboardViewModel @Inject constructor(
                 appointmentDateMs = appointmentDateMs,
                 notes             = notes,
                 email             = _currentUserEmail.value,
-                method            = paymentMethod
+                method            = paymentMethod,
+                promoCode         = appliedCode
             )
             if (session == null) {
                 checkout = CheckoutUiState.Failed("checkout_failed")
                 return@launch
             }
+            clearPromo()
             vaultRepository.log(
                 "PAYMENT_STARTED",
                 "salonId=${salon.id} service=$serviceName amount=${session.amount} method=${session.method}"

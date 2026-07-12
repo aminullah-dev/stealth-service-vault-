@@ -9,6 +9,7 @@ import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.PayoutDocument
+import com.safebeauty.app.data.firebase.PromoDocument
 import com.safebeauty.app.data.firebase.ProviderBalance
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.UserDocument
@@ -254,6 +255,60 @@ class AdminViewModel @Inject constructor(
 
     fun dismissRefundResult() { refundResult = false }
     fun dismissRefundFailed() { refundFailed = false }
+
+    // ── Promo codes ─────────────────────────────────────────────────────────────
+
+    val promoCodes: StateFlow<List<PromoDocument>> =
+        firestoreRepository.observePromoCodes()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Create-form state.
+    var promoCodeInput      by mutableStateOf("")
+    var promoPercentInput   by mutableStateOf("")   // percentage discount
+    var promoAmountInput    by mutableStateOf("")   // OR fixed AFN discount
+    var promoMaxUsesInput   by mutableStateOf("")   // 0/blank = unlimited
+    var promoSaving         by mutableStateOf(false)
+        private set
+    var promoSaved          by mutableStateOf(false)
+        private set
+    var promoErrorMsg       by mutableStateOf<String?>(null)
+        private set
+
+    fun savePromo() {
+        val code = promoCodeInput.trim().uppercase()
+        val pct  = promoPercentInput.trim().toIntOrNull() ?: 0
+        val amt  = promoAmountInput.trim().toLongOrNull() ?: 0L
+        val max  = promoMaxUsesInput.trim().toIntOrNull() ?: 0
+        if (code.length < 3) { promoErrorMsg = "Code must be at least 3 characters"; return }
+        if (pct <= 0 && amt <= 0L) { promoErrorMsg = "Set a percentage or a fixed amount"; return }
+        promoSaving = true
+        promoErrorMsg = null
+        viewModelScope.launch {
+            val ok = paymentRepository.upsertPromoCode(
+                code = code, discountPercent = pct, discountAmount = amt,
+                maxUses = max, expiresAt = 0L, active = true
+            )
+            promoSaving = false
+            if (ok) {
+                promoSaved = true
+                promoCodeInput = ""; promoPercentInput = ""; promoAmountInput = ""; promoMaxUsesInput = ""
+                vaultRepository.log("ADMIN_PROMO_CREATE", "code=$code pct=$pct amt=$amt")
+            } else {
+                promoErrorMsg = "Could not save the code. It may be invalid."
+            }
+        }
+    }
+
+    fun togglePromo(code: String, active: Boolean) {
+        viewModelScope.launch {
+            paymentRepository.setPromoActive(code, active)
+            vaultRepository.log("ADMIN_PROMO_TOGGLE", "code=$code active=$active")
+        }
+    }
+
+    fun dismissPromoSaved() { promoSaved = false }
+    fun dismissPromoError()  { promoErrorMsg = null }
 
     fun suspendUser(uid: String) {
         viewModelScope.launch {

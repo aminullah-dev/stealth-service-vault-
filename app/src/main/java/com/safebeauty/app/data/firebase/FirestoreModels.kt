@@ -206,6 +206,26 @@ data class PlatformConfigDocument(
 )
 
 /**
+ * A discount code. Document ID is the uppercased code string. Written only by
+ * the upsertPromoCode / setPromoActive Cloud Functions; the customer never reads
+ * these (they validate via previewPromo) — only the admin management screen does.
+ * A code carries EITHER a percentage OR a fixed AFN discount (percentage wins if
+ * both are set). maxUses/expiresAt of 0 mean unlimited / never-expires.
+ */
+data class PromoDocument(
+    val code: String = "",
+    val discountPercent: Int = 0,
+    val discountAmount: Long = 0L,
+    val maxUses: Int = 0,
+    val usedCount: Int = 0,
+    val expiresAt: Long = 0L,
+    // JavaBeans strips "is" from Boolean getters — force the stored field name.
+    @get:PropertyName("active") @set:PropertyName("active")
+    var active: Boolean = true,
+    val createdAt: Long = 0L
+)
+
+/**
  * Running ledger of what the platform owes each provider. Maintained by the
  * hesabPayWebhook / createPaymentSession Cloud Functions (clients can't write
  * it). owedAmount increases by providerNet on each online payment and

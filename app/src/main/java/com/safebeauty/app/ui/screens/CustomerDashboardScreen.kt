@@ -841,6 +841,7 @@ fun CustomerDashboardScreen(
                     bookingNotes    = ""
                     paymentMethod   = "ONLINE"
                     bookingIntent   = null
+                    viewModel.clearPromo()
                     viewModel.clearSlots()
                 },
                 title = { Text(strings.bookingNotesTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
@@ -896,6 +897,72 @@ fun CustomerDashboardScreen(
                                 )
                             )
                         }
+
+                        // ── Promo code ────────────────────────────────────────
+                        val applied = viewModel.promoApplied
+                        if (applied != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AvailableGreen.copy(alpha = 0.12f))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    strings.promoAppliedText(applied.discountAmount),
+                                    fontSize = 13.sp,
+                                    color = DeepRose,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    strings.promoRemove,
+                                    fontSize = 13.sp,
+                                    color = RoseGold,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.clickable { viewModel.clearPromo() }
+                                )
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value         = viewModel.promoInput,
+                                    onValueChange = { viewModel.promoInput = it },
+                                    label         = { Text(strings.promoCodeLabel, fontSize = 12.sp) },
+                                    singleLine    = true,
+                                    modifier      = Modifier.weight(1f),
+                                    shape         = RoundedCornerShape(12.dp),
+                                    isError       = viewModel.promoError != null,
+                                    colors        = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor   = RoseGold,
+                                        unfocusedBorderColor = ChipInactive,
+                                        cursorColor          = RoseGold,
+                                        focusedLabelColor    = RoseGold
+                                    )
+                                )
+                                Button(
+                                    onClick = { viewModel.applyPromo(intent.salon.id, intent.service) },
+                                    enabled = viewModel.promoInput.isNotBlank() && !viewModel.promoChecking,
+                                    shape   = RoundedCornerShape(12.dp),
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) {
+                                    if (viewModel.promoChecking) {
+                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text(strings.promoApplyButton, color = Color.White, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                            viewModel.promoError?.let { err ->
+                                Text(err, fontSize = 11.sp, color = Color(0xFFD32F2F))
+                            }
+                        }
                     }
                 },
                 confirmButton = {
@@ -905,6 +972,7 @@ fun CustomerDashboardScreen(
                             if (viewModel.needsKycBeforeBooking()) {
                                 showNotesDialog = false
                                 bookingIntent   = null
+                                viewModel.clearPromo()
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
@@ -927,6 +995,7 @@ fun CustomerDashboardScreen(
                         bookingNotes    = ""
                         paymentMethod   = "ONLINE"
                         bookingIntent   = null
+                        viewModel.clearPromo()
                         viewModel.clearSlots()
                     }) {
                         Text(strings.cancel, color = RoseGold)

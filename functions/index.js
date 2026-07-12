@@ -69,6 +69,47 @@ async function getCommissionPercent() {
   return percent;
 }
 
+// Promo codes are stored at promo_codes/{CODE} keyed by the uppercased code, so
+// a customer's entered code maps to exactly one document with an O(1) lookup and
+// no way to enumerate the whole set. Codes are never exposed to clients — they
+// only ever pass a code string here for server-side validation.
+//
+// Resolves the discount (in AFN) for [codeRaw] against a booking of [priceAfn].
+// Throws a friendly HttpsError if the code was given but is invalid/expired/used
+// up, so the client can surface exactly why. Returns { discount, promoId, code }.
+async function resolvePromoDiscount(codeRaw, priceAfn) {
+  const code = String(codeRaw || "").trim().toUpperCase();
+  if (!code) return { discount: 0, promoId: null, code: "" };
+
+  const snap = await db.doc(`promo_codes/${code}`).get();
+  if (!snap.exists) {
+    throw new HttpsError("not-found", "This promo code doesn't exist.");
+  }
+  const p = snap.data();
+  if (p.active === false) {
+    throw new HttpsError("failed-precondition", "This promo code is no longer active.");
+  }
+  if (p.expiresAt && Number(p.expiresAt) > 0 && Date.now() > Number(p.expiresAt)) {
+    throw new HttpsError("failed-precondition", "This promo code has expired.");
+  }
+  const maxUses  = Number(p.maxUses || 0);
+  const usedCount = Number(p.usedCount || 0);
+  if (maxUses > 0 && usedCount >= maxUses) {
+    throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.");
+  }
+
+  // Percentage takes precedence when both are set; discount can never exceed the
+  // price (so the final amount is always >= 0).
+  let discount = 0;
+  const pct = Number(p.discountPercent || 0);
+  const amt = Number(p.discountAmount || 0);
+  if (pct > 0) discount = Math.round((priceAfn * Math.min(pct, 100)) / 100);
+  else if (amt > 0) discount = Math.min(Math.round(amt), priceAfn);
+  discount = Math.max(0, Math.min(discount, priceAfn));
+
+  return { discount, promoId: code, code };
+}
+
 function hesabHeaders(apiKey) {
   return {
     "Content-Type":  "application/json",
@@ -130,7 +171,7 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName, appointmentDate, notes, email, method } =
+    const { salonId, serviceName, appointmentDate, notes, email, method, promoCode } =
       request.data || {};
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
 
@@ -158,11 +199,27 @@ exports.createPaymentSession = onCall(
       throw new HttpsError("not-found", "Salon not found.");
     }
     const salon = salonSnap.data();
-    const price = Number((salon.pricePerService || {})[serviceName]);
-    if (!Number.isFinite(price) || price <= 0) {
+    const listPrice = Number((salon.pricePerService || {})[serviceName]);
+    if (!Number.isFinite(listPrice) || listPrice <= 0) {
       throw new HttpsError(
         "failed-precondition",
         "This service has no valid price."
+      );
+    }
+
+    // Apply a promo code if one was entered (throws a clear error if invalid).
+    // The customer is charged the discounted price; commission is computed on
+    // that same discounted amount so the platform's cut scales with what was
+    // actually paid, not the list price.
+    const promo = await resolvePromoDiscount(promoCode, listPrice);
+    const price = Math.max(0, listPrice - promo.discount);
+
+    // A fully-discounted booking can't go through HesabPay (it can't charge 0),
+    // so route those to cash instead of failing opaquely.
+    if (paymentMethod === "ONLINE" && price <= 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This code makes your booking free — please choose Cash payment."
       );
     }
 
@@ -201,6 +258,9 @@ exports.createPaymentSession = onCall(
         salonId,
         serviceName,
         amount:            price,
+        listPrice,
+        promoCode:         promo.code,
+        discountAmount:    promo.discount,
         commissionPercent,
         commissionAmount,
         providerNet,
@@ -210,6 +270,12 @@ exports.createPaymentSession = onCall(
         hesabSessionId:    "",
         createdAt:         Date.now(),
       });
+      // Cash bookings are confirmed immediately, so count the promo use now.
+      if (promo.promoId) {
+        batch.update(db.doc(`promo_codes/${promo.promoId}`), {
+          usedCount: admin.firestore.FieldValue.increment(1),
+        });
+      }
       if (providerId) {
         batch.set(
           db.doc(`provider_balances/${providerId}`),
@@ -238,6 +304,8 @@ exports.createPaymentSession = onCall(
         checkoutUrl:   "",
         method:        "CASH",
         amount:        price,
+        listPrice,
+        discountAmount: promo.discount,
         commissionAmount,
         providerNet,
       };
@@ -271,6 +339,12 @@ exports.createPaymentSession = onCall(
       salonId,
       serviceName,
       amount:            price,
+      listPrice,
+      promoCode:         promo.code,
+      discountAmount:    promo.discount,
+      // Counted in the webhook only when the payment actually succeeds, so an
+      // abandoned or failed online checkout never burns a promo use.
+      promoCounted:      false,
       commissionPercent,
       commissionAmount,
       providerNet,
@@ -342,6 +416,8 @@ exports.createPaymentSession = onCall(
       appointmentId: apptRef.id,
       checkoutUrl:   sessionUrl,
       amount:        price,
+      listPrice,
+      discountAmount: promo.discount,
       commissionAmount,
       providerNet,
     };
@@ -519,6 +595,15 @@ exports.hesabPayWebhook = onRequest(
             },
             { merge: true }
           );
+          // Count the promo use now that the payment actually succeeded — this
+          // branch runs exactly once per payment (the status/replay guards above
+          // short-circuit any retry), so the increment can't double-count.
+          if (fresh.promoCode && !fresh.promoCounted) {
+            tx.update(paymentRef, { promoCounted: true });
+            tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
+              usedCount: admin.firestore.FieldValue.increment(1),
+            });
+          }
           // Notify the provider of the new (paid) booking.
           tx.set(db.collection("notifications").doc(), {
             recipientId: fresh.providerId,
@@ -1430,6 +1515,85 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
   });
 
   return { processed: true };
+});
+
+// ── Promo codes ───────────────────────────────────────────────────────────────
+
+// previewPromo (any signed-in user): validates a code against a specific salon
+// service and returns the discount so the customer can see it applied BEFORE
+// committing to the booking. Reuses the exact same resolver createPaymentSession
+// uses, so what's previewed is what's charged.
+exports.previewPromo = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const { code, salonId, serviceName } = request.data || {};
+  if (!code || !salonId || !serviceName) {
+    throw new HttpsError("invalid-argument", "code, salonId and serviceName are required.");
+  }
+  const salonSnap = await db.doc(`salons/${salonId}`).get();
+  if (!salonSnap.exists) throw new HttpsError("not-found", "Salon not found.");
+  const listPrice = Number((salonSnap.data().pricePerService || {})[serviceName]);
+  if (!Number.isFinite(listPrice) || listPrice <= 0) {
+    throw new HttpsError("failed-precondition", "This service has no valid price.");
+  }
+  const promo = await resolvePromoDiscount(code, listPrice);
+  return {
+    valid:          true,
+    code:           promo.code,
+    listPrice,
+    discountAmount: promo.discount,
+    finalPrice:     Math.max(0, listPrice - promo.discount),
+  };
+});
+
+// upsertPromoCode (admin): create or update a code. The code string is the
+// document ID (uppercased), so re-saving the same code edits it in place.
+exports.upsertPromoCode = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") throw new HttpsError("permission-denied", "Admins only.");
+
+  const d = request.data || {};
+  const code = String(d.code || "").trim().toUpperCase();
+  if (!code || !/^[A-Z0-9]{3,20}$/.test(code)) {
+    throw new HttpsError("invalid-argument", "Code must be 3–20 letters/numbers.");
+  }
+  const discountPercent = Math.max(0, Math.min(100, Number(d.discountPercent || 0)));
+  const discountAmount  = Math.max(0, Number(d.discountAmount || 0));
+  if (discountPercent <= 0 && discountAmount <= 0) {
+    throw new HttpsError("invalid-argument", "Set a percentage or a fixed discount.");
+  }
+  const maxUses   = Math.max(0, Math.floor(Number(d.maxUses || 0)));
+  const expiresAt = Math.max(0, Math.floor(Number(d.expiresAt || 0)));
+
+  const ref = db.doc(`promo_codes/${code}`);
+  const existing = await ref.get();
+  await ref.set({
+    code,
+    discountPercent,
+    discountAmount,
+    maxUses,
+    expiresAt,
+    active:    d.active === false ? false : true,
+    usedCount: existing.exists ? Number(existing.data().usedCount || 0) : 0,
+    createdAt: existing.exists ? (existing.data().createdAt || Date.now()) : Date.now(),
+    updatedAt: Date.now(),
+  });
+  return { code };
+});
+
+// setPromoActive (admin): enable/disable a code without deleting it (keeps its
+// usage history intact).
+exports.setPromoActive = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") throw new HttpsError("permission-denied", "Admins only.");
+  const code = String((request.data || {}).code || "").trim().toUpperCase();
+  const active = (request.data || {}).active === true;
+  if (!code) throw new HttpsError("invalid-argument", "code is required.");
+  await db.doc(`promo_codes/${code}`).update({ active, updatedAt: Date.now() });
+  return { code, active };
 });
 
 // ── pushOnNotificationCreated (Firestore trigger) ─────────────────────────────

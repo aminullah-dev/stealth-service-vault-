@@ -49,6 +49,7 @@ class FirestoreRepository @Inject constructor(
     private val providerBalancesCol = db.collection("provider_balances")
     private val payoutsCol           = db.collection("payouts")
     private val refundRequestsCol    = db.collection("refund_requests")
+    private val promoCodesCol        = db.collection("promo_codes")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -588,6 +589,19 @@ class FirestoreRepository @Inject constructor(
         platformConfigCol.document("general")
             .set(mapOf("commissionPercent" to percent), com.google.firebase.firestore.SetOptions.merge())
             .await()
+    }
+
+    /** Live list of promo codes (admin-only read, enforced by rules), newest first. */
+    fun observePromoCodes(): Flow<List<PromoDocument>> = callbackFlow {
+        val listener = promoCodesCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(PromoDocument::class.java) }
+                ?.sortedByDescending { it.createdAt }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
     }
 
     // ── Provider balances (payout ledger) ────────────────────────────────────────

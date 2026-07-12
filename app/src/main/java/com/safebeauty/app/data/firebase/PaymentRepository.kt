@@ -21,9 +21,21 @@ data class CheckoutSession(
     val appointmentId: String,
     val checkoutUrl: String,
     val method: String,
-    val amount: Long,
+    val amount: Long,            // final amount charged (after any discount)
+    val listPrice: Long,        // original service price before discount
+    val discountAmount: Long,   // promo discount applied (0 if none)
     val commissionAmount: Long,
     val providerNet: Long
+)
+
+/** Result of validating a promo code before booking (see previewPromo). */
+data class PromoPreview(
+    val valid: Boolean,
+    val code: String,
+    val listPrice: Long,
+    val discountAmount: Long,
+    val finalPrice: Long,
+    val errorMessage: String? = null
 )
 
 /**
@@ -51,7 +63,8 @@ class PaymentRepository @Inject constructor() {
         appointmentDateMs: Long,
         notes: String,
         email: String,
-        method: String = "ONLINE"
+        method: String = "ONLINE",
+        promoCode: String = ""
     ): CheckoutSession? = runCatching {
         val payload = hashMapOf(
             "salonId" to salonId,
@@ -59,7 +72,8 @@ class PaymentRepository @Inject constructor() {
             "appointmentDate" to appointmentDateMs,
             "notes" to notes,
             "email" to email,
-            "method" to method
+            "method" to method,
+            "promoCode" to promoCode
         )
         val result = functions
             .getHttpsCallable("createPaymentSession")
@@ -75,6 +89,8 @@ class PaymentRepository @Inject constructor() {
             checkoutUrl      = map["checkoutUrl"] as? String ?: "",
             method           = map["method"] as? String ?: method,
             amount           = (map["amount"] as? Number)?.toLong() ?: 0L,
+            listPrice        = (map["listPrice"] as? Number)?.toLong() ?: 0L,
+            discountAmount   = (map["discountAmount"] as? Number)?.toLong() ?: 0L,
             commissionAmount = (map["commissionAmount"] as? Number)?.toLong() ?: 0L,
             providerNet      = (map["providerNet"] as? Number)?.toLong() ?: 0L
         )
@@ -83,6 +99,65 @@ class PaymentRepository @Inject constructor() {
         session.takeIf { it.method == "CASH" || it.checkoutUrl.isNotBlank() }
     }.onFailure { CrashReporter.recordNonFatal(it, "payment:createCheckout") }
         .getOrNull()
+
+    /**
+     * Validates a promo [code] against a salon service before booking, so the
+     * customer sees the discount applied up front. Returns a PromoPreview with
+     * valid=false and a message when the code is rejected by the backend.
+     */
+    suspend fun previewPromo(code: String, salonId: String, serviceName: String): PromoPreview =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("previewPromo")
+                .call(hashMapOf("code" to code, "salonId" to salonId, "serviceName" to serviceName))
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+            PromoPreview(
+                valid          = map["valid"] == true,
+                code           = map["code"] as? String ?: code.uppercase(),
+                listPrice      = (map["listPrice"] as? Number)?.toLong() ?: 0L,
+                discountAmount = (map["discountAmount"] as? Number)?.toLong() ?: 0L,
+                finalPrice     = (map["finalPrice"] as? Number)?.toLong() ?: 0L
+            )
+        }.getOrElse { e ->
+            // FirebaseFunctionsException carries the server's friendly message.
+            val msg = (e as? com.google.firebase.functions.FirebaseFunctionsException)?.message
+                ?: e.message
+            PromoPreview(false, code.uppercase(), 0L, 0L, 0L, errorMessage = msg)
+        }
+
+    /** Admin-only: create or update a promo code. Returns true on success. */
+    suspend fun upsertPromoCode(
+        code: String,
+        discountPercent: Int,
+        discountAmount: Long,
+        maxUses: Int,
+        expiresAt: Long,
+        active: Boolean
+    ): Boolean = runCatching {
+        functions.getHttpsCallable("upsertPromoCode").call(
+            hashMapOf(
+                "code" to code,
+                "discountPercent" to discountPercent,
+                "discountAmount" to discountAmount,
+                "maxUses" to maxUses,
+                "expiresAt" to expiresAt,
+                "active" to active
+            )
+        ).await()
+        true
+    }.onFailure { CrashReporter.recordNonFatal(it, "payment:upsertPromoCode") }
+        .getOrDefault(false)
+
+    /** Admin-only: enable/disable a promo code. Returns true on success. */
+    suspend fun setPromoActive(code: String, active: Boolean): Boolean = runCatching {
+        functions.getHttpsCallable("setPromoActive")
+            .call(hashMapOf("code" to code, "active" to active))
+            .await()
+        true
+    }.onFailure { CrashReporter.recordNonFatal(it, "payment:setPromoActive") }
+        .getOrDefault(false)
 
     /**
      * Admin-only: records a payout to [providerId] (settles their owed balance to

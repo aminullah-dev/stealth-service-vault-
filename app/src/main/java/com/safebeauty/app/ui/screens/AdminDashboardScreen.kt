@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
@@ -62,6 +63,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -79,6 +82,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -138,6 +142,7 @@ fun AdminDashboardScreen(
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
     val payouts          by viewModel.payouts.collectAsStateWithLifecycle()
     val refundRequests   by viewModel.pendingRefundRequests.collectAsStateWithLifecycle()
+    val promoCodes       by viewModel.promoCodes.collectAsStateWithLifecycle()
     val kycPending       by viewModel.kycPending.collectAsStateWithLifecycle()
     val kycLoaded        by viewModel.kycLoaded.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
@@ -145,7 +150,8 @@ fun AdminDashboardScreen(
 
     val tabs = listOf(
         strings.approvalQueueSubtitle, strings.tabKyc, strings.tabUsers,
-        strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance
+        strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance,
+        strings.tabPromos
     )
 
     DashboardTheme {
@@ -228,6 +234,7 @@ fun AdminDashboardScreen(
                     4 -> StatsTab(stats, statsLoaded)
                     5 -> BroadcastTab(broadcasts, viewModel)
                     6 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
+                    7 -> PromosTab(promoCodes, viewModel)
                 }
             }
         }
@@ -1094,6 +1101,171 @@ private fun BroadcastCard(broadcast: BroadcastDocument, timeLabel: String) {
                 Spacer(Modifier.height(4.dp))
                 Text(timeLabel, fontSize = 11.sp, color = RoseGold)
             }
+        }
+    }
+}
+
+// ── Tab 8: Promo codes ─────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PromosTab(
+    promoCodes: List<com.safebeauty.app.data.firebase.PromoDocument>,
+    viewModel: AdminViewModel
+) {
+    val strings = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = DeepRose,
+        unfocusedBorderColor = BlushPink,
+        focusedLabelColor    = DeepRose
+    )
+
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // ── Create form ───────────────────────────────────────────────────────
+        item {
+            ElevatedCard(
+                shape     = RoundedCornerShape(16.dp),
+                colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                modifier  = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocalOffer, null, tint = DeepRose, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(strings.promoNewTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DeepRose)
+                    }
+                    OutlinedTextField(
+                        value         = viewModel.promoCodeInput,
+                        onValueChange = { viewModel.promoCodeInput = it.uppercase() },
+                        label         = { Text(strings.promoCodeField, fontSize = 13.sp) },
+                        singleLine    = true,
+                        modifier      = Modifier.fillMaxWidth(),
+                        shape         = RoundedCornerShape(12.dp),
+                        colors        = fieldColors
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value         = viewModel.promoPercentInput,
+                            onValueChange = { v -> viewModel.promoPercentInput = v.filter(Char::isDigit).take(3) },
+                            label         = { Text(strings.promoPercentField, fontSize = 12.sp) },
+                            singleLine    = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier      = Modifier.weight(1f),
+                            shape         = RoundedCornerShape(12.dp),
+                            colors        = fieldColors
+                        )
+                        OutlinedTextField(
+                            value         = viewModel.promoAmountInput,
+                            onValueChange = { v -> viewModel.promoAmountInput = v.filter(Char::isDigit).take(7) },
+                            label         = { Text(strings.promoAmountField, fontSize = 12.sp) },
+                            singleLine    = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier      = Modifier.weight(1f),
+                            shape         = RoundedCornerShape(12.dp),
+                            colors        = fieldColors
+                        )
+                    }
+                    OutlinedTextField(
+                        value         = viewModel.promoMaxUsesInput,
+                        onValueChange = { v -> viewModel.promoMaxUsesInput = v.filter(Char::isDigit).take(5) },
+                        label         = { Text(strings.promoMaxUsesField, fontSize = 12.sp) },
+                        singleLine    = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        modifier      = Modifier.fillMaxWidth(),
+                        shape         = RoundedCornerShape(12.dp),
+                        colors        = fieldColors
+                    )
+                    viewModel.promoErrorMsg?.let { err ->
+                        Text(err, fontSize = 12.sp, color = Color(0xFFD32F2F))
+                    }
+                    Button(
+                        onClick  = { viewModel.savePromo() },
+                        enabled  = !viewModel.promoSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape    = RoundedCornerShape(12.dp),
+                        colors   = ButtonDefaults.buttonColors(containerColor = DeepRose)
+                    ) {
+                        if (viewModel.promoSaving) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(strings.promoCreateButton, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Existing codes ────────────────────────────────────────────────────
+        item {
+            Text(
+                strings.promoListTitle,
+                fontSize = 13.sp, color = RoseGold, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        if (promoCodes.isEmpty()) {
+            item {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp)) {
+                    Text(strings.promoListEmpty, fontSize = 13.sp, color = RoseGold)
+                }
+            }
+        } else {
+            items(promoCodes, key = { it.code }) { promo ->
+                PromoRow(promo, onToggle = { viewModel.togglePromo(promo.code, it) })
+            }
+        }
+    }
+
+    if (viewModel.promoSaved) {
+        LaunchedEffect(Unit) { viewModel.dismissPromoSaved() }
+    }
+}
+
+@Composable
+private fun PromoRow(
+    promo: com.safebeauty.app.data.firebase.PromoDocument,
+    onToggle: (Boolean) -> Unit
+) {
+    val strings = LocalStrings.current
+    ElevatedCard(
+        shape     = RoundedCornerShape(14.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier          = Modifier.fillMaxWidth().padding(14.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(promo.code, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+                val discount = if (promo.discountPercent > 0) "${promo.discountPercent}%"
+                               else "${promo.discountAmount} AFN"
+                Text(
+                    "$discount · ${strings.promoUsesLabel(promo.usedCount, promo.maxUses)}",
+                    fontSize = 12.sp, color = RoseGold
+                )
+                Text(
+                    if (promo.active) strings.promoActive else strings.promoInactive,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (promo.active) AvailableGreen else Color(0xFF999999)
+                )
+            }
+            Switch(
+                checked         = promo.active,
+                onCheckedChange = onToggle,
+                colors          = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = AvailableGreen,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color(0xFFBBBBBB)
+                )
+            )
         }
     }
 }

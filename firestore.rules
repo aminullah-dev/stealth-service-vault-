@@ -319,5 +319,15 @@ service cloud.firestore {
     match /uid_map/{authUid} {
       allow read, write: if false;
     }
+
+    // ── promo_codes ──────────────────────────────────────────────────────────────
+    // Discount codes. Only admins may read the list (the admin management screen);
+    // customers never read them — they validate a code via the previewPromo /
+    // createPaymentSession Cloud Functions, so codes can't be enumerated or
+    // brute-forced from the client. All writes go through admin Cloud Functions.
+    match /promo_codes/{code} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
   }
 }
