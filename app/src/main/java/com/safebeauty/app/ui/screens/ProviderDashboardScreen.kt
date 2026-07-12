@@ -72,6 +72,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
@@ -616,23 +619,36 @@ private fun BookingRequestsTab(
             modifier            = Modifier.fillMaxSize()
         ) {
             items(appointments, key = { it.id }) { appt ->
-                BookingRequestCard(
-                    appointment = appt,
-                    onAccept    = { onAccept(appt.id) },
-                    onDecline   = { onDecline(appt.id) },
-                    onChat      = {
-                        if (salonId.isNotBlank()) {
-                            onNavigate(
-                                Screen.Chat.build(
-                                    conversationId = "${appt.customerId}_$salonId",
-                                    myUserId       = providerId,
-                                    myName         = providerName,
-                                    otherName      = appt.customerName
+                val card: @Composable () -> Unit = {
+                    BookingRequestCard(
+                        appointment = appt,
+                        onAccept    = { onAccept(appt.id) },
+                        onDecline   = { onDecline(appt.id) },
+                        onChat      = {
+                            if (salonId.isNotBlank()) {
+                                onNavigate(
+                                    Screen.Chat.build(
+                                        conversationId = "${appt.customerId}_$salonId",
+                                        myUserId       = providerId,
+                                        myName         = providerName,
+                                        otherName      = appt.customerName
+                                    )
                                 )
-                            )
+                            }
                         }
-                    }
-                )
+                    )
+                }
+                // A pending request can be actioned by swiping — right to accept,
+                // left to decline — as a faster alternative to the buttons.
+                if (appt.status == "PENDING") {
+                    SwipeableRequestCard(
+                        onAccept  = { onAccept(appt.id) },
+                        onDecline = { onDecline(appt.id) },
+                        content   = card
+                    )
+                } else {
+                    card()
+                }
             }
         }
     }
@@ -823,6 +839,59 @@ private fun BookingRequestCard(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableRequestCard(
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> { onAccept();  true }
+                SwipeToDismissBoxValue.EndToStart -> { onDecline(); true }
+                else -> false
+            }
+        },
+        // Require a deliberate ~35% drag so a stray scroll can't action a booking.
+        positionalThreshold = { total -> total * 0.35f }
+    )
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val dir = state.dismissDirection
+            val accepting = dir == SwipeToDismissBoxValue.StartToEnd
+            val bg by animateColorAsState(
+                targetValue = when (dir) {
+                    SwipeToDismissBoxValue.StartToEnd -> AvailableGreen
+                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFD32F2F)
+                    else -> Color.Transparent
+                },
+                label = "swipe_bg"
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(bg)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = if (accepting) Alignment.CenterStart else Alignment.CenterEnd
+            ) {
+                if (dir != SwipeToDismissBoxValue.Settled) {
+                    Icon(
+                        if (accepting) Icons.Default.CheckCircle else Icons.Default.Close,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+            }
+        },
+        content = { content() }
+    )
 }
 
 @Composable
