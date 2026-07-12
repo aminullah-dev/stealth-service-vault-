@@ -109,6 +109,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safebeauty.app.data.firebase.AppointmentDocument
 import com.safebeauty.app.data.firebase.BroadcastDocument
+import com.safebeauty.app.data.firebase.customerRating
 import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.navigation.Screen
