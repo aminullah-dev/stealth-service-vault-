@@ -1,6 +1,7 @@
 package com.safebeauty.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -97,6 +99,13 @@ fun RegisterScreen(
     val strings         = LocalStrings.current
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     var showLangPicker  by remember { mutableStateOf(false) }
+    val context         = LocalContext.current
+
+    fun openUrl(url: String) {
+        runCatching {
+            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+        }
+    }
 
     DashboardTheme {
         Scaffold(
@@ -314,6 +323,33 @@ fun RegisterScreen(
                             }
                         }
                     }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // ── Legal consent ──────────────────────────────────────────────
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement   = Arrangement.spacedBy(0.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(strings.registerConsentPrefix, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(
+                        " ${strings.legalTermsLabel} ",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = RoseGold,
+                        modifier = Modifier.clickable { openUrl("https://safebeauty.web.app/terms") }
+                    )
+                    Text(strings.registerConsentAnd, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(
+                        " ${strings.legalPrivacyLabel} ",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = RoseGold,
+                        modifier = Modifier.clickable { openUrl("https://safebeauty.web.app/privacy") }
+                    )
+                    Text(strings.registerConsentSuffix, fontSize = 12.sp, color = Color(0xFF888888))
                 }
 
                 Spacer(Modifier.height(4.dp))

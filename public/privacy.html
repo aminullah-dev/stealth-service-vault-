@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>سیاست حریم خصوصی — SafeBeauty</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Tahoma, sans-serif;
+    background: #fff8f0;
+    color: #3a2e2a;
+    margin: 0;
+    padding: 0;
+    line-height: 1.8;
+  }
+  header {
+    background: linear-gradient(135deg, #b76e79, #7a2f3d);
+    color: #fff;
+    padding: 40px 20px 32px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 6px; font-size: 24px; }
+  header p { margin: 0; opacity: .9; font-size: 14px; }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+  section { margin-bottom: 28px; }
+  h2 {
+    color: #8b3a47;
+    font-size: 18px;
+    border-inline-start: 4px solid #b76e79;
+    padding-inline-start: 10px;
+    margin: 0 0 10px;
+  }
+  p, li { font-size: 15px; color: #4a3c38; }
+  ul { padding-inline-start: 22px; margin: 8px 0; }
+  a { color: #8b3a47; }
+  .updated { font-size: 13px; color: #8a7772; text-align: center; margin-top: -8px; }
+  .lang-en {
+    margin-top: 56px;
+    padding-top: 32px;
+    border-top: 2px dashed #e8c8d0;
+    direction: ltr;
+    text-align: left;
+  }
+  .lang-en h2 { border-inline-start: none; border-left: 4px solid #b76e79; padding-left: 10px; padding-inline-start: 10px; }
+  footer { text-align: center; padding: 24px; font-size: 13px; color: #8a7772; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>سیاست حریم خصوصی</h1>
+    <p>SafeBeauty — اپلیکیشن رزرو سالن زیبایی</p>
+  </header>
+  <main>
+    <p class="updated">آخرین به‌روزرسانی: ۲۰۲۶</p>
+
+    <section>
+      <h2>چه اطلاعاتی جمع‌آوری می‌کنیم</h2>
+      <ul>
+        <li><strong>اطلاعات حساب:</strong> نام، شماره تلفن (برای ورود به حساب استفاده می‌شود)، و ایمیل (اختیاری).</li>
+        <li><strong>احراز هویت (KYC):</strong> شمارهٔ تذکره، عکس تذکره، سلفی، استان و آدرس — فقط برای تایید هویت و امنیت، پیش از اولین رزرو یا فعال‌شدن سالن.</li>
+        <li><strong>اطلاعات رزرو و پرداخت:</strong> سالن، خدمت، زمان رزرو، مبلغ، و روش پرداخت (نقدی یا آنلاین از طریق HesabPay). ما اطلاعات کارت بانکی شما را مستقیماً ذخیره نمی‌کنیم — پرداخت آنلاین توسط HesabPay پردازش می‌شود.</li>
+        <li><strong>اطلاعات دستگاه:</strong> توکن اعلان (برای ارسال نوتیفیکیشن)، و داده‌های استفادهٔ کلی از اپ (از طریق Firebase Analytics).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>چگونه از اطلاعات شما استفاده می‌کنیم</h2>
+      <ul>
+        <li>برای ایجاد و مدیریت حساب کاربری شما</li>
+        <li>برای پردازش رزرو و پرداخت</li>
+        <li>برای تایید هویت شما و سالن‌ها، جهت امنیت همهٔ کاربران</li>
+        <li>برای ارسال اعلان‌های مربوط به رزرو (تایید، یادآوری، لغو)</li>
+        <li>برای بهبود کیفیت اپلیکیشن</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>چگونه اطلاعات شما محافظت می‌شود</h2>
+      <ul>
+        <li>عکس‌های تذکره و سلفی در فضای ذخیره‌سازی خصوصی نگهداری می‌شوند و فقط خودتان و تیم ادمین به آن‌ها دسترسی دارند.</li>
+        <li>رمز عبور شما هرگز به‌صورت متن ساده ذخیره نمی‌شود — با الگوریتم رمزنگاری یک‌طرفهٔ استاندارد (PBKDF2) هش می‌شود.</li>
+        <li>داده‌های محلی اپ روی گوشی شما رمزنگاری‌شده ذخیره می‌شوند.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>اشتراک‌گذاری اطلاعات</h2>
+      <p>ما اطلاعات شما را نمی‌فروشیم. اطلاعات فقط با این طرف‌ها به اشتراک گذاشته می‌شود:</p>
+      <ul>
+        <li><strong>Firebase / Google Cloud:</strong> زیرساخت ذخیره‌سازی و اعلان‌های ما</li>
+        <li><strong>HesabPay:</strong> فقط برای پردازش پرداخت‌های آنلاین</li>
+        <li>سالن‌هایی که با آن‌ها رزرو می‌کنید (نام و شماره تلفن، برای هماهنگی نوبت)</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>حذف حساب و اطلاعات</h2>
+      <p>هر زمان بخواهید حساب و اطلاعات خود را حذف کنیم، کافی است به ایمیل زیر پیام بدهید. درخواست شما حداکثر ظرف ۳۰ روز پردازش می‌شود:</p>
+      <p><a href="mailto:Aminhashemi979@gmail.com">Aminhashemi979@gmail.com</a></p>
+    </section>
+
+    <section>
+      <h2>تماس با ما</h2>
+      <p>برای هر سوال دربارهٔ این سیاست، از طریق ایمیل بالا یا بخش «پشتیبانی» داخل اپ با ما در تماس باشید.</p>
+    </section>
+
+    <div class="lang-en">
+      <section>
+        <h2>English Summary</h2>
+        <p>SafeBeauty collects your name, phone number, optional email, identity verification documents (national ID number, ID photo, selfie, address), and booking/payment details, in order to operate the booking marketplace and verify the identity of customers and salons for everyone's safety. Payment card details are handled directly by our payment processor, HesabPay — we never store them. Identity documents are stored in access-restricted storage, visible only to you and our admin team. Passwords are hashed (PBKDF2), never stored in plain text.</p>
+        <p>We do not sell your data. We share data only with our infrastructure provider (Firebase/Google Cloud), our payment processor (HesabPay) for online payments, and the salon you book with (name/phone, to coordinate your appointment).</p>
+        <p>To request deletion of your account and data, email <a href="mailto:Aminhashemi979@gmail.com">Aminhashemi979@gmail.com</a> — requests are processed within 30 days.</p>
+      </section>
+    </div>
+  </main>
+  <footer>© SafeBeauty — Aminhashemi979@gmail.com</footer>
+</body>
+</html>
