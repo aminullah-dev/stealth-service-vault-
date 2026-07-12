@@ -8,6 +8,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.safebeauty.app.ui.MainActivity
 
 object NotificationHelper {
 
@@ -44,8 +45,11 @@ object NotificationHelper {
         type: String = "",
         relatedId: String = ""
     ) {
-        val mainActivityClass = Class.forName("${context.packageName}.ui.MainActivity")
-        val tapIntent = Intent(context, mainActivityClass).apply {
+        // Reference MainActivity directly rather than deriving the class name from
+        // packageName — at runtime packageName is the applicationId
+        // (com.security.stealthapp), which differs from the code package
+        // (com.safebeauty.app), so Class.forName threw ClassNotFoundException.
+        val tapIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             if (type.isNotBlank())      putExtra(EXTRA_NOTIF_TYPE, type)
             if (relatedId.isNotBlank()) putExtra(EXTRA_NOTIF_RELATED_ID, relatedId)
