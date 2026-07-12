@@ -177,7 +177,7 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName, appointmentDate, notes, email, method, promoCode } =
+    const { salonId, serviceName, appointmentDate, notes, email, method, promoCode, staffId } =
       request.data || {};
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
 
@@ -211,6 +211,23 @@ exports.createPaymentSession = onCall(
         "failed-precondition",
         "This service has no valid price."
       );
+    }
+
+    // Resolve the requested staff member (if any) server-side, so the stored
+    // staffName can't be spoofed and a booking can't reference a staff member
+    // who doesn't work here. An empty/omitted staffId means "any available".
+    let resolvedStaffId = "";
+    let resolvedStaffName = "";
+    const wantStaffId = String(staffId || "");
+    if (wantStaffId) {
+      const member = (salon.staff || []).find(
+        (s) => s && s.id === wantStaffId && s.active !== false
+      );
+      if (!member) {
+        throw new HttpsError("failed-precondition", "That staff member is not available.");
+      }
+      resolvedStaffId = member.id;
+      resolvedStaffName = String(member.name || "");
     }
 
     // Apply a promo code if one was entered (throws a clear error if invalid).
@@ -257,6 +274,8 @@ exports.createPaymentSession = onCall(
         salonId,
         salonName:      salon.salonName || "",
         serviceName,
+        staffId:        resolvedStaffId,
+        staffName:      resolvedStaffName,
         appointmentDate,
         status:         "PENDING",
         paymentMethod:  "CASH",
@@ -349,6 +368,8 @@ exports.createPaymentSession = onCall(
       salonId,
       salonName:     salon.salonName || "",
       serviceName,
+      staffId:       resolvedStaffId,
+      staffName:     resolvedStaffName,
       appointmentDate,
       status:        "AWAITING_PAYMENT",
       paymentMethod: "ONLINE",
@@ -1267,15 +1288,24 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
   const snap = await db.collection("appointments")
     .where("salonId", "==", salonId)
     .get();
-  const slots = snap.docs
+  const inWindow = snap.docs
     .map((d) => d.data())
     .filter((a) =>
       a.status !== "CANCELLED" &&
       Number(a.appointmentDate) >= start &&
-      Number(a.appointmentDate) <= end)
-    .map((a) => Number(a.appointmentDate));
+      Number(a.appointmentDate) <= end);
 
-  return { slots };
+  // Legacy shape: plain list of taken times (a solo salon, or an old client).
+  const slots = inWindow.map((a) => Number(a.appointmentDate));
+  // Staff-aware shape: each taken time tagged with the staff it belongs to, so
+  // the client can allow parallel bookings across a multi-staff salon (a slot is
+  // only truly full when every active staff member is booked at that time).
+  const booked = inWindow.map((a) => ({
+    time:    Number(a.appointmentDate),
+    staffId: String(a.staffId || ""),
+  }));
+
+  return { slots, booked };
 });
 
 // ── rescheduleAppointment (callable, customer) ────────────────────────────────

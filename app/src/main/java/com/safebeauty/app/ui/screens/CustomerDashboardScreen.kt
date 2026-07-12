@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
@@ -121,6 +122,7 @@ import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.activeStaff
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.badge
@@ -179,7 +181,10 @@ private fun avatarGradient(name: String): Pair<Color, Color> =
 private data class BookingIntent(
     val salon: SalonDocument,
     val service: String,
-    val dateMs: Long? = null
+    val dateMs: Long? = null,
+    // "" = any available stylist (or a solo salon).
+    val staffId: String = "",
+    val staffName: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -780,6 +785,53 @@ fun CustomerDashboardScreen(
                 onDismissRequest = { showSlotPicker = false; bookingIntent = null; viewModel.clearSlots() },
                 title = { Text(strings.selectTimeSlot, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text = {
+                  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Staff picker — only shown for a salon that actually has
+                    // stylists. Switching stylist reloads the slots so the customer
+                    // sees exactly when that person is free ("Any" = whole salon).
+                    val staff = bookingIntent?.salon?.activeStaff().orEmpty()
+                    if (staff.isNotEmpty()) {
+                        val intent = bookingIntent
+                        Text(strings.chooseStaff, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = (intent?.staffId ?: "").isEmpty(),
+                                    onClick  = {
+                                        if (intent != null && intent.dateMs != null) {
+                                            bookingIntent = intent.copy(staffId = "", staffName = "")
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "")
+                                        }
+                                    },
+                                    label = { Text(strings.staffAny, fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = ChipActive,
+                                        selectedLabelColor     = Color.White,
+                                        containerColor         = ChipInactive,
+                                        labelColor             = DeepRose
+                                    )
+                                )
+                            }
+                            items(staff) { member ->
+                                FilterChip(
+                                    selected = intent?.staffId == member.id,
+                                    onClick  = {
+                                        if (intent != null && intent.dateMs != null) {
+                                            bookingIntent = intent.copy(staffId = member.id, staffName = member.name)
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id)
+                                        }
+                                    },
+                                    label = { Text(member.name, fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = ChipActive,
+                                        selectedLabelColor     = Color.White,
+                                        containerColor         = ChipInactive,
+                                        labelColor             = DeepRose
+                                    )
+                                )
+                            }
+                        }
+                    }
                     Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         when {
                             viewModel.slotsLoading -> CircularProgressIndicator(color = RoseGold, modifier = Modifier.align(Alignment.Center))
@@ -828,6 +880,7 @@ fun CustomerDashboardScreen(
                             }
                         }
                     }
+                  }
                 },
                 confirmButton = {},
                 dismissButton = {
@@ -867,6 +920,13 @@ fun CustomerDashboardScreen(
                             fontSize = 13.sp,
                             color    = RoseGold
                         )
+                        if (intent.staffName.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Group, null, tint = RoseGold, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(intent.staffName, fontSize = 13.sp, color = DeepRose, fontWeight = FontWeight.Medium)
+                            }
+                        }
                         OutlinedTextField(
                             value         = bookingNotes,
                             onValueChange = { bookingNotes = it },
@@ -985,7 +1045,7 @@ fun CustomerDashboardScreen(
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
-                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes, paymentMethod)
+                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes, paymentMethod, intent.staffId)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""

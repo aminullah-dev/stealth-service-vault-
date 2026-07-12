@@ -23,6 +23,7 @@ import com.safebeauty.app.data.firebase.CheckoutSession
 import com.safebeauty.app.data.firebase.PromoPreview
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.activeStaff
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WaitlistEntry
@@ -599,7 +600,8 @@ class DashboardViewModel @Inject constructor(
         serviceName: String,
         appointmentDateMs: Long,
         notes: String = "",
-        paymentMethod: String = "ONLINE"
+        paymentMethod: String = "ONLINE",
+        staffId: String = ""
     ) {
         checkout = CheckoutUiState.Creating
         // Only send a code that was actually validated for THIS service, so a
@@ -613,7 +615,8 @@ class DashboardViewModel @Inject constructor(
                 notes             = notes,
                 email             = _currentUserEmail.value,
                 method            = paymentMethod,
-                promoCode         = appliedCode
+                promoCode         = appliedCode,
+                staffId           = staffId
             )
             if (session == null) {
                 checkout = CheckoutUiState.Failed("checkout_failed")
@@ -663,14 +666,14 @@ class DashboardViewModel @Inject constructor(
         bookingConfirmCashAmount = null
     }
 
-    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long) {
+    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "") {
         viewModelScope.launch {
             slotsLoading = true
             noWorkingHours = false
             val booked = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
             }.getOrDefault(emptyList())
-            val slots = computeSlots(salon, dateMs, booked)
+            val slots = computeSlots(salon, dateMs, booked, selectedStaffId)
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false
@@ -683,13 +686,23 @@ class DashboardViewModel @Inject constructor(
         noWorkingHours = false
     }
 
-    private fun computeSlots(salon: SalonDocument, dateMs: Long, booked: List<Long>): List<Long> {
+    private fun computeSlots(
+        salon: SalonDocument,
+        dateMs: Long,
+        booked: List<FirestoreRepository.BookedSlot>,
+        selectedStaffId: String
+    ): List<Long> {
         val cal = Calendar.getInstance().apply { timeInMillis = dateMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
         val wh = salon.workingHours.find { it.dayOfWeek == dayOfWeek } ?: return emptyList()
         if (!wh.isOpen) return emptyList()
         val slotDuration = salon.slotDurationMinutes.coerceAtLeast(30)
-        val bookedSet = booked.toSet()
+        // Capacity = number of bookable staff (a solo salon has capacity 1). A
+        // slot is free when it has spare capacity — so a 3-stylist salon can take
+        // three parallel bookings in the same time slot.
+        val activeStaff = salon.activeStaff()
+        val capacity = if (activeStaff.isEmpty()) 1 else activeStaff.size
+        val bookedByTime: Map<Long, List<FirestoreRepository.BookedSlot>> = booked.groupBy { it.time }
         val slots = mutableListOf<Long>()
         val openCal = Calendar.getInstance().apply {
             timeInMillis = dateMs
@@ -708,7 +721,19 @@ class DashboardViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         while (openCal.timeInMillis + slotDuration * 60_000L <= closeMs) {
             val slotMs = openCal.timeInMillis
-            if (slotMs > now && !bookedSet.contains(slotMs)) slots.add(slotMs)
+            if (slotMs > now) {
+                val atSlot = bookedByTime[slotMs].orEmpty()
+                val free = when {
+                    // A specific stylist was chosen: free unless that stylist is
+                    // already booked at this time.
+                    selectedStaffId.isNotEmpty() -> atSlot.none { it.staffId == selectedStaffId }
+                    // Solo salon: any booking takes the single chair.
+                    activeStaff.isEmpty()        -> atSlot.isEmpty()
+                    // "Any available": free while a chair is still open.
+                    else                         -> atSlot.size < capacity
+                }
+                if (free) slots.add(slotMs)
+            }
             openCal.add(Calendar.MINUTE, slotDuration)
         }
         return slots

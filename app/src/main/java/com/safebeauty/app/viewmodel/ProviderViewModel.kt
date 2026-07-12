@@ -13,6 +13,7 @@ import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.StaffMember
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WorkingHours
 import com.safebeauty.app.data.repository.VaultRepository
@@ -194,6 +195,10 @@ class ProviderViewModel @Inject constructor(
         private set
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
     var editHesabAccountNumber by mutableStateOf("")
+    // Staff (stylists) roster editing.
+    var editStaff        by mutableStateOf<List<StaffMember>>(emptyList())
+    var newStaffName     by mutableStateOf("")
+    var newStaffSpecialty by mutableStateOf("")
 
     init {
         viewModelScope.launch {
@@ -204,6 +209,7 @@ class ProviderViewModel @Inject constructor(
                     editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
                     editPrices = s.pricePerService
+                    editStaff = s.staff
                 }
             }
         }
@@ -282,6 +288,29 @@ class ProviderViewModel @Inject constructor(
 
     fun removeService(s: String) { editServices = editServices.filter { it != s } }
 
+    // ── Staff roster ──────────────────────────────────────────────────────────
+    fun onNewStaffNameChanged(v: String)      { newStaffName = v }
+    fun onNewStaffSpecialtyChanged(v: String) { newStaffSpecialty = v }
+
+    fun addStaff() {
+        val name = newStaffName.trim()
+        if (name.isBlank()) return
+        editStaff = editStaff + StaffMember(
+            id        = java.util.UUID.randomUUID().toString(),
+            name      = name,
+            specialty = newStaffSpecialty.trim(),
+            active    = true
+        )
+        newStaffName = ""
+        newStaffSpecialty = ""
+    }
+
+    fun removeStaff(id: String) { editStaff = editStaff.filter { it.id != id } }
+
+    fun toggleStaffActive(id: String) {
+        editStaff = editStaff.map { if (it.id == id) it.copy(active = !it.active) else it }
+    }
+
     fun toggleDayOpen(dayOfWeek: Int) {
         editWorkingHours = editWorkingHours.map {
             if (it.dayOfWeek == dayOfWeek) it.copy(isOpen = !it.isOpen) else it
@@ -322,7 +351,8 @@ class ProviderViewModel @Inject constructor(
                         services            = editServices,
                         workingHours        = editWorkingHours,
                         slotDurationMinutes = editSlotDuration,
-                        pricePerService     = editPrices
+                        pricePerService     = editPrices,
+                        staff               = editStaff
                     )
                 )
                 firestoreRepository.updateHesabAccountNumber(providerId, editHesabAccountNumber)

@@ -108,6 +108,21 @@ data class WorkingHours(
     val closeMinute: Int = 0
 )
 
+/**
+ * A single staff member (stylist / beautician) working at a salon. Stored as an
+ * array on the salon document — a salon has only a handful of staff, so an
+ * embedded list avoids an extra collection, extra reads, and extra rules. A
+ * customer may book a specific staff member; "active = false" hides them from
+ * the booking picker without losing their history.
+ */
+data class StaffMember(
+    val id: String = "",                    // stable UUID, generated when added
+    val name: String = "",
+    val specialty: String = "",             // e.g. "Hair", "Makeup", "Nails"
+    @get:PropertyName("active") @set:PropertyName("active")
+    var active: Boolean = true
+)
+
 data class SalonDocument(
     val id: String = "",                    // Firestore document ID (set after read)
     val providerId: String = "",
@@ -115,6 +130,9 @@ data class SalonDocument(
     val salonName: String = "",
     val district: String = "",
     val services: List<String> = emptyList(),
+    // Staff who work here. Empty = a solo salon (the classic single-chair case);
+    // the booking flow only shows a staff picker when this has active members.
+    val staff: List<StaffMember> = emptyList(),
     // @PropertyName forces Firestore to use "isAvailable" as the field name.
     // Without it, the JavaBeans convention for Boolean getters strips the "is"
     // prefix, storing the field as "available" instead and breaking all queries.
@@ -129,6 +147,9 @@ data class SalonDocument(
     @get:PropertyName("isVerified") @set:PropertyName("isVerified")
     var isVerified: Boolean = false
 )
+
+/** Bookable staff (active only). Empty for a solo salon. */
+fun SalonDocument.activeStaff(): List<StaffMember> = staff.filter { it.active }
 
 enum class SalonBadge { NONE, SILVER, GOLD, VERIFIED }
 
@@ -147,6 +168,9 @@ data class AppointmentDocument(
     val salonId: String = "",
     val salonName: String = "",
     val serviceName: String = "",
+    // The staff member this booking is for. Empty = "any available" / solo salon.
+    val staffId: String = "",
+    val staffName: String = "",
     val appointmentDate: Long = 0L,         // epoch millis (date + time)
     val status: String = "PENDING",         // "PENDING" | "CONFIRMED" | "CANCELLED"
     val createdAt: Long = 0L,

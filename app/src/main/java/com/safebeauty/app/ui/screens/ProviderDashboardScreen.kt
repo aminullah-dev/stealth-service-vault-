@@ -43,7 +43,9 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Lock
@@ -897,6 +899,24 @@ private fun BookingRequestCard(
                             }
                         }
                         CustomerReputationBadge(appointment)
+                        if (appointment.staffName.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Group,
+                                    contentDescription = null,
+                                    tint     = RoseGold,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text       = appointment.staffName,
+                                    fontSize   = 12.sp,
+                                    color      = DeepRose,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                     val context = LocalContext.current
                     if (appointment.customerPhone.isNotBlank()) {
@@ -1297,6 +1317,9 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Portfolio / sample-work photos ────────────────────────────────
         PortfolioSection(viewModel = viewModel)
 
+        // ── Staff / stylists roster ───────────────────────────────────────
+        StaffSection(viewModel = viewModel)
+
         // ── Payout card ───────────────────────────────────────────────────
         Card(
             shape  = RoundedCornerShape(16.dp),
@@ -1339,6 +1362,109 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         ChangePinSection(changePinVm = changePinVm)
 
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Lets a salon manage its stylists. Adding staff turns the salon into a
+ * multi-chair business: customers can then pick a specific stylist, and the
+ * booking calendar allows one parallel booking per active stylist in the same
+ * time slot. A solo salon simply leaves this empty.
+ */
+@Composable
+private fun StaffSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        cursorColor          = RoseGold,
+        focusedLabelColor    = RoseGold
+    )
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Group, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.sectionStaff, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            }
+            Text(strings.staffHint, fontSize = 11.sp, color = Color(0xFF999999))
+            HorizontalDivider(color = BlushPink)
+
+            if (viewModel.editStaff.isEmpty()) {
+                Text(strings.staffEmpty, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+            } else {
+                viewModel.editStaff.forEach { member ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                member.name,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (member.active) DeepRose else Color(0xFFAAAAAA)
+                            )
+                            if (member.specialty.isNotBlank()) {
+                                Text(member.specialty, fontSize = 11.sp, color = RoseGold)
+                            }
+                        }
+                        // Active toggle — an inactive stylist is hidden from booking
+                        // without deleting their history.
+                        Switch(
+                            checked = member.active,
+                            onCheckedChange = { viewModel.toggleStaffActive(member.id) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AvailableGreen
+                            )
+                        )
+                        IconButton(onClick = { viewModel.removeStaff(member.id) }) {
+                            Icon(Icons.Default.Delete, contentDescription = strings.staffRemove, tint = Color(0xFFB00020))
+                        }
+                    }
+                    HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))
+                }
+            }
+
+            OutlinedTextField(
+                value         = viewModel.newStaffName,
+                onValueChange = viewModel::onNewStaffNameChanged,
+                label         = { Text(strings.staffNameLabel, fontSize = 12.sp) },
+                singleLine    = true,
+                modifier      = Modifier.fillMaxWidth(),
+                shape         = RoundedCornerShape(12.dp),
+                colors        = fieldColors
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value         = viewModel.newStaffSpecialty,
+                    onValueChange = viewModel::onNewStaffSpecialtyChanged,
+                    label         = { Text(strings.staffSpecialtyLabel, fontSize = 12.sp) },
+                    singleLine    = true,
+                    modifier      = Modifier.weight(1f),
+                    shape         = RoundedCornerShape(12.dp),
+                    colors        = fieldColors
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (viewModel.newStaffName.isNotBlank()) RoseGold else ChipInactive)
+                        .clickable(enabled = viewModel.newStaffName.isNotBlank()) { viewModel.addStaff() }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = strings.staffAdd, tint = Color.White)
+                }
+            }
+        }
     }
 }
 

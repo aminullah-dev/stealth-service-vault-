@@ -305,13 +305,20 @@ class FirestoreRepository @Inject constructor(
     }
 
     /**
+     * One taken time-slot for a salon, tagged with the staff member it belongs
+     * to ([staffId] is empty for a solo salon / "any available" booking).
+     */
+    data class BookedSlot(val time: Long, val staffId: String)
+
+    /**
      * Taken time-slots for a salon on the day containing [dateMs]. Served by
      * the getBookedSlots Cloud Function: a customer cannot (and must not) read
      * other customers' appointment docs directly — the rules deny that query,
      * so the old direct read silently returned empty and every slot looked
-     * free, allowing double-booking.
+     * free, allowing double-booking. Each slot carries its staffId so a
+     * multi-staff salon can serve several customers in the same time slot.
      */
-    suspend fun getBookedSlotsForSalon(salonId: String, dateMs: Long): List<Long> {
+    suspend fun getBookedSlotsForSalon(salonId: String, dateMs: Long): List<BookedSlot> {
         val cal = java.util.Calendar.getInstance().apply { timeInMillis = dateMs }
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0); cal.set(java.util.Calendar.MINUTE, 0)
         cal.set(java.util.Calendar.SECOND, 0); cal.set(java.util.Calendar.MILLISECOND, 0)
@@ -327,7 +334,19 @@ class FirestoreRepository @Inject constructor(
 
         @Suppress("UNCHECKED_CAST")
         val map = result.getData() as? Map<String, Any?> ?: return emptyList()
-        return (map["slots"] as? List<*>)?.mapNotNull { (it as? Number)?.toLong() } ?: emptyList()
+        // Prefer the staff-aware "booked" shape; fall back to the legacy "slots"
+        // (plain times, no staff) if the backend hasn't been updated yet.
+        val booked = map["booked"] as? List<*>
+        if (booked != null) {
+            return booked.mapNotNull { entry ->
+                val m = entry as? Map<*, *> ?: return@mapNotNull null
+                val time = (m["time"] as? Number)?.toLong() ?: return@mapNotNull null
+                BookedSlot(time, m["staffId"] as? String ?: "")
+            }
+        }
+        return (map["slots"] as? List<*>)
+            ?.mapNotNull { (it as? Number)?.toLong()?.let { t -> BookedSlot(t, "") } }
+            ?: emptyList()
     }
 
     // ── Chat ──────────────────────────────────────────────────────────────────

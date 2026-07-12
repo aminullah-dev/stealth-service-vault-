@@ -64,7 +64,8 @@ class PaymentRepository @Inject constructor() {
         notes: String,
         email: String,
         method: String = "ONLINE",
-        promoCode: String = ""
+        promoCode: String = "",
+        staffId: String = ""
     ): CheckoutSession? = runCatching {
         val payload = hashMapOf(
             "salonId" to salonId,
@@ -73,7 +74,8 @@ class PaymentRepository @Inject constructor() {
             "notes" to notes,
             "email" to email,
             "method" to method,
-            "promoCode" to promoCode
+            "promoCode" to promoCode,
+            "staffId" to staffId
         )
         val result = functions
             .getHttpsCallable("createPaymentSession")
