@@ -132,6 +132,8 @@ import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -228,6 +230,14 @@ fun ProviderDashboardScreen(
                     .background(Gradients.ScreenBg)
                     .padding(padding)
             ) {
+
+                // ── "You're hidden" call-to-action ────────────────────────
+                // A newly-approved salon defaults to isAvailable=false and is
+                // invisible to customers until the provider goes live — without
+                // this prompt that state is silent and confusing.
+                if (!isAvailable) {
+                    ProviderHiddenBanner(onGoLive = { viewModel.toggleAvailability() })
+                }
 
                 // ── Availability status card ──────────────────────────────
                 AvailabilityCard(
@@ -424,6 +434,55 @@ private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
 }
 
 // ── Availability toggle card ───────────────────────────────────────────────────
+
+@Composable
+private fun ProviderHiddenBanner(onGoLive: () -> Unit) {
+    val strings = LocalStrings.current
+    ElevatedCard(
+        shape     = RoundedCornerShape(20.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = Color(0xFFFFF3E0)),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier  = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.VisibilityOff,
+                    contentDescription = null,
+                    tint     = Color(0xFFB26A00),
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    strings.providerHiddenTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 15.sp,
+                    color      = Color(0xFF8A5200)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                strings.providerHiddenBody,
+                fontSize = 13.sp,
+                color    = Color(0xFF9A6A2E),
+                lineHeight = 19.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick  = onGoLive,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape    = RoundedCornerShape(12.dp),
+                colors   = ButtonDefaults.buttonColors(containerColor = AvailableGreen)
+            ) {
+                Icon(Icons.Default.Visibility, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.providerHiddenCta, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        }
+    }
+}
 
 @Composable
 private fun AvailabilityCard(isAvailable: Boolean, onToggle: () -> Unit) {
