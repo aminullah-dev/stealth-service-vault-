@@ -67,6 +67,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.InputChipDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -330,6 +331,7 @@ fun ProviderDashboardScreen(
                         providerId   = viewModel.providerId,
                         onAccept     = { viewModel.acceptAppointment(it) },
                         onDecline    = { viewModel.declineAppointment(it) },
+                        onRate       = { viewModel.openRatingDialog(it) },
                         onNavigate   = onNavigate
                     )
                     1 -> ProfileTab(viewModel = viewModel)
@@ -384,6 +386,41 @@ fun ProviderDashboardScreen(
             )
         }
 
+        // ── Rate-customer dialog ──────────────────────────────────────────
+        viewModel.ratingTarget?.let { target ->
+            RateCustomerDialog(
+                appointment  = target,
+                isSubmitting = viewModel.isSubmittingReport,
+                onSubmit     = { rating, noShow, flagged, comment ->
+                    viewModel.submitCustomerReport(target.id, rating, noShow, flagged, comment)
+                },
+                onDismiss    = { viewModel.dismissRatingDialog() }
+            )
+        }
+
+        // ── Feedback-submitted confirmation ───────────────────────────────
+        if (viewModel.showReportDone) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { viewModel.dismissReportDone() },
+                icon = {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint     = AvailableGreen,
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = { Text(strings.rateCustomerDone, fontWeight = FontWeight.Bold, color = DeepRose) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissReportDone() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         if (showLangPicker) {
             LanguagePickerDialog(
                 current   = currentLanguage,
@@ -392,6 +429,112 @@ fun ProviderDashboardScreen(
             )
         }
     }
+}
+
+/**
+ * Dialog where the provider rates the customer after a confirmed booking: a
+ * 1–5 star tap-rating, an optional no-show toggle, an optional "report to
+ * admin" toggle for misconduct, and a free-text comment. At least one signal
+ * (rating, no-show, or flag) is required before submit is enabled.
+ */
+@Composable
+private fun RateCustomerDialog(
+    appointment: AppointmentDocument,
+    isSubmitting: Boolean,
+    onSubmit: (rating: Int, noShow: Boolean, flagged: Boolean, comment: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    var rating  by remember { mutableIntStateOf(0) }
+    var noShow  by remember { mutableStateOf(false) }
+    var flagged by remember { mutableStateOf(false) }
+    var comment by remember { mutableStateOf("") }
+    val canSubmit = (rating > 0 || noShow || flagged) && !isSubmitting
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
+        title = {
+            Column {
+                Text(strings.rateCustomerTitle, fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 17.sp)
+                Text(appointment.customerName, fontSize = 13.sp, color = RoseGold)
+            }
+        },
+        text = {
+            Column {
+                // Star rating row
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    (1..5).forEach { star ->
+                        IconButton(
+                            onClick  = { rating = star },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                if (star <= rating) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$star",
+                                tint     = if (star <= rating) WarmGold else Color(0xFFCCCCCC),
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = noShow,
+                        onCheckedChange = { noShow = it },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color(0xFFB00020))
+                    )
+                    Text(strings.rateCustomerNoShow, fontSize = 14.sp, color = Color(0xFF444444))
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = flagged,
+                        onCheckedChange = { flagged = it },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color(0xFFB00020))
+                    )
+                    Text(strings.rateCustomerFlag, fontSize = 14.sp, color = Color(0xFF444444))
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it.take(500) },
+                    label = { Text(strings.rateCustomerComment) },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4,
+                    shape = RoundedCornerShape(10.dp)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSubmit(rating, noShow, flagged, comment.trim()) },
+                enabled = canSubmit,
+                colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+            ) {
+                if (isSubmitting) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Text(strings.rateCustomerSubmit, color = Color.White)
+                }
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(
+                onClick = onDismiss,
+                enabled = !isSubmitting
+            ) { Text(strings.cancel, color = RoseGold) }
+        },
+        containerColor = ElegantCream
+    )
 }
 
 // ── Broadcast banner ──────────────────────────────────────────────────────────
@@ -571,6 +714,7 @@ private fun BookingRequestsTab(
     providerId: String,
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
+    onRate: (AppointmentDocument) -> Unit,
     onNavigate: (String) -> Unit
 ) {
     val strings = LocalStrings.current
@@ -624,6 +768,7 @@ private fun BookingRequestsTab(
                         appointment = appt,
                         onAccept    = { onAccept(appt.id) },
                         onDecline   = { onDecline(appt.id) },
+                        onRate      = { onRate(appt) },
                         onChat      = {
                             if (salonId.isNotBlank()) {
                                 onNavigate(
@@ -659,7 +804,8 @@ private fun BookingRequestCard(
     appointment: AppointmentDocument,
     onAccept: () -> Unit,
     onDecline: () -> Unit,
-    onChat: () -> Unit = {}
+    onChat: () -> Unit = {},
+    onRate: () -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -749,6 +895,7 @@ private fun BookingRequestCard(
                                 )
                             }
                         }
+                        CustomerReputationBadge(appointment)
                     }
                     val context = LocalContext.current
                     if (appointment.customerPhone.isNotBlank()) {
@@ -835,7 +982,73 @@ private fun BookingRequestCard(
                             Text(strings.decline, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                } else if (appointment.status == "CONFIRMED" && !appointment.customerReported) {
+                    // Once a booking is confirmed the provider can leave feedback
+                    // about the customer (rating / no-show / misconduct report).
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick        = onRate,
+                        modifier       = Modifier.fillMaxWidth(),
+                        shape          = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(strings.rateCustomer, color = DeepRose, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Small pill row showing what the platform knows about this customer's
+ * reputation — their average rating from other providers and any no-shows —
+ * so a provider can gauge a booking before confirming. Nothing shows for a
+ * brand-new customer beyond a neutral "new" tag.
+ */
+@Composable
+private fun CustomerReputationBadge(appointment: AppointmentDocument) {
+    val strings = LocalStrings.current
+    val rating  = appointment.customerRating()
+    val noShows = appointment.noShowCount
+    if (rating <= 0.0 && noShows <= 0) {
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text     = strings.customerNewBadge,
+            fontSize = 11.sp,
+            color    = Color(0xFF9E9E9E),
+            fontWeight = FontWeight.Medium
+        )
+        return
+    }
+    Spacer(Modifier.height(3.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (rating > 0.0) {
+            Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(3.dp))
+            Text(
+                text     = String.format(Locale.getDefault(), "%.1f", rating),
+                fontSize = 12.sp,
+                color    = DeepRose,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        if (noShows > 0) {
+            if (rating > 0.0) Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text       = strings.customerNoShowBadge(noShows),
+                    fontSize   = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color      = Color(0xFFB00020)
+                )
             }
         }
     }

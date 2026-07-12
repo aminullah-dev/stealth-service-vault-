@@ -160,6 +160,46 @@ class PaymentRepository @Inject constructor() {
         .getOrDefault(false)
 
     /**
+     * Provider-only: leaves post-appointment feedback about a customer — an
+     * optional 1–5 [rating], an optional [noShow] flag, and an optional [flagged]
+     * escalation to admin, with a [comment]. One report per appointment
+     * (enforced server-side). Returns true on success.
+     */
+    suspend fun reportCustomer(
+        appointmentId: String,
+        rating: Int,
+        noShow: Boolean,
+        flagged: Boolean,
+        comment: String
+    ): Boolean = runCatching {
+        functions.getHttpsCallable("reportCustomer").call(
+            hashMapOf(
+                "appointmentId" to appointmentId,
+                "rating" to rating,
+                "noShow" to noShow,
+                "flagged" to flagged,
+                "comment" to comment
+            )
+        ).await()
+        true
+    }.onFailure { CrashReporter.recordNonFatal(it, "payment:reportCustomer") }
+        .getOrDefault(false)
+
+    /**
+     * Admin-only: closes out a flagged customer report. When [suspend] is true
+     * the reported customer's account is suspended; otherwise the report is
+     * simply dismissed. Either way it leaves the open-reports queue. Returns
+     * true on success.
+     */
+    suspend fun resolveCustomerReport(reportId: String, suspend: Boolean): Boolean = runCatching {
+        functions.getHttpsCallable("resolveCustomerReport").call(
+            hashMapOf("reportId" to reportId, "suspend" to suspend)
+        ).await()
+        true
+    }.onFailure { CrashReporter.recordNonFatal(it, "payment:resolveCustomerReport") }
+        .getOrDefault(false)
+
+    /**
      * Admin-only: records a payout to [providerId] (settles their owed balance to
      * zero server-side). Returns the amount paid, or null on failure.
      */

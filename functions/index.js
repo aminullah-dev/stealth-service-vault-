@@ -263,6 +263,10 @@ exports.createPaymentSession = onCall(
         createdAt:      Date.now(),
         notes:          notes || "",
         reminderSent:   false,
+        customerReported:    false,
+        customerRatingSum:   Number(user.customerRatingSum || 0),
+        customerRatingCount: Number(user.customerRatingCount || 0),
+        noShowCount:         Number(user.noShowCount || 0),
       });
       batch.set(paymentRef, {
         appointmentId:     apptRef.id,
@@ -351,6 +355,10 @@ exports.createPaymentSession = onCall(
       createdAt:     Date.now(),
       notes:         notes || "",
       reminderSent:  false,
+      customerReported:    false,
+      customerRatingSum:   Number(user.customerRatingSum || 0),
+      customerRatingCount: Number(user.customerRatingCount || 0),
+      noShowCount:         Number(user.noShowCount || 0),
     });
     createBatch.set(paymentRef, {
       appointmentId:     apptRef.id,
@@ -1396,6 +1404,92 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
   return { confirmed: true };
 });
 
+// ── reportCustomer (callable, provider) ───────────────────────────────────────
+//
+// A provider's post-appointment feedback about a customer — the other half of
+// the two-way rating system. One report per appointment: an optional 1–5 star
+// rating, an optional no-show flag, and an optional escalation to admin for
+// misconduct. Every change is bound to a real appointment the provider owns and
+// guarded against duplicates, so a provider can't repeatedly tank a customer's
+// reputation. The aggregates live on the customer's user doc (server-only) and
+// are shown to providers on future booking requests.
+exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "PROVIDER") {
+    throw new HttpsError("permission-denied", "Only providers can rate customers.");
+  }
+
+  const d = request.data || {};
+  const appointmentId = String(d.appointmentId || "");
+  const rating  = Math.max(0, Math.min(5, Math.floor(Number(d.rating || 0))));
+  const noShow  = d.noShow === true;
+  const flagged = d.flagged === true;
+  const comment = String(d.comment || "").trim().slice(0, 500);
+  if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");
+  if (rating === 0 && !noShow && !flagged) {
+    throw new HttpsError("invalid-argument", "Give a rating, mark a no-show, or flag an issue.");
+  }
+
+  const apptRef = db.doc(`appointments/${appointmentId}`);
+
+  const result = await db.runTransaction(async (tx) => {
+    const apptSnap = await tx.get(apptRef);
+    if (!apptSnap.exists) throw new HttpsError("not-found", "Appointment not found.");
+    const appt = apptSnap.data();
+
+    // Only the provider who owns this salon may report, and only once per booking.
+    const salonSnap = await tx.get(db.doc(`salons/${appt.salonId}`));
+    const providerId = salonSnap.exists ? (salonSnap.data().providerId || "") : "";
+    if (providerId !== appUser.uid) {
+      throw new HttpsError("permission-denied", "Not your booking to review.");
+    }
+    if (appt.customerReported === true) {
+      throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
+    }
+    // Feedback only makes sense once a booking was actually accepted/served.
+    if (appt.status !== "CONFIRMED" && appt.status !== "PENDING") {
+      throw new HttpsError("failed-precondition", "This booking can't be reviewed.");
+    }
+
+    tx.update(apptRef, { customerReported: true });
+
+    const reportRef = db.collection("customer_reports").doc();
+    tx.set(reportRef, {
+      appointmentId,
+      customerId:   appt.customerId,
+      customerName: appt.customerName || "",
+      providerId:   appUser.uid,
+      salonId:      appt.salonId,
+      salonName:    appt.salonName || "",
+      rating,
+      noShow,
+      flagged,
+      comment,
+      status:       flagged ? "OPEN" : "REVIEWED",
+      createdAt:    Date.now(),
+    });
+
+    // Fold into the customer's reputation aggregates (server-controlled).
+    if (appt.customerId) {
+      const agg = {};
+      if (rating > 0) {
+        agg.customerRatingSum   = admin.firestore.FieldValue.increment(rating);
+        agg.customerRatingCount = admin.firestore.FieldValue.increment(1);
+      }
+      if (noShow) {
+        agg.noShowCount = admin.firestore.FieldValue.increment(1);
+      }
+      if (Object.keys(agg).length > 0) {
+        tx.set(db.doc(`users/${appt.customerId}`), agg, { merge: true });
+      }
+    }
+    return { reportId: reportRef.id };
+  });
+
+  return { reported: true, reportId: result.reportId };
+});
+
 // ── expireAbandonedPayments (scheduled) ───────────────────────────────────────
 //
 // A customer who opens HesabPay checkout and never completes (or never
@@ -1669,6 +1763,41 @@ exports.setPromoActive = onCall({ region: "us-central1" }, async (request) => {
   if (!code) throw new HttpsError("invalid-argument", "code is required.");
   await db.doc(`promo_codes/${code}`).update({ active, updatedAt: Date.now() });
   return { code, active };
+});
+
+// ── resolveCustomerReport (admin) ─────────────────────────────────────────────
+//
+// Admin closing out a flagged misconduct report: marks it REVIEWED so it leaves
+// the open-reports queue, and — if [suspend] is true — suspends the reported
+// customer's account. customer_reports is client-write-locked, so this status
+// flip can only happen here.
+exports.resolveCustomerReport = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") throw new HttpsError("permission-denied", "Admins only.");
+  const d = request.data || {};
+  const reportId = String(d.reportId || "");
+  const suspend  = d.suspend === true;
+  if (!reportId) throw new HttpsError("invalid-argument", "reportId is required.");
+
+  const reportRef = db.doc(`customer_reports/${reportId}`);
+  const snap = await reportRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Report not found.");
+  const report = snap.data();
+
+  await reportRef.update({
+    status: "REVIEWED",
+    resolvedBy: appUser.uid,
+    resolvedAt: Date.now(),
+    actionTaken: suspend ? "SUSPENDED" : "DISMISSED",
+  });
+
+  if (suspend && report.customerId) {
+    await db.doc(`users/${report.customerId}`).set(
+      { status: "SUSPENDED" }, { merge: true }
+    );
+  }
+  return { reportId, actionTaken: suspend ? "SUSPENDED" : "DISMISSED" };
 });
 
 // ── pushOnNotificationCreated (Firestore trigger) ─────────────────────────────

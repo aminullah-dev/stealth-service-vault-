@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.safebeauty.app.data.firebase.BroadcastDocument
+import com.safebeauty.app.data.firebase.CustomerReportDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.PayoutDocument
@@ -309,6 +310,33 @@ class AdminViewModel @Inject constructor(
 
     fun dismissPromoSaved() { promoSaved = false }
     fun dismissPromoError()  { promoErrorMsg = null }
+
+    // ── Flagged customer reports (providers escalating misconduct) ───────────────
+
+    /** Open misconduct reports providers have escalated to admin, newest first. */
+    val flaggedReports: StateFlow<List<CustomerReportDocument>> =
+        firestoreRepository.observeFlaggedReports()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // reportId currently being resolved (drives the per-row spinner); null = idle.
+    var reportInProgress by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Resolves a flagged report: dismisses it, or (when [suspend] is true)
+     * suspends the reported customer. Server-side flips the report to REVIEWED
+     * so it leaves the open-reports queue.
+     */
+    fun resolveReport(reportId: String, suspend: Boolean) {
+        if (reportInProgress != null) return
+        reportInProgress = reportId
+        viewModelScope.launch {
+            paymentRepository.resolveCustomerReport(reportId, suspend)
+            reportInProgress = null
+            vaultRepository.log("ADMIN_REPORT_RESOLVE", "reportId=$reportId suspend=$suspend")
+        }
+    }
 
     fun suspendUser(uid: String) {
         viewModelScope.launch {

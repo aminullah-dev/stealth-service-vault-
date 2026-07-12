@@ -51,7 +51,42 @@ data class UserDocument(
     val referralCode: String = "",
     val referredBy: String = "",
     val referralCredit: Long = 0L,
-    val referralRewarded: Boolean = false
+    val referralRewarded: Boolean = false,
+    // ── Customer reputation (two-way ratings) ───────────────────────────────────
+    // Providers rate/report customers after an appointment via the reportCustomer
+    // Cloud Function; these aggregates are server-controlled (frozen against
+    // client writes in firestore.rules) so a provider can't arbitrarily tank a
+    // customer — every change is tied to a real, one-per-appointment report.
+    // Average = customerRatingSum / customerRatingCount.
+    val customerRatingSum: Long = 0L,
+    val customerRatingCount: Int = 0,
+    val noShowCount: Int = 0
+)
+
+/** Average customer rating (0.0 if never rated). */
+fun UserDocument.customerRating(): Double =
+    if (customerRatingCount > 0) customerRatingSum.toDouble() / customerRatingCount else 0.0
+
+/**
+ * A provider's post-appointment feedback about a customer. Written only by the
+ * reportCustomer Cloud Function (one per appointment). MISCONDUCT reports carry
+ * status OPEN for admin review; ratings/no-shows are informational and settle
+ * into the customer's user-doc aggregates.
+ */
+data class CustomerReportDocument(
+    val id: String = "",
+    val appointmentId: String = "",
+    val customerId: String = "",
+    val customerName: String = "",
+    val providerId: String = "",
+    val salonId: String = "",
+    val salonName: String = "",
+    val rating: Int = 0,               // 1–5, or 0 if none given
+    val noShow: Boolean = false,
+    val flagged: Boolean = false,      // escalated to admin (misconduct)
+    val comment: String = "",
+    val status: String = "OPEN",       // "OPEN" | "REVIEWED" (only relevant when flagged)
+    val createdAt: Long = 0L
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }
@@ -118,8 +153,20 @@ data class AppointmentDocument(
     val notes: String = "",              // optional customer request/note
     // Denormalized from the payment doc at booking time so the provider's
     // requests list can show a "Cash" badge without an extra read per row.
-    val paymentMethod: String = "ONLINE"    // "ONLINE" | "CASH"
+    val paymentMethod: String = "ONLINE",   // "ONLINE" | "CASH"
+    // Customer's reputation, snapshotted at booking time so the provider can see
+    // who they're accepting without reading the customer's (rules-protected) user
+    // doc. Set to false once the provider has left feedback (see reportCustomer).
+    val customerRatingSum: Long = 0L,
+    val customerRatingCount: Int = 0,
+    val noShowCount: Int = 0,
+    @get:PropertyName("customerReported") @set:PropertyName("customerReported")
+    var customerReported: Boolean = false
 )
+
+/** Snapshotted average customer rating for this booking (0.0 if never rated). */
+fun AppointmentDocument.customerRating(): Double =
+    if (customerRatingCount > 0) customerRatingSum.toDouble() / customerRatingCount else 0.0
 
 data class ReviewDocument(
     val id: String = "",                    // Firestore document ID

@@ -133,7 +133,16 @@ service cloud.firestore {
                      && request.resource.data.get('referralCode', '')
                           == resource.data.get('referralCode', '')
                      && request.resource.data.get('referredBy', '')
-                          == resource.data.get('referredBy', ''));
+                          == resource.data.get('referredBy', '')
+                     // Customer-reputation aggregates are written only by the
+                     // reportCustomer Cloud Function — frozen so a customer can't
+                     // erase a bad rating or no-show off their own record.
+                     && request.resource.data.get('customerRatingSum', 0)
+                          == resource.data.get('customerRatingSum', 0)
+                     && request.resource.data.get('customerRatingCount', 0)
+                          == resource.data.get('customerRatingCount', 0)
+                     && request.resource.data.get('noShowCount', 0)
+                          == resource.data.get('noShowCount', 0));
 
       allow delete: if isAdmin();
     }
@@ -342,6 +351,18 @@ service cloud.firestore {
     // brute-forced from the client. All writes go through admin Cloud Functions.
     match /promo_codes/{code} {
       allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ── customer_reports ─────────────────────────────────────────────────────────
+    // A provider's post-appointment feedback about a customer (rating / no-show /
+    // misconduct). Written exclusively by the reportCustomer Cloud Function. The
+    // reporting provider may read their own reports; admins read all (to review
+    // flagged misconduct). Customers can't read reports about themselves here —
+    // their rating shows only as an aggregate on their user doc.
+    match /customer_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.providerId == me() || isAdmin());
       allow write: if false;
     }
   }

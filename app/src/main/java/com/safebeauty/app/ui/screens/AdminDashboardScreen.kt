@@ -38,7 +38,9 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QueryStats
@@ -106,6 +108,7 @@ import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
+import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -148,10 +151,12 @@ fun AdminDashboardScreen(
     var showLangPicker   by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
+    val flaggedReports   by viewModel.flaggedReports.collectAsStateWithLifecycle()
+
     val tabs = listOf(
         strings.approvalQueueSubtitle, strings.tabKyc, strings.tabUsers,
         strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance,
-        strings.tabPromos
+        strings.tabPromos, strings.tabReports
     )
 
     DashboardTheme {
@@ -235,6 +240,7 @@ fun AdminDashboardScreen(
                     5 -> BroadcastTab(broadcasts, viewModel)
                     6 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
                     7 -> PromosTab(promoCodes, viewModel)
+                    8 -> ReportsTab(flaggedReports, viewModel)
                 }
             }
         }
@@ -1222,6 +1228,121 @@ private fun PromosTab(
 
     if (viewModel.promoSaved) {
         LaunchedEffect(Unit) { viewModel.dismissPromoSaved() }
+    }
+}
+
+// ── Tab 9: Flagged customer reports ─────────────────────────────────────────────
+
+@Composable
+private fun ReportsTab(
+    reports: List<com.safebeauty.app.data.firebase.CustomerReportDocument>,
+    viewModel: AdminViewModel
+) {
+    val strings = LocalStrings.current
+    if (reports.isEmpty()) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize().padding(32.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Flag, null, tint = RoseGold, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(strings.reportsEmpty, fontSize = 14.sp, color = RoseGold, textAlign = TextAlign.Center)
+            }
+        }
+        return
+    }
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(reports, key = { it.id }) { report ->
+            ReportRow(
+                report      = report,
+                inProgress  = viewModel.reportInProgress == report.id,
+                onDismiss   = { viewModel.resolveReport(report.id, suspend = false) },
+                onSuspend   = { viewModel.resolveReport(report.id, suspend = true) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportRow(
+    report: com.safebeauty.app.data.firebase.CustomerReportDocument,
+    inProgress: Boolean,
+    onDismiss: () -> Unit,
+    onSuspend: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
+    ElevatedCard(
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier  = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Flag, null, tint = Color(0xFFB00020), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(report.customerName.ifBlank { report.customerId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+                    Text(report.salonName.ifBlank { report.salonId }, fontSize = 12.sp, color = RoseGold)
+                }
+                if (report.rating > 0) {
+                    Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(3.dp))
+                    Text("${report.rating}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
+                }
+            }
+            if (report.noShow) {
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(strings.rateCustomerNoShow, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB00020))
+                }
+            }
+            if (report.comment.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    report.comment,
+                    fontSize  = 13.sp,
+                    color     = Color(0xFF555555),
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(dateFmt.format(Date(report.createdAt)), fontSize = 11.sp, color = Color(0xFF999999))
+            Spacer(Modifier.height(10.dp))
+            if (inProgress) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    CircularProgressIndicator(color = DeepRose, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick  = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape    = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(strings.reportDismiss, color = DeepRose, fontSize = 13.sp)
+                    }
+                    Button(
+                        onClick  = onSuspend,
+                        modifier = Modifier.weight(1f),
+                        shape    = RoundedCornerShape(10.dp),
+                        colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                    ) {
+                        Text(strings.reportSuspend, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
     }
 }
 

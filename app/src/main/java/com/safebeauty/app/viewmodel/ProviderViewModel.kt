@@ -356,4 +356,44 @@ class ProviderViewModel @Inject constructor(
     }
 
     fun resetLockTrigger() { lockTriggered = false }
+
+    // ── Two-way ratings: provider rates / reports a customer ──────────────────
+
+    /** The appointment currently open in the rate-customer dialog (null = closed). */
+    var ratingTarget by mutableStateOf<AppointmentDocument?>(null)
+        private set
+    var isSubmittingReport by mutableStateOf(false)
+        private set
+    var showReportDone by mutableStateOf(false)
+
+    fun openRatingDialog(appt: AppointmentDocument) { ratingTarget = appt }
+    fun dismissRatingDialog() { ratingTarget = null }
+    fun dismissReportDone() { showReportDone = false }
+
+    /**
+     * Submits provider feedback about the customer on [appointmentId] via the
+     * reportCustomer Cloud Function (rating 1–5, optional no-show / misconduct
+     * flag). The server enforces one report per appointment and freezes the
+     * customer's reputation aggregates against client tampering.
+     */
+    fun submitCustomerReport(
+        appointmentId: String,
+        rating: Int,
+        noShow: Boolean,
+        flagged: Boolean,
+        comment: String
+    ) {
+        viewModelScope.launch {
+            isSubmittingReport = true
+            val ok = paymentRepository.reportCustomer(appointmentId, rating, noShow, flagged, comment)
+            isSubmittingReport = false
+            if (ok) {
+                vaultRepository.log("CUSTOMER_REPORTED", "appt=$appointmentId rating=$rating noShow=$noShow flagged=$flagged")
+                ratingTarget = null
+                showReportDone = true
+            } else {
+                showSaveError = true
+            }
+        }
+    }
 }

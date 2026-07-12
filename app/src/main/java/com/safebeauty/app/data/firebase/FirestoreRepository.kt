@@ -604,6 +604,22 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    /** Admin-only: flagged (misconduct) customer reports still awaiting review. */
+    fun observeFlaggedReports(): Flow<List<CustomerReportDocument>> = callbackFlow {
+        val listener = db.collection("customer_reports")
+            .whereEqualTo("flagged", true)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(CustomerReportDocument::class.java)?.copy(id = it.id) }
+                    ?.filter { it.status == "OPEN" }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     // ── Provider balances (payout ledger) ────────────────────────────────────────
 
     /** Live list of what the platform owes each provider, highest first. */
