@@ -39,7 +39,19 @@ data class UserDocument(
     val tazkiraPhotoUrl: String = "",
     val selfiePhotoUrl: String = "",
     val addressProvince: String = "",
-    val addressDetail: String = ""
+    val addressDetail: String = "",
+    // ── Referral program ───────────────────────────────────────────────────────
+    // referralCode is this user's own shareable code (derived from their uid at
+    // registration). referredBy is the code they signed up with (blank if none).
+    // referralCredit (AFN) is a server-controlled balance auto-applied at
+    // checkout — the rules freeze it against client writes, so only the
+    // reviewKyc / createPaymentSession Cloud Functions can change it. Rewards are
+    // granted when the referred user's identity is verified (see reviewKyc), which
+    // gates against fake-account farming since KYC needs a real tazkira + selfie.
+    val referralCode: String = "",
+    val referredBy: String = "",
+    val referralCredit: Long = 0L,
+    val referralRewarded: Boolean = false
 )
 
 enum class LoyaltyTier { NEWCOMER, REGULAR, VIP }

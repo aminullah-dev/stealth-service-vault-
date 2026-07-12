@@ -57,6 +57,12 @@ const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
 // Default commission if the platform_config doc is missing (percent).
 const DEFAULT_COMMISSION_PERCENT = 10;
 
+// Referral rewards (AFN). Both are granted when a referred user's identity is
+// verified (see reviewKyc): the new user gets a welcome credit, the friend who
+// invited them gets a referrer credit. Both are auto-applied at checkout.
+const REFERRAL_WELCOME_CREDIT  = 100;
+const REFERRAL_REFERRER_CREDIT = 100;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getCommissionPercent() {
@@ -212,14 +218,21 @@ exports.createPaymentSession = onCall(
     // that same discounted amount so the platform's cut scales with what was
     // actually paid, not the list price.
     const promo = await resolvePromoDiscount(promoCode, listPrice);
-    const price = Math.max(0, listPrice - promo.discount);
+    const afterPromo = Math.max(0, listPrice - promo.discount);
+
+    // Auto-apply the customer's referral credit (AFN) on top of any promo, up to
+    // the remaining amount. The used portion is deducted from their balance when
+    // the booking completes (immediately for cash; in the webhook for online).
+    const availableCredit = Math.max(0, Number(appUser.referralCredit || 0));
+    const referralUsed    = Math.min(availableCredit, afterPromo);
+    const price           = afterPromo - referralUsed;
 
     // A fully-discounted booking can't go through HesabPay (it can't charge 0),
     // so route those to cash instead of failing opaquely.
     if (paymentMethod === "ONLINE" && price <= 0) {
       throw new HttpsError(
         "failed-precondition",
-        "This code makes your booking free — please choose Cash payment."
+        "Your discount makes this booking free — please choose Cash payment."
       );
     }
 
@@ -261,6 +274,7 @@ exports.createPaymentSession = onCall(
         listPrice,
         promoCode:         promo.code,
         discountAmount:    promo.discount,
+        referralUsed,
         commissionPercent,
         commissionAmount,
         providerNet,
@@ -270,10 +284,16 @@ exports.createPaymentSession = onCall(
         hesabSessionId:    "",
         createdAt:         Date.now(),
       });
-      // Cash bookings are confirmed immediately, so count the promo use now.
+      // Cash bookings are confirmed immediately, so count the promo use and
+      // spend the referral credit now.
       if (promo.promoId) {
         batch.update(db.doc(`promo_codes/${promo.promoId}`), {
           usedCount: admin.firestore.FieldValue.increment(1),
+        });
+      }
+      if (referralUsed > 0) {
+        batch.update(db.doc(`users/${uid}`), {
+          referralCredit: admin.firestore.FieldValue.increment(-referralUsed),
         });
       }
       if (providerId) {
@@ -305,7 +325,7 @@ exports.createPaymentSession = onCall(
         method:        "CASH",
         amount:        price,
         listPrice,
-        discountAmount: promo.discount,
+        discountAmount: promo.discount + referralUsed,
         commissionAmount,
         providerNet,
       };
@@ -342,8 +362,9 @@ exports.createPaymentSession = onCall(
       listPrice,
       promoCode:         promo.code,
       discountAmount:    promo.discount,
-      // Counted in the webhook only when the payment actually succeeds, so an
-      // abandoned or failed online checkout never burns a promo use.
+      referralUsed,
+      // Counted/spent in the webhook only when the payment actually succeeds, so
+      // an abandoned or failed online checkout never burns a promo use or credit.
       promoCounted:      false,
       commissionPercent,
       commissionAmount,
@@ -417,7 +438,7 @@ exports.createPaymentSession = onCall(
       checkoutUrl:   sessionUrl,
       amount:        price,
       listPrice,
-      discountAmount: promo.discount,
+      discountAmount: promo.discount + referralUsed,
       commissionAmount,
       providerNet,
     };
@@ -595,14 +616,22 @@ exports.hesabPayWebhook = onRequest(
             },
             { merge: true }
           );
-          // Count the promo use now that the payment actually succeeded — this
-          // branch runs exactly once per payment (the status/replay guards above
-          // short-circuit any retry), so the increment can't double-count.
-          if (fresh.promoCode && !fresh.promoCounted) {
+          // Count the promo use and spend any referral credit now that the
+          // payment actually succeeded — this branch runs exactly once per
+          // payment (the status/replay guards above short-circuit any retry), so
+          // neither can double-apply.
+          if (!fresh.promoCounted) {
             tx.update(paymentRef, { promoCounted: true });
-            tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
-              usedCount: admin.firestore.FieldValue.increment(1),
-            });
+            if (fresh.promoCode) {
+              tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
+                usedCount: admin.firestore.FieldValue.increment(1),
+              });
+            }
+            if (Number(fresh.referralUsed || 0) > 0 && fresh.customerId) {
+              tx.update(db.doc(`users/${fresh.customerId}`), {
+                referralCredit: admin.firestore.FieldValue.increment(-Number(fresh.referralUsed)),
+              });
+            }
           }
           // Notify the provider of the new (paid) booking.
           tx.set(db.collection("notifications").doc(), {
@@ -913,6 +942,52 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
     createdAt:   Date.now(),
     relatedId:   targetUid,
   });
+
+  // ── Referral reward ──────────────────────────────────────────────────────────
+  // Rewards are granted here, at identity verification, rather than at
+  // registration — passing KYC needs a real tazkira + selfie + admin review, so
+  // this gates the reward against someone farming credit with fake accounts. The
+  // newly-verified user gets a welcome credit; the friend whose code they used
+  // gets a referrer credit. Runs once per user (guarded by referralRewarded).
+  if (approve) {
+    const target = targetSnap.data();
+    const referredBy = String(target.referredBy || "").trim().toUpperCase();
+    if (referredBy && target.referralRewarded !== true) {
+      try {
+        await db.runTransaction(async (tx) => {
+          const freshTarget = await tx.get(targetRef);
+          if (freshTarget.data().referralRewarded === true) return; // already done
+          const refQ = await tx.get(
+            db.collection("users").where("referralCode", "==", referredBy).limit(1)
+          );
+          // Mark rewarded regardless so a bad/self code can't be retried forever.
+          tx.update(targetRef, {
+            referralRewarded: true,
+            referralCredit: admin.firestore.FieldValue.increment(
+              refQ.empty ? 0 : REFERRAL_WELCOME_CREDIT
+            ),
+          });
+          if (!refQ.empty && refQ.docs[0].id !== targetUid) {
+            const referrerRef = refQ.docs[0].ref;
+            tx.update(referrerRef, {
+              referralCredit: admin.firestore.FieldValue.increment(REFERRAL_REFERRER_CREDIT),
+            });
+            tx.set(db.collection("notifications").doc(), {
+              recipientId: refQ.docs[0].id,
+              type:        "SYSTEM",
+              title:       "Referral Reward",
+              body:        `A friend you invited just joined — you earned AFN ${REFERRAL_REFERRER_CREDIT} credit!`,
+              isRead:      false,
+              createdAt:   Date.now(),
+              relatedId:   targetUid,
+            });
+          }
+        });
+      } catch (err) {
+        logger.error("reviewKyc: referral reward failed (non-fatal)", err);
+      }
+    }
+  }
 
   return { reviewed: true };
 });

@@ -90,7 +90,11 @@ service cloud.firestore {
                        && request.resource.data.status == 'APPROVED')
                    || (request.resource.data.role == 'PROVIDER'
                        && request.resource.data.status == 'PENDING')
-                    );
+                    )
+                 // Referral credit is server-granted only — a self-registration
+                 // may not seed itself any balance or pre-mark itself rewarded.
+                 && request.resource.data.get('referralCredit', 0) == 0
+                 && request.resource.data.get('referralRewarded', false) == false;
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -118,7 +122,18 @@ service cloud.firestore {
                      && request.resource.data.get('addressProvince', '')
                           == resource.data.get('addressProvince', '')
                      && request.resource.data.get('addressDetail', '')
-                          == resource.data.get('addressDetail', ''));
+                          == resource.data.get('addressDetail', '')
+                     // Referral balance/flags are server-controlled (reviewKyc /
+                     // createPaymentSession) — frozen against self-edits. The code
+                     // and who-referred-me are set once at registration and fixed.
+                     && request.resource.data.get('referralCredit', 0)
+                          == resource.data.get('referralCredit', 0)
+                     && request.resource.data.get('referralRewarded', false)
+                          == resource.data.get('referralRewarded', false)
+                     && request.resource.data.get('referralCode', '')
+                          == resource.data.get('referralCode', '')
+                     && request.resource.data.get('referredBy', '')
+                          == resource.data.get('referredBy', ''));
 
       allow delete: if isAdmin();
     }

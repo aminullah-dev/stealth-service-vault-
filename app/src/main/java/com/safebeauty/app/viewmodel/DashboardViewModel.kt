@@ -318,6 +318,20 @@ class DashboardViewModel @Inject constructor(
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** This customer's own referral code (to share) — empty until loaded. */
+    val referralCode: StateFlow<String> =
+        firestoreRepository.observeUser(customerId)
+            .map { it?.referralCode ?: "" }
+            .catch { emit("") }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    /** This customer's current referral credit balance (AFN). */
+    val referralCredit: StateFlow<Long> =
+        firestoreRepository.observeUser(customerId)
+            .map { it?.referralCredit ?: 0L }
+            .catch { emit(0L) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+
     /**
      * True when the customer must verify their identity before they can book.
      * While the status is still loading (null) we do NOT block — the server's

@@ -38,6 +38,8 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -256,6 +258,8 @@ fun CustomerDashboardScreen(
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
     val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
     val loyaltyTier               by viewModel.loyaltyTier.collectAsStateWithLifecycle()
+    val referralCode              by viewModel.referralCode.collectAsStateWithLifecycle()
+    val referralCredit            by viewModel.referralCredit.collectAsStateWithLifecycle()
     val recommendedSalons         by viewModel.recommendedSalons.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
@@ -622,6 +626,11 @@ fun CustomerDashboardScreen(
                     LoyaltyCard(
                         points   = loyaltyPoints,
                         tier     = loyaltyTier,
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                    )
+                    ReferralCard(
+                        code     = referralCode,
+                        credit   = referralCredit,
                         modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                     )
                     ChangePinSection(
@@ -2605,6 +2614,69 @@ private fun SalonBadgeChip(badge: SalonBadge, modifier: Modifier = Modifier) {
         Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(10.dp))
         Spacer(Modifier.width(3.dp))
         Text(label, fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+// ── Referral card (invite friends, earn credit) ───────────────────────────────
+
+@Composable
+private fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modifier) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    if (code.isBlank()) return
+
+    Card(
+        shape    = RoundedCornerShape(18.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CardGiftcard, null, tint = RoseGold, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(strings.referralCardTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose, modifier = Modifier.weight(1f))
+                if (credit > 0) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AvailableGreen.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(strings.referralCreditBadge(credit), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AvailableGreen)
+                    }
+                }
+            }
+            Text(strings.referralCardBody, fontSize = 12.sp, color = Color(0xFF777777), lineHeight = 18.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BlushPink.copy(alpha = 0.4f))
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(strings.referralYourCode, fontSize = 11.sp, color = RoseGold)
+                    Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepRose, letterSpacing = 2.sp)
+                }
+                Button(
+                    onClick = {
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, strings.referralShareText(code))
+                        }
+                        runCatching { context.startActivity(Intent.createChooser(share, null)) }
+                    },
+                    shape  = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RoseGold),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(strings.referralShare, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }
 

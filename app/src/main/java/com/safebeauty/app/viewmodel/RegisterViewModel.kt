@@ -42,6 +42,7 @@ class RegisterViewModel @Inject constructor(
     var email           by mutableStateOf("")
     var password        by mutableStateOf("")
     var confirmPassword by mutableStateOf("")
+    var referralCodeInput by mutableStateOf("")   // optional: a friend's code
     var isProvider      by mutableStateOf(false)
 
     var salonName    by mutableStateOf("")
@@ -114,6 +115,13 @@ class RegisterViewModel @Inject constructor(
                 val firebaseEmail = email.trim().lowercase().ifBlank { "${uid.replace("-", "")}@sb.app" }
                 val role          = if (isProvider) "PROVIDER" else "CUSTOMER"
                 val status        = if (isProvider) "PENDING" else "APPROVED"
+                // This user's own shareable referral code, derived from their uid
+                // (unique). referralCredit stays 0 — it's granted only server-side
+                // (reviewKyc) once identity is verified, so it can't be self-seeded.
+                val referralCode  = "SB" + uid.replace("-", "").take(6).uppercase()
+                val referredBy    = referralCodeInput.trim().uppercase()
+                    .takeIf { it != referralCode }   // can't refer yourself
+                    .orEmpty()
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
 
@@ -128,7 +136,9 @@ class RegisterViewModel @Inject constructor(
                         salt          = salt,
                         status        = status,
                         firebaseEmail = firebaseEmail,
-                        createdAt     = System.currentTimeMillis()
+                        createdAt     = System.currentTimeMillis(),
+                        referralCode  = referralCode,
+                        referredBy    = referredBy
                     )
                 )
 

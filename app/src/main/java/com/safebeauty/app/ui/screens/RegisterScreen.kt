@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCut
@@ -248,6 +249,12 @@ fun RegisterScreen(
                         leadingIcon   = Icons.Default.Lock,
                         keyboard      = KeyboardType.Password,
                         password      = true
+                    )
+                    FormField(
+                        value         = viewModel.referralCodeInput,
+                        onValueChange = { viewModel.referralCodeInput = it.uppercase() },
+                        label         = strings.referralFieldLabel,
+                        leadingIcon   = Icons.Default.CardGiftcard
                     )
                 }
 
