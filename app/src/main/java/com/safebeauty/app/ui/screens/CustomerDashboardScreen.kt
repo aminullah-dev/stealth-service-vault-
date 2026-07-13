@@ -49,7 +49,7 @@ import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
@@ -151,6 +151,7 @@ import coil.compose.AsyncImage
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
+import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
@@ -265,8 +266,12 @@ fun CustomerDashboardScreen(
     }
 
     val filteredSalons            by viewModel.displayedSalons.collectAsStateWithLifecycle()
-    val sortByNearest             by viewModel.sortByNearest.collectAsStateWithLifecycle()
+    val sortMode                  by viewModel.sortMode.collectAsStateWithLifecycle()
+    val minRating                 by viewModel.minRating.collectAsStateWithLifecycle()
+    val maxPrice                  by viewModel.maxPrice.collectAsStateWithLifecycle()
     val customerLoc               by viewModel.customerLoc.collectAsStateWithLifecycle()
+    var showFilterSheet           by remember { mutableStateOf(false) }
+    val filtersActive = sortMode != SalonSort.RECOMMENDED || minRating > 0.0 || maxPrice > 0
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
     val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
@@ -313,7 +318,7 @@ fun CustomerDashboardScreen(
             val loc = com.safebeauty.app.util.LocationHelper.lastKnownLocation(context)
             if (loc != null) {
                 viewModel.setCustomerLocation(loc.latitude, loc.longitude)
-                viewModel.setSortByNearest(true)
+                viewModel.setSortMode(SalonSort.NEAREST)
             } else {
                 Toast.makeText(context, strings.locationUnavailable, Toast.LENGTH_SHORT).show()
             }
@@ -579,22 +584,14 @@ fun CustomerDashboardScreen(
                         modifier = Modifier.weight(1f)
                     )
                     FilterChip(
-                        selected = sortByNearest,
-                        onClick  = {
-                            if (sortByNearest) {
-                                viewModel.setSortByNearest(false)
-                            } else if (viewModel.hasCustomerLocation()) {
-                                viewModel.setSortByNearest(true)
-                            } else {
-                                locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
-                            }
-                        },
-                        label    = { Text(strings.sortNearest, fontSize = 12.sp) },
+                        selected = filtersActive,
+                        onClick  = { showFilterSheet = true },
+                        label    = { Text(strings.filtersButton, fontSize = 12.sp) },
                         leadingIcon = {
                             Icon(
-                                Icons.Default.NearMe,
+                                Icons.Default.Tune,
                                 null,
-                                tint = if (sortByNearest) Color.White else RoseGold,
+                                tint = if (filtersActive) Color.White else RoseGold,
                                 modifier = Modifier.size(15.dp)
                             )
                         },
@@ -1282,6 +1279,32 @@ fun CustomerDashboardScreen(
                 },
                 containerColor = ElegantCream
             )
+        }
+
+        // ── Filter / sort sheet ───────────────────────────────────────────────
+        if (showFilterSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showFilterSheet = false },
+                containerColor   = ElegantCream
+            ) {
+                FilterSheetContent(
+                    sortMode    = sortMode,
+                    minRating   = minRating,
+                    maxPrice    = maxPrice,
+                    onSort      = { mode ->
+                        // Nearest needs a location; request it if we don't have one
+                        // yet (the launcher sets NEAREST once granted).
+                        if (mode == SalonSort.NEAREST && !viewModel.hasCustomerLocation()) {
+                            locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                        } else {
+                            viewModel.setSortMode(mode)
+                        }
+                    },
+                    onMinRating = { viewModel.setMinRating(it) },
+                    onMaxPrice  = { viewModel.setMaxPrice(it) },
+                    onReset     = { viewModel.resetFilters() }
+                )
+            }
         }
 
         // ── My Bookings sheet ─────────────────────────────────────────────────
@@ -2151,6 +2174,73 @@ private fun BookingCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Bottom-sheet panel for narrowing and ordering the salon list: sort mode
+ * (recommended / nearest / top-rated / cheapest), a minimum star rating, and a
+ * maximum starting price. All applied live to [DashboardViewModel.displayedSalons].
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FilterSheetContent(
+    sortMode: SalonSort,
+    minRating: Double,
+    maxPrice: Int,
+    onSort: (SalonSort) -> Unit,
+    onMinRating: (Double) -> Unit,
+    onMaxPrice: (Int) -> Unit,
+    onReset: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val chipColors = FilterChipDefaults.filterChipColors(
+        selectedContainerColor = ChipActive,
+        selectedLabelColor     = Color.White,
+        containerColor         = ChipInactive,
+        labelColor             = DeepRose
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(strings.filtersTitle, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose, modifier = Modifier.weight(1f))
+            TextButton(onClick = onReset) { Text(strings.filtersReset, color = RoseGold, fontSize = 13.sp) }
+        }
+
+        Text(strings.sortByLabel, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf(
+                SalonSort.RECOMMENDED to strings.sortRecommended,
+                SalonSort.NEAREST     to strings.sortNearest,
+                SalonSort.TOP_RATED   to strings.sortTopRated,
+                SalonSort.PRICE_LOW   to strings.sortCheapest
+            ).forEach { (mode, label) ->
+                FilterChip(selected = sortMode == mode, onClick = { onSort(mode) },
+                    label = { Text(label, fontSize = 12.sp) }, colors = chipColors)
+            }
+        }
+
+        Text(strings.minRatingLabel, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0.0 to strings.filterAny, 3.0 to "3.0+", 4.0 to "4.0+", 4.5 to "4.5+").forEach { (r, label) ->
+                FilterChip(selected = minRating == r, onClick = { onMinRating(r) },
+                    label = { Text(label, fontSize = 12.sp) }, colors = chipColors)
+            }
+        }
+
+        Text(strings.maxPriceLabel, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0 to strings.filterAny, 500 to strings.priceUnder(500), 1000 to strings.priceUnder(1000), 2000 to strings.priceUnder(2000)).forEach { (p, label) ->
+                FilterChip(selected = maxPrice == p, onClick = { onMaxPrice(p) },
+                    label = { Text(label, fontSize = 12.sp) }, colors = chipColors)
             }
         }
     }

@@ -85,6 +85,9 @@ sealed interface CheckoutUiState {
     data class Failed(val message: String) : CheckoutUiState
 }
 
+/** How the customer's salon list is ordered. */
+enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
@@ -176,37 +179,53 @@ class DashboardViewModel @Inject constructor(
         else preFilt.filter { it.salonName.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    // ── Location / distance (free: device GPS + geo intent, no maps SDK) ────────
-    private val _customerLoc   = MutableStateFlow<Pair<Double, Double>?>(null)
+    // ── Advanced filter + sort (rating / price / distance) ──────────────────────
+    private val _customerLoc = MutableStateFlow<Pair<Double, Double>?>(null)
     val customerLoc: StateFlow<Pair<Double, Double>?> = _customerLoc
-    private val _sortByNearest = MutableStateFlow(false)
-    val sortByNearest: StateFlow<Boolean> = _sortByNearest
+    private val _sortMode  = MutableStateFlow(SalonSort.RECOMMENDED)
+    val sortMode: StateFlow<SalonSort> = _sortMode
+    private val _minRating = MutableStateFlow(0.0)     // 0 = any
+    val minRating: StateFlow<Double> = _minRating
+    private val _maxPrice  = MutableStateFlow(0)       // 0 = any (AFN)
+    val maxPrice: StateFlow<Int> = _maxPrice
 
     fun setCustomerLocation(lat: Double, lng: Double) { _customerLoc.value = lat to lng }
-    fun setSortByNearest(value: Boolean) { _sortByNearest.value = value }
+    fun setSortMode(mode: SalonSort) { _sortMode.value = mode }
+    fun setMinRating(rating: Double) { _minRating.value = rating }
+    fun setMaxPrice(price: Int) { _maxPrice.value = price }
     fun hasCustomerLocation(): Boolean = _customerLoc.value != null
-
-    /** Distance in km from the customer to [salon], or null if either is unknown. */
-    fun distanceKmTo(salon: SalonDocument): Double? {
-        val loc = _customerLoc.value ?: return null
-        if (!salon.hasLocation()) return null
-        return com.safebeauty.app.util.LocationHelper.distanceKm(
-            loc.first, loc.second, salon.latitude, salon.longitude
-        )
+    fun resetFilters() {
+        _sortMode.value  = SalonSort.RECOMMENDED
+        _minRating.value = 0.0
+        _maxPrice.value  = 0
     }
 
+    /** The cheapest priced service at a salon (null if none priced). */
+    private fun salonMinPrice(s: SalonDocument): Int? =
+        s.pricePerService.values.filter { it > 0 }.minOrNull()
+
     /**
-     * The salon list actually shown — [filteredSalons], optionally re-ordered
-     * nearest-first when the customer has enabled that and shared their location.
-     * Salons without a pinned location fall to the end.
+     * The salon list actually shown: [filteredSalons] narrowed by the minimum
+     * rating and maximum price, then ordered by the chosen sort (nearest / top
+     * rated / cheapest). Salons missing the sort key fall to the end.
      */
     val displayedSalons: StateFlow<List<SalonDocument>> =
-        combine(filteredSalons, _customerLoc, _sortByNearest) { salons, loc, nearest ->
-            if (!nearest || loc == null) salons
-            else salons.sortedBy { s ->
-                if (s.hasLocation())
-                    com.safebeauty.app.util.LocationHelper.distanceKm(loc.first, loc.second, s.latitude, s.longitude)
-                else Double.MAX_VALUE
+        combine(filteredSalons, _customerLoc, _sortMode, _minRating, _maxPrice) {
+                salons, loc, sort, minR, maxP ->
+            var list = salons
+            if (minR > 0.0) list = list.filter { it.rating >= minR }
+            if (maxP > 0)   list = list.filter { val mp = salonMinPrice(it); mp != null && mp <= maxP }
+            when (sort) {
+                SalonSort.NEAREST ->
+                    if (loc == null) list
+                    else list.sortedBy { s ->
+                        if (s.hasLocation())
+                            com.safebeauty.app.util.LocationHelper.distanceKm(loc.first, loc.second, s.latitude, s.longitude)
+                        else Double.MAX_VALUE
+                    }
+                SalonSort.TOP_RATED -> list.sortedByDescending { it.rating }
+                SalonSort.PRICE_LOW -> list.sortedBy { salonMinPrice(it) ?: Int.MAX_VALUE }
+                SalonSort.RECOMMENDED -> list
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
