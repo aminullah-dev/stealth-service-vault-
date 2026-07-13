@@ -97,6 +97,10 @@
     <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
     <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
     <button id="lbtn" class="btn">Sign in</button>
+    <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
+    <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
+      <input type="checkbox" id="lremc" /> Remember me with Touch ID
+    </label>
     <div id="lerr" class="err"></div>
   </div>
 </div>
@@ -180,6 +184,10 @@ async function doLogin(){
     const authPw = await deriveAuthPassword(pw, m.salt || '');
     await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
     await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
+    // Save the credential for Touch ID if opted in (desktop app only).
+    if (window.electronBiometric && $('lremc') && $('lremc').checked) {
+      try { await window.electronBiometric.save(phone, pw); } catch(_){}
+    }
     admin = { uid: m.uid, name: m.name || 'Admin' };
     enterApp();
   }catch(e){
@@ -192,6 +200,27 @@ async function doLogin(){
 $('logout').addEventListener('click', async () => {
   await signOut(auth); location.reload();
 });
+
+// ── Touch ID (desktop app only) ────────────────────────────────────────────────
+(async function setupBiometric(){
+  const bio = window.electronBiometric;
+  if(!bio) return;                                   // plain browser → skip
+  let avail = false; try{ avail = await bio.available(); }catch(_){}
+  if(!avail) return;                                 // no Touch ID hardware/enrollment
+  $('lrem').classList.remove('hidden');              // offer "remember me"
+  let has = false; try{ has = await bio.has(); }catch(_){}
+  if(has){
+    const b = $('lbio');
+    b.classList.remove('hidden');
+    b.onclick = async () => {
+      const cred = await bio.get();                  // triggers the Touch ID prompt
+      if(cred && cred.phone && cred.password){
+        $('lp').value = cred.phone; $('lw').value = cred.password;
+        doLogin();
+      }
+    };
+  }
+})();
 
 // ── App shell ────────────────────────────────────────────────────────────────
 const TABS = [

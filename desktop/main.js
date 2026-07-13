@@ -1,9 +1,40 @@
-const { app, BrowserWindow, shell, Menu } = require('electron');
+const { app, BrowserWindow, shell, Menu, ipcMain, safeStorage, systemPreferences } = require('electron');
+const fs = require('fs');
+const path = require('path');
 
 // The desktop app is a thin native shell around the hosted admin console, so it
 // always shows the latest deployed version and Firebase Auth works normally
 // (the page loads from the authorized safebeauty.web.app origin, not file://).
 const ADMIN_URL = 'https://safebeauty.web.app/admin';
+
+// ── Touch ID sign-in ─────────────────────────────────────────────────────────
+// The admin's phone+password is encrypted with the OS keychain (safeStorage)
+// and only handed back after a successful Touch ID prompt. The server still
+// verifies the credential, so this is a convenience unlock, not a bypass.
+const credPath = () => path.join(app.getPath('userData'), 'admin-cred.bin');
+
+ipcMain.handle('bio:available', () => {
+  try { return process.platform === 'darwin' && systemPreferences.canPromptTouchID(); }
+  catch { return false; }
+});
+ipcMain.handle('bio:has', () => { try { return fs.existsSync(credPath()); } catch { return false; } });
+ipcMain.handle('bio:save', (_e, cred) => {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) return false;
+    fs.writeFileSync(credPath(), safeStorage.encryptString(JSON.stringify(cred || {})));
+    return true;
+  } catch { return false; }
+});
+ipcMain.handle('bio:get', async () => {
+  try {
+    if (!fs.existsSync(credPath())) return null;
+    await systemPreferences.promptTouchID('sign in to SafeBeauty Admin');
+    return JSON.parse(safeStorage.decryptString(fs.readFileSync(credPath())));
+  } catch { return null; }   // cancelled, failed, or unreadable
+});
+ipcMain.handle('bio:clear', () => {
+  try { if (fs.existsSync(credPath())) fs.unlinkSync(credPath()); return true; } catch { return false; }
+});
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -15,7 +46,8 @@ function createWindow() {
     backgroundColor: '#FFF7FB',
     webPreferences: {
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
