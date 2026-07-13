@@ -591,15 +591,18 @@ fun CustomerDashboardScreen(
                         },
                         label    = { Text(strings.sortNearest, fontSize = 12.sp) },
                         leadingIcon = {
-                            Icon(Icons.Default.NearMe, null, modifier = Modifier.size(15.dp))
+                            Icon(
+                                Icons.Default.NearMe,
+                                null,
+                                tint = if (sortByNearest) Color.White else RoseGold,
+                                modifier = Modifier.size(15.dp)
+                            )
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = ChipActive,
                             selectedLabelColor     = Color.White,
-                            selectedLeadingIconColor = Color.White,
                             containerColor         = ChipInactive,
-                            labelColor             = DeepRose,
-                            leadingIconColor       = RoseGold
+                            labelColor             = DeepRose
                         )
                     )
                 }
