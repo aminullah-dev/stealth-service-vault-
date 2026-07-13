@@ -97,8 +97,23 @@ class RegisterViewModel @Inject constructor(
 
             runCatching {
                 val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
-                // The phone is the login identifier now, so it must be unique.
-                if (firestoreRepository.phoneExists(normalizedPhone)) {
+                // The phone is the login identifier, so it must be unique. This
+                // MUST be checked server-side: the users collection is not
+                // client-listable (rules), so the old client query was silently
+                // denied and always "passed", letting one number open many
+                // accounts. lookupAccountByPhone runs with the Admin SDK.
+                val exists = runCatching {
+                    val r = functions.getHttpsCallable("lookupAccountByPhone")
+                        .call(hashMapOf("phone" to normalizedPhone))
+                        .await()
+                    (r.getData() as? Map<*, *>)?.get("found") == true
+                }.getOrElse {
+                    // If the check itself fails (e.g. offline), don't create a
+                    // possibly-duplicate account — surface an error instead.
+                    state = RegisterState.Error("Couldn't verify the phone number. Check your connection and try again.")
+                    return@launch
+                }
+                if (exists) {
                     state = RegisterState.Error("An account with this phone number already exists.")
                     return@launch
                 }

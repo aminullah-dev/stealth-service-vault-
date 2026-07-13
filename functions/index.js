@@ -1079,11 +1079,42 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
  * password-reset flows (Forgot-PIN / Set-New-PIN). Returns ONLY the email
  * fields — never pinHash/salt — so `users` reads can stay locked to owner/admin.
  */
-exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request) => {
-  const phone = String((request.data || {}).phone || "").trim();
-  if (!phone) return { found: false };
+// Phone normalization mirroring the app's PhoneUtils.normalizeForLogin, so a
+// number typed in any common format (0700…, 700…, +93700…, 0093700…) resolves
+// to the single canonical "+93…" (or an international "+…") that registration
+// stored — otherwise the same person looks like "no account" or a new one.
+function cleanPhone(raw) {
+  const t = String(raw || "").trim();
+  const plus = t.startsWith("+");
+  const digits = t.replace(/\D/g, "");
+  return plus ? "+" + digits : digits;
+}
+function normalizeAfghanPhone(raw) {
+  let c = cleanPhone(raw);
+  if (c.startsWith("+93")) return c;
+  if (c.startsWith("0093")) return "+93" + c.slice(4);
+  if (c.startsWith("93") && c.length >= 11) return "+" + c;
+  c = c.replace(/^\+/, "");
+  if (c.startsWith("0")) c = c.slice(1);
+  return "+93" + c;
+}
+function normalizePhone(raw) {
+  const c = cleanPhone(raw);
+  return c.startsWith("+") ? c : normalizeAfghanPhone(raw);
+}
 
-  const q = await db.collection("users").where("phone", "==", phone).limit(1).get();
+// Resolves an account by phone (used by password recovery AND the registration
+// uniqueness check). Normalizes the input, and falls back to the raw string so
+// any legacy record still matches.
+exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request) => {
+  const raw = String((request.data || {}).phone || "").trim();
+  if (!raw) return { found: false };
+  const phone = normalizePhone(raw);
+
+  let q = await db.collection("users").where("phone", "==", phone).limit(1).get();
+  if (q.empty && phone !== raw) {
+    q = await db.collection("users").where("phone", "==", raw).limit(1).get();
+  }
   if (q.empty) return { found: false };
 
   const doc = q.docs[0];
