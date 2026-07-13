@@ -143,6 +143,10 @@ data class SalonDocument(
     val slotDurationMinutes: Int = 60,
     val pricePerService: Map<String, Int> = emptyMap(),
     val confirmedCount: Int = 0,
+    // Geographic location (set by the provider from their device GPS). 0/0 means
+    // "not set" — the map/distance features simply skip such salons.
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
     // Same JavaBeans issue — must force "isVerified" so Firestore doesn't strip "is".
     @get:PropertyName("isVerified") @set:PropertyName("isVerified")
     var isVerified: Boolean = false
@@ -150,6 +154,9 @@ data class SalonDocument(
 
 /** Bookable staff (active only). Empty for a solo salon. */
 fun SalonDocument.activeStaff(): List<StaffMember> = staff.filter { it.active }
+
+/** True once the provider has pinned the salon's location. */
+fun SalonDocument.hasLocation(): Boolean = latitude != 0.0 || longitude != 0.0
 
 enum class SalonBadge { NONE, SILVER, GOLD, VERIFIED }
 

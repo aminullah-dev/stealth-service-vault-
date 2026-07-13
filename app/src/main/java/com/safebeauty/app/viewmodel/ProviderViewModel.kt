@@ -195,6 +195,11 @@ class ProviderViewModel @Inject constructor(
         private set
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
     var editHesabAccountNumber by mutableStateOf("")
+    // Salon location (0/0 = not set yet).
+    var editLatitude     by mutableStateOf(0.0)
+        private set
+    var editLongitude    by mutableStateOf(0.0)
+        private set
     // Staff (stylists) roster editing.
     var editStaff        by mutableStateOf<List<StaffMember>>(emptyList())
     var newStaffName     by mutableStateOf("")
@@ -210,6 +215,8 @@ class ProviderViewModel @Inject constructor(
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
                     editPrices = s.pricePerService
                     editStaff = s.staff
+                    editLatitude = s.latitude
+                    editLongitude = s.longitude
                 }
             }
         }
@@ -307,6 +314,12 @@ class ProviderViewModel @Inject constructor(
 
     fun removeStaff(id: String) { editStaff = editStaff.filter { it.id != id } }
 
+    /** Records the salon's pinned location (from the provider's device GPS). */
+    fun setLocation(lat: Double, lng: Double) {
+        editLatitude = lat
+        editLongitude = lng
+    }
+
     fun toggleStaffActive(id: String) {
         editStaff = editStaff.map { if (it.id == id) it.copy(active = !it.active) else it }
     }
@@ -352,7 +365,9 @@ class ProviderViewModel @Inject constructor(
                         workingHours        = editWorkingHours,
                         slotDurationMinutes = editSlotDuration,
                         pricePerService     = editPrices,
-                        staff               = editStaff
+                        staff               = editStaff,
+                        latitude            = editLatitude,
+                        longitude           = editLongitude
                     )
                 )
                 firestoreRepository.updateHesabAccountNumber(providerId, editHesabAccountNumber)

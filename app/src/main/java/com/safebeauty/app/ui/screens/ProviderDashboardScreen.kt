@@ -47,6 +47,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -1347,6 +1350,9 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Staff / stylists roster ───────────────────────────────────────
         StaffSection(viewModel = viewModel)
 
+        // ── Salon location ────────────────────────────────────────────────
+        LocationSection(viewModel = viewModel)
+
         // ── Payout card ───────────────────────────────────────────────────
         Card(
             shape  = RoundedCornerShape(16.dp),
@@ -1389,6 +1395,81 @@ private fun ProfileTab(viewModel: ProviderViewModel) {
         ChangePinSection(changePinVm = changePinVm)
 
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Lets the provider pin the salon's location from their device GPS (no maps SDK
+ * — a dependency-free framework read). Customers then see the distance to the
+ * salon and can open directions in their own maps app. Location is optional.
+ */
+@Composable
+private fun LocationSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    var status by remember { mutableStateOf<String?>(null) }
+
+    val permLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val loc = com.safebeauty.app.util.LocationHelper.lastKnownLocation(context)
+            if (loc != null) {
+                viewModel.setLocation(loc.latitude, loc.longitude)
+                status = strings.locationCaptured
+            } else {
+                status = strings.locationUnavailable
+            }
+        } else {
+            status = strings.locationPermissionNeeded
+        }
+    }
+
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.sectionLocationPin, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            }
+            Text(strings.locationPinHint, fontSize = 11.sp, color = Color(0xFF999999))
+            HorizontalDivider(color = BlushPink)
+
+            val isSet = viewModel.editLatitude != 0.0 || viewModel.editLongitude != 0.0
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (isSet) Icons.Default.CheckCircle else Icons.Default.LocationOff,
+                    null,
+                    tint = if (isSet) AvailableGreen else Color(0xFFAAAAAA),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (isSet) strings.locationIsSet else strings.locationNotSet,
+                    fontSize = 13.sp,
+                    color    = if (isSet) DeepRose else Color(0xFF888888)
+                )
+            }
+
+            OutlinedButton(
+                onClick  = {
+                    permLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape    = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.MyLocation, null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.useMyLocation, color = DeepRose, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            status?.let { Text(it, fontSize = 12.sp, color = RoseGold) }
+        }
     }
 }
 

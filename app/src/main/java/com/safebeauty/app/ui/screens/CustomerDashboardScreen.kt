@@ -3,6 +3,7 @@ package com.safebeauty.app.ui.screens
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,7 +45,9 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
@@ -123,6 +126,7 @@ import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.activeStaff
+import com.safebeauty.app.data.firebase.hasLocation
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.badge
@@ -258,7 +262,9 @@ fun CustomerDashboardScreen(
         }
     }
 
-    val filteredSalons            by viewModel.filteredSalons.collectAsStateWithLifecycle()
+    val filteredSalons            by viewModel.displayedSalons.collectAsStateWithLifecycle()
+    val sortByNearest             by viewModel.sortByNearest.collectAsStateWithLifecycle()
+    val customerLoc               by viewModel.customerLoc.collectAsStateWithLifecycle()
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
     val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
@@ -295,6 +301,22 @@ fun CustomerDashboardScreen(
     var showProfileSheet     by remember { mutableStateOf(false) }
     var showSalonDetail      by remember { mutableStateOf<SalonDocument?>(null) }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Location permission for "sort by nearest" — requested only when the user
+    // taps the Nearest chip, never up front.
+    val locationPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            val loc = com.safebeauty.app.util.LocationHelper.lastKnownLocation(context)
+            if (loc != null) {
+                viewModel.setCustomerLocation(loc.latitude, loc.longitude)
+                viewModel.setSortByNearest(true)
+            } else {
+                Toast.makeText(context, strings.locationUnavailable, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     var bookingIntent     by remember { mutableStateOf<BookingIntent?>(null) }
     var showServiceDialog by remember { mutableStateOf(false) }
@@ -542,20 +564,42 @@ fun CustomerDashboardScreen(
                     }
                 }
 
-                // ── Results count ─────────────────────────────────────────────
+                // ── Results count + Nearest sort ──────────────────────────────
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = BlushPink)
                     Text(
                         text = if (filteredSalons.isEmpty()) strings.noProvidersTitle
                                else strings.providersFound(filteredSalons.size),
                         fontSize = 11.sp,
                         color    = RoseGold,
-                        modifier = Modifier.padding(horizontal = 10.dp)
+                        modifier = Modifier.weight(1f)
                     )
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = BlushPink)
+                    FilterChip(
+                        selected = sortByNearest,
+                        onClick  = {
+                            if (sortByNearest) {
+                                viewModel.setSortByNearest(false)
+                            } else if (viewModel.hasCustomerLocation()) {
+                                viewModel.setSortByNearest(true)
+                            } else {
+                                locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                            }
+                        },
+                        label    = { Text(strings.sortNearest, fontSize = 12.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Default.NearMe, null, modifier = Modifier.size(15.dp))
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = ChipActive,
+                            selectedLabelColor     = Color.White,
+                            selectedLeadingIconColor = Color.White,
+                            containerColor         = ChipInactive,
+                            labelColor             = DeepRose,
+                            leadingIconColor       = RoseGold
+                        )
+                    )
                 }
 
                 // ── Recommendations carousel ──────────────────────────────────
@@ -584,9 +628,15 @@ fun CustomerDashboardScreen(
                         modifier            = Modifier.fillMaxSize()
                     ) {
                         items(filteredSalons, key = { it.id }) { salon ->
+                            val distanceKm = customerLoc?.let { (la, lo) ->
+                                if (salon.hasLocation())
+                                    com.safebeauty.app.util.LocationHelper.distanceKm(la, lo, salon.latitude, salon.longitude)
+                                else null
+                            }
                             SalonCard(
                                 salon            = salon,
                                 isFavorite       = favoriteIds.contains(salon.id),
+                                distanceKm       = distanceKm,
                                 onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                                 onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
                             )
@@ -1475,9 +1525,11 @@ private fun SalonCard(
     salon: SalonDocument,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
-    onBook: () -> Unit
+    onBook: () -> Unit,
+    distanceKm: Double? = null
 ) {
     val strings  = LocalStrings.current
+    val context  = LocalContext.current
     val gradient = remember(salon.salonName) { avatarGradient(salon.salonName) }
 
     ElevatedCard(
@@ -1526,6 +1578,25 @@ private fun SalonCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (distanceKm != null) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(RoseGold.copy(alpha = 0.12f))
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = strings.distanceKm(
+                                        if (distanceKm < 10) "%.1f".format(distanceKm)
+                                        else "%.0f".format(distanceKm)
+                                    ),
+                                    fontSize = 10.sp,
+                                    color = RoseGold,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
                     }
                     val cardBadge = remember(salon.id, salon.isVerified, salon.rating, salon.confirmedCount) { salon.badge() }
                     if (cardBadge != SalonBadge.NONE) {
@@ -1601,6 +1672,24 @@ private fun SalonCard(
                     fontWeight = FontWeight.Medium,
                     modifier   = Modifier.weight(1f)
                 )
+                if (salon.hasLocation()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                com.safebeauty.app.util.LocationHelper.openDirections(
+                                    context, salon.latitude, salon.longitude, salon.salonName
+                                )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 9.dp)
+                    ) {
+                        Icon(Icons.Default.Directions, null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(strings.directions, fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier

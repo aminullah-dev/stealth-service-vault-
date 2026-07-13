@@ -24,6 +24,7 @@ import com.safebeauty.app.data.firebase.PromoPreview
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.activeStaff
+import com.safebeauty.app.data.firebase.hasLocation
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WaitlistEntry
@@ -174,6 +175,40 @@ class DashboardViewModel @Inject constructor(
         if (query.isBlank()) preFilt
         else preFilt.filter { it.salonName.contains(query, ignoreCase = true) }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ── Location / distance (free: device GPS + geo intent, no maps SDK) ────────
+    private val _customerLoc   = MutableStateFlow<Pair<Double, Double>?>(null)
+    val customerLoc: StateFlow<Pair<Double, Double>?> = _customerLoc
+    private val _sortByNearest = MutableStateFlow(false)
+    val sortByNearest: StateFlow<Boolean> = _sortByNearest
+
+    fun setCustomerLocation(lat: Double, lng: Double) { _customerLoc.value = lat to lng }
+    fun setSortByNearest(value: Boolean) { _sortByNearest.value = value }
+    fun hasCustomerLocation(): Boolean = _customerLoc.value != null
+
+    /** Distance in km from the customer to [salon], or null if either is unknown. */
+    fun distanceKmTo(salon: SalonDocument): Double? {
+        val loc = _customerLoc.value ?: return null
+        if (!salon.hasLocation()) return null
+        return com.safebeauty.app.util.LocationHelper.distanceKm(
+            loc.first, loc.second, salon.latitude, salon.longitude
+        )
+    }
+
+    /**
+     * The salon list actually shown — [filteredSalons], optionally re-ordered
+     * nearest-first when the customer has enabled that and shared their location.
+     * Salons without a pinned location fall to the end.
+     */
+    val displayedSalons: StateFlow<List<SalonDocument>> =
+        combine(filteredSalons, _customerLoc, _sortByNearest) { salons, loc, nearest ->
+            if (!nearest || loc == null) salons
+            else salons.sortedBy { s ->
+                if (s.hasLocation())
+                    com.safebeauty.app.util.LocationHelper.distanceKm(loc.first, loc.second, s.latitude, s.longitude)
+                else Double.MAX_VALUE
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val myAppointments: StateFlow<List<AppointmentDocument>> =
         firestoreRepository.observeForCustomer(customerId)
