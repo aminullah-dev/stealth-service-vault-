@@ -192,6 +192,25 @@ data class AppointmentDocument(
 fun AppointmentDocument.customerRating(): Double =
     if (customerRatingCount > 0) customerRatingSum.toDouble() / customerRatingCount else 0.0
 
+/**
+ * A support request from one user (customer or provider) to the platform admin.
+ * There is one ticket per user (doc id = the user's app uid), reopened/refreshed
+ * each time they contact support about a booking. The actual conversation lives
+ * in chat_messages under conversationId "support_{userId}"; this doc is the
+ * admin's inbox row — who, about what, and whether it still needs attention.
+ */
+data class SupportTicket(
+    val id: String = "",                    // = userId (one open ticket per user)
+    val userId: String = "",
+    val userName: String = "",
+    val userRole: String = "",              // "CUSTOMER" | "PROVIDER"
+    val relatedInfo: String = "",           // e.g. "Haircut · Glam Salon"
+    val status: String = "OPEN",            // "OPEN" | "CLOSED"
+    val updatedAt: Long = 0L,
+    @get:PropertyName("unreadForAdmin") @set:PropertyName("unreadForAdmin")
+    var unreadForAdmin: Boolean = false
+)
+
 data class ReviewDocument(
     val id: String = "",                    // Firestore document ID
     val salonId: String = "",

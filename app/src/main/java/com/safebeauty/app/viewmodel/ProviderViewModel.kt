@@ -380,6 +380,24 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Opens (or refreshes) a support ticket for this provider about [appt]. The
+     * conversation is the "support_{providerId}" chat the screen navigates to.
+     */
+    fun contactSupport(appt: AppointmentDocument) {
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.upsertSupportTicket(
+                    userId      = providerId,
+                    userName    = salon.value?.salonName ?: salon.value?.providerName ?: "",
+                    userRole    = "PROVIDER",
+                    relatedInfo = "${appt.serviceName} · ${appt.customerName}"
+                )
+                vaultRepository.log("SUPPORT_CONTACT", "provider booking=${appt.id}")
+            }
+        }
+    }
+
     fun triggerLock() {
         viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Provider locked vault") }
         lockTriggered = true

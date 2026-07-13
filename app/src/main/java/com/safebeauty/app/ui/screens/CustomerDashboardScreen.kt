@@ -1265,6 +1265,19 @@ fun CustomerDashboardScreen(
                         showBookingsSheet = false
                         reviewTarget      = appt
                     },
+                    onSupportClick    = { appt ->
+                        showBookingsSheet = false
+                        viewModel.contactSupport(appt)
+                        onNavigate(
+                            Screen.Chat.build(
+                                conversationId = "support_${viewModel.customerId}",
+                                myUserId       = viewModel.customerId,
+                                myName         = currentUserName,
+                                otherName      = strings.supportTitle,
+                                active         = true
+                            )
+                        )
+                    },
                     onLeaveWaitlist   = { entryId -> viewModel.leaveWaitlist(entryId) },
                     onDismissWaitlistSlot = { entryId -> viewModel.dismissWaitlistSlot(entryId) }
                 )
@@ -1811,6 +1824,7 @@ private fun BookingsSheetContent(
     onCancelClick: (AppointmentDocument) -> Unit = {},
     onRescheduleClick: (AppointmentDocument) -> Unit = {},
     onReviewClick: (AppointmentDocument) -> Unit = {},
+    onSupportClick: (AppointmentDocument) -> Unit = {},
     onLeaveWaitlist: (String) -> Unit = {},
     onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
@@ -1866,7 +1880,7 @@ private fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
-                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }) }
+                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick) }
             }
 
             if (past.isNotEmpty()) {
@@ -1878,7 +1892,7 @@ private fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
                 }
-                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }) }
+                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick) }
             }
         }
 
@@ -1933,7 +1947,8 @@ private fun BookingCard(
     onChatClick: (AppointmentDocument) -> Unit,
     onRescheduleClick: (AppointmentDocument) -> Unit,
     onReviewClick: (AppointmentDocument) -> Unit,
-    onCancelClick: () -> Unit
+    onCancelClick: () -> Unit,
+    onSupportClick: (AppointmentDocument) -> Unit
 ) {
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
@@ -1985,9 +2000,21 @@ private fun BookingCard(
                 }
                 StatusChip(appt.status)
             }
-            if (canReschedule || canReview || canCancel) {
+            run {
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Support is always available for a booking, active or past.
+                    OutlinedButton(
+                        onClick        = { onSupportClick(appt) },
+                        shape          = RoundedCornerShape(8.dp),
+                        border         = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                        colors         = ButtonDefaults.outlinedButtonColors(contentColor = RoseGold),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.SupportAgent, null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(strings.contactSupport, fontSize = 12.sp)
+                    }
                     if (canReschedule) {
                         OutlinedButton(
                             onClick        = { onRescheduleClick(appt) },

@@ -686,6 +686,25 @@ class DashboardViewModel @Inject constructor(
         noWorkingHours = false
     }
 
+    /**
+     * Opens (or refreshes) a support ticket for this customer about [appt], so an
+     * admin can pick it up. The conversation itself is the "support_{customerId}"
+     * chat the screen then navigates to.
+     */
+    fun contactSupport(appt: AppointmentDocument) {
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.upsertSupportTicket(
+                    userId      = customerId,
+                    userName    = _currentUserName.value,
+                    userRole    = "CUSTOMER",
+                    relatedInfo = "${appt.serviceName} · ${appt.salonName}"
+                )
+                vaultRepository.log("SUPPORT_CONTACT", "customer booking=${appt.id}")
+            }
+        }
+    }
+
     private fun computeSlots(
         salon: SalonDocument,
         dateMs: Long,

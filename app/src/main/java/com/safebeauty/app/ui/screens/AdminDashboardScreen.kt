@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocalOffer
@@ -152,11 +153,12 @@ fun AdminDashboardScreen(
     var selectedTab      by remember { mutableIntStateOf(0) }
 
     val flaggedReports   by viewModel.flaggedReports.collectAsStateWithLifecycle()
+    val supportTickets   by viewModel.supportTickets.collectAsStateWithLifecycle()
 
     val tabs = listOf(
         strings.approvalQueueSubtitle, strings.tabKyc, strings.tabUsers,
         strings.tabSalons, strings.tabStats, strings.tabBroadcast, strings.tabFinance,
-        strings.tabPromos, strings.tabReports
+        strings.tabPromos, strings.tabReports, strings.tabSupport
     )
 
     DashboardTheme {
@@ -241,6 +243,7 @@ fun AdminDashboardScreen(
                     6 -> FinanceTab(commissionPercent, providerBalances, payouts, refundRequests, viewModel)
                     7 -> PromosTab(promoCodes, viewModel)
                     8 -> ReportsTab(flaggedReports, viewModel)
+                    9 -> SupportTab(supportTickets, viewModel, onNavigate)
                 }
             }
         }
@@ -1339,6 +1342,93 @@ private fun ReportRow(
                         colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
                     ) {
                         Text(strings.reportSuspend, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Tab 10: Support inbox ───────────────────────────────────────────────────────
+
+@Composable
+private fun SupportTab(
+    tickets: List<com.safebeauty.app.data.firebase.SupportTicket>,
+    viewModel: AdminViewModel,
+    onNavigate: (String) -> Unit
+) {
+    val strings = LocalStrings.current
+    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
+    if (tickets.isEmpty()) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.fillMaxSize().padding(32.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.SupportAgent, null, tint = RoseGold, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(12.dp))
+                Text(strings.supportInboxEmpty, fontSize = 14.sp, color = RoseGold, textAlign = TextAlign.Center)
+            }
+        }
+        return
+    }
+    LazyColumn(
+        contentPadding      = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(tickets, key = { it.id }) { ticket ->
+            ElevatedCard(
+                shape     = RoundedCornerShape(16.dp),
+                colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                modifier  = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (ticket.unreadForAdmin) {
+                            Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFB00020)))
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(ticket.userName.ifBlank { ticket.userId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+                            Text(ticket.userRole, fontSize = 11.sp, color = RoseGold)
+                        }
+                        Text(dateFmt.format(Date(ticket.updatedAt)), fontSize = 11.sp, color = Color(0xFF999999))
+                    }
+                    if (ticket.relatedInfo.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(ticket.relatedInfo, fontSize = 13.sp, color = Color(0xFF555555))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick  = {
+                                viewModel.markSupportRead(ticket.userId)
+                                onNavigate(
+                                    Screen.Chat.build(
+                                        conversationId = "support_${ticket.userId}",
+                                        myUserId       = viewModel.adminId,
+                                        myName         = strings.supportTitle,
+                                        otherName      = ticket.userName.ifBlank { ticket.userId },
+                                        active         = true
+                                    )
+                                )
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape    = RoundedCornerShape(10.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = DeepRose)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Chat, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(strings.chat, color = Color.White, fontSize = 13.sp)
+                        }
+                        OutlinedButton(
+                            onClick  = { viewModel.closeSupportTicket(ticket.userId) },
+                            modifier = Modifier.weight(1f),
+                            shape    = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(strings.supportClose, color = DeepRose, fontSize = 13.sp)
+                        }
                     }
                 }
             }

@@ -50,6 +50,7 @@ class FirestoreRepository @Inject constructor(
     private val payoutsCol           = db.collection("payouts")
     private val refundRequestsCol    = db.collection("refund_requests")
     private val promoCodesCol        = db.collection("promo_codes")
+    private val supportTicketsCol    = db.collection("support_tickets")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -637,6 +638,58 @@ class FirestoreRepository @Inject constructor(
                 trySend(list)
             }
         awaitClose { listener.remove() }
+    }
+
+    // ── Support tickets ─────────────────────────────────────────────────────────
+
+    /**
+     * Opens (or re-opens) this user's support ticket about a booking. One doc per
+     * user keyed by [userId]; contacting support again just refreshes it and
+     * flags it unread for the admin. The conversation itself is a normal chat
+     * under "support_{userId}".
+     */
+    suspend fun upsertSupportTicket(
+        userId: String,
+        userName: String,
+        userRole: String,
+        relatedInfo: String
+    ) {
+        supportTicketsCol.document(userId).set(
+            SupportTicket(
+                id             = userId,
+                userId         = userId,
+                userName       = userName,
+                userRole       = userRole,
+                relatedInfo    = relatedInfo,
+                status         = "OPEN",
+                updatedAt      = System.currentTimeMillis(),
+                unreadForAdmin = true
+            )
+        ).await()
+    }
+
+    /** Admin-only: live list of open support tickets, newest first. */
+    fun observeOpenSupportTickets(): Flow<List<SupportTicket>> = callbackFlow {
+        val listener = supportTicketsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(SupportTicket::class.java)?.copy(id = it.id) }
+                ?.filter { it.status == "OPEN" }
+                ?.sortedByDescending { it.updatedAt }
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
+
+    /** Admin-only: clears the unread flag (the admin has opened the thread). */
+    suspend fun markSupportTicketRead(userId: String) {
+        runCatching { supportTicketsCol.document(userId).update("unreadForAdmin", false).await() }
+    }
+
+    /** Admin-only: closes a resolved ticket so it leaves the inbox. */
+    suspend fun closeSupportTicket(userId: String) {
+        runCatching { supportTicketsCol.document(userId).update("status", "CLOSED").await() }
     }
 
     // ── Provider balances (payout ledger) ────────────────────────────────────────

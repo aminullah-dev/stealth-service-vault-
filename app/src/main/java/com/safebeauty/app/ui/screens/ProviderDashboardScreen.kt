@@ -335,6 +335,18 @@ fun ProviderDashboardScreen(
                         onAccept     = { viewModel.acceptAppointment(it) },
                         onDecline    = { viewModel.declineAppointment(it) },
                         onRate       = { viewModel.openRatingDialog(it) },
+                        onSupport    = { appt ->
+                            viewModel.contactSupport(appt)
+                            onNavigate(
+                                Screen.Chat.build(
+                                    conversationId = "support_${viewModel.providerId}",
+                                    myUserId       = viewModel.providerId,
+                                    myName         = salon?.salonName ?: salon?.providerName ?: "",
+                                    otherName      = strings.supportTitle,
+                                    active         = true
+                                )
+                            )
+                        },
                         onNavigate   = onNavigate
                     )
                     1 -> ProfileTab(viewModel = viewModel)
@@ -718,6 +730,7 @@ private fun BookingRequestsTab(
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
     onRate: (AppointmentDocument) -> Unit,
+    onSupport: (AppointmentDocument) -> Unit,
     onNavigate: (String) -> Unit
 ) {
     val strings = LocalStrings.current
@@ -772,6 +785,7 @@ private fun BookingRequestsTab(
                         onAccept    = { onAccept(appt.id) },
                         onDecline   = { onDecline(appt.id) },
                         onRate      = { onRate(appt) },
+                        onSupport   = { onSupport(appt) },
                         onChat      = {
                             if (salonId.isNotBlank()) {
                                 onNavigate(
@@ -809,7 +823,8 @@ private fun BookingRequestCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
     onChat: () -> Unit = {},
-    onRate: () -> Unit = {}
+    onRate: () -> Unit = {},
+    onSupport: () -> Unit = {}
 ) {
     val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -947,6 +962,17 @@ private fun BookingRequestCard(
                             Icons.AutoMirrored.Filled.Chat,
                             contentDescription = null,
                             tint     = RoseGold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick  = onSupport,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.SupportAgent,
+                            contentDescription = strings.contactSupport,
+                            tint     = Color(0xFF888888),
                             modifier = Modifier.size(20.dp)
                         )
                     }

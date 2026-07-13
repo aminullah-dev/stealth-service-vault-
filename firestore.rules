@@ -58,6 +58,17 @@ service cloud.firestore {
               || get(/databases/$(database)/documents/salons/$(parts[1])).data.providerId == me());
     }
 
+    // A support thread ("support_{userId}") between one user and the platform
+    // admin. Kept separate from isParticipantInConversation so it never runs the
+    // salon lookup that function does (parts[1] here is a user id, not a salon).
+    function isSupportConversation(conversationId) {
+      return conversationId.split('_')[0] == 'support';
+    }
+    function isSupportParticipant(conversationId) {
+      let parts = conversationId.split('_');
+      return parts.size() == 2 && (isAdmin() || parts[1] == me());
+    }
+
     // ── users ──────────────────────────────────────────────────────────────────
     //
     // Login and the pre-auth phone lookup are now Cloud Functions
@@ -200,13 +211,29 @@ service cloud.firestore {
     // Messages are immutable once sent.
     match /chat_messages/{msgId} {
       allow read: if isSignedIn()
-               && isParticipantInConversation(resource.data.conversationId);
+               && (isSupportConversation(resource.data.conversationId)
+                     ? isSupportParticipant(resource.data.conversationId)
+                     : isParticipantInConversation(resource.data.conversationId));
 
       allow create: if isSignedIn()
                  && request.resource.data.senderId == me()
-                 && isParticipantInConversation(request.resource.data.conversationId);
+                 && (isSupportConversation(request.resource.data.conversationId)
+                       ? isSupportParticipant(request.resource.data.conversationId)
+                       : isParticipantInConversation(request.resource.data.conversationId));
 
       allow update, delete: if false;
+    }
+
+    // ── support_tickets ─────────────────────────────────────────────────────────
+    // One ticket per user (doc id = the user's app uid). The user upserts their
+    // own ticket when they contact support; the admin reads all, clears the
+    // unread flag, and closes resolved tickets.
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (ticketId == me() || isAdmin());
+      allow create, update: if isSignedIn()
+                 && ((ticketId == me() && request.resource.data.userId == me())
+                     || isAdmin());
+      allow delete: if isAdmin();
     }
 
     // ── reviews ────────────────────────────────────────────────────────────────

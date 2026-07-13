@@ -39,10 +39,14 @@ data class SystemStats(
 
 @HiltViewModel
 class AdminViewModel @Inject constructor(
+    savedStateHandle: androidx.lifecycle.SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
     private val paymentRepository: PaymentRepository,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
+
+    /** The signed-in admin's app uid (from the nav route) — used as sender id in support chats. */
+    val adminId: String = savedStateHandle.get<String>("userId") ?: ""
 
     // Each "*Loaded" flag flips true on the underlying listener's FIRST emission
     // (success or error) so the UI can tell "still loading" apart from a
@@ -335,6 +339,27 @@ class AdminViewModel @Inject constructor(
             paymentRepository.resolveCustomerReport(reportId, suspend)
             reportInProgress = null
             vaultRepository.log("ADMIN_REPORT_RESOLVE", "reportId=$reportId suspend=$suspend")
+        }
+    }
+
+    // ── Support tickets (users contacting the admin about a booking) ─────────────
+
+    /** Open support tickets, newest first. */
+    val supportTickets: StateFlow<List<com.safebeauty.app.data.firebase.SupportTicket>> =
+        firestoreRepository.observeOpenSupportTickets()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Called when the admin opens a ticket's thread — clears its unread flag. */
+    fun markSupportRead(userId: String) {
+        viewModelScope.launch { firestoreRepository.markSupportTicketRead(userId) }
+    }
+
+    /** Closes a resolved support ticket so it leaves the inbox. */
+    fun closeSupportTicket(userId: String) {
+        viewModelScope.launch {
+            firestoreRepository.closeSupportTicket(userId)
+            vaultRepository.log("ADMIN_SUPPORT_CLOSE", "userId=$userId")
         }
     }
 
