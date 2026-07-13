@@ -1247,7 +1247,10 @@ fun CustomerDashboardScreen(
                                 conversationId = "${viewModel.customerId}_${appt.salonId}",
                                 myUserId       = viewModel.customerId,
                                 myName         = currentUserName,
-                                otherName      = appt.salonName
+                                otherName      = appt.salonName,
+                                // Only an active booking keeps the chat open; a
+                                // finished/cancelled one becomes a read-only archive.
+                                active         = appt.status == "PENDING" || appt.status == "CONFIRMED"
                             )
                         )
                     },

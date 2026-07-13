@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -100,13 +102,30 @@ fun ChatScreen(
                 )
             },
             bottomBar = {
-                ChatInputBar(
-                    draft          = viewModel.draft,
-                    onDraftChanged = viewModel::onDraftChanged,
-                    onSend         = viewModel::send,
-                    placeholder    = strings.messagePlaceholder,
-                    sendLabel      = strings.send
-                )
+                if (viewModel.readOnly) {
+                    // Booking has ended — the thread is a read-only archive.
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment     = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BlushPink.copy(alpha = 0.4f))
+                            .navigationBarsPadding()
+                            .padding(vertical = 14.dp, horizontal = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Lock, null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(strings.chatClosedNotice, fontSize = 13.sp, color = DeepRose, textAlign = TextAlign.Center)
+                    }
+                } else {
+                    ChatInputBar(
+                        draft          = viewModel.draft,
+                        onDraftChanged = viewModel::onDraftChanged,
+                        onSend         = viewModel::send,
+                        placeholder    = strings.messagePlaceholder,
+                        sendLabel      = strings.send
+                    )
+                }
             }
         ) { padding ->
             LazyColumn(

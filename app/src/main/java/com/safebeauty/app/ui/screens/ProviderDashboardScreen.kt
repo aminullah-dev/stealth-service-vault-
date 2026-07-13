@@ -779,7 +779,8 @@ private fun BookingRequestsTab(
                                         conversationId = "${appt.customerId}_$salonId",
                                         myUserId       = providerId,
                                         myName         = providerName,
-                                        otherName      = appt.customerName
+                                        otherName      = appt.customerName,
+                                        active         = appt.status == "PENDING" || appt.status == "CONFIRMED"
                                     )
                                 )
                             }

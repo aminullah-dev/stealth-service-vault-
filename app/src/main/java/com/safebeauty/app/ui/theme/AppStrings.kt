@@ -233,6 +233,7 @@ class AppStrings {
     // Chat
     var chat: String = ""
     var messagePlaceholder: String = ""
+    var chatClosedNotice: String = ""
     var send: String = ""
     // Offline / status
     var offlineBanner: String = ""
@@ -724,6 +725,7 @@ object StringResources {
         pending                    = "Pending"
         chat                       = "Chat"
         messagePlaceholder         = "Type a message…"
+        chatClosedNotice           = "This booking has ended — the conversation is read-only."
         send                       = "Send"
         offlineBanner              = "You're offline — showing cached results"
         bookingUpdatedTitle        = "Booking Update"
@@ -1169,6 +1171,7 @@ object StringResources {
         pending                    = "معلق"
         chat                       = "گفتگو"
         messagePlaceholder         = "پیام بنویسید…"
+        chatClosedNotice           = "این رزرو به پایان رسیده — گفتگو فقط‌خواندنی است."
         send                       = "ارسال"
         offlineBanner              = "آفلاین هستید — نتایج ذخیره‌شده نمایش داده می‌شود"
         bookingUpdatedTitle        = "به‌روزرسانی رزرو"
@@ -1614,6 +1617,7 @@ object StringResources {
         pending                    = "انتظار"
         chat                       = "خبرې"
         messagePlaceholder         = "پیغام ولیکئ…"
+        chatClosedNotice           = "دا بکینګ پای ته رسیدلی — خبرې اترې یوازې د لوستلو دي."
         send                       = "واستول"
         offlineBanner              = "آفلاین یاست — خوندي شوي پایلې ښودل کیږي"
         bookingUpdatedTitle        = "د بکینګ تازه خبر"

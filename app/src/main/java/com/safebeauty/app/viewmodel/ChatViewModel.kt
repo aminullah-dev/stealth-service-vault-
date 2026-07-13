@@ -25,6 +25,10 @@ class ChatViewModel @Inject constructor(
     val myUserId: String               = checkNotNull(savedStateHandle["myUserId"])
     val myName: String                 = checkNotNull(savedStateHandle["myName"])
     val otherName: String              = checkNotNull(savedStateHandle["otherName"])
+    // A conversation tied to an ended (completed/cancelled) booking is a
+    // read-only archive: the history stays visible but no new messages can be
+    // sent. Defaults to writable when the flag is absent.
+    val readOnly: Boolean              = savedStateHandle.get<Boolean>("active") == false
 
     val messages: StateFlow<List<ChatMessage>> = firestoreRepository
         .observeConversation(conversationId)

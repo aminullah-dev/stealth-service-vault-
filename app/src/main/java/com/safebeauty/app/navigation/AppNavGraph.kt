@@ -66,13 +66,14 @@ sealed class Screen(val route: String) {
     object SetNewPin : Screen("setNewPin/{oobCode}") {
         fun build(oobCode: String) = "setNewPin/${Uri.encode(oobCode)}"
     }
-    object Chat : Screen("chat/{conversationId}/{myUserId}/{myName}/{otherName}") {
+    object Chat : Screen("chat/{conversationId}/{myUserId}/{myName}/{otherName}?active={active}") {
         fun build(
             conversationId: String,
             myUserId: String,
             myName: String,
-            otherName: String
-        ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}"
+            otherName: String,
+            active: Boolean = true
+        ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}?active=$active"
     }
     object Notifications : Screen("notifications/{userId}") {
         fun build(userId: String) = "notifications/$userId"
@@ -253,7 +254,8 @@ fun AppNavGraph(
                     navArgument("conversationId") { type = NavType.StringType },
                     navArgument("myUserId")       { type = NavType.StringType },
                     navArgument("myName")         { type = NavType.StringType },
-                    navArgument("otherName")      { type = NavType.StringType }
+                    navArgument("otherName")      { type = NavType.StringType },
+                    navArgument("active")         { type = NavType.BoolType; defaultValue = true }
                 )
             ) {
                 ChatScreen(onBack = { navController.popBackStack() })
