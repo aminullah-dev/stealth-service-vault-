@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeBeauty · Admin Console</title>
+<style>
+  :root{
+    --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
+    --cream:#FFF7FB; --surface:#FDEFF6; --lilac:#E9D5F0; --petal:#FCE4EF;
+    --ink:#4a3b40; --muted:#9a8b90; --green:#4CAF50; --red:#C0392B; --gold:#D4A853;
+    --line:#F0D6E2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--ink)}
+  body{background:linear-gradient(160deg,#FFF7FB 0%,#FDEAF3 55%,#F5E7F6 100%)}
+  button{font-family:inherit;cursor:pointer;border:none}
+  input,textarea{font-family:inherit}
+  .hidden{display:none !important}
+
+  /* Login */
+  #login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:0 12px 40px rgba(139,58,71,.10)}
+  #login .card{width:100%;max-width:380px;padding:34px 30px;text-align:center}
+  .logo{width:74px;height:74px;border-radius:22px;margin:0 auto 14px;
+        background:radial-gradient(circle at 50% 35%,#FFF0F6,#FCE4EF 60%,#F7D9E7);
+        display:flex;align-items:center;justify-content:center;font-size:34px}
+  h1{margin:0;font-size:24px;background:linear-gradient(90deg,#EBA9C0,#B76E79,#7A2F3D);
+     -webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  .sub{color:var(--rose);font-size:13px;margin:4px 0 22px}
+  .field{width:100%;padding:13px 15px;border:1.5px solid var(--line);border-radius:13px;font-size:15px;margin-bottom:12px;background:#fff;color:var(--ink);outline:none}
+  .field:focus{border-color:var(--rose)}
+  .btn{width:100%;padding:13px;border-radius:13px;font-size:15px;font-weight:700;color:#fff;
+       background:linear-gradient(90deg,#EBA9C0,#B76E79,#7A2F3D)}
+  .btn:disabled{opacity:.55;cursor:default}
+  .btn-ghost{background:var(--petal);color:var(--deep);font-weight:600}
+  .btn-sm{padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:700;color:#fff}
+  .err{color:var(--red);font-size:13px;min-height:18px;margin-top:6px}
+
+  /* Shell */
+  #app{min-height:100%;display:flex;flex-direction:column}
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;background:rgba(255,255,255,.75);
+         backdrop-filter:blur(8px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  header .brand{font-weight:800;font-size:18px;background:linear-gradient(90deg,#EBA9C0,#B76E79,#7A2F3D);
+                -webkit-background-clip:text;background-clip:text;color:transparent}
+  header .who{margin-left:auto;color:var(--muted);font-size:13px}
+  .tabs{display:flex;gap:6px;padding:12px 22px 0;flex-wrap:wrap}
+  .tab{padding:9px 16px;border-radius:11px 11px 0 0;background:transparent;color:var(--rose);font-weight:600;font-size:14px}
+  .tab.active{background:#fff;color:var(--deep);box-shadow:0 -2px 10px rgba(139,58,71,.05)}
+  main{flex:1;padding:18px 22px 40px;max-width:1100px;width:100%;margin:0 auto}
+
+  /* Stats */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+  .stat{padding:18px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+  .stat .n{font-size:30px;font-weight:800;color:var(--deep)}
+  .stat .l{color:var(--muted);font-size:13px;margin-top:2px}
+
+  /* Lists */
+  .row{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px 17px;margin-bottom:12px}
+  .row h3{margin:0 0 3px;font-size:15px;color:var(--deep)}
+  .row .meta{color:var(--muted);font-size:12.5px}
+  .row .actions{margin-top:11px;display:flex;gap:9px;flex-wrap:wrap}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+  .badge.dot{background:rgba(192,57,43,.12);color:var(--red)}
+  .empty{text-align:center;color:var(--rose);padding:48px 10px;font-size:15px}
+  .section-title{font-size:13px;color:var(--rose);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:6px 0 12px}
+
+  /* Announce + support composer */
+  textarea.field{min-height:90px;resize:vertical}
+  .flash{background:rgba(76,175,80,.12);color:#2e7d32;border-radius:11px;padding:10px 14px;font-size:13.5px;margin-bottom:12px}
+
+  /* Support chat */
+  .support-wrap{display:grid;grid-template-columns:320px 1fr;gap:16px}
+  @media(max-width:760px){.support-wrap{grid-template-columns:1fr}}
+  .ticket{cursor:pointer}
+  .ticket.sel{outline:2px solid var(--rose)}
+  .chat{background:#fff;border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;min-height:420px}
+  .chat .msgs{flex:1;padding:14px;overflow-y:auto;max-height:440px;display:flex;flex-direction:column;gap:8px}
+  .bubble{max-width:75%;padding:9px 13px;border-radius:14px;font-size:14px;line-height:1.35;white-space:pre-wrap;word-break:break-word}
+  .bubble.them{align-self:flex-start;background:var(--surface);color:var(--ink)}
+  .bubble.me{align-self:flex-end;background:linear-gradient(90deg,#EBA9C0,#B76E79);color:#fff}
+  .bubble .t{display:block;font-size:10px;opacity:.7;margin-top:3px}
+  .composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}
+  .composer input{flex:1;margin:0}
+  .chat-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--rose)}
+  a.link{color:var(--rose);font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────────────── -->
+<div id="login">
+  <div class="card">
+    <div class="logo">❀</div>
+    <h1>SafeBeauty</h1>
+    <div class="sub">Admin Console</div>
+    <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
+    <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+    <button id="lbtn" class="btn">Sign in</button>
+    <div id="lerr" class="err"></div>
+  </div>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+  <header>
+    <span class="brand">SafeBeauty ❀</span>
+    <span class="who" id="who"></span>
+    <button class="btn-sm" id="logout" style="background:var(--rose);margin-left:12px">Sign out</button>
+  </header>
+  <div class="tabs" id="tabs"></div>
+  <main id="view"></main>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, collection, query, where, orderBy, getDocs, doc,
+         updateDoc, addDoc, onSnapshot, getCountFromServer }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFunctions, httpsCallable }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
+  authDomain: "safebeauty.firebaseapp.com",
+  projectId: "safebeauty",
+  storageBucket: "safebeauty.firebasestorage.app",
+  messagingSenderId: "238802374530",
+  appId: "1:238802374530:android:f2617130bc9a9644b3c99b"
+};
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+const fns  = getFunctions(app, 'us-central1');
+
+// ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
+function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
+function normalizeAfghan(raw){
+  let c=clean(raw);
+  if(c.startsWith('+93')) return c;
+  if(c.startsWith('0093')) return '+93'+c.slice(4);
+  if(c.startsWith('93')&&c.length>=11) return '+'+c;
+  c=c.replace(/^\+/,''); if(c.startsWith('0')) c=c.slice(1);
+  return '+93'+c;
+}
+function normalizeForLogin(raw){ const c=clean(raw); return c.startsWith('+')?c:normalizeAfghan(raw); }
+
+// ── PBKDF2 auth-password derivation (mirrors PinHasher.deriveAuthPassword) ───
+function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i); return u; }
+function bytesToB64(b){ let s=''; for(const x of b) s+=String.fromCharCode(x); return btoa(s); }
+async function deriveAuthPassword(pin, saltB64){
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('AUTH:'+pin), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:b64ToBytes(saltB64), iterations:65536, hash:'SHA-256' }, key, 256);
+  return bytesToB64(new Uint8Array(bits));
+}
+
+// ── State ───────────────────────────────────────────────────────────────────
+let admin = null; // { uid, name }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
+
+// ── Login ────────────────────────────────────────────────────────────────────
+$('lbtn').addEventListener('click', doLogin);
+$('lw').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const phone = normalizeForLogin($('lp').value);
+  const pw = $('lw').value;
+  $('lerr').textContent = '';
+  if(!phone || !pw){ $('lerr').textContent='Enter phone and password.'; return; }
+  $('lbtn').disabled = true; $('lbtn').textContent = 'Signing in…';
+  try{
+    const res = await httpsCallable(fns,'authenticateWithPassword')({ phone, password: pw });
+    const m = res.data || {};
+    if(m.mode !== 'REAL'){ throw new Error('Invalid phone or password.'); }
+    if((m.role||'') !== 'ADMIN'){ throw new Error('This account is not an administrator.'); }
+    const authPw = await deriveAuthPassword(pw, m.salt || '');
+    await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
+    await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
+    admin = { uid: m.uid, name: m.name || 'Admin' };
+    enterApp();
+  }catch(e){
+    $('lerr').textContent = (e && e.message) ? e.message : 'Sign-in failed.';
+  }finally{
+    $('lbtn').disabled = false; $('lbtn').textContent = 'Sign in';
+  }
+}
+
+$('logout').addEventListener('click', async () => {
+  await signOut(auth); location.reload();
+});
+
+// ── App shell ────────────────────────────────────────────────────────────────
+const TABS = [
+  { id:'stats',    label:'Statistics', render:renderStats },
+  { id:'support',  label:'Support',    render:renderSupport },
+  { id:'announce', label:'Announce',   render:renderAnnounce },
+  { id:'approvals',label:'Approvals',  render:renderApprovals },
+  { id:'kyc',      label:'KYC',        render:renderKyc },
+];
+let activeTab = 'stats';
+let unsub = [];   // active onSnapshot cleanups per view
+
+function enterApp(){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent = admin.name;
+  const tabsEl = $('tabs');
+  tabsEl.innerHTML = '';
+  TABS.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (t.id===activeTab?' active':'');
+    b.textContent = t.label;
+    b.onclick = () => selectTab(t.id);
+    tabsEl.appendChild(b);
+  });
+  selectTab(activeTab);
+}
+function selectTab(id){
+  activeTab = id;
+  unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
+  [...$('tabs').children].forEach((b,i) => b.classList.toggle('active', TABS[i].id===id));
+  $('view').innerHTML = '<div class="empty">Loading…</div>';
+  TABS.find(t=>t.id===id).render();
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+async function renderStats(){
+  try{
+    const [usersSnap, salonsSnap, apptCount] = await Promise.all([
+      getDocs(collection(db,'users')),
+      getDocs(collection(db,'salons')),
+      getCountFromServer(collection(db,'appointments')).catch(()=>null),
+    ]);
+    let providers=0, customers=0, pending=0, suspended=0, kycPending=0;
+    usersSnap.forEach(d => { const u=d.data();
+      if(u.role==='PROVIDER') providers++;
+      if(u.role==='CUSTOMER') customers++;
+      if(u.status==='PENDING') pending++;
+      if(u.status==='SUSPENDED') suspended++;
+      if(u.kycStatus==='PENDING') kycPending++;
+    });
+    const appts = apptCount ? apptCount.data().count : '—';
+    const cards = [
+      ['Total users', usersSnap.size], ['Providers', providers], ['Customers', customers],
+      ['Salons', salonsSnap.size], ['Appointments', appts],
+      ['Pending approvals', pending], ['KYC pending', kycPending], ['Suspended', suspended],
+    ];
+    $('view').innerHTML =
+      `<div class="section-title">Platform overview</div><div class="grid">` +
+      cards.map(([l,n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
+      `</div>`;
+  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load stats: ${esc(e.message)}</div>`; }
+}
+
+// ── Announcements ──────────────────────────────────────────────────────────────
+function renderAnnounce(){
+  $('view').innerHTML = `
+    <div class="section-title">Send an announcement</div>
+    <div class="card" style="padding:18px;max-width:560px">
+      <div id="aflash"></div>
+      <textarea id="amsg" class="field" placeholder="Your message to all users…"></textarea>
+      <button id="asend" class="btn">Send to everyone</button>
+      <div class="meta" style="margin-top:10px">Delivered as a push notification and shown in-app.</div>
+    </div>`;
+  $('asend').onclick = async () => {
+    const msg = $('amsg').value.trim();
+    if(!msg) return;
+    $('asend').disabled = true; $('asend').textContent = 'Sending…';
+    try{
+      await addDoc(collection(db,'broadcasts'), { message: msg, sentBy:'admin', createdAt: Date.now() });
+      $('amsg').value = '';
+      $('aflash').innerHTML = `<div class="flash">Announcement sent ✓</div>`;
+    }catch(e){ $('aflash').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    finally{ $('asend').disabled=false; $('asend').textContent='Send to everyone'; }
+  };
+}
+
+// ── Approvals ──────────────────────────────────────────────────────────────────
+function renderApprovals(){
+  const q = query(collection(db,'users'), where('status','==','PENDING'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Pending provider approvals</div>` +
+      rows.map(u => `
+        <div class="row">
+          <h3>${esc(u.name||u.id)} <span class="badge" style="background:var(--surface);color:var(--rose)">${esc(u.role||'')}</span></h3>
+          <div class="meta">${esc(u.phone||'')} · joined ${fmtDate(u.createdAt)}</div>
+          <div class="actions">
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
+            <button class="btn-sm" style="background:var(--red)" data-no="${u.id}">Reject</button>
+          </div>
+        </div>`).join('');
+    $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () =>
+      updateDoc(doc(db,'users',b.dataset.ok), { status:'APPROVED' }).catch(e=>alert(e.message)));
+    $('view').querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
+      const reason = prompt('Rejection reason (shown to the user):','');
+      if(reason===null) return;
+      updateDoc(doc(db,'users',b.dataset.no), { status:'REJECTED', rejectionReason: reason }).catch(e=>alert(e.message));
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── KYC ────────────────────────────────────────────────────────────────────────
+function renderKyc(){
+  const q = query(collection(db,'users'), where('kycStatus','==','PENDING'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Identity verification queue</div>` +
+      rows.map(u => `
+        <div class="row">
+          <h3>${esc(u.name||u.id)}</h3>
+          <div class="meta">${esc(u.phone||'')} · ${esc(u.role||'')}</div>
+          <div class="actions">
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
+            <button class="btn-sm" style="background:var(--red)" data-no="${u.id}">Reject</button>
+          </div>
+        </div>`).join('');
+    const review = (uid, approve, reason='') =>
+      httpsCallable(fns,'reviewKyc')({ targetUid: uid, approve, rejectionReason: reason })
+        .catch(e => alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () => review(b.dataset.ok, true));
+    $('view').querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
+      const reason = prompt('Rejection reason:',''); if(reason===null) return;
+      review(b.dataset.no, false, reason);
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Support ────────────────────────────────────────────────────────────────────
+let selectedTicket = null;
+let chatUnsub = null;
+
+function renderSupport(){
+  $('view').innerHTML = `<div class="support-wrap">
+      <div id="tickets"></div>
+      <div id="chat" class="chat"><div class="chat-empty">Select a conversation</div></div>
+    </div>`;
+  const q = query(collection(db,'support_tickets'), where('status','==','OPEN'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    rows.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+    const el = $('tickets');
+    if(!el) return;
+    if(!rows.length){ el.innerHTML = `<div class="empty">No open support requests</div>`; return; }
+    el.innerHTML = rows.map(t => `
+      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
+        <h3>${t.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(t.userName||t.userId)}</h3>
+        <div class="meta">${esc(t.userRole||'')}${t.relatedInfo?' · '+esc(t.relatedInfo):''}</div>
+        <div class="meta">${fmtDate(t.updatedAt)}</div>
+      </div>`).join('');
+    el.querySelectorAll('.ticket').forEach(r => r.onclick = () => openChat(r.dataset.uid, r.dataset.name));
+  }, err => { const el=$('tickets'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+function openChat(userId, name){
+  selectedTicket = userId;
+  document.querySelectorAll('.ticket').forEach(r => r.classList.toggle('sel', r.dataset.uid===userId));
+  updateDoc(doc(db,'support_tickets',userId), { unreadForAdmin:false }).catch(()=>{});
+  const chat = $('chat');
+  chat.innerHTML = `<div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <input id="cin" class="field" placeholder="Reply to ${esc(name)}…" />
+      <button id="csend" class="btn-sm" style="background:var(--rose)">Send</button>
+      <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">Close</button>
+    </div>`;
+  const convId = 'support_'+userId;
+  if(chatUnsub){ try{chatUnsub();}catch(_){} }
+  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
+  chatUnsub = onSnapshot(q, snap => {
+    const msgs = [];
+    snap.forEach(d => msgs.push(d.data()));
+    msgs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+    const box = $('msgs'); if(!box) return;
+    box.innerHTML = msgs.map(m => {
+      const mine = m.senderId === admin.uid;
+      return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  });
+  const send = async () => {
+    const inp = $('cin'); const text = inp.value.trim(); if(!text) return;
+    inp.value='';
+    try{
+      await addDoc(collection(db,'chat_messages'), {
+        conversationId: convId, senderId: admin.uid, senderName:'Support', content:text, timestamp: Date.now()
+      });
+    }catch(e){ alert(e.message); inp.value=text; }
+  };
+  $('csend').onclick = send;
+  $('cin').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
+  $('cclose').onclick = () => {
+    if(!confirm('Close this support ticket?')) return;
+    updateDoc(doc(db,'support_tickets',userId), { status:'CLOSED' }).catch(e=>alert(e.message));
+    selectedTicket = null;
+    $('chat').innerHTML = `<div class="chat-empty">Select a conversation</div>`;
+  };
+}
+</script>
+</body>
+</html>
