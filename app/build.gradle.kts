@@ -1,3 +1,6 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.cert.X509Certificate
 import java.util.Properties
 
 plugins {
@@ -13,6 +16,32 @@ plugins {
 val keystorePropsFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) load(keystorePropsFile.inputStream())
+}
+
+// The official Google Play upload key. The release build is verified against this
+// fingerprint (see the verifyReleaseSigningKey task at the bottom of this file) so a
+// stray or wrong keystore can never produce a bundle that Play would reject — we
+// once shipped a build signed with the wrong key and only found out at upload time.
+// A certificate fingerprint is public info (it's in every published bundle), so it's
+// safe to commit. If you ever legitimately rotate the upload key, update this value.
+val expectedReleaseSha1 = "A0:04:BE:C3:6A:A0:D8:BF:A6:C8:8B:7F:DB:09:36:E5:1C:68:A6:F5"
+
+// Reads the SHA-1 fingerprint of the signing certificate for [alias] in [file],
+// or null if the keystore can't be opened (missing file / wrong password / alias).
+// Tries JKS then PKCS12 so it works regardless of how the keystore was created.
+fun releaseCertSha1(file: java.io.File, storePass: String, alias: String): String? {
+    if (!file.exists() || storePass.isBlank()) return null
+    for (type in listOf("JKS", "PKCS12")) {
+        val fp = runCatching {
+            val ks = KeyStore.getInstance(type)
+            file.inputStream().use { ks.load(it, storePass.toCharArray()) }
+            val cert = ks.getCertificate(alias) as? X509Certificate ?: return@runCatching null
+            MessageDigest.getInstance("SHA-1").digest(cert.encoded)
+                .joinToString(":") { "%02X".format(it) }
+        }.getOrNull()
+        if (fp != null) return fp
+    }
+    return null
 }
 
 android {
@@ -177,4 +206,38 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// ── Signing-key guardrail ───────────────────────────────────────────────────
+// Fail the release build immediately if it isn't signed with the official upload
+// key, instead of discovering it only when Google Play rejects the upload. Skips
+// cleanly when no release keystore is present (debug builds / CI without secrets).
+tasks.register("verifyReleaseSigningKey") {
+    doLast {
+        val f     = rootProject.file(keystoreProps["storeFile"] as String? ?: "app/safebeauty-release.jks")
+        val pass  = keystoreProps["storePassword"] as String? ?: ""
+        val alias = keystoreProps["keyAlias"]      as String? ?: "safebeauty"
+        if (!f.exists() || pass.isBlank()) {
+            logger.warn("verifyReleaseSigningKey: no release keystore present — skipping fingerprint check.")
+            return@doLast
+        }
+        val actual = releaseCertSha1(f, pass, alias) ?: throw GradleException(
+            "verifyReleaseSigningKey: couldn't read certificate for alias '$alias' in ${f.path} " +
+            "(wrong alias or store password?)."
+        )
+        if (!actual.equals(expectedReleaseSha1, ignoreCase = true)) {
+            throw GradleException(
+                "\n❌ Wrong signing key — Google Play will reject this bundle.\n" +
+                "     expected SHA1: $expectedReleaseSha1\n" +
+                "     actual   SHA1: $actual\n" +
+                "     keystore:      ${f.path} (alias '$alias')\n" +
+                "  Restore the official upload keystore before building the release.\n"
+            )
+        }
+        logger.lifecycle("✅ Release signing key verified ($actual)")
+    }
+}
+
+tasks.matching { it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+    dependsOn("verifyReleaseSigningKey")
 }

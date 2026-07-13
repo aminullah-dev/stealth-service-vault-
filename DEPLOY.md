@@ -29,6 +29,30 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,hostin
 2. `./gradlew bundleRelease` (signs with the keystore in `keystore.properties`).
 3. Upload `app/build/outputs/bundle/release/app-release.aab` to the Play Console.
 
+## Signing key (READ THIS before touching keystores)
+Google Play only accepts uploads signed with the **official upload key**:
+
+    SHA1: A0:04:BE:C3:6A:A0:D8:BF:A6:C8:8B:7F:DB:09:36:E5:1C:68:A6:F5
+    alias: safebeauty   (store == key password)
+
+- The build now **guards this automatically**: `bundleRelease`/`assembleRelease`
+  depend on `verifyReleaseSigningKey`, which fails fast with a clear message if the
+  keystore in `keystore.properties` doesn't match the SHA1 above. No more finding
+  out at upload time.
+- If you ever see `❌ Wrong signing key`, the keystore file at `storeFile` is the
+  wrong one. Restore the real upload key (fingerprint above) and rebuild.
+- Verify any keystore's fingerprint manually:
+  `keytool -list -v -keystore <file.jks> -storepass <pass> | grep SHA1`
+- Verify a built bundle: `keytool -printcert -jarfile app-release.aab | grep SHA1`
+- **Back up the upload keystore + password** somewhere safe (password manager).
+  It's the only key that can ever push updates to this app — if it's lost, it's lost.
+
+## Play upload warnings you can ignore
+- **"no longer supports N devices"** → a native lib bumped its CPU requirement; N is
+  usually a handful of very old models. On a testing track, click **Proceed anyway**.
+- **"native code … debug symbols not uploaded"** → cosmetic; only affects crash
+  readability. Optional to fix later with a symbols upload.
+
 ## Build the admin app
 - Run without installing: `cd desktop && npm start`
 - Mac installer: `npm run dist:mac` → `desktop/dist/*.dmg`
