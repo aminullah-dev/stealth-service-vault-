@@ -63,8 +63,9 @@
 
   /* Stats */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:13px}
-  .stat{padding:16px;border-radius:16px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 18px rgba(139,58,71,.05)}
-  .stat .n{font-size:27px;font-weight:800;color:var(--deep);line-height:1.05}
+  .stat{padding:16px 18px;border-radius:16px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 18px rgba(139,58,71,.05)}
+  .stat .ico{font-size:19px;margin-bottom:7px}
+  .stat .n{font-size:28px;font-weight:800;color:var(--deep);line-height:1.05}
   .stat .l{color:var(--muted);font-size:12px;margin-top:3px}
 
   /* Lists — compact rows with actions pinned to the right on wide screens */
@@ -83,6 +84,21 @@
   .badge.dot{background:rgba(192,57,43,.12);color:var(--red)}
   .empty{text-align:center;color:var(--rose);padding:52px 10px;font-size:13.5px}
   .section-title{font-size:11px;color:var(--rose);font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:6px 0 12px}
+
+  /* Data tables */
+  .tbl-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--line);box-shadow:0 2px 10px rgba(139,58,71,.05)}
+  .tbl{width:100%;border-collapse:collapse;background:#fff;min-width:560px}
+  .tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
+    font-weight:800;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl td{padding:11px 16px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr:hover{background:#FFF9FC}
+  .tbl .name{font-weight:700;color:var(--deep)}
+  .pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .pill.ok{background:rgba(63,161,74,.14);color:#2e7d32}
+  .pill.warn{background:rgba(212,168,83,.20);color:#9a6f16}
+  .pill.bad{background:rgba(192,57,43,.13);color:var(--red)}
+  .pill.info{background:var(--surface);color:var(--rose)}
 
   /* Announce + support composer */
   textarea.field{min-height:100px;resize:vertical;line-height:1.5}
@@ -189,6 +205,15 @@ let admin = null; // { uid, name }
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
+const statusPill = (s) => {
+  const c = { APPROVED:'ok', PENDING:'warn', SUSPENDED:'bad', REJECTED:'bad' }[s] || 'info';
+  return `<span class="pill ${c}">${esc(s||'—')}</span>`;
+};
+const kycPill = (k) => {
+  const v = k || 'NONE';
+  const c = { APPROVED:'ok', PENDING:'warn', REJECTED:'bad' }[v] || 'info';
+  return `<span class="pill ${c}">${esc(v)}</span>`;
+};
 
 // ── Login ────────────────────────────────────────────────────────────────────
 $('lbtn').addEventListener('click', doLogin);
@@ -306,13 +331,13 @@ async function renderStats(){
     });
     const appts = apptCount ? apptCount.data().count : '—';
     const cards = [
-      ['Total users', usersSnap.size], ['Providers', providers], ['Customers', customers],
-      ['Salons', salonsSnap.size], ['Appointments', appts],
-      ['Pending approvals', pending], ['KYC pending', kycPending], ['Suspended', suspended],
+      ['👥','Total users', usersSnap.size], ['💇','Providers', providers], ['🧑','Customers', customers],
+      ['🏠','Salons', salonsSnap.size], ['📅','Appointments', appts],
+      ['⏳','Pending approvals', pending], ['🪪','KYC pending', kycPending], ['🚫','Suspended', suspended],
     ];
     $('view').innerHTML =
       `<div class="section-title">Platform overview</div><div class="grid">` +
-      cards.map(([l,n]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
+      cards.map(([ic,l,n]) => `<div class="stat"><div class="ico">${ic}</div><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
       `</div>`;
   }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load stats: ${esc(e.message)}</div>`; }
 }
@@ -473,7 +498,7 @@ async function renderUsers(){
     const users = []; snap.forEach(d => users.push({ id:d.id, ...d.data() }));
     users.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     $('view').innerHTML = `<div class="section-title">All users (${users.length})</div>
-      <input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:360px" />
+      <input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
     const setStatus = async (uid, status) => {
       try{ await updateDoc(doc(db,'users',uid), { status });
@@ -483,16 +508,19 @@ async function renderUsers(){
     const draw = (term='') => {
       const t = term.trim().toLowerCase();
       const rows = users.filter(u => !t || (u.name||'').toLowerCase().includes(t) || (u.phone||'').includes(t));
-      $('ulist').innerHTML = rows.length ? rows.map(u => `
-        <div class="row">
-          <h3>${esc(u.name||u.id)}
-            <span class="badge" style="background:var(--surface);color:var(--rose)">${esc(u.role||'')}</span>
-            ${u.status==='SUSPENDED'?'<span class="badge dot">SUSPENDED</span>':''}</h3>
-          <div class="meta">${esc(u.phone||'')} · ${esc(u.status||'')}${u.kycStatus?' · KYC '+esc(u.kycStatus):''}</div>
-          <div class="actions">${u.status==='SUSPENDED'
+      $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Status</th><th>KYC</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td>${statusPill(u.status)}</td>
+          <td>${kycPill(u.kycStatus)}</td>
+          <td style="text-align:right">${u.status==='SUSPENDED'
             ? `<button class="btn-sm" style="background:var(--green)" data-uns="${u.id}">Unsuspend</button>`
-            : `<button class="btn-sm" style="background:var(--red)" data-sus="${u.id}">Suspend</button>`}</div>
-        </div>`).join('') : `<div class="empty">No matching users</div>`;
+            : `<button class="btn-sm" style="background:var(--red)" data-sus="${u.id}">Suspend</button>`}</td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">No matching users</div>`;
       $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setStatus(b.dataset.sus,'SUSPENDED'));
       $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setStatus(b.dataset.uns,'APPROVED'));
     };
@@ -514,15 +542,18 @@ async function renderSalons(){
       catch(e){ alert(e.message); }
     };
     const draw = () => {
-      $('slist').innerHTML = salons.map(s => `
-        <div class="row">
-          <h3>${esc(s.salonName||s.id)}
-            ${s.isVerified?'<span class="badge" style="background:rgba(76,175,80,.14);color:#2e7d32">Verified</span>':''}</h3>
-          <div class="meta">${esc(s.district||'')} · ★ ${Number(s.rating||0).toFixed(1)} · ${(s.services||[]).length} services</div>
-          <div class="actions">${s.isVerified
+      $('slist').innerHTML = `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Salon</th><th>District</th><th>Rating</th><th>Services</th><th>Verified</th><th></th></tr></thead>
+        <tbody>` + salons.map(s => `<tr>
+          <td class="name">${esc(s.salonName||s.id)}</td>
+          <td>${esc(s.district||'—')}</td>
+          <td>★ ${Number(s.rating||0).toFixed(1)}</td>
+          <td>${(s.services||[]).length}</td>
+          <td>${s.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">No</span>'}</td>
+          <td style="text-align:right">${s.isVerified
             ? `<button class="btn-sm" style="background:var(--muted)" data-unv="${s.id}">Unverify</button>`
-            : `<button class="btn-sm" style="background:var(--green)" data-ver="${s.id}">Verify</button>`}</div>
-        </div>`).join('');
+            : `<button class="btn-sm" style="background:var(--green)" data-ver="${s.id}">Verify</button>`}</td>
+        </tr>`).join('') + `</tbody></table></div>`;
       $('slist').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>verify(b.dataset.ver,true));
       $('slist').querySelectorAll('[data-unv]').forEach(b=>b.onclick=()=>verify(b.dataset.unv,false));
     };
