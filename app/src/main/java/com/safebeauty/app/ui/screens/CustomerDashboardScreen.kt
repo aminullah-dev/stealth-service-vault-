@@ -150,6 +150,7 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import coil.compose.AsyncImage
@@ -361,14 +362,17 @@ fun CustomerDashboardScreen(
                 TopAppBar(
                     title = {
                         Column {
-                            Text(
-                                "SafeBeauty",
-                                style = androidx.compose.ui.text.TextStyle(
-                                    brush = Gradients.BrandRose,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "SafeBeauty",
+                                    style = androidx.compose.ui.text.TextStyle(
+                                        brush = Gradients.BrandRose,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp
+                                    )
                                 )
-                            )
+                                Text(" ❀", fontSize = 15.sp, color = RosePetal)
+                            }
                             Text(strings.taglineCustomer, fontSize = 11.sp, color = RoseGold)
                         }
                     },

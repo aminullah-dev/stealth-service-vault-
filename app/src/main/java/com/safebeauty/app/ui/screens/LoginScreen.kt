@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -74,6 +75,7 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.viewmodel.AuthViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 
@@ -227,7 +229,25 @@ fun LoginScreen(
             Spacer(Modifier.height(6.dp))
             Text(strings.loginTagline, fontSize = 14.sp, color = RoseGold)
 
-            Spacer(Modifier.height(36.dp))
+            // ── Delicate floral flourish ──────────────────────────────────────
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .width(44.dp)
+                        .height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(Color.Transparent, RosePetal)))
+                )
+                Text(" ❀ ", fontSize = 15.sp, color = RosePetal)
+                Box(
+                    Modifier
+                        .width(44.dp)
+                        .height(1.dp)
+                        .background(Brush.horizontalGradient(listOf(RosePetal, Color.Transparent)))
+                )
+            }
+
+            Spacer(Modifier.height(30.dp))
 
             // ── Phone ─────────────────────────────────────────────────────────
             OutlinedTextField(
