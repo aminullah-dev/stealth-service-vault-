@@ -142,6 +142,11 @@ class AppStrings {
     var sortNearest: String = ""
     var directions: String = ""
     var distanceKm: (String) -> String = { "" }
+    // Booking status timeline
+    var timelineRequested: String = ""
+    var timelineConfirmed: String = ""
+    var timelineCompleted: String = ""
+    var timelineCancelled: String = ""
     var sectionPayout: String = ""
     var hesabAccountNumberLabel: String = ""
     var hesabAccountNumberHint: String = ""
@@ -655,6 +660,10 @@ object StringResources {
         sortNearest                = "Nearest"
         directions                 = "Directions"
         distanceKm                 = { d -> "$d km" }
+        timelineRequested          = "Requested"
+        timelineConfirmed          = "Confirmed"
+        timelineCompleted          = "Completed"
+        timelineCancelled          = "Booking cancelled"
         sectionPayout              = "Payout"
         hesabAccountNumberLabel    = "HesabPay account number"
         hesabAccountNumberHint     = "Where the admin sends your payout (your HesabPay phone number)"
@@ -1115,6 +1124,10 @@ object StringResources {
         sortNearest                = "نزدیک‌ترین"
         directions                 = "مسیریابی"
         distanceKm                 = { d -> "$d کیلومتر" }
+        timelineRequested          = "درخواست"
+        timelineConfirmed          = "تأیید"
+        timelineCompleted          = "تکمیل"
+        timelineCancelled          = "رزرو لغو شد"
         sectionPayout              = "تسویه‌حساب"
         hesabAccountNumberLabel    = "شماره حساب HesabPay"
         hesabAccountNumberHint     = "جایی که ادمین پرداخت شما را ارسال می‌کند (شماره تلفن HesabPay شما)"
@@ -1575,6 +1588,10 @@ object StringResources {
         sortNearest                = "نږدې"
         directions                 = "لارښوونه"
         distanceKm                 = { d -> "$d کیلومتره" }
+        timelineRequested          = "غوښتنه"
+        timelineConfirmed          = "تایید"
+        timelineCompleted          = "بشپړ شو"
+        timelineCancelled          = "بکینګ لغوه شو"
         sectionPayout              = "تصفیه"
         hesabAccountNumberLabel    = "د HesabPay حساب شمېره"
         hesabAccountNumberHint     = "چېرته چې اډمین ستاسو تادیه لیږي (ستاسو د HesabPay ټیلیفون شمېره)"

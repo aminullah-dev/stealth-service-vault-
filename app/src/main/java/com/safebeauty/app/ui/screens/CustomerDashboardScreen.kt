@@ -45,6 +45,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.NearMe
@@ -2089,6 +2091,10 @@ private fun BookingCard(
                 }
                 StatusChip(appt.status)
             }
+
+            // ── Order-tracking style status timeline ──────────────────────────
+            BookingStatusTimeline(appt)
+
             run {
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2142,6 +2148,70 @@ private fun BookingCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * A DoorDash-style horizontal progress tracker for a booking:
+ * Requested → Confirmed → Completed. A cancelled booking shows a single red
+ * state instead. "Completed" lights up once a confirmed appointment's time
+ * has passed.
+ */
+@Composable
+private fun BookingStatusTimeline(appt: AppointmentDocument) {
+    val strings = LocalStrings.current
+    if (appt.status == "CANCELLED") {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+        ) {
+            Icon(Icons.Default.Cancel, null, tint = Color(0xFFC0392B), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(strings.timelineCancelled, fontSize = 12.sp, color = Color(0xFFC0392B), fontWeight = FontWeight.SemiBold)
+        }
+        return
+    }
+    val now = System.currentTimeMillis()
+    val reached = when {
+        appt.status == "CONFIRMED" && appt.appointmentDate <= now -> 2
+        appt.status == "CONFIRMED"                                -> 1
+        else                                                      -> 0   // PENDING
+    }
+    val labels = listOf(strings.timelineRequested, strings.timelineConfirmed, strings.timelineCompleted)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            for (i in 0..2) {
+                val done = i <= reached
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (done) AvailableGreen else ChipInactive)
+                ) {
+                    if (done) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(12.dp))
+                }
+                if (i < 2) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(2.dp)
+                            .background(if (i < reached) AvailableGreen else ChipInactive)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            labels.forEachIndexed { i, l ->
+                Text(
+                    l,
+                    fontSize   = 10.sp,
+                    color      = if (i <= reached) DeepRose else Color(0xFFAAAAAA),
+                    fontWeight = if (i == reached) FontWeight.Bold else FontWeight.Normal
+                )
             }
         }
     }
