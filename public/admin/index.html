@@ -67,12 +67,18 @@
   .stat .n{font-size:27px;font-weight:800;color:var(--deep);line-height:1.05}
   .stat .l{color:var(--muted);font-size:12px;margin-top:3px}
 
-  /* Lists */
-  .row{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:11px;
-    box-shadow:0 3px 14px rgba(139,58,71,.045)}
-  .row h3{margin:0 0 3px;font-size:14px;color:var(--deep);font-weight:700}
+  /* Lists — compact rows with actions pinned to the right on wide screens */
+  .row{position:relative;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:12px 15px;margin-bottom:8px;box-shadow:0 2px 8px rgba(139,58,71,.04)}
+  .row h3{margin:0 0 2px;font-size:14px;color:var(--deep);font-weight:700}
   .row .meta{color:var(--muted);font-size:12px;line-height:1.5}
-  .row .actions{margin-top:11px;display:flex;gap:8px;flex-wrap:wrap}
+  .row .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  @media(min-width:680px){
+    .row:not(.ticket){padding-right:168px}
+    .row:not(.ticket) .actions{position:absolute;top:12px;right:14px;margin-top:0;flex-direction:column;align-items:stretch;width:142px}
+    .row .actions .btn-sm{width:100%}
+  }
+  .row.ticket{padding-right:15px}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
   .badge.dot{background:rgba(192,57,43,.12);color:var(--red)}
   .empty{text-align:center;color:var(--rose);padding:52px 10px;font-size:13.5px}
