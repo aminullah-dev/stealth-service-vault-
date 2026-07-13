@@ -10,6 +10,7 @@ import android.content.Context
 object AnnouncementPrefs {
     private const val PREFS = "safebeauty_prefs"
     private const val KEY_LAST_SEEN = "last_broadcast_id"
+    private const val KEY_DISMISSED = "dismissed_broadcast_ids"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -19,5 +20,15 @@ object AnnouncementPrefs {
 
     fun markSeen(context: Context, id: String) {
         prefs(context).edit().putString(KEY_LAST_SEEN, id).apply()
+    }
+
+    /** Announcement ids the user has swiped away from the banner. */
+    fun dismissedIds(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_DISMISSED, emptySet()) ?: emptySet()
+
+    fun dismiss(context: Context, id: String) {
+        // Copy the set — SharedPreferences must not be handed a mutated instance.
+        val next = dismissedIds(context).toMutableSet().apply { add(id) }
+        prefs(context).edit().putStringSet(KEY_DISMISSED, next).apply()
     }
 }

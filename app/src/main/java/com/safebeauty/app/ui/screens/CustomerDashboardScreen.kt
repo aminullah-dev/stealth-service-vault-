@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
@@ -79,6 +80,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -98,6 +102,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -148,6 +153,7 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import coil.compose.AsyncImage
+import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
@@ -1753,39 +1759,75 @@ private fun SalonCard(
 // ── Broadcast banner ──────────────────────────────────────────────────────────
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
+    val context = LocalContext.current
     val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFFFF8F0))
-            .padding(vertical = 8.dp)
-    ) {
-        broadcasts.forEach { broadcast ->
-            Row(
-                verticalAlignment = Alignment.Top,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(BlushPink.copy(alpha = 0.35f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+    // Track swiped-away ids in state so the banner disappears immediately; seed
+    // from prefs so a dismissed announcement stays gone across restarts. Showing
+    // only the single newest un-dismissed one keeps the top of the screen clean.
+    var dismissed by remember { mutableStateOf(AnnouncementPrefs.dismissedIds(context)) }
+    val newest = broadcasts
+        .filter { it.id.isNotBlank() && it.id !in dismissed }
+        .maxByOrNull { it.createdAt } ?: return
+
+    key(newest.id) {
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value != SwipeToDismissBoxValue.Settled) {
+                    AnnouncementPrefs.dismiss(context, newest.id)
+                    dismissed = dismissed + newest.id
+                    true
+                } else false
+            }
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFF8F0))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            SwipeToDismissBox(
+                state = dismissState,
+                backgroundContent = {
+                    // Subtle "release to dismiss" affordance behind the card.
+                    Box(
+                        contentAlignment = Alignment.CenterEnd,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(RoseGold.copy(alpha = 0.15f))
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Close, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                    }
+                }
             ) {
-                Text("📢", fontSize = 14.sp)
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text       = broadcast.message,
-                        fontSize   = 13.sp,
-                        color      = DeepRose,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text     = dateFmt.format(Date(broadcast.createdAt)),
-                        fontSize = 11.sp,
-                        color    = RoseGold
-                    )
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(BlushPink.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("📢", fontSize = 14.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text       = newest.message,
+                            fontSize   = 13.sp,
+                            color      = DeepRose,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text     = dateFmt.format(Date(newest.createdAt)),
+                            fontSize = 11.sp,
+                            color    = RoseGold
+                        )
+                    }
+                    Icon(Icons.Default.Close, null, tint = RoseGold.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
                 }
             }
         }

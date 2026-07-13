@@ -92,6 +92,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,6 +119,7 @@ import com.safebeauty.app.data.firebase.customerRating
 import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.navigation.Screen
+import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
@@ -560,40 +562,73 @@ private fun RateCustomerDialog(
 
 // ── Broadcast banner ──────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
+    val context = LocalContext.current
     val dateFmt = remember { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFFFF8F0))
-            .padding(vertical = 8.dp)
-    ) {
-        broadcasts.forEach { broadcast ->
-            Row(
-                verticalAlignment = Alignment.Top,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(BlushPink.copy(alpha = 0.35f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+    // Only the newest un-dismissed announcement, swipeable away (and remembered).
+    var dismissed by remember { mutableStateOf(AnnouncementPrefs.dismissedIds(context)) }
+    val newest = broadcasts
+        .filter { it.id.isNotBlank() && it.id !in dismissed }
+        .maxByOrNull { it.createdAt } ?: return
+
+    key(newest.id) {
+        val dismissState = rememberSwipeToDismissBoxState(
+            confirmValueChange = { value ->
+                if (value != SwipeToDismissBoxValue.Settled) {
+                    AnnouncementPrefs.dismiss(context, newest.id)
+                    dismissed = dismissed + newest.id
+                    true
+                } else false
+            }
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFFFFF8F0))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            SwipeToDismissBox(
+                state = dismissState,
+                backgroundContent = {
+                    Box(
+                        contentAlignment = Alignment.CenterEnd,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(RoseGold.copy(alpha = 0.15f))
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Icon(Icons.Default.Close, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                    }
+                }
             ) {
-                Text("📢", fontSize = 14.sp)
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text       = broadcast.message,
-                        fontSize   = 13.sp,
-                        color      = DeepRose,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text     = dateFmt.format(java.util.Date(broadcast.createdAt)),
-                        fontSize = 11.sp,
-                        color    = RoseGold
-                    )
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(BlushPink.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text("📢", fontSize = 14.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text       = newest.message,
+                            fontSize   = 13.sp,
+                            color      = DeepRose,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text     = dateFmt.format(java.util.Date(newest.createdAt)),
+                            fontSize = 11.sp,
+                            color    = RoseGold
+                        )
+                    }
+                    Icon(Icons.Default.Close, null, tint = RoseGold.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
                 }
             }
         }
