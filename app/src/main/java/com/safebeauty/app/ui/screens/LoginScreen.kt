@@ -210,11 +210,7 @@ fun LoginScreen(
                     .alpha(logoAlpha.value)
                     .size(100.dp)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(
-                        Brush.radialGradient(
-                            listOf(Color(0xFFFFFDF9), Color(0xFFFBEFEA), Color(0xFFF3D8DE))
-                        )
-                    )
+                    .background(Gradients.Petal)
             ) {
                 Image(
                     painter = painterResource(R.drawable.ic_launcher_foreground),
