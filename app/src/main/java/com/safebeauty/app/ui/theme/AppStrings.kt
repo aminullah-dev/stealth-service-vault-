@@ -159,6 +159,7 @@ class AppStrings {
     var maxPriceLabel: String = ""
     var filterAny: String = ""
     var priceUnder: (Int) -> String = { "" }
+    var announcementTitle: String = ""
     var sectionPayout: String = ""
     var hesabAccountNumberLabel: String = ""
     var hesabAccountNumberHint: String = ""
@@ -687,6 +688,7 @@ object StringResources {
         maxPriceLabel              = "Max starting price"
         filterAny                  = "Any"
         priceUnder                 = { p -> "≤ %,d AFN".format(p) }
+        announcementTitle          = "Announcement"
         sectionPayout              = "Payout"
         hesabAccountNumberLabel    = "HesabPay account number"
         hesabAccountNumberHint     = "Where the admin sends your payout (your HesabPay phone number)"
@@ -1162,6 +1164,7 @@ object StringResources {
         maxPriceLabel              = "سقف قیمت شروع"
         filterAny                  = "همه"
         priceUnder                 = { p -> "≤ %,d افغانی".format(p) }
+        announcementTitle          = "اعلان"
         sectionPayout              = "تسویه‌حساب"
         hesabAccountNumberLabel    = "شماره حساب HesabPay"
         hesabAccountNumberHint     = "جایی که ادمین پرداخت شما را ارسال می‌کند (شماره تلفن HesabPay شما)"
@@ -1637,6 +1640,7 @@ object StringResources {
         maxPriceLabel              = "د پیل اعظمي بیه"
         filterAny                  = "ټول"
         priceUnder                 = { p -> "≤ %,d افغانۍ".format(p) }
+        announcementTitle          = "اعلان"
         sectionPayout              = "تصفیه"
         hesabAccountNumberLabel    = "د HesabPay حساب شمېره"
         hesabAccountNumberHint     = "چېرته چې اډمین ستاسو تادیه لیږي (ستاسو د HesabPay ټیلیفون شمېره)"

@@ -1873,3 +1873,50 @@ exports.pushOnNotificationCreated = onDocumentCreated(
     }
   }
 );
+
+// ── pushOnBroadcastCreated (Firestore trigger) ────────────────────────────────
+//
+// An admin broadcast is a platform-wide announcement, so it fans out as an FCM
+// push to every user with a registered device — the message reaches people even
+// when the app is closed (the in-app banner/popup only shows while it's open).
+// FCM multicast is capped at 500 tokens per call, so we chunk.
+exports.pushOnBroadcastCreated = onDocumentCreated(
+  { document: "broadcasts/{bId}", region: "us-central1" },
+  async (event) => {
+    const b = event.data ? event.data.data() : null;
+    if (!b || !b.message) return;
+
+    const usersSnap = await db.collection("users").get();
+    const tokens = [];
+    usersSnap.forEach((doc) => {
+      const t = String(doc.data().fcmToken || "");
+      if (t) tokens.push(t);
+    });
+    if (tokens.length === 0) return;
+
+    const title = "SafeBeauty";
+    const body  = String(b.message);
+    const data  = {
+      type:             "BROADCAST",
+      relatedId:        "",
+      notif_type:       "BROADCAST",
+      notif_related_id: "",
+    };
+
+    for (let i = 0; i < tokens.length; i += 500) {
+      const batch = tokens.slice(i, i + 500);
+      try {
+        await admin.messaging().sendEachForMulticast({
+          tokens: batch,
+          notification: { title, body },
+          data,
+          android: { priority: "high" },
+        });
+      } catch (err) {
+        logger.warn("pushOnBroadcastCreated: batch send failed", {
+          error: String(err.message || err),
+        });
+      }
+    }
+  }
+);

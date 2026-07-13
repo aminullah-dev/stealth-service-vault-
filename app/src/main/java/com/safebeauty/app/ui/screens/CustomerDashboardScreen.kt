@@ -1281,6 +1281,9 @@ fun CustomerDashboardScreen(
             )
         }
 
+        // ── Admin announcement popup (one-time per broadcast) ─────────────────
+        com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
+
         // ── Filter / sort sheet ───────────────────────────────────────────────
         if (showFilterSheet) {
             ModalBottomSheet(

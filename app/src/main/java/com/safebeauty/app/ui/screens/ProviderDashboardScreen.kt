@@ -439,6 +439,9 @@ fun ProviderDashboardScreen(
             )
         }
 
+        // ── Admin announcement popup (one-time per broadcast) ─────────────────
+        com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
+
         if (showLangPicker) {
             LanguagePickerDialog(
                 current   = currentLanguage,
