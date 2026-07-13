@@ -19,7 +19,7 @@
     "appId": "com.safebeauty.admin",
     "productName": "SafeBeauty Admin",
     "directories": { "output": "dist" },
-    "files": ["main.js", "package.json"],
+    "files": ["main.js", "preload.js", "package.json"],
     "mac": {
       "target": "dmg",
       "category": "public.app-category.business"
