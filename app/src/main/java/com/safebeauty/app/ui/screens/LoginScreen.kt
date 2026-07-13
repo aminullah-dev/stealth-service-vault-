@@ -4,9 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,12 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,8 +60,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.fragment.app.FragmentActivity
 import com.safebeauty.app.R
 import com.safebeauty.app.data.model.LoggedInUser
+import com.safebeauty.app.security.BiometricVault
 import com.safebeauty.app.security.RootDetector
 import com.safebeauty.app.ui.components.GradientButton
 import com.safebeauty.app.ui.theme.ChipInactive
@@ -87,6 +96,12 @@ fun LoginScreen(
     var showError      by remember { mutableStateOf(false) }
     var showLangPicker by remember { mutableStateOf(false) }
 
+    // Fingerprint login: available only with enrolled biometrics; "enabled" once
+    // the user has stored their credential (biometric-gated, hardware-backed).
+    val biometricAvailable = remember { BiometricVault.isAvailable(context) }
+    var biometricEnabled   by remember { mutableStateOf(BiometricVault.isEnabled(context)) }
+    var rememberFingerprint by remember { mutableStateOf(false) }
+
     val securityCheck = remember { RootDetector.check(context) }
     var showSecurityWarning by remember { mutableStateOf(securityCheck.isRisky) }
 
@@ -97,7 +112,25 @@ fun LoginScreen(
             is AuthViewModel.AuthState.Success -> {
                 val user = authState.user
                 authViewModel.resetState()
-                onAuthSuccess(user)
+                // The credential is only known-good now. If the user opted in,
+                // store phone+password behind the biometric-gated Keystore key
+                // (one biometric prompt to set it up), then continue either way.
+                val activity = context.findFragmentActivity()
+                if (rememberFingerprint && biometricAvailable && !biometricEnabled &&
+                    activity != null && phone.isNotBlank() && password.isNotBlank()
+                ) {
+                    BiometricVault.enable(
+                        activity     = activity,
+                        pin          = "$phone\n$password",
+                        title        = strings.biometricPromptTitle,
+                        subtitle     = strings.biometricPromptSubtitle,
+                        negativeText = strings.cancel,
+                        onSuccess    = { onAuthSuccess(user) },
+                        onError      = { onAuthSuccess(user) }
+                    )
+                } else {
+                    onAuthSuccess(user)
+                }
             }
             is AuthViewModel.AuthState.Failure -> {
                 showError = true
@@ -119,6 +152,30 @@ fun LoginScreen(
         if (phone.isNotBlank() && password.isNotBlank()) {
             authViewModel.authenticate(phone, password)
         }
+    }
+
+    fun loginWithFingerprint() {
+        val activity = context.findFragmentActivity() ?: return
+        BiometricVault.unlock(
+            activity     = activity,
+            title        = strings.biometricPromptTitle,
+            subtitle     = strings.biometricPromptSubtitle,
+            negativeText = strings.cancel,
+            onPin        = { secret ->
+                // Stored as "phone\npassword"; phone never contains a newline.
+                val idx = secret.indexOf('\n')
+                if (idx > 0) {
+                    val savedPhone    = secret.substring(0, idx)
+                    val savedPassword = secret.substring(idx + 1)
+                    phone = savedPhone
+                    authViewModel.authenticate(savedPhone, savedPassword)
+                }
+            },
+            onError      = {
+                // Key invalidated by new enrollment → BiometricVault wiped it.
+                biometricEnabled = BiometricVault.isEnabled(context)
+            }
+        )
     }
 
     Box(
@@ -213,6 +270,28 @@ fun LoginScreen(
                 colors        = fieldColors
             )
 
+            // ── Enable fingerprint for next time ──────────────────────────────
+            if (biometricAvailable && !biometricEnabled) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { rememberFingerprint = !rememberFingerprint }
+                        .padding(vertical = 2.dp)
+                ) {
+                    Checkbox(
+                        checked = rememberFingerprint,
+                        onCheckedChange = { rememberFingerprint = it },
+                        colors = CheckboxDefaults.colors(checkedColor = RoseGold)
+                    )
+                    Icon(Icons.Default.Fingerprint, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(strings.biometricEnableLabel, fontSize = 13.sp, color = DeepRose)
+                }
+            }
+
             // ── Error ─────────────────────────────────────────────────────────
             Spacer(Modifier.height(8.dp))
             Text(
@@ -236,6 +315,31 @@ fun LoginScreen(
                     onClick = { submit() },
                     enabled = phone.isNotBlank() && password.isNotBlank()
                 )
+            }
+
+            // ── Fingerprint sign-in ───────────────────────────────────────────
+            if (biometricEnabled && biometricAvailable && !isAuthenticating) {
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(RoseGold.copy(alpha = 0.10f))
+                        .clickable { loginWithFingerprint() }
+                        .padding(vertical = 12.dp)
+                ) {
+                    Icon(Icons.Default.Fingerprint, null, tint = RoseGold, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(strings.biometricLoginButton, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = {
+                    BiometricVault.disable(context)
+                    biometricEnabled = false
+                }) {
+                    Text(strings.biometricDisable, fontSize = 12.sp, color = Color(0xFF999999))
+                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -277,4 +381,14 @@ fun LoginScreen(
             containerColor = ElegantCream
         )
     }
+}
+
+/** Unwraps a Compose [Context] to the hosting [FragmentActivity] (needed for BiometricPrompt). */
+private fun Context.findFragmentActivity(): FragmentActivity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is FragmentActivity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
