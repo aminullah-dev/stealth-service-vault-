@@ -372,16 +372,19 @@ function renderApprovals(){
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Pending provider approvals</div>` +
-      rows.map(u => `
-        <div class="row">
-          <h3>${esc(u.name||u.id)} <span class="badge" style="background:var(--surface);color:var(--rose)">${esc(u.role||'')}</span></h3>
-          <div class="meta">${esc(u.phone||'')} · joined ${fmtDate(u.createdAt)}</div>
-          <div class="actions">
+    $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Joined</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td>${fmtDate(u.createdAt)}</td>
+          <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
-            <button class="btn-sm" style="background:var(--red)" data-no="${u.id}">Reject</button>
-          </div>
-        </div>`).join('');
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
     $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () =>
       updateDoc(doc(db,'users',b.dataset.ok), { status:'APPROVED' }).catch(e=>alert(e.message)));
     $('view').querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
@@ -399,16 +402,18 @@ function renderKyc(){
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Identity verification queue</div>` +
-      rows.map(u => `
-        <div class="row">
-          <h3>${esc(u.name||u.id)}</h3>
-          <div class="meta">${esc(u.phone||'')} · ${esc(u.role||'')}</div>
-          <div class="actions">
+    $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
-            <button class="btn-sm" style="background:var(--red)" data-no="${u.id}">Reject</button>
-          </div>
-        </div>`).join('');
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
     const review = (uid, approve, reason='') =>
       httpsCallable(fns,'reviewKyc')({ targetUid: uid, approve, rejectionReason: reason })
         .catch(e => alert(e.message||'Failed'));
@@ -603,12 +608,13 @@ async function renderFinance(){
     bals.sort((a,b)=>(b.owedAmount||0)-(a.owedAmount||0));
     const bel = $('balances');
     const drawBal = () => {
-      bel.innerHTML = bals.length ? bals.map((b,i)=>`
-        <div class="row">
-          <h3>${esc(b.name)}</h3>
-          <div class="meta">Owed: <b>${AFN(b.owedAmount)}</b></div>
-          <div class="actions"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></div>
-        </div>`).join('') : `<div class="empty">Nothing owed 🎉</div>`;
+      bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Provider</th><th>Owed</th><th></th></tr></thead><tbody>` +
+        bals.map((b,i)=>`<tr>
+          <td class="name">${esc(b.name)}</td>
+          <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">Nothing owed 🎉</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
         const b = bals[+btn.dataset.pay];
         if(!confirm(`Mark ${AFN(b.owedAmount)} paid to ${b.name}?`)) return;
@@ -627,12 +633,14 @@ async function renderFinance(){
       cust: names[r.customerId]||r.customerId }); });
     const rel = $('refunds');
     const drawRef = () => {
-      rel.innerHTML = refunds.length ? refunds.map((r,i)=>`
-        <div class="row">
-          <h3>${AFN(r.amount)}</h3>
-          <div class="meta">to ${esc(r.cust)} · ${fmtDate(r.createdAt)}</div>
-          <div class="actions"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">Mark refunded</button></div>
-        </div>`).join('') : `<div class="empty">No pending refunds</div>`;
+      rel.innerHTML = refunds.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Amount</th><th>To</th><th>Date</th><th></th></tr></thead><tbody>` +
+        refunds.map((r,i)=>`<tr>
+          <td class="name">${AFN(r.amount)}</td>
+          <td>${esc(r.cust)}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">Mark refunded</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No pending refunds</div>`;
       rel.querySelectorAll('[data-ref]').forEach(btn => btn.onclick = async () => {
         const r = refunds[+btn.dataset.ref];
         if(!confirm(`Mark ${AFN(r.amount)} as refunded?`)) return;
@@ -678,16 +686,16 @@ function renderPromo(){
   unsub.push(onSnapshot(collection(db,'promo_codes'), snap => {
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     const el = $('plist'); if(!el) return;
-    el.innerHTML = rows.length ? rows.map(p => `
-      <div class="row">
-        <h3>${esc(p.code||p.id)} ${p.active
-          ? '<span class="badge" style="background:rgba(76,175,80,.14);color:#2e7d32">active</span>'
-          : '<span class="badge" style="background:var(--surface);color:var(--muted)">off</span>'}</h3>
-        <div class="meta">${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}
-          · used ${p.usedCount||0}${p.maxUses>0?'/'+p.maxUses:''}</div>
-        <div class="actions"><button class="btn-sm" style="background:${p.active?'var(--muted)':'var(--green)'}"
-          data-tog="${esc(p.code||p.id)}" data-act="${p.active?'0':'1'}">${p.active?'Disable':'Enable'}</button></div>
-      </div>`).join('') : `<div class="empty">No promo codes yet</div>`;
+    el.innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody>` +
+      rows.map(p => `<tr>
+        <td class="name">${esc(p.code||p.id)}</td>
+        <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
+        <td>${p.usedCount||0}${p.maxUses>0?'/'+p.maxUses:''}</td>
+        <td>${p.active?'<span class="pill ok">active</span>':'<span class="pill info">off</span>'}</td>
+        <td style="text-align:right"><button class="btn-sm" style="background:${p.active?'var(--muted)':'var(--green)'}"
+          data-tog="${esc(p.code||p.id)}" data-act="${p.active?'0':'1'}">${p.active?'Disable':'Enable'}</button></td>
+      </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No promo codes yet</div>`;
     el.querySelectorAll('[data-tog]').forEach(b => b.onclick = () =>
       httpsCallable(fns,'setPromoActive')({ code:b.dataset.tog, active:b.dataset.act==='1' }).catch(e=>alert(e.message)));
   }, err => { const el=$('plist'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
@@ -699,16 +707,20 @@ function renderReports(){
     const rows = []; snap.forEach(d => { const r=d.data(); if(r.status==='OPEN') rows.push({ id:d.id, ...r }); });
     rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No flagged reports 🎉</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Flagged customer reports</div>` + rows.map(r => `
-      <div class="row">
-        <h3>${esc(r.customerName||r.customerId)} ${r.rating>0?'· ★ '+r.rating:''}</h3>
-        <div class="meta">${esc(r.salonName||'')}${r.noShow?' · no-show':''} · ${fmtDate(r.createdAt)}</div>
-        ${r.comment?`<div class="meta" style="margin-top:6px;font-style:italic">"${esc(r.comment)}"</div>`:''}
-        <div class="actions">
-          <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">Dismiss</button>
-          <button class="btn-sm" style="background:var(--red)" data-sus="${r.id}">Suspend customer</button>
-        </div>
-      </div>`).join('');
+    $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Customer</th><th>Salon</th><th>Rating</th><th>Flag</th><th>Date</th><th></th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
+          <td>${esc(r.salonName||'—')}</td>
+          <td>${r.rating>0?'★ '+r.rating:'—'}</td>
+          <td>${r.noShow?'<span class="pill warn">no-show</span>':'<span class="pill bad">flagged</span>'}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">Dismiss</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${r.id}">Suspend</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
     const resolve = (id, suspend) =>
       httpsCallable(fns,'resolveCustomerReport')({ reportId:id, suspend }).catch(e=>alert(e.message||'Failed'));
     $('view').querySelectorAll('[data-dis]').forEach(b => b.onclick = () => resolve(b.dataset.dis, false));
