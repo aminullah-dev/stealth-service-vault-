@@ -211,6 +211,18 @@ exports.createPaymentSession = onCall(
     }
     const salon = salonSnap.data();
 
+    // Reject bookings on a day the provider blocked off (time-off/holiday). The
+    // client already hides these days; this is defense in depth. Dates are stored
+    // as "yyyy-MM-dd" in Kabul-local time, so map the requested instant the same way.
+    const blockedDates = Array.isArray(salon.blockedDates) ? salon.blockedDates : [];
+    if (blockedDates.length > 0) {
+      const bookingDay = new Date(Number(appointmentDate))
+        .toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
+      if (blockedDates.includes(bookingDay)) {
+        throw new HttpsError("failed-precondition", "The salon is closed on that day.");
+      }
+    }
+
     // Price every requested service server-side and sum them. One shared path for
     // single-service, multi-service, and group bookings (see lib/money.js, tested).
     const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, requestedServiceNames);

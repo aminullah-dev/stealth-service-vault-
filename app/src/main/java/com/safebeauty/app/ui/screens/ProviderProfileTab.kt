@@ -68,6 +68,9 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -125,6 +128,7 @@ import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.navigation.Screen
 import com.safebeauty.app.util.AnnouncementPrefs
+import com.safebeauty.app.util.DateUtils
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
@@ -375,6 +379,12 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                 )
             }
         }
+
+        // ── Time off (blocked days) ─────────────────────────────────────────
+        TimeOffSection(
+            blockedDates = viewModel.editBlockedDates,
+            onToggleDate = { viewModel.toggleBlockedDate(it) }
+        )
 
         // ── Save button ───────────────────────────────────────────────────
         Button(
@@ -964,6 +974,80 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Lets a provider block off days (holidays, time off). Blocked days offer no
+ * booking slots to customers. Dates are kept as Kabul-local "yyyy-MM-dd" keys.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeOffSection(
+    blockedDates: List<String>,
+    onToggleDate: (String) -> Unit
+) {
+    val strings = LocalStrings.current
+    var showPicker by remember { mutableStateOf(false) }
+
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(strings.timeOffTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            HorizontalDivider(color = BlushPink)
+            Text(strings.timeOffHint, fontSize = 11.sp, color = DeepRose)
+
+            if (blockedDates.isEmpty()) {
+                Text(strings.timeOffNone, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    blockedDates.forEach { date ->
+                        InputChip(
+                            selected = true,
+                            onClick  = { onToggleDate(date) },
+                            label    = { Text(date, fontSize = 12.sp) },
+                            trailingIcon = {
+                                Icon(Icons.Default.Close, contentDescription = strings.remove, modifier = Modifier.size(14.dp))
+                            }
+                        )
+                    }
+                }
+            }
+
+            OutlinedButton(
+                onClick = { showPicker = true },
+                shape   = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(strings.timeOffAdd, fontSize = 13.sp)
+            }
+        }
+    }
+
+    if (showPicker) {
+        val pickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let { ms ->
+                        onToggleDate(DateUtils.kabulDateKey(ms))
+                    }
+                    showPicker = false
+                }) { Text(strings.ok, color = RoseGold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) { Text(strings.cancel, color = RoseGold) }
+            }
+        ) {
+            DatePicker(state = pickerState)
         }
     }
 }

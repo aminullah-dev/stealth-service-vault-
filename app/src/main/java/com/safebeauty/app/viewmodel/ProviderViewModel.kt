@@ -244,6 +244,7 @@ class ProviderViewModel @Inject constructor(
         private set
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
     var editDurations    by mutableStateOf<Map<String, Int>>(emptyMap())
+    var editBlockedDates by mutableStateOf<List<String>>(emptyList())
     var editHesabAccountNumber by mutableStateOf("")
     // Salon location (0/0 = not set yet).
     var editLatitude     by mutableStateOf(0.0)
@@ -265,6 +266,7 @@ class ProviderViewModel @Inject constructor(
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
                     editPrices = s.pricePerService
                     editDurations = s.durationPerService
+                    editBlockedDates = s.blockedDates
                     editStaff = s.staff
                     editLatitude = s.latitude
                     editLongitude = s.longitude
@@ -338,6 +340,13 @@ class ProviderViewModel @Inject constructor(
     fun setDurationForService(service: String, minutes: Int) {
         editDurations = if (minutes > 0) editDurations + (service to minutes)
                         else editDurations - service
+    }
+    /** Add or remove a day off. [dateKey] is a Kabul-local "yyyy-MM-dd" string. */
+    fun toggleBlockedDate(dateKey: String) {
+        editBlockedDates = if (editBlockedDates.contains(dateKey))
+            editBlockedDates - dateKey
+        else
+            (editBlockedDates + dateKey).sorted()
     }
 
     fun addService() {
@@ -421,6 +430,7 @@ class ProviderViewModel @Inject constructor(
                         slotDurationMinutes = editSlotDuration,
                         pricePerService     = editPrices,
                         durationPerService  = editDurations,
+                        blockedDates        = editBlockedDates,
                         staff               = editStaff,
                         latitude            = editLatitude,
                         longitude           = editLongitude

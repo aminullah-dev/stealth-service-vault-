@@ -152,6 +152,10 @@ data class SalonDocument(
     // A service with no entry (or 0) falls back to one slot (slotDurationMinutes),
     // so an unset map behaves exactly like the old one-slot-per-service model.
     val durationPerService: Map<String, Int> = emptyMap(),
+    // Days the salon is closed off (time-off/holidays), as "yyyy-MM-dd" strings in
+    // Kabul-local time. No slots are offered on these days, and the booking
+    // function rejects them server-side as defense in depth.
+    val blockedDates: List<String> = emptyList(),
     val confirmedCount: Int = 0,
     // Geographic location (set by the provider from their device GPS). 0/0 means
     // "not set" — the map/distance features simply skip such salons.

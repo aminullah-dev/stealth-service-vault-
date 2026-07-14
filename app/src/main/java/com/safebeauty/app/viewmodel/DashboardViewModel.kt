@@ -893,6 +893,10 @@ class DashboardViewModel @Inject constructor(
         selectedStaffId: String,
         slotSpan: Int = 1
     ): List<Long> {
+        // Days the provider blocked off (time-off/holiday) offer no slots.
+        if (salon.blockedDates.contains(com.safebeauty.app.util.DateUtils.kabulDateKey(dateMs))) {
+            return emptyList()
+        }
         val cal = Calendar.getInstance().apply { timeInMillis = dateMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
         val wh = salon.workingHours.find { it.dayOfWeek == dayOfWeek } ?: return emptyList()

@@ -123,6 +123,11 @@ class AppStrings {
     var paymentMethodCash: String = ""
     var cashBookingConfirmText: (String, Long) -> String = { _, _ -> "" }
     var ok: String = ""
+    var remove: String = ""
+    var timeOffTitle: String = ""
+    var timeOffHint: String = ""
+    var timeOffNone: String = ""
+    var timeOffAdd: String = ""
     var noBookingsTitle: String = ""
     var noBookingsSubtext: String = ""
     var close: String = ""
@@ -700,6 +705,11 @@ object StringResources {
         referralCreditBadge        = { amt -> "AFN $amt credit" }
         cashBookingConfirmText     = { name, amount -> "Request sent to $name. Please bring AFN $amount in cash to pay at the salon." }
         ok                         = "OK"
+        remove                     = "Remove"
+        timeOffTitle               = "Time off"
+        timeOffHint                = "Block days you are closed — customers can't book them."
+        timeOffNone                = "No days blocked."
+        timeOffAdd                 = "Add a day off"
         noBookingsTitle            = "No bookings yet."
         noBookingsSubtext          = "Find a provider and tap Book to get started."
         close                      = "Close"
@@ -1217,6 +1227,11 @@ object StringResources {
         referralCreditBadge        = { amt -> "$amt افغانی اعتبار" }
         cashBookingConfirmText     = { name, amount -> "درخواست به $name ارسال شد. لطفاً $amount افغانی نقد برای پرداخت در سالن همراه داشته باشید." }
         ok                         = "تایید"
+        remove                     = "حذف"
+        timeOffTitle               = "روزهای تعطیل"
+        timeOffHint                = "روزهایی که بسته‌اید را ببندید — مشتری نمی‌تواند آن روز رزرو کند."
+        timeOffNone                = "هیچ روزی بسته نشده."
+        timeOffAdd                 = "افزودن روز تعطیل"
         noBookingsTitle            = "هنوز رزروی ندارید."
         noBookingsSubtext          = "یک ارائه‌دهنده پیدا کنید و روی رزرو ضربه بزنید."
         close                      = "بستن"
@@ -1734,6 +1749,11 @@ object StringResources {
         referralCreditBadge        = { amt -> "$amt افغانۍ کریډیټ" }
         cashBookingConfirmText     = { name, amount -> "غوښتنه $name ته واستول شوه. مهرباني وکړئ $amount افغانۍ نغدې د سالون په تادیه لپاره ورسره ولرئ." }
         ok                         = "سمه ده"
+        remove                     = "لرې کول"
+        timeOffTitle               = "د رخصتۍ ورځې"
+        timeOffHint                = "هغه ورځې چې بند یاست بند کړئ — پیرودونکی نشي بوکینګ کولی."
+        timeOffNone                = "هیڅ ورځ نه ده بنده شوې."
+        timeOffAdd                 = "د رخصتۍ ورځ ورزیاتول"
         noBookingsTitle            = "لا هیڅ بکینګ نشته."
         noBookingsSubtext          = "یو چمتو کوونکی ومومئ او د بک کولو تڼۍ ووهئ."
         close                      = "بندول"
