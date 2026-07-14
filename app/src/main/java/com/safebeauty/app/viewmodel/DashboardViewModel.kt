@@ -327,13 +327,13 @@ class DashboardViewModel @Inject constructor(
 
     /** Validates [promoInput] against the given salon service and, on success,
      *  stores the applied discount so the booking dialog can show it. */
-    fun applyPromo(salonId: String, serviceName: String) {
+    fun applyPromo(salonId: String, serviceNames: List<String>) {
         val code = promoInput.trim()
         if (code.isBlank()) return
         promoChecking = true
         promoError = null
         viewModelScope.launch {
-            val preview = paymentRepository.previewPromo(code, salonId, serviceName)
+            val preview = paymentRepository.previewPromo(code, salonId, serviceNames)
             promoChecking = false
             if (preview.valid) {
                 promoApplied = preview
@@ -651,7 +651,7 @@ class DashboardViewModel @Inject constructor(
      */
     fun bookService(
         salon: SalonDocument,
-        serviceName: String,
+        serviceNames: List<String>,
         appointmentDateMs: Long,
         notes: String = "",
         paymentMethod: String = "ONLINE",
@@ -664,7 +664,7 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             val session = paymentRepository.createCheckout(
                 salonId           = salon.id,
-                serviceName       = serviceName,
+                serviceNames      = serviceNames,
                 appointmentDateMs = appointmentDateMs,
                 notes             = notes,
                 email             = _currentUserEmail.value,
@@ -679,7 +679,7 @@ class DashboardViewModel @Inject constructor(
             clearPromo()
             vaultRepository.log(
                 "PAYMENT_STARTED",
-                "salonId=${salon.id} service=$serviceName amount=${session.amount} method=${session.method}"
+                "salonId=${salon.id} service=${serviceNames.joinToString("، ")} amount=${session.amount} method=${session.method}"
             )
             if (session.method == "CASH") {
                 checkout = CheckoutUiState.CashConfirmed(salon.salonName, session.amount)

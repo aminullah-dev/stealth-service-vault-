@@ -103,6 +103,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -194,7 +195,7 @@ internal fun avatarGradient(name: String): Pair<Color, Color> =
 
 private data class BookingIntent(
     val salon: SalonDocument,
-    val service: String,
+    val services: List<String>,
     val dateMs: Long? = null,
     // "" = any available stylist (or a solo salon).
     val staffId: String = "",
@@ -334,6 +335,9 @@ fun CustomerDashboardScreen(
 
     var bookingIntent     by remember { mutableStateOf<BookingIntent?>(null) }
     var showServiceDialog by remember { mutableStateOf(false) }
+    // Services the customer has ticked in the multi-select booking dialog (one
+    // appointment can cover several services; the total is their summed price).
+    val selectedServices = remember { mutableStateListOf<String>() }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
     var pendingSlotMs     by remember { mutableStateOf(0L) }
@@ -772,40 +776,92 @@ fun CustomerDashboardScreen(
         // ── Step 1: Service selection ─────────────────────────────────────────
         if (showServiceDialog) {
             val salon = bookingIntent?.salon
+            // One appointment can bundle several services (e.g. haircut + makeup);
+            // the running total is the sum of every ticked service's price.
+            val servicesTotal = selectedServices.sumOf { salon?.pricePerService?.get(it) ?: 0 }
             AlertDialog(
-                onDismissRequest = { showServiceDialog = false; bookingIntent = null },
+                onDismissRequest = { showServiceDialog = false; bookingIntent = null; selectedServices.clear() },
                 title = { Text(strings.chooseService, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         salon?.services?.forEach { service ->
-                            val price = salon.pricePerService[service] ?: 0
+                            val price    = salon.pricePerService[service] ?: 0
+                            val selected = selectedServices.contains(service)
                             Button(
                                 onClick = {
-                                    showServiceDialog = false
-                                    bookingIntent = bookingIntent?.copy(service = service)
-                                    showDatePicker  = true
+                                    if (selected) selectedServices.remove(service)
+                                    else          selectedServices.add(service)
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape    = RoundedCornerShape(12.dp),
-                                colors   = ButtonDefaults.buttonColors(containerColor = BlushPink)
+                                colors   = ButtonDefaults.buttonColors(
+                                    containerColor = if (selected) DeepRose else BlushPink
+                                )
                             ) {
                                 Row(
                                     modifier              = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment     = Alignment.CenterVertically
                                 ) {
-                                    Text(service, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (selected) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint     = Color.White,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(6.dp))
+                                        }
+                                        Text(
+                                            service,
+                                            fontSize   = 14.sp,
+                                            color      = if (selected) Color.White else DeepRose,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                     if (price > 0) {
-                                        Text("%,d AFN".format(price), fontSize = 12.sp, color = RoseGold, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "%,d AFN".format(price),
+                                            fontSize   = 12.sp,
+                                            color      = if (selected) Color.White else RoseGold,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     }
                                 }
                             }
                         }
+                        if (selectedServices.isNotEmpty()) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(
+                                modifier              = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment     = Alignment.CenterVertically
+                            ) {
+                                Text(strings.total, fontSize = 14.sp, color = DeepRose, fontWeight = FontWeight.Bold)
+                                Text("%,d AFN".format(servicesTotal), fontSize = 15.sp, color = DeepRose, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 },
-                confirmButton  = {},
+                confirmButton  = {
+                    TextButton(
+                        enabled = selectedServices.isNotEmpty(),
+                        onClick = {
+                            showServiceDialog = false
+                            bookingIntent = bookingIntent?.copy(services = selectedServices.toList())
+                            showDatePicker = true
+                        }
+                    ) {
+                        Text(
+                            strings.continueLabel,
+                            color      = if (selectedServices.isEmpty()) RoseGold.copy(alpha = 0.4f) else DeepRose,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
                 dismissButton  = {
-                    TextButton(onClick = { showServiceDialog = false; bookingIntent = null }) {
+                    TextButton(onClick = { showServiceDialog = false; bookingIntent = null; selectedServices.clear() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },
@@ -972,7 +1028,7 @@ fun CustomerDashboardScreen(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text     = "${intent.service} · ${intent.salon.salonName}",
+                            text     = "${intent.services.joinToString("، ")} · ${intent.salon.salonName}",
                             fontSize = 14.sp,
                             color    = DeepRose,
                             fontWeight = FontWeight.SemiBold
@@ -1078,7 +1134,7 @@ fun CustomerDashboardScreen(
                                     )
                                 )
                                 Button(
-                                    onClick = { viewModel.applyPromo(intent.salon.id, intent.service) },
+                                    onClick = { viewModel.applyPromo(intent.salon.id, intent.services) },
                                     enabled = viewModel.promoInput.isNotBlank() && !viewModel.promoChecking,
                                     shape   = RoundedCornerShape(12.dp),
                                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
@@ -1107,7 +1163,7 @@ fun CustomerDashboardScreen(
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
-                                viewModel.bookService(intent.salon, intent.service, pendingSlotMs, bookingNotes, paymentMethod, intent.staffId)
+                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, bookingNotes, paymentMethod, intent.staffId)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
@@ -1466,7 +1522,8 @@ fun CustomerDashboardScreen(
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
                         showSalonDetail   = null
-                        bookingIntent     = BookingIntent(salon, "")
+                        selectedServices.clear()
+                        bookingIntent     = BookingIntent(salon, emptyList())
                         showServiceDialog = true
                     },
                     onDismiss = { showSalonDetail = null }

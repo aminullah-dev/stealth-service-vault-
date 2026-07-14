@@ -59,7 +59,7 @@ class PaymentRepository @Inject constructor() {
      */
     suspend fun createCheckout(
         salonId: String,
-        serviceName: String,
+        serviceNames: List<String>,
         appointmentDateMs: Long,
         notes: String,
         email: String,
@@ -69,7 +69,7 @@ class PaymentRepository @Inject constructor() {
     ): CheckoutSession? = runCatching {
         val payload = hashMapOf(
             "salonId" to salonId,
-            "serviceName" to serviceName,
+            "serviceNames" to serviceNames,
             "appointmentDate" to appointmentDateMs,
             "notes" to notes,
             "email" to email,
@@ -107,11 +107,11 @@ class PaymentRepository @Inject constructor() {
      * customer sees the discount applied up front. Returns a PromoPreview with
      * valid=false and a message when the code is rejected by the backend.
      */
-    suspend fun previewPromo(code: String, salonId: String, serviceName: String): PromoPreview =
+    suspend fun previewPromo(code: String, salonId: String, serviceNames: List<String>): PromoPreview =
         runCatching {
             val result = functions
                 .getHttpsCallable("previewPromo")
-                .call(hashMapOf("code" to code, "salonId" to salonId, "serviceName" to serviceName))
+                .call(hashMapOf("code" to code, "salonId" to salonId, "serviceNames" to serviceNames))
                 .await()
             @Suppress("UNCHECKED_CAST")
             val map = result.getData() as? Map<String, Any?> ?: emptyMap()
