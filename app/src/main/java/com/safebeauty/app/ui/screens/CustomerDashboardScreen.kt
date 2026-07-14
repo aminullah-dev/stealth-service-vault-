@@ -193,6 +193,14 @@ internal val avatarGradients = listOf(
 internal fun avatarGradient(name: String): Pair<Color, Color> =
     avatarGradients[name.first().lowercaseChar().code % avatarGradients.size]
 
+// One guest in a group / event booking (bride + companions). Each guest gets
+// their own services; the whole party is booked as a single appointment and the
+// prices all sum together (the backend just receives the flattened service list).
+private data class PartyGuest(
+    val name: String,
+    val services: List<String>
+)
+
 private data class BookingIntent(
     val salon: SalonDocument,
     val services: List<String>,
@@ -202,7 +210,7 @@ private data class BookingIntent(
     val staffName: String = ""
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CustomerDashboardScreen(
     onLockTriggered: () -> Unit,
@@ -338,6 +346,13 @@ fun CustomerDashboardScreen(
     // Services the customer has ticked in the multi-select booking dialog (one
     // appointment can cover several services; the total is their summed price).
     val selectedServices = remember { mutableStateListOf<String>() }
+    // Group / event booking (bride + companions): guests added so far, the
+    // name being typed for the next guest, and a human-readable party summary
+    // that rides along in the booking notes.
+    var showGroupDialog by remember { mutableStateOf(false) }
+    val partyGuests     = remember { mutableStateListOf<PartyGuest>() }
+    var guestNameInput  by remember { mutableStateOf("") }
+    var partyNote       by remember { mutableStateOf("") }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
     var pendingSlotMs     by remember { mutableStateOf(0L) }
@@ -842,6 +857,21 @@ fun CustomerDashboardScreen(
                                 Text("%,d AFN".format(servicesTotal), fontSize = 15.sp, color = DeepRose, fontWeight = FontWeight.Bold)
                             }
                         }
+                        // Switch to the group / event flow (bride + companions).
+                        TextButton(
+                            onClick = {
+                                showServiceDialog = false
+                                selectedServices.clear()
+                                partyGuests.clear()
+                                guestNameInput = ""
+                                showGroupDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(strings.groupBooking, color = RoseGold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 },
                 confirmButton  = {
@@ -862,6 +892,140 @@ fun CustomerDashboardScreen(
                 },
                 dismissButton  = {
                     TextButton(onClick = { showServiceDialog = false; bookingIntent = null; selectedServices.clear() }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Step 1b: Group / event booking (bride + companions) ───────────────
+        if (showGroupDialog) {
+            val salon = bookingIntent?.salon
+            fun priceOf(s: String) = salon?.pricePerService?.get(s) ?: 0
+            val partyTotal = partyGuests.sumOf { g -> g.services.sumOf { priceOf(it) } }
+            AlertDialog(
+                onDismissRequest = {
+                    showGroupDialog = false; bookingIntent = null
+                    partyGuests.clear(); selectedServices.clear(); guestNameInput = ""
+                },
+                title = { Text(strings.groupBooking, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose) },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier            = Modifier
+                            .heightIn(max = 460.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Guests already added
+                        partyGuests.forEachIndexed { index, g ->
+                            val subtotal = g.services.sumOf { priceOf(it) }
+                            Row(
+                                modifier          = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(BlushPink.copy(alpha = 0.40f))
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        g.name.ifBlank { "${strings.guest} ${index + 1}" },
+                                        fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DeepRose
+                                    )
+                                    Text(g.services.joinToString("، "), fontSize = 11.sp, color = RoseGold)
+                                }
+                                Text("%,d AFN".format(subtotal), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
+                                IconButton(onClick = { partyGuests.removeAt(index) }) {
+                                    Icon(Icons.Default.Close, contentDescription = null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = BlushPink)
+                        // Add-a-guest form: name + tap services + running subtotal
+                        OutlinedTextField(
+                            value         = guestNameInput,
+                            onValueChange = { guestNameInput = it },
+                            label         = { Text(strings.guestNameHint, fontSize = 12.sp) },
+                            singleLine    = true,
+                            modifier      = Modifier.fillMaxWidth()
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement   = Arrangement.spacedBy(6.dp)
+                        ) {
+                            salon?.services?.forEach { service ->
+                                val selected = selectedServices.contains(service)
+                                val price    = priceOf(service)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(if (selected) DeepRose else BlushPink.copy(alpha = 0.55f))
+                                        .clickable {
+                                            if (selected) selectedServices.remove(service) else selectedServices.add(service)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                                ) {
+                                    Text(
+                                        if (price > 0) "$service · %,d".format(price) else service,
+                                        fontSize   = 12.sp,
+                                        color      = if (selected) Color.White else DeepRose,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                        Button(
+                            onClick = {
+                                partyGuests.add(PartyGuest(guestNameInput.trim(), selectedServices.toList()))
+                                guestNameInput = ""
+                                selectedServices.clear()
+                            },
+                            enabled  = selectedServices.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape    = RoundedCornerShape(12.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) {
+                            Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(strings.addGuest, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (partyGuests.isNotEmpty()) {
+                            Row(
+                                modifier              = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(strings.total, fontWeight = FontWeight.Bold, color = DeepRose)
+                                Text("%,d AFN".format(partyTotal), fontWeight = FontWeight.Bold, color = DeepRose)
+                            }
+                        }
+                    }
+                },
+                confirmButton  = {
+                    TextButton(
+                        enabled = partyGuests.isNotEmpty(),
+                        onClick = {
+                            val flat = partyGuests.flatMap { it.services }
+                            partyNote = partyGuests.mapIndexed { i, g ->
+                                "${g.name.ifBlank { "${strings.guest} ${i + 1}" }}: ${g.services.joinToString("، ")}"
+                            }.joinToString("\n")
+                            bookingIntent   = bookingIntent?.copy(services = flat)
+                            showGroupDialog = false
+                            showDatePicker  = true
+                        }
+                    ) {
+                        Text(
+                            strings.continueLabel,
+                            color      = if (partyGuests.isEmpty()) RoseGold.copy(alpha = 0.4f) else DeepRose,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton  = {
+                    TextButton(onClick = {
+                        showGroupDialog = false; bookingIntent = null
+                        partyGuests.clear(); selectedServices.clear(); guestNameInput = ""
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },
@@ -1019,6 +1183,8 @@ fun CustomerDashboardScreen(
                     showNotesDialog = false
                     pendingSlotMs   = 0L
                     bookingNotes    = ""
+                    partyNote       = ""
+                    partyGuests.clear()
                     paymentMethod   = "ONLINE"
                     bookingIntent   = null
                     viewModel.clearPromo()
@@ -1163,10 +1329,13 @@ fun CustomerDashboardScreen(
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
-                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, bookingNotes, paymentMethod, intent.staffId)
+                                val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
+                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
+                                partyNote       = ""
+                                partyGuests.clear()
                                 paymentMethod   = "ONLINE"
                                 bookingIntent   = null
                                 viewModel.clearSlots()
