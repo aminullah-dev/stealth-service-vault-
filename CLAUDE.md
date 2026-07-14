@@ -8,7 +8,7 @@ backend for everything.
 - `app/` — Android app (Kotlin, Jetpack Compose, Hilt, Firebase). Package
   `com.safebeauty.app`; **applicationId `com.security.stealthapp`** (they differ
   on purpose — see gotchas). minSdk 26, targetSdk 35.
-- `functions/` — Firebase Cloud Functions v2 (Node 20, region `us-central1`).
+- `functions/` — Firebase Cloud Functions v2 (Node 22, region `us-central1`).
   Single file `index.js`. Project id `safebeauty`, Blaze plan.
 - `firestore.rules` / `storage.rules` — security rules.
 - `public/` — Firebase Hosting: `admin/index.html` (self‑contained admin

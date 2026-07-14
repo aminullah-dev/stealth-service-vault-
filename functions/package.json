@@ -2,7 +2,7 @@
   "name": "safebeauty-functions",
   "description": "Cloud Functions for SafeBeauty — HesabPay payment sessions and commission split",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "scripts": {
