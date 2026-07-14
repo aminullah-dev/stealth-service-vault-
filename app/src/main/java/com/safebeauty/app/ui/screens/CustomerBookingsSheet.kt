@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
@@ -191,6 +192,7 @@ internal fun BookingsSheetContent(
     onRescheduleClick: (AppointmentDocument) -> Unit = {},
     onReviewClick: (AppointmentDocument) -> Unit = {},
     onSupportClick: (AppointmentDocument) -> Unit = {},
+    onRebookClick: (AppointmentDocument) -> Unit = {},
     onLeaveWaitlist: (String) -> Unit = {},
     onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
@@ -246,7 +248,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
-                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick) }
+                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick) }
             }
 
             if (past.isNotEmpty()) {
@@ -258,7 +260,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
                 }
-                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick) }
+                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick) }
             }
         }
 
@@ -314,11 +316,16 @@ private fun BookingCard(
     onRescheduleClick: (AppointmentDocument) -> Unit,
     onReviewClick: (AppointmentDocument) -> Unit,
     onCancelClick: () -> Unit,
-    onSupportClick: (AppointmentDocument) -> Unit
+    onSupportClick: (AppointmentDocument) -> Unit,
+    onRebookClick: (AppointmentDocument) -> Unit = {}
 ) {
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
     val canReview     = appt.status == "CONFIRMED"
+    // "Book again" makes sense once a visit is done or was cancelled — not while a
+    // payment is still pending.
+    val canRebook     = appt.status == "CONFIRMED" || appt.status == "COMPLETED" ||
+                        appt.status == "CANCELLED" || appt.status == "DECLINED"
     // PENDING (awaiting provider confirmation) is always cancellable. CONFIRMED
     // (paid + accepted) can still be cancelled up until the appointment time —
     // cancelAppointment() flags the payment for a manual refund either way.
@@ -409,6 +416,19 @@ private fun BookingCard(
                             Icon(Icons.Default.RateReview, null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(strings.leaveReview, fontSize = 12.sp)
+                        }
+                    }
+                    if (canRebook) {
+                        OutlinedButton(
+                            onClick        = { onRebookClick(appt) },
+                            shape          = RoundedCornerShape(8.dp),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, DeepRose),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Replay, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(strings.bookAgain, fontSize = 12.sp)
                         }
                     }
                     if (canCancel) {

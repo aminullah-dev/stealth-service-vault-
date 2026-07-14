@@ -720,6 +720,10 @@ class DashboardViewModel @Inject constructor(
         bookingConfirmCashAmount = null
     }
 
+    /** Finds a salon in the full available list by id (used by "book again"). */
+    fun findSalon(salonId: String): SalonDocument? =
+        _allAvailableSalons.value.firstOrNull { it.id == salonId }
+
     fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "", slotSpan: Int = 1) {
         viewModelScope.launch {
             slotsLoading = true

@@ -1594,6 +1594,25 @@ fun CustomerDashboardScreen(
                             )
                         )
                     },
+                    onRebookClick     = { appt ->
+                        // "Book again": reopen the booking flow for the same salon with
+                        // the previous services pre-selected (dropping any the salon no
+                        // longer offers). Splitting serviceName works for every past
+                        // booking without needing the structured breakdown.
+                        val salon = viewModel.findSalon(appt.salonId)
+                        if (salon != null) {
+                            val prev = appt.serviceName.split("،", ",")
+                                .map { it.trim() }
+                                .filter { it.isNotBlank() && salon.pricePerService.containsKey(it) }
+                            showBookingsSheet = false
+                            selectedServices.clear()
+                            selectedServices.addAll(prev)
+                            partyGuests.clear()
+                            guestNameInput = ""
+                            bookingIntent  = BookingIntent(salon, prev)
+                            showServiceDialog = true
+                        }
+                    },
                     onLeaveWaitlist   = { entryId -> viewModel.leaveWaitlist(entryId) },
                     onDismissWaitlistSlot = { entryId -> viewModel.dismissWaitlistSlot(entryId) }
                 )
