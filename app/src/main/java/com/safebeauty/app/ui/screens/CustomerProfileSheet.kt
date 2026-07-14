@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Redeem
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -465,7 +466,7 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
 // ── Customer Loyalty card ─────────────────────────────────────────────────────
 
 @Composable
-internal fun LoyaltyCard(points: Int, tier: LoyaltyTier, modifier: Modifier = Modifier) {
+internal fun LoyaltyCard(points: Int, tier: LoyaltyTier, modifier: Modifier = Modifier, onRedeem: () -> Unit = {}) {
     val strings = LocalStrings.current
 
     val (tierLabel, tierColor, nextTarget) = when (tier) {
@@ -519,6 +520,21 @@ internal fun LoyaltyCard(points: Int, tier: LoyaltyTier, modifier: Modifier = Mo
                            else strings.loyaltyNextTier(nextTarget - points)
             Text(hintText, fontSize = 11.sp, color = UnavailableGrey)
             Text(strings.loyaltyEarnHint, fontSize = 10.sp, color = UnavailableGrey)
+
+            // Redeem points → wallet credit, once there are at least 100.
+            if (points >= 100) {
+                OutlinedButton(
+                    onClick  = onRedeem,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape    = RoundedCornerShape(12.dp),
+                    border   = androidx.compose.foundation.BorderStroke(1.dp, tierColor),
+                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = tierColor)
+                ) {
+                    Icon(Icons.Default.Redeem, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(strings.redeemPoints, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+            }
         }
     }
 }

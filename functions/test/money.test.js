@@ -2,7 +2,31 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("../lib/money");
+
+test("loyaltyToCredit: exact multiple redeems fully at 1:1", () => {
+  assert.deepEqual(loyaltyToCredit(100), { ok: true, spend: 100, credit: 100, reason: "" });
+  assert.deepEqual(loyaltyToCredit(300), { ok: true, spend: 300, credit: 300, reason: "" });
+});
+
+test("loyaltyToCredit: rounds the request down to whole 100s", () => {
+  assert.deepEqual(loyaltyToCredit(250), { ok: true, spend: 200, credit: 200, reason: "" });
+});
+
+test("loyaltyToCredit: below the minimum is rejected", () => {
+  assert.deepEqual(loyaltyToCredit(50), { ok: false, spend: 0, credit: 0, reason: "too_few" });
+});
+
+test("loyaltyToCredit: zero / negative / garbage rejected", () => {
+  assert.equal(loyaltyToCredit(0).ok, false);
+  assert.equal(loyaltyToCredit(-100).ok, false);
+  assert.equal(loyaltyToCredit("nope").ok, false);
+});
+
+test("loyaltyToCredit: custom ratio applies to the credit only", () => {
+  // Half-AFN per point: 200 points -> spend 200, credit 100.
+  assert.deepEqual(loyaltyToCredit(200, { ratio: 0.5 }), { ok: true, spend: 200, credit: 100, reason: "" });
+});
 
 test("validateGiftAmount: accepts a normal amount", () => {
   assert.deepEqual(validateGiftAmount(500), { ok: true, value: 500, reason: "" });

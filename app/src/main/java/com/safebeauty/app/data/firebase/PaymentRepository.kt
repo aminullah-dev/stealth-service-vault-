@@ -130,6 +130,20 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:createGiftCard") }
 
     /**
+     * Redeems [points] loyalty points into wallet credit (server-side, in whole
+     * 100s at 1 AFN each). Returns a failed [Result] if the backend rejects it
+     * (too few points), which the caller surfaces to the user.
+     */
+    suspend fun redeemLoyalty(points: Int): Result<Unit> =
+        runCatching {
+            functions
+                .getHttpsCallable("redeemLoyaltyPoints")
+                .call(hashMapOf("points" to points))
+                .await()
+            Unit
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:redeemLoyalty") }
+
+    /**
      * Validates a promo [code] against a salon service before booking, so the
      * customer sees the discount applied up front. Returns a PromoPreview with
      * valid=false and a message when the code is rejected by the backend.

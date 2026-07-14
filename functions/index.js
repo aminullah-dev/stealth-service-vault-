@@ -37,7 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount } = require("./lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("./lib/money");
 const { expandBooked } = require("./lib/slots");
 
 admin.initializeApp();
@@ -589,6 +589,48 @@ exports.createGiftCardSession = onCall(
     return { paymentId: paymentRef.id, checkoutUrl: sessionUrl, amount: gift.value };
   }
 );
+
+// ── redeemLoyaltyPoints (callable) ────────────────────────────────────────────
+// Spend loyalty points for wallet credit (referralCredit), which auto-applies at
+// the next checkout. loyaltyPoints and referralCredit are both client-frozen, so
+// this Admin-SDK callable is the only path. Points redeem in whole 100s at 1 AFN
+// each, minimum 100 — the math lives in lib/money.js (tested).
+exports.redeemLoyaltyPoints = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+
+  const conv = loyaltyToCredit((request.data || {}).points);
+  if (!conv.ok) {
+    throw new HttpsError("failed-precondition", "You need at least 100 points to redeem.");
+  }
+
+  const userRef = db.doc(`users/${appUser.uid}`);
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) return { ok: false };
+    const have = Number(snap.data().loyaltyPoints || 0);
+    if (have < conv.spend) return { ok: false, have };
+    tx.update(userRef, {
+      loyaltyPoints:  admin.firestore.FieldValue.increment(-conv.spend),
+      referralCredit: admin.firestore.FieldValue.increment(conv.credit),
+    });
+    tx.set(db.collection("notifications").doc(), {
+      recipientId: appUser.uid,
+      type:        "SYSTEM",
+      title:       "Points redeemed 🎉",
+      body:        `You turned ${conv.spend} points into AFN ${conv.credit} of wallet credit.`,
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   "",
+    });
+    return { ok: true };
+  });
+
+  if (!result.ok) {
+    throw new HttpsError("failed-precondition", "You don't have enough points.");
+  }
+  return { spent: conv.spend, credited: conv.credit };
+});
 
 // ── hesabPayWebhook (HTTP) ────────────────────────────────────────────────────
 

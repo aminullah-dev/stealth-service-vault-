@@ -291,6 +291,21 @@ class DashboardViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LoyaltyTier.NEWCOMER)
 
+    // "redeemed" / "redeem_failed" (or null) — a one-shot result the redeem dialog
+    // reacts to. loyaltyPoints/referralCredit refresh live on their own flows.
+    var redeemResult by mutableStateOf<String?>(null)
+        private set
+
+    fun redeemLoyalty(points: Int) {
+        viewModelScope.launch {
+            paymentRepository.redeemLoyalty(points)
+                .onSuccess { redeemResult = "redeemed" }
+                .onFailure { redeemResult = "redeem_failed" }
+        }
+    }
+
+    fun clearRedeemResult() { redeemResult = null }
+
     private val _activeSalonId = MutableStateFlow("")
 
     val reviewsForSalon: StateFlow<List<ReviewDocument>> = _activeSalonId

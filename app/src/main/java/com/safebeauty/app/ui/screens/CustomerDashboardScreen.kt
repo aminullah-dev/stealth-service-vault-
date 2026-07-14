@@ -360,6 +360,8 @@ fun CustomerDashboardScreen(
     var giftPhone      by remember { mutableStateOf("") }
     var giftAmount     by remember { mutableStateOf("") }
     var giftMessage    by remember { mutableStateOf("") }
+    // Loyalty redeem dialog.
+    var showRedeemDialog by remember { mutableStateOf(false) }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
     var pendingSlotMs     by remember { mutableStateOf(0L) }
@@ -719,7 +721,8 @@ fun CustomerDashboardScreen(
                     LoyaltyCard(
                         points   = loyaltyPoints,
                         tier     = loyaltyTier,
-                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp),
+                        onRedeem = { showRedeemDialog = true }
                     )
                     ReferralCard(
                         code     = referralCode,
@@ -1114,6 +1117,46 @@ fun CustomerDashboardScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showGiftDialog = false; viewModel.resetGift() }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Loyalty redeem dialog ─────────────────────────────────────────────
+        if (showRedeemDialog) {
+            val eligible = (loyaltyPoints / 100) * 100
+            val redeemResult = viewModel.redeemResult
+            LaunchedEffect(redeemResult) {
+                if (redeemResult == "redeemed") { showRedeemDialog = false; viewModel.clearRedeemResult() }
+            }
+            AlertDialog(
+                onDismissRequest = { showRedeemDialog = false; viewModel.clearRedeemResult() },
+                title = { Text(strings.redeemPoints, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(strings.redeemHint, fontSize = 13.sp, color = Color(0xFF555555))
+                        if (eligible >= 100) {
+                            Text(
+                                "$eligible ${strings.loyaltyPtsUnit} → %,d AFN".format(eligible),
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold, color = DeepRose
+                            )
+                        }
+                        if (redeemResult == "redeem_failed") {
+                            Text(strings.redeemTooFew, fontSize = 12.sp, color = Color(0xFFCC0000))
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = eligible >= 100,
+                        onClick = { viewModel.redeemLoyalty(eligible) },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.redeemPoints, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRedeemDialog = false; viewModel.clearRedeemResult() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },

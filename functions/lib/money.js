@@ -79,4 +79,23 @@ function validateGiftAmount(amount, opts) {
   return { ok: true, value: n, reason: "" };
 }
 
-module.exports = { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount };
+// Converts a requested number of loyalty [points] into spendable wallet credit.
+// Points are redeemed in whole [step] increments (so a request of 250 at step 100
+// spends 200), with a [min] floor and a points→AFN [ratio]. Returns the exact
+// points to deduct (`spend`) and AFN to grant (`credit`); the callable still
+// re-checks the balance inside a transaction before applying either.
+function loyaltyToCredit(points, opts) {
+  const ratio = (opts && opts.ratio) || 1;
+  const min   = (opts && opts.min)   || 100;
+  const step  = (opts && opts.step)  || 100;
+  const p = Math.floor(Number(points));
+  if (!Number.isFinite(p) || p <= 0) return { ok: false, spend: 0, credit: 0, reason: "invalid" };
+  if (p < min) return { ok: false, spend: 0, credit: 0, reason: "too_few" };
+  const spend  = Math.floor(p / step) * step;
+  const credit = Math.round(spend * ratio);
+  return { ok: true, spend, credit, reason: "" };
+}
+
+module.exports = {
+  promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit,
+};
