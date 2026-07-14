@@ -37,6 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const { promoDiscountFor, computeCheckout } = require("./lib/money");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -105,13 +106,8 @@ async function resolvePromoDiscount(codeRaw, priceAfn) {
   }
 
   // Percentage takes precedence when both are set; discount can never exceed the
-  // price (so the final amount is always >= 0).
-  let discount = 0;
-  const pct = Number(p.discountPercent || 0);
-  const amt = Number(p.discountAmount || 0);
-  if (pct > 0) discount = Math.round((priceAfn * Math.min(pct, 100)) / 100);
-  else if (amt > 0) discount = Math.min(Math.round(amt), priceAfn);
-  discount = Math.max(0, Math.min(discount, priceAfn));
+  // price (so the final amount is always >= 0). See lib/money.js (unit-tested).
+  const discount = promoDiscountFor(p, priceAfn);
 
   return { discount, promoId: code, code };
 }
@@ -235,14 +231,22 @@ exports.createPaymentSession = onCall(
     // that same discounted amount so the platform's cut scales with what was
     // actually paid, not the list price.
     const promo = await resolvePromoDiscount(promoCode, listPrice);
-    const afterPromo = Math.max(0, listPrice - promo.discount);
 
-    // Auto-apply the customer's referral credit (AFN) on top of any promo, up to
-    // the remaining amount. The used portion is deducted from their balance when
-    // the booking completes (immediately for cash; in the webhook for online).
-    const availableCredit = Math.max(0, Number(appUser.referralCredit || 0));
-    const referralUsed    = Math.min(availableCredit, afterPromo);
-    const price           = afterPromo - referralUsed;
+    // Full checkout split (promo → referral credit → commission). The customer is
+    // charged the discounted price; commission is computed on that same discounted
+    // amount so the platform's cut scales with what was actually paid, not the list
+    // price. Referral credit auto-applies on top of any promo, capped at the
+    // remaining amount; the used portion is deducted from their balance when the
+    // booking completes (immediately for cash; in the webhook for online). The
+    // arithmetic lives in lib/money.js so it can be unit-tested without Firebase.
+    const commissionPercent = await getCommissionPercent();
+    const { afterPromo, referralUsed, price, commissionAmount, providerNet } =
+      computeCheckout({
+        listPrice,
+        promoDiscount:  promo.discount,
+        referralCredit: appUser.referralCredit,
+        commissionPercent,
+      });
 
     // A fully-discounted booking can't go through HesabPay (it can't charge 0),
     // so route those to cash instead of failing opaquely.
@@ -253,9 +257,6 @@ exports.createPaymentSession = onCall(
       );
     }
 
-    const commissionPercent = await getCommissionPercent();
-    const commissionAmount  = Math.round((price * commissionPercent) / 100);
-    const providerNet       = price - commissionAmount;
     const providerId        = salon.providerId || "";
 
     // ── Cash path: the customer pays the salon in person, so the platform

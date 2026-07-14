@@ -54,7 +54,8 @@ silently hit "permission denied".
 - **Firestore models** (`FirestoreModels.kt`): Boolean fields whose name starts
   with `is`, or that need a stable stored name, use
   `@get:PropertyName("x") @set:PropertyName("x") var x`.
-- **Verify before commit**: `node --check functions/index.js` for functions;
+- **Verify before commit**: `node --check functions/index.js` and `npm test`
+  (in `functions/` — Node's built-in runner, no deps) for functions;
   brace/paren balance and 4× string counts for Kotlin/AppStrings. There's no
   Android SDK in the Claude environment, so the app can't be compiled here —
   check imports and balance carefully; the user builds on their Mac.

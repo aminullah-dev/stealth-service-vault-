@@ -7,7 +7,7 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 | What you changed | Command | Then |
 |---|---|---|
 | Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleDebug` | Install the APK from `app/build/outputs/apk/debug/` |
-| Cloud Functions (`functions/index.js`) | `firebase deploy --only functions` | — |
+| Cloud Functions (`functions/index.js`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
 | Web admin console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
 | Desktop admin app (`desktop/main.js`, `desktop/preload.js`, `desktop/package.json`) | `cd desktop && npm run dist:mac` | Reinstall the `.dmg` from `desktop/dist/` |
