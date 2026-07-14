@@ -162,6 +162,7 @@ import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
 import com.safebeauty.app.viewmodel.GiftUiState
+import com.safebeauty.app.viewmodel.TipUiState
 import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
@@ -387,6 +388,7 @@ fun CustomerDashboardScreen(
     val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
     var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
+    var tipTarget           by remember { mutableStateOf<AppointmentDocument?>(null) }
 
     DashboardTheme {
         Scaffold(
@@ -1764,6 +1766,10 @@ fun CustomerDashboardScreen(
                             showServiceDialog = true
                         }
                     },
+                    onTipClick        = { appt ->
+                        showBookingsSheet = false
+                        tipTarget         = appt
+                    },
                     onLeaveWaitlist   = { entryId -> viewModel.leaveWaitlist(entryId) },
                     onDismissWaitlistSlot = { entryId -> viewModel.dismissWaitlistSlot(entryId) }
                 )
@@ -1842,6 +1848,16 @@ fun CustomerDashboardScreen(
                     reviewTarget = null
                 },
                 onDismiss = { reviewTarget = null }
+            )
+        }
+
+        // ── Tip dialog ────────────────────────────────────────────────────────
+        tipTarget?.let { appt ->
+            TipDialog(
+                salonName = appt.salonName,
+                tipState  = viewModel.tipState,
+                onSend    = { amount -> viewModel.sendTip(appt.id, amount) },
+                onDismiss = { tipTarget = null; viewModel.resetTip() }
             )
         }
 
@@ -2012,6 +2028,105 @@ private fun ReviewDialog(
                 enabled = rating >= 1,
                 colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
             ) { Text(strings.submit, color = Color.White) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }
+        },
+        containerColor = ElegantCream
+    )
+}
+
+// ── Tip dialog ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun TipDialog(
+    salonName: String,
+    tipState: TipUiState,
+    onSend: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val context = LocalContext.current
+    var selected by remember { mutableStateOf(0L) }
+    var customText by remember { mutableStateOf("") }
+    val presets = listOf(50L, 100L, 200L, 500L)
+
+    // Open the HesabPay checkout page as soon as the session is created.
+    LaunchedEffect(tipState) {
+        if (tipState is TipUiState.OpenCheckout) {
+            runCatching {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(tipState.url)))
+            }
+        }
+    }
+
+    val amount = if (customText.isNotBlank()) customText.toLongOrNull() ?: 0L else selected
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text(strings.tipTitle, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose)
+                if (salonName.isNotBlank()) Text(salonName, fontSize = 13.sp, color = RoseGold)
+            }
+        },
+        text = {
+            Column {
+                Text(strings.tipHint, fontSize = 12.sp, color = RoseGold)
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    presets.forEach { amt ->
+                        FilterChip(
+                            selected = customText.isBlank() && selected == amt,
+                            onClick  = { selected = amt; customText = "" },
+                            label    = { Text("$amt", fontSize = 13.sp) },
+                            colors   = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ChipActive,
+                                selectedLabelColor     = Color.White,
+                                containerColor         = ChipInactive,
+                                labelColor             = DeepRose
+                            )
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value         = customText,
+                    onValueChange = { customText = it.filter { c -> c.isDigit() } },
+                    placeholder   = { Text(strings.tipCustomHint, fontSize = 13.sp) },
+                    singleLine    = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier      = Modifier.fillMaxWidth(),
+                    shape         = RoundedCornerShape(12.dp),
+                    suffix        = { Text(strings.incomeAFN, fontSize = 11.sp, color = RoseGold) },
+                    colors        = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor   = RoseGold,
+                        unfocusedBorderColor = ChipInactive,
+                        cursorColor          = RoseGold
+                    )
+                )
+                Spacer(Modifier.height(8.dp))
+                when (tipState) {
+                    is TipUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                    is TipUiState.Sent     -> Text(strings.tipSent, fontSize = 12.sp, color = AvailableGreen)
+                    is TipUiState.Failed   -> Text(strings.tipFailed, fontSize = 12.sp, color = Color(0xFFCC0000))
+                    else -> {}
+                }
+            }
+        },
+        confirmButton = {
+            if (tipState is TipUiState.Sent) {
+                Button(
+                    onClick = onDismiss,
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) { Text(strings.ok, color = Color.White) }
+            } else {
+                Button(
+                    onClick = { if (amount > 0) onSend(amount) },
+                    enabled = amount > 0 && tipState !is TipUiState.Creating,
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) { Text(strings.tipSend, color = Color.White) }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }

@@ -613,6 +613,87 @@ exports.createGiftCardSession = onCall(
   }
 );
 
+// ── createTipSession (callable) ───────────────────────────────────────────────
+// Tip the provider for a completed visit. The whole amount goes to the provider
+// (no commission) — it's added to provider_balances.owedAmount on payment success
+// (see hesabPayWebhook), paid out with their normal balance. Online (HesabPay)
+// only; the amount and the provider are recomputed server-side so neither can be
+// spoofed. Rides the same payments collection tagged type:"TIP".
+exports.createTipSession = onCall(
+  { secrets: [HESAB_API_KEY], region: "us-central1" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const customer = await resolveAppUser(request);
+
+    const { appointmentId, amount } = request.data || {};
+    if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");
+    const tip = validateGiftAmount(amount, { min: 10, max: 20000 });
+    if (!tip.ok) {
+      throw new HttpsError("invalid-argument", "Enter a valid tip amount (10–20,000 AFN).");
+    }
+
+    // The tip must belong to the caller's own booking; resolve the provider from
+    // the salon server-side so the client can't redirect a tip to someone else.
+    const apptSnap = await db.doc(`appointments/${appointmentId}`).get();
+    if (!apptSnap.exists) throw new HttpsError("not-found", "Booking not found.");
+    const appt = apptSnap.data();
+    if (appt.customerId !== customer.uid) {
+      throw new HttpsError("permission-denied", "That isn't your booking.");
+    }
+    const salonSnap = await db.doc(`salons/${appt.salonId}`).get();
+    const providerId = salonSnap.exists ? (salonSnap.data().providerId || "") : "";
+    if (!providerId) throw new HttpsError("failed-precondition", "This salon can't receive tips yet.");
+
+    const apiKey = HESAB_API_KEY.value();
+    if (!apiKey) throw new HttpsError("failed-precondition", "Payment is not configured.");
+
+    const paymentRef = db.collection("payments").doc();
+    await paymentRef.set({
+      type:           "TIP",
+      appointmentId,
+      customerId:     customer.uid,
+      providerId,
+      salonId:        appt.salonId,
+      amount:         tip.value,
+      currency:       "AFN",
+      status:         "PENDING",
+      method:         "ONLINE",
+      hesabSessionId: "",
+      createdAt:      Date.now(),
+    });
+
+    let sessionUrl = "";
+    let sessionId  = "";
+    try {
+      const redirectBase = HESAB_REDIRECT_BASE.value();
+      const res = await fetch(`${HESAB_BASE_URL.value()}/payment/create-session`, {
+        method:  "POST",
+        headers: hesabHeaders(apiKey),
+        body: JSON.stringify({
+          email: customer.email || `user_${customer.uid}@safebeauty.af`,
+          items: [{ id: paymentRef.id, name: `SafeBeauty tip — AFN ${tip.value}`, price: tip.value }],
+          redirect_success_url: `${redirectBase}/payment/success?paymentId=${paymentRef.id}`,
+          redirect_failure_url: `${redirectBase}/payment/failure?paymentId=${paymentRef.id}`,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(`HesabPay error ${res.status}: ${body.message || JSON.stringify(body)}`);
+      }
+      sessionUrl = body.url || body.payment_url || "";
+      sessionId  = body.session_id || "";
+      if (!sessionUrl) throw new Error("HesabPay returned no checkout url.");
+    } catch (err) {
+      await paymentRef.update({ status: "FAILED" });
+      logger.error("createTipSession failed", err);
+      throw new HttpsError("internal", String(err.message || err));
+    }
+
+    await paymentRef.update({ hesabSessionId: sessionId });
+    return { paymentId: paymentRef.id, checkoutUrl: sessionUrl, amount: tip.value };
+  }
+);
+
 // ── redeemLoyaltyPoints (callable) ────────────────────────────────────────────
 // Spend loyalty points for wallet credit (referralCredit), which auto-applies at
 // the next checkout. loyaltyPoints and referralCredit are both client-frozen, so
@@ -833,6 +914,38 @@ exports.hesabPayWebhook = onRequest(
               createdAt:   Date.now(),
               relatedId:   fresh.giftCardId || "",
             });
+            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+            return "paid";
+          }
+
+          // Tip payment: the full amount is owed to the provider (no commission),
+          // paid out with their normal balance. No appointment to release.
+          if (fresh.type === "TIP") {
+            tx.update(paymentRef, {
+              status: "PAID",
+              paidAt: Date.now(),
+              transactionId: transactionId || null,
+            });
+            if (fresh.providerId) {
+              tx.set(
+                db.doc(`provider_balances/${fresh.providerId}`),
+                {
+                  providerId: fresh.providerId,
+                  owedAmount: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+                  updatedAt:  Date.now(),
+                },
+                { merge: true }
+              );
+              tx.set(db.collection("notifications").doc(), {
+                recipientId: fresh.providerId,
+                type:        "TIP_RECEIVED",
+                title:       "You received a tip 💝",
+                body:        `A customer tipped you AFN ${fresh.amount}.`,
+                isRead:      false,
+                createdAt:   Date.now(),
+                relatedId:   fresh.appointmentId || "",
+              });
+            }
             if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
             return "paid";
           }

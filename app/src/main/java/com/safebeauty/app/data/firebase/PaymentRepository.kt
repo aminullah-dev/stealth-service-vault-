@@ -130,6 +130,30 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:createGiftCard") }
 
     /**
+     * Sends an [amount] AFN tip for the caller's own booking [appointmentId]. The
+     * whole amount goes to the provider (server credits their balance on the
+     * webhook). Returns a CheckoutSession whose checkoutUrl the caller opens.
+     */
+    suspend fun sendTip(appointmentId: String, amount: Long): Result<CheckoutSession> =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("createTipSession")
+                .call(hashMapOf(
+                    "appointmentId" to appointmentId,
+                    "amount"        to amount
+                ))
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+            CheckoutSession(
+                paymentId   = map["paymentId"] as? String ?: "",
+                checkoutUrl = map["checkoutUrl"] as? String ?: "",
+                method      = "ONLINE",
+                amount      = (map["amount"] as? Number)?.toLong() ?: amount
+            )
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:sendTip") }
+
+    /**
      * Redeems [points] loyalty points into wallet credit (server-side, in whole
      * 100s at 1 AFN each). Returns a failed [Result] if the backend rejects it
      * (too few points), which the caller surfaces to the user.

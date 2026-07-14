@@ -195,6 +195,7 @@ internal fun BookingsSheetContent(
     onReviewClick: (AppointmentDocument) -> Unit = {},
     onSupportClick: (AppointmentDocument) -> Unit = {},
     onRebookClick: (AppointmentDocument) -> Unit = {},
+    onTipClick: (AppointmentDocument) -> Unit = {},
     onLeaveWaitlist: (String) -> Unit = {},
     onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
@@ -250,7 +251,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
-                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, refundStatusByAppointment[appt.id]) }
+                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id]) }
             }
 
             if (past.isNotEmpty()) {
@@ -262,7 +263,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
                 }
-                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, refundStatusByAppointment[appt.id]) }
+                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id]) }
             }
         }
 
@@ -320,6 +321,7 @@ private fun BookingCard(
     onCancelClick: () -> Unit,
     onSupportClick: (AppointmentDocument) -> Unit,
     onRebookClick: (AppointmentDocument) -> Unit = {},
+    onTipClick: (AppointmentDocument) -> Unit = {},
     refundStatus: String? = null
 ) {
     val strings       = LocalStrings.current
@@ -442,6 +444,19 @@ private fun BookingCard(
                             Icon(Icons.Default.RateReview, null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(strings.leaveReview, fontSize = 12.sp)
+                        }
+                    }
+                    if (canReview) {
+                        OutlinedButton(
+                            onClick        = { onTipClick(appt) },
+                            shape          = RoundedCornerShape(8.dp),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, DeepRose),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(strings.tipTitle, fontSize = 12.sp)
                         }
                     }
                     if (canRebook) {

@@ -95,6 +95,15 @@ sealed interface GiftUiState {
     data class Failed(val message: String) : GiftUiState
 }
 
+/** Tip flow (send AFN to the provider for a completed visit). */
+sealed interface TipUiState {
+    data object Idle : TipUiState
+    data object Creating : TipUiState
+    data class OpenCheckout(val url: String) : TipUiState
+    data object Sent : TipUiState                           // provider credited
+    data class Failed(val message: String) : TipUiState
+}
+
 /** How the customer's salon list is ordered. */
 enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
 
@@ -401,6 +410,36 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun resetGift() { giftState = GiftUiState.Idle }
+
+    var tipState by mutableStateOf<TipUiState>(TipUiState.Idle)
+        private set
+
+    /**
+     * Tips [amount] AFN on booking [appointmentId]. On success the UI opens the
+     * HesabPay URL; we poll the payment until the webhook flips it to PAID (which
+     * credits the provider server-side) and report [TipUiState.Sent].
+     */
+    fun sendTip(appointmentId: String, amount: Long) {
+        tipState = TipUiState.Creating
+        viewModelScope.launch {
+            paymentRepository.sendTip(appointmentId, amount)
+                .onSuccess { session ->
+                    if (session.checkoutUrl.isBlank()) {
+                        tipState = TipUiState.Failed("no_url"); return@onSuccess
+                    }
+                    tipState = TipUiState.OpenCheckout(session.checkoutUrl)
+                    paymentRepository.observePaymentStatus(session.paymentId).collect { st ->
+                        when (st) {
+                            "PAID"   -> tipState = TipUiState.Sent
+                            "FAILED" -> tipState = TipUiState.Failed("payment_failed")
+                        }
+                    }
+                }
+                .onFailure { e -> tipState = TipUiState.Failed(e.message ?: "tip_failed") }
+        }
+    }
+
+    fun resetTip() { tipState = TipUiState.Idle }
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
 
