@@ -1842,12 +1842,57 @@ exports.completePastAppointments = onSchedule(
 
     let count = 0;
     for (const doc of confirmed.docs) {
-      if (Number(doc.data().appointmentDate) <= cutoff) {
-        await doc.ref.update({ status: "COMPLETED", completedAt: Date.now() });
+      const a = doc.data();
+      if (Number(a.appointmentDate) <= cutoff) {
+        const now = Date.now();
+        await doc.ref.update({ status: "COMPLETED", completedAt: now });
+        // Stamp the customer's last visit — a cheap recency signal the
+        // re-engagement nudge reads instead of scanning appointment history.
+        if (a.customerId) {
+          await db.doc(`users/${a.customerId}`).set({ lastVisitAt: now }, { merge: true });
+        }
         count++;
       }
     }
     logger.log(`completePastAppointments: completed ${count} appointment(s)`);
+  }
+);
+
+// Nudge lapsed customers back. A customer whose last completed visit is older
+// than 30 days gets a one-time "we miss you" notification (→ FCM via
+// pushOnNotificationCreated), at most once per 30 days (lastNudgedAt cooldown).
+// Only people who have actually visited (lastVisitAt set) are ever nudged.
+const REENGAGE_AFTER_MS    = 30 * 24 * 60 * 60 * 1000;
+const REENGAGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
+exports.sendReengagementNudges = onSchedule(
+  { schedule: "every 24 hours", region: "us-central1" },
+  async () => {
+    const now = Date.now();
+    const lapsed = await db.collection("users")
+      .where("lastVisitAt", "<=", now - REENGAGE_AFTER_MS)
+      .get();
+    if (lapsed.empty) return;
+
+    let count = 0;
+    for (const doc of lapsed.docs) {
+      const u = doc.data();
+      if (Number(u.lastNudgedAt || 0) > now - REENGAGE_COOLDOWN_MS) continue; // cooldown
+      const batch = db.batch();
+      batch.update(doc.ref, { lastNudgedAt: now });
+      batch.set(db.collection("notifications").doc(), {
+        recipientId: doc.id,
+        type:        "REENGAGEMENT",
+        title:       "We miss you 💕",
+        body:        "It's been a while — book your next beauty appointment on SafeBeauty.",
+        isRead:      false,
+        createdAt:   now,
+        relatedId:   "",
+      });
+      await batch.commit();
+      count++;
+    }
+    logger.log(`sendReengagementNudges: nudged ${count} lapsed customer(s)`);
   }
 );
 

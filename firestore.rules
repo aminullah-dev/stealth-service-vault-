@@ -153,7 +153,13 @@ service cloud.firestore {
                      && request.resource.data.get('customerRatingCount', 0)
                           == resource.data.get('customerRatingCount', 0)
                      && request.resource.data.get('noShowCount', 0)
-                          == resource.data.get('noShowCount', 0));
+                          == resource.data.get('noShowCount', 0)
+                     // Written only by scheduled functions (completePastAppointments
+                     // stamps lastVisitAt; sendReengagementNudges stamps lastNudgedAt).
+                     && request.resource.data.get('lastVisitAt', 0)
+                          == resource.data.get('lastVisitAt', 0)
+                     && request.resource.data.get('lastNudgedAt', 0)
+                          == resource.data.get('lastNudgedAt', 0));
 
       allow delete: if isAdmin();
     }

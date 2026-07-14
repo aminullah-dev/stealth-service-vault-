@@ -60,7 +60,13 @@ data class UserDocument(
     // Average = customerRatingSum / customerRatingCount.
     val customerRatingSum: Long = 0L,
     val customerRatingCount: Int = 0,
-    val noShowCount: Int = 0
+    val noShowCount: Int = 0,
+    // ── Re-engagement (server-controlled, frozen against client writes) ──────────
+    // lastVisitAt is stamped by completePastAppointments when an appointment flips
+    // to COMPLETED; sendReengagementNudges scans for customers idle ≥30 days and
+    // stamps lastNudgedAt so a "we miss you" nudge fires at most once per 30 days.
+    val lastVisitAt: Long = 0L,
+    val lastNudgedAt: Long = 0L
 )
 
 /** Average customer rating (0.0 if never rated). */
