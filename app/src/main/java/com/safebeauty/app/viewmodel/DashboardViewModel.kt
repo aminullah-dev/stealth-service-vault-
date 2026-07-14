@@ -40,6 +40,7 @@ import com.safebeauty.app.workers.ReminderWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -547,6 +548,16 @@ class DashboardViewModel @Inject constructor(
         _isOffline.value = caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         connectivityManager.registerDefaultNetworkCallback(networkCallback)
 
+        // One-time backfill: mirror any already-favorited salons (from before the
+        // Firestore mirror existed) so their favoriters also receive offer pushes.
+        // Firestore set() is idempotent, so re-running on later launches is cheap.
+        viewModelScope.launch {
+            val existing = favoritesRepository.favoriteIds.first()
+            existing.forEach { salonId ->
+                runCatching { firestoreRepository.setFavorite(customerId, salonId, true) }
+            }
+        }
+
         // Fetch current user's display name and profile photo
         viewModelScope.launch {
             runCatching { firestoreRepository.getUserById(customerId) }
@@ -642,7 +653,13 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun toggleFavorite(salonId: String) {
-        viewModelScope.launch { runCatching { favoritesRepository.toggle(salonId) } }
+        val willBeFavorite = !favoriteIds.value.contains(salonId)
+        viewModelScope.launch {
+            // Room stays the offline source of truth for the UI; mirror to Firestore
+            // so the server can push offers to a salon's favoriters.
+            runCatching { favoritesRepository.toggle(salonId) }
+            runCatching { firestoreRepository.setFavorite(customerId, salonId, willBeFavorite) }
+        }
     }
 
     /**

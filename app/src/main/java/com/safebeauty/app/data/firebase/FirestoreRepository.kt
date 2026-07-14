@@ -52,6 +52,7 @@ class FirestoreRepository @Inject constructor(
     private val refundRequestsCol    = db.collection("refund_requests")
     private val promoCodesCol        = db.collection("promo_codes")
     private val supportTicketsCol    = db.collection("support_tickets")
+    private val favoritesCol         = db.collection("favorites")
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -833,6 +834,27 @@ class FirestoreRepository @Inject constructor(
             trySend(list)
         }
         awaitClose { listener.remove() }
+    }
+
+    // ── Favorites (Firestore mirror) ────────────────────────────────────────────
+
+    /**
+     * Mirrors a favorite to Firestore so the server can notify favoriters when
+     * their salon posts an offer. The on-device Room list stays the UI source of
+     * truth; this is a best-effort write (doc id "{customerId}_{salonId}").
+     */
+    suspend fun setFavorite(customerId: String, salonId: String, isFavorite: Boolean) {
+        if (customerId.isBlank() || salonId.isBlank()) return
+        val ref = favoritesCol.document("${customerId}_$salonId")
+        if (isFavorite) {
+            ref.set(mapOf(
+                "customerId" to customerId,
+                "salonId"    to salonId,
+                "createdAt"  to System.currentTimeMillis()
+            )).await()
+        } else {
+            ref.delete().await()
+        }
     }
 
     // ── Seeder check ──────────────────────────────────────────────────────────

@@ -290,6 +290,18 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── favorites ────────────────────────────────────────────────────────────────
+    // A customer's favorited salons, mirrored from the on-device list so the
+    // server can notify favoriters when their salon posts an offer (see
+    // pushOfferToFavoriters). Doc id is "{customerId}_{salonId}". A customer only
+    // ever reads/writes their own rows; the offer fan-out runs server-side.
+    match /favorites/{favId} {
+      allow read:   if isSignedIn() && (resource.data.customerId == me() || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.customerId == me();
+      allow delete: if isSignedIn() && resource.data.customerId == me();
+      allow update: if false;
+    }
+
     // ── gift_cards ─────────────────────────────────────────────────────────────
     // Bought via createGiftCardSession, settled by the HesabPay webhook (Admin
     // SDK). Buyer and recipient can read their own; nobody writes from a client.

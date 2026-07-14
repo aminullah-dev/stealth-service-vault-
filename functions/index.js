@@ -2347,3 +2347,57 @@ exports.pushOnBroadcastCreated = onDocumentCreated(
     }
   }
 );
+
+// ── pushOfferToFavoriters ─────────────────────────────────────────────────────
+// When a provider posts a new (active) offer, notify every customer who
+// favorited that salon. Favorites are mirrored to Firestore from the on-device
+// list (see FirestoreRepository.setFavorite); each notification flows through the
+// existing pushOnNotificationCreated → FCM pipeline. Fan-out is capped so one
+// offer can't spawn an unbounded batch.
+exports.pushOfferToFavoriters = onDocumentCreated(
+  "salon_offers/{offerId}",
+  async (event) => {
+    const offer = event.data && event.data.data();
+    if (!offer || offer.active === false || !offer.salonId) return;
+
+    const favs = await db
+      .collection("favorites")
+      .where("salonId", "==", offer.salonId)
+      .limit(500)
+      .get();
+    if (favs.empty) return;
+
+    const salon = offer.salonName || "A salon you like";
+    const title = "New offer 💖";
+    const body  = offer.title
+      ? `${salon}: ${offer.title}`
+      : `${salon} just posted a new offer.`;
+
+    let batch = db.batch();
+    let pending = 0;
+    let total = 0;
+    for (const fav of favs.docs) {
+      const customerId = fav.data().customerId;
+      if (!customerId) continue;
+      batch.set(db.collection("notifications").doc(), {
+        recipientId: customerId,
+        type:        "OFFER",
+        title,
+        body,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   offer.salonId,
+      });
+      pending++;
+      total++;
+      // Firestore batches cap at 500 writes; commit well under that.
+      if (pending >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        pending = 0;
+      }
+    }
+    if (pending > 0) await batch.commit();
+    logger.log(`pushOfferToFavoriters: notified ${total} favoriter(s) of salon ${offer.salonId}`);
+  }
+);
