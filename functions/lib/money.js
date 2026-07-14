@@ -66,4 +66,17 @@ function resolveServicesTotal(pricePerService, serviceNames) {
   return { services, total, invalid };
 }
 
-module.exports = { promoDiscountFor, computeCheckout, resolveServicesTotal };
+// Validates a gift-card amount (whole AFN). Bounds keep a typo from charging a
+// fortune and block zero/negative gifts. Returns the coerced integer value so the
+// caller always stores a clean number.
+function validateGiftAmount(amount, opts) {
+  const min = (opts && opts.min) || 50;
+  const max = (opts && opts.max) || 50000;
+  const n = Math.floor(Number(amount));
+  if (!Number.isFinite(n) || n <= 0) return { ok: false, value: 0, reason: "invalid" };
+  if (n < min) return { ok: false, value: n, reason: "too_small" };
+  if (n > max) return { ok: false, value: n, reason: "too_large" };
+  return { ok: true, value: n, reason: "" };
+}
+
+module.exports = { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount };

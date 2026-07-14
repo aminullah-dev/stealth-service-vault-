@@ -18,14 +18,14 @@ import javax.inject.Singleton
  */
 data class CheckoutSession(
     val paymentId: String,
-    val appointmentId: String,
+    val appointmentId: String = "",   // empty for a gift card (no appointment)
     val checkoutUrl: String,
     val method: String,
     val amount: Long,            // final amount charged (after any discount)
-    val listPrice: Long,        // original service price before discount
-    val discountAmount: Long,   // promo discount applied (0 if none)
-    val commissionAmount: Long,
-    val providerNet: Long
+    val listPrice: Long = 0L,        // original service price before discount
+    val discountAmount: Long = 0L,   // promo discount applied (0 if none)
+    val commissionAmount: Long = 0L,
+    val providerNet: Long = 0L
 )
 
 /** Result of validating a promo code before booking (see previewPromo). */
@@ -101,6 +101,33 @@ class PaymentRepository @Inject constructor() {
         session.takeIf { it.method == "CASH" || it.checkoutUrl.isNotBlank() }
     }.onFailure { CrashReporter.recordNonFatal(it, "payment:createCheckout") }
         .getOrNull()
+
+    /**
+     * Buys a gift card of [amount] AFN for the user with [recipientPhone]. On
+     * payment the recipient's wallet credit increases (server-side, via the
+     * webhook). Returns a CheckoutSession whose checkoutUrl the caller opens, or
+     * null with the [Result] on failure (e.g. unknown recipient → the callable
+     * throws, surfaced by the caller via the returned Result).
+     */
+    suspend fun createGiftCard(recipientPhone: String, amount: Long, message: String): Result<CheckoutSession> =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("createGiftCardSession")
+                .call(hashMapOf(
+                    "recipientPhone" to recipientPhone,
+                    "amount"         to amount,
+                    "message"        to message
+                ))
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+            CheckoutSession(
+                paymentId   = map["paymentId"] as? String ?: "",
+                checkoutUrl = map["checkoutUrl"] as? String ?: "",
+                method      = "ONLINE",
+                amount      = (map["amount"] as? Number)?.toLong() ?: amount
+            )
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:createGiftCard") }
 
     /**
      * Validates a promo [code] against a salon service before booking, so the

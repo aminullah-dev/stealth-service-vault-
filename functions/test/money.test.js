@@ -2,7 +2,33 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
+
+test("validateGiftAmount: accepts a normal amount", () => {
+  assert.deepEqual(validateGiftAmount(500), { ok: true, value: 500, reason: "" });
+});
+
+test("validateGiftAmount: floors fractional input", () => {
+  assert.equal(validateGiftAmount(500.9).value, 500);
+});
+
+test("validateGiftAmount: rejects zero / negative / garbage", () => {
+  assert.equal(validateGiftAmount(0).ok, false);
+  assert.equal(validateGiftAmount(-100).ok, false);
+  assert.equal(validateGiftAmount("nope").ok, false);
+});
+
+test("validateGiftAmount: enforces min and max", () => {
+  assert.deepEqual(validateGiftAmount(10), { ok: false, value: 10, reason: "too_small" });
+  assert.deepEqual(validateGiftAmount(999999), { ok: false, value: 999999, reason: "too_large" });
+  assert.equal(validateGiftAmount(50).ok, true);   // boundary
+  assert.equal(validateGiftAmount(50000).ok, true); // boundary
+});
+
+test("validateGiftAmount: custom bounds override defaults", () => {
+  assert.equal(validateGiftAmount(20, { min: 10, max: 100 }).ok, true);
+  assert.equal(validateGiftAmount(200, { min: 10, max: 100 }).reason, "too_large");
+});
 
 const PRICES = { Haircut: 300, Makeup: 800, Manicure: 250 };
 

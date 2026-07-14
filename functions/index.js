@@ -37,7 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal } = require("./lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount } = require("./lib/money");
 const { expandBooked } = require("./lib/slots");
 
 admin.initializeApp();
@@ -495,6 +495,101 @@ exports.createPaymentSession = onCall(
   }
 );
 
+// ── createGiftCardSession (callable) ──────────────────────────────────────────
+// Buy AFN credit for another registered user, identified by phone. On payment
+// success (see hesabPayWebhook) the amount is added to the recipient's
+// referralCredit wallet, which auto-applies at their next checkout — no
+// redemption step. Online (HesabPay) only; the amount is validated/recomputed
+// server-side so the client can't spoof it.
+exports.createGiftCardSession = onCall(
+  { secrets: [HESAB_API_KEY], region: "us-central1" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const buyer = await resolveAppUser(request);
+
+    const { recipientPhone, amount, message } = request.data || {};
+    const gift = validateGiftAmount(amount);
+    if (!gift.ok) {
+      throw new HttpsError("invalid-argument", "Enter a valid gift amount (50–50,000 AFN).");
+    }
+
+    // Recipient must be a registered user (we credit their existing wallet).
+    const phone = normalizePhone(recipientPhone);
+    const q = await db.collection("users").where("phone", "==", phone).limit(1).get();
+    if (q.empty) throw new HttpsError("not-found", "No account uses that phone number.");
+    const recipient = q.docs[0];
+    if (recipient.id === buyer.uid) {
+      throw new HttpsError("failed-precondition", "You can't send a gift card to yourself.");
+    }
+
+    const apiKey = HESAB_API_KEY.value();
+    if (!apiKey) throw new HttpsError("failed-precondition", "Payment is not configured.");
+
+    // A gift card rides the same payments collection as bookings, tagged
+    // type:"GIFT_CARD", so the existing webhook finds it by items[0].id and just
+    // branches on the type instead of releasing an appointment.
+    const giftRef    = db.collection("gift_cards").doc();
+    const paymentRef = db.collection("payments").doc();
+    const batch = db.batch();
+    batch.set(giftRef, {
+      buyerUid:       buyer.uid,
+      buyerName:      buyer.name || "",
+      recipientUid:   recipient.id,
+      recipientPhone: phone,
+      amount:         gift.value,
+      message:        String(message || "").slice(0, 200),
+      status:         "PENDING",
+      paymentId:      paymentRef.id,
+      createdAt:      Date.now(),
+    });
+    batch.set(paymentRef, {
+      type:           "GIFT_CARD",
+      giftCardId:     giftRef.id,
+      buyerUid:       buyer.uid,
+      recipientUid:   recipient.id,
+      amount:         gift.value,
+      currency:       "AFN",
+      status:         "PENDING",
+      method:         "ONLINE",
+      hesabSessionId: "",
+      createdAt:      Date.now(),
+    });
+    await batch.commit();
+
+    let sessionUrl = "";
+    let sessionId  = "";
+    try {
+      const redirectBase = HESAB_REDIRECT_BASE.value();
+      const res = await fetch(`${HESAB_BASE_URL.value()}/payment/create-session`, {
+        method:  "POST",
+        headers: hesabHeaders(apiKey),
+        body: JSON.stringify({
+          email: buyer.email || `user_${buyer.uid}@safebeauty.af`,
+          items: [{ id: paymentRef.id, name: `SafeBeauty gift card — AFN ${gift.value}`, price: gift.value }],
+          redirect_success_url: `${redirectBase}/payment/success?paymentId=${paymentRef.id}`,
+          redirect_failure_url: `${redirectBase}/payment/failure?paymentId=${paymentRef.id}`,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(`HesabPay error ${res.status}: ${body.message || JSON.stringify(body)}`);
+      }
+      sessionUrl = body.url || body.payment_url || "";
+      sessionId  = body.session_id || "";
+      if (!sessionUrl) throw new Error("HesabPay returned no checkout url.");
+    } catch (err) {
+      // Roll back so a failed create-session leaves no dangling PENDING gift.
+      await paymentRef.update({ status: "FAILED" });
+      await giftRef.update({ status: "FAILED" });
+      logger.error("createGiftCardSession failed", err);
+      throw new HttpsError("internal", String(err.message || err));
+    }
+
+    await paymentRef.update({ hesabSessionId: sessionId });
+    return { paymentId: paymentRef.id, checkoutUrl: sessionUrl, amount: gift.value };
+  }
+);
+
 // ── hesabPayWebhook (HTTP) ────────────────────────────────────────────────────
 
 exports.hesabPayWebhook = onRequest(
@@ -649,6 +744,34 @@ exports.hesabPayWebhook = onRequest(
         }
 
         if (paidSignal) {
+          // Gift-card payment: credit the recipient's wallet (referralCredit) so
+          // it auto-applies at their next checkout — no appointment to release.
+          // The status/replay guards above make this run exactly once.
+          if (fresh.type === "GIFT_CARD") {
+            tx.update(paymentRef, {
+              status: "PAID",
+              paidAt: Date.now(),
+              transactionId: transactionId || null,
+            });
+            tx.update(db.doc(`users/${fresh.recipientUid}`), {
+              referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+            });
+            if (fresh.giftCardId) {
+              tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "PAID", paidAt: Date.now() });
+            }
+            tx.set(db.collection("notifications").doc(), {
+              recipientId: fresh.recipientUid,
+              type:        "GIFT_RECEIVED",
+              title:       "You received a gift card 🎁",
+              body:        `AFN ${fresh.amount} credit was added to your account.`,
+              isRead:      false,
+              createdAt:   Date.now(),
+              relatedId:   fresh.giftCardId || "",
+            });
+            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+            return "paid";
+          }
+
           tx.update(paymentRef, {
             status: "PAID",
             paidAt: Date.now(),

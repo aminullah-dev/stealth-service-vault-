@@ -159,6 +159,7 @@ import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
+import com.safebeauty.app.viewmodel.GiftUiState
 import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
@@ -354,6 +355,11 @@ fun CustomerDashboardScreen(
     val partyGuests     = remember { mutableStateListOf<PartyGuest>() }
     var guestNameInput  by remember { mutableStateOf("") }
     var partyNote       by remember { mutableStateOf("") }
+    // Gift-card dialog state.
+    var showGiftDialog by remember { mutableStateOf(false) }
+    var giftPhone      by remember { mutableStateOf("") }
+    var giftAmount     by remember { mutableStateOf("") }
+    var giftMessage    by remember { mutableStateOf("") }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
     var pendingSlotMs     by remember { mutableStateOf(0L) }
@@ -720,6 +726,17 @@ fun CustomerDashboardScreen(
                         credit   = referralCredit,
                         modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp)
                     )
+                    OutlinedButton(
+                        onClick = { showGiftDialog = true },
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp).fillMaxWidth(),
+                        shape    = RoundedCornerShape(14.dp),
+                        border   = androidx.compose.foundation.BorderStroke(1.dp, RoseGold),
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                    ) {
+                        Icon(Icons.Default.CardGiftcard, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(strings.giftCard, fontWeight = FontWeight.SemiBold)
+                    }
                     ChangePinSection(
                         changePinVm = changePinVm,
                         modifier    = Modifier.padding(horizontal = 24.dp).padding(bottom = 40.dp)
@@ -1027,6 +1044,76 @@ fun CustomerDashboardScreen(
                         showGroupDialog = false; bookingIntent = null
                         partyGuests.clear(); selectedServices.clear(); guestNameInput = ""
                     }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Gift card dialog ──────────────────────────────────────────────────
+        if (showGiftDialog) {
+            val giftState = viewModel.giftState
+            val giftCtx   = LocalContext.current
+            // Open the HesabPay page as soon as the session is created.
+            LaunchedEffect(giftState) {
+                if (giftState is GiftUiState.OpenCheckout) {
+                    runCatching {
+                        giftCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(giftState.url)))
+                    }
+                }
+            }
+            AlertDialog(
+                onDismissRequest = { showGiftDialog = false; viewModel.resetGift() },
+                title = { Text(strings.giftCardTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedTextField(
+                            value = giftPhone, onValueChange = { giftPhone = it },
+                            label = { Text(strings.giftRecipientPhone, fontSize = 13.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = giftAmount,
+                            onValueChange = { v -> if (v.length <= 6 && v.all(Char::isDigit)) giftAmount = v },
+                            label = { Text(strings.giftAmount, fontSize = 13.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = giftMessage, onValueChange = { giftMessage = it },
+                            label = { Text(strings.giftMessageHint, fontSize = 13.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        when (giftState) {
+                            is GiftUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            is GiftUiState.Sent     -> Text(strings.giftSent, fontSize = 12.sp, color = AvailableGreen)
+                            is GiftUiState.Failed   -> Text(strings.giftFailed, fontSize = 12.sp, color = Color(0xFFCC0000))
+                            else                    -> {}
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (giftState is GiftUiState.Sent) {
+                        Button(
+                            onClick = { showGiftDialog = false; viewModel.resetGift(); giftPhone = ""; giftAmount = ""; giftMessage = "" },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.goToApp, color = Color.White) }
+                    } else {
+                        val amt = giftAmount.toLongOrNull() ?: 0L
+                        Button(
+                            enabled = giftPhone.isNotBlank() && amt > 0 && giftState !is GiftUiState.Creating,
+                            onClick = { viewModel.sendGiftCard(giftPhone.trim(), amt, giftMessage.trim()) },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.giftCard, color = Color.White) }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showGiftDialog = false; viewModel.resetGift() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },

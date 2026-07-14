@@ -86,6 +86,15 @@ sealed interface CheckoutUiState {
     data class Failed(val message: String) : CheckoutUiState
 }
 
+/** Gift-card purchase flow (buy AFN credit for another user by phone). */
+sealed interface GiftUiState {
+    data object Idle : GiftUiState
+    data object Creating : GiftUiState                      // contacting the backend
+    data class OpenCheckout(val url: String) : GiftUiState  // open the HesabPay page
+    data object Sent : GiftUiState                          // recipient credited
+    data class Failed(val message: String) : GiftUiState
+}
+
 /** How the customer's salon list is ordered. */
 enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
 
@@ -324,6 +333,38 @@ class DashboardViewModel @Inject constructor(
     // ── Payment / checkout flow (prepay at booking via HesabPay) ────────────────
     var checkout by mutableStateOf<CheckoutUiState>(CheckoutUiState.Idle)
         private set
+
+    // ── Gift-card flow ──────────────────────────────────────────────────────────
+    var giftState by mutableStateOf<GiftUiState>(GiftUiState.Idle)
+        private set
+
+    /**
+     * Buys a gift card for [phone]. On success the UI opens the returned HesabPay
+     * URL; we then poll the payment until the webhook flips it to PAID (which
+     * credits the recipient's wallet server-side) and report [GiftUiState.Sent].
+     * The callable throws for an unknown recipient / bad amount → [Failed].
+     */
+    fun sendGiftCard(phone: String, amount: Long, message: String) {
+        giftState = GiftUiState.Creating
+        viewModelScope.launch {
+            paymentRepository.createGiftCard(phone, amount, message)
+                .onSuccess { session ->
+                    if (session.checkoutUrl.isBlank()) {
+                        giftState = GiftUiState.Failed("no_url"); return@onSuccess
+                    }
+                    giftState = GiftUiState.OpenCheckout(session.checkoutUrl)
+                    paymentRepository.observePaymentStatus(session.paymentId).collect { st ->
+                        when (st) {
+                            "PAID"   -> giftState = GiftUiState.Sent
+                            "FAILED" -> giftState = GiftUiState.Failed("payment_failed")
+                        }
+                    }
+                }
+                .onFailure { e -> giftState = GiftUiState.Failed(e.message ?: "gift_failed") }
+        }
+    }
+
+    fun resetGift() { giftState = GiftUiState.Idle }
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
 

@@ -284,6 +284,17 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── gift_cards ─────────────────────────────────────────────────────────────
+    // Bought via createGiftCardSession, settled by the HesabPay webhook (Admin
+    // SDK). Buyer and recipient can read their own; nobody writes from a client.
+    match /gift_cards/{giftId} {
+      allow read: if isSignedIn()
+               && (resource.data.buyerUid == me()
+                   || resource.data.recipientUid == me()
+                   || isAdmin());
+      allow write: if false;
+    }
+
     // ── broadcasts ─────────────────────────────────────────────────────────────
     match /broadcasts/{docId} {
       allow read:                    if isSignedIn();
