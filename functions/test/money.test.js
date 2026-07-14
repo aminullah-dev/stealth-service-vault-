@@ -2,7 +2,78 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal } = require("../lib/money");
+
+const PRICES = { Haircut: 300, Makeup: 800, Manicure: 250 };
+
+test("resolveServicesTotal: single service", () => {
+  const r = resolveServicesTotal(PRICES, ["Haircut"]);
+  assert.deepEqual(r.services, [{ name: "Haircut", price: 300 }]);
+  assert.equal(r.total, 300);
+  assert.deepEqual(r.invalid, []);
+});
+
+test("resolveServicesTotal: accepts a bare string (legacy single service)", () => {
+  const r = resolveServicesTotal(PRICES, "Makeup");
+  assert.equal(r.total, 800);
+  assert.equal(r.services.length, 1);
+});
+
+test("resolveServicesTotal: multi-service sums the prices", () => {
+  const r = resolveServicesTotal(PRICES, ["Haircut", "Makeup", "Manicure"]);
+  assert.equal(r.total, 1350);
+  assert.equal(r.services.length, 3);
+});
+
+test("resolveServicesTotal: duplicates allowed (e.g. two guests, same service)", () => {
+  const r = resolveServicesTotal(PRICES, ["Makeup", "Makeup", "Haircut"]);
+  assert.equal(r.total, 1900);
+  assert.equal(r.services.length, 3);
+});
+
+test("resolveServicesTotal: unknown / unpriced services collected in invalid", () => {
+  const r = resolveServicesTotal(PRICES, ["Haircut", "Facial", "Tattoo"]);
+  assert.equal(r.total, 300);
+  assert.deepEqual(r.invalid, ["Facial", "Tattoo"]);
+  assert.equal(r.services.length, 1);
+});
+
+test("resolveServicesTotal: invalid names are de-duplicated", () => {
+  const r = resolveServicesTotal(PRICES, ["Facial", "Facial"]);
+  assert.deepEqual(r.invalid, ["Facial"]);
+});
+
+test("resolveServicesTotal: blank/whitespace names are dropped, not invalid", () => {
+  const r = resolveServicesTotal(PRICES, ["Haircut", "  ", "", null]);
+  assert.equal(r.total, 300);
+  assert.deepEqual(r.invalid, []);
+  assert.equal(r.services.length, 1);
+});
+
+test("resolveServicesTotal: trims names before lookup", () => {
+  const r = resolveServicesTotal(PRICES, ["  Haircut  "]);
+  assert.equal(r.total, 300);
+});
+
+test("resolveServicesTotal: missing price map -> everything invalid, zero total", () => {
+  const r = resolveServicesTotal(undefined, ["Haircut"]);
+  assert.equal(r.total, 0);
+  assert.deepEqual(r.invalid, ["Haircut"]);
+});
+
+test("resolveServicesTotal: zero/negative priced service is invalid", () => {
+  const r = resolveServicesTotal({ Freebie: 0, Bad: -50 }, ["Freebie", "Bad"]);
+  assert.equal(r.total, 0);
+  assert.deepEqual(r.invalid, ["Freebie", "Bad"]);
+});
+
+test("resolveServicesTotal + computeCheckout: end-to-end multi-service booking", () => {
+  const { total } = resolveServicesTotal(PRICES, ["Haircut", "Makeup"]); // 1100
+  const c = computeCheckout({ listPrice: total, promoDiscount: 100, referralCredit: 0, commissionPercent: 10 });
+  assert.equal(c.price, 1000);
+  assert.equal(c.commissionAmount, 100);
+  assert.equal(c.providerNet, 900);
+});
 
 test("promoDiscountFor: percentage discount", () => {
   assert.equal(promoDiscountFor({ discountPercent: 20 }, 1000), 200);

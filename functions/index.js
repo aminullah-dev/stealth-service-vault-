@@ -37,7 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout } = require("./lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal } = require("./lib/money");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -173,7 +173,7 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName, appointmentDate, notes, email, method, promoCode, staffId } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId } =
       request.data || {};
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
 
@@ -188,10 +188,18 @@ exports.createPaymentSession = onCall(
       );
     }
 
-    if (!salonId || !serviceName || !appointmentDate) {
+    // Accept either a single serviceName (legacy) or a serviceNames[] array
+    // (multi-service and group/wedding bookings). Everything downstream works off
+    // the resolved list, so both shapes flow through the exact same path.
+    const requestedServiceNames =
+      Array.isArray(serviceNames) && serviceNames.length
+        ? serviceNames
+        : (serviceNameInput ? [serviceNameInput] : []);
+
+    if (!salonId || requestedServiceNames.length === 0 || !appointmentDate) {
       throw new HttpsError(
         "invalid-argument",
-        "salonId, serviceName and appointmentDate are required."
+        "salonId, at least one service, and appointmentDate are required."
       );
     }
 
@@ -201,13 +209,20 @@ exports.createPaymentSession = onCall(
       throw new HttpsError("not-found", "Salon not found.");
     }
     const salon = salonSnap.data();
-    const listPrice = Number((salon.pricePerService || {})[serviceName]);
-    if (!Number.isFinite(listPrice) || listPrice <= 0) {
-      throw new HttpsError(
-        "failed-precondition",
-        "This service has no valid price."
-      );
+
+    // Price every requested service server-side and sum them. One shared path for
+    // single-service, multi-service, and group bookings (see lib/money.js, tested).
+    const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, requestedServiceNames);
+    if (invalid.length > 0) {
+      throw new HttpsError("failed-precondition", `No valid price for: ${invalid.join(", ")}`);
     }
+    if (services.length === 0 || total <= 0) {
+      throw new HttpsError("failed-precondition", "This service has no valid price.");
+    }
+    const listPrice = total;
+    // Combined display name so every downstream string (stored serviceName,
+    // notifications, the HesabPay line item) reads naturally for multi-service.
+    const serviceName = services.map((s) => s.name).join("، ");
 
     // Resolve the requested staff member (if any) server-side, so the stored
     // staffName can't be spoofed and a booking can't reference a staff member
@@ -275,6 +290,7 @@ exports.createPaymentSession = onCall(
         salonId,
         salonName:      salon.salonName || "",
         serviceName,
+        services,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
@@ -369,6 +385,7 @@ exports.createPaymentSession = onCall(
       salonId,
       salonName:     salon.salonName || "",
       serviceName,
+      services,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,
@@ -1758,14 +1775,16 @@ exports.previewPromo = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
-  const { code, salonId, serviceName } = request.data || {};
-  if (!code || !salonId || !serviceName) {
-    throw new HttpsError("invalid-argument", "code, salonId and serviceName are required.");
+  const { code, salonId, serviceName, serviceNames } = request.data || {};
+  const requested =
+    Array.isArray(serviceNames) && serviceNames.length ? serviceNames : (serviceName ? [serviceName] : []);
+  if (!code || !salonId || requested.length === 0) {
+    throw new HttpsError("invalid-argument", "code, salonId and at least one service are required.");
   }
   const salonSnap = await db.doc(`salons/${salonId}`).get();
   if (!salonSnap.exists) throw new HttpsError("not-found", "Salon not found.");
-  const listPrice = Number((salonSnap.data().pricePerService || {})[serviceName]);
-  if (!Number.isFinite(listPrice) || listPrice <= 0) {
+  const { total: listPrice, invalid } = resolveServicesTotal(salonSnap.data().pricePerService, requested);
+  if (invalid.length > 0 || listPrice <= 0) {
     throw new HttpsError("failed-precondition", "This service has no valid price.");
   }
   const promo = await resolvePromoDiscount(code, listPrice);

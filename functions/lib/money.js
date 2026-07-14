@@ -40,4 +40,30 @@ function computeCheckout({ listPrice, promoDiscount = 0, referralCredit = 0, com
   return { afterPromo, referralUsed, price, commissionAmount, providerNet };
 }
 
-module.exports = { promoDiscountFor, computeCheckout };
+// Resolves a list of requested service names against a salon's pricePerService
+// map into a priced breakdown + total. This is the shared money path for every
+// booking shape: a single service, several services for one person (multi-service),
+// or many services across several people (group / wedding) — the caller just
+// flattens the party into one list of names. Duplicates are allowed (two guests
+// booking the same service). Names with no valid positive price are collected in
+// `invalid` so the callable can tell the customer exactly which one is the problem.
+function resolveServicesTotal(pricePerService, serviceNames) {
+  const prices = pricePerService || {};
+  const list = Array.isArray(serviceNames) ? serviceNames : [serviceNames];
+  const cleaned = list.map((n) => String(n == null ? "" : n).trim()).filter(Boolean);
+  const services = [];
+  const invalid = [];
+  let total = 0;
+  for (const name of cleaned) {
+    const price = Number(prices[name]);
+    if (!Number.isFinite(price) || price <= 0) {
+      if (!invalid.includes(name)) invalid.push(name);
+      continue;
+    }
+    services.push({ name, price });
+    total += price;
+  }
+  return { services, total, invalid };
+}
+
+module.exports = { promoDiscountFor, computeCheckout, resolveServicesTotal };
