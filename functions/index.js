@@ -39,6 +39,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("./lib/money");
 const { expandBooked, serviceSlotSpan } = require("./lib/slots");
+const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -836,19 +837,12 @@ exports.hesabPayWebhook = onRequest(
     const transactionId = String(payload.transaction_id || payload.transactionId || "");
     const reportedAmount = Number(payload.amount);
 
-    // HesabPay marks success with success:true / status_code:10.
-    // Accept legacy status strings as a defensive fallback.
-    const statusStr = String(payload.status || "").toUpperCase();
-    const paidSignal =
-      payload.success === true ||
-      payload.status_code === 10 ||
-      statusStr === "PAID" || statusStr === "SUCCESS" || statusStr === "COMPLETED";
-    // Only an EXPLICIT failure marks the payment FAILED. An unknown/intermediate
-    // callback is a no-op (returns 200) so it can't destroy a payment that is
-    // still in flight — which would show the customer a false "payment failed".
-    const failSignal =
-      payload.success === false ||
-      statusStr === "FAILED" || statusStr === "CANCELLED" || statusStr === "DECLINED";
+    // Interpret the callback via the pure helpers in lib/webhook.js (unit-tested).
+    // paidSignal: success:true / status_code:10 / legacy status strings.
+    // failSignal: only an EXPLICIT failure — an unknown/intermediate callback is a
+    // no-op (returns 200) so it can't destroy a payment still in flight.
+    const paidSignal = isPaidSignal(payload);
+    const failSignal = isFailSignal(payload);
 
     // Amount binding — reject only a clear UNDERPAYMENT (paid less than the
     // recorded price), which is the actual attack: settle a AFN 5000 booking
@@ -857,7 +851,7 @@ exports.hesabPayWebhook = onRequest(
     // sample (could be AFN vs. pul), and a false reject would block real
     // customers. The transaction_id replay guard is the primary defense.
     if (paidSignal && Number.isFinite(reportedAmount)) {
-      if (reportedAmount < Number(payment.amount)) {
+      if (isUnderpaid(reportedAmount, payment.amount)) {
         logger.error("Webhook: underpayment rejected", {
           paymentId, expected: payment.amount, reported: reportedAmount,
         });
