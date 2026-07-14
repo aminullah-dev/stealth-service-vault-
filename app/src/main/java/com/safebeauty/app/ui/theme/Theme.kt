@@ -33,14 +33,17 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 /**
- * Applied once at the app root (MainActivity). [darkTheme] selects the palette
- * that every screen's colour references resolve against (see Color.kt), so the
- * whole app flips with a single flag. Defaults to light so @Preview functions
- * that call `DashboardTheme { … }` with no argument are unaffected.
+ * Applied at the app root (MainActivity), and re-applied by a few screens that
+ * wrap their own content. [darkTheme] selects the palette that every screen's
+ * colour references resolve against (see Color.kt), so the whole app flips with a
+ * single flag. It defaults to INHERITING the current theme, so a nested
+ * `DashboardTheme { … }` keeps whatever the root set (dark or light) instead of
+ * forcing light; the root passes an explicit value from the device/user setting.
+ * Outside any theme (e.g. @Preview) LocalPalette defaults to light.
  */
 @Composable
 fun DashboardTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = LocalPalette.current.isDark,
     content: @Composable () -> Unit
 ) {
     val palette     = if (darkTheme) DarkPalette else LightPalette
