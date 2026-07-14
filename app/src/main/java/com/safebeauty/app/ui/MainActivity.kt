@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -52,7 +53,9 @@ class MainActivity : FragmentActivity() {
         setContent {
             // Themed at the root so every screen (and any future one) gets the
             // brand colors and the Vazirmatn typography without wrapping itself.
-            DashboardTheme {
+            // Step 1 of dark mode: follow the device's dark-mode setting. An
+            // in-app Light/Dark/System toggle comes next.
+            DashboardTheme(darkTheme = isSystemInDarkTheme()) {
                 val navController = rememberNavController()
                 AppNavGraph(
                     navController      = navController,

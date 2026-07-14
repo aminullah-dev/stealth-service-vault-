@@ -1,49 +1,147 @@
 package com.safebeauty.app.ui.theme
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-val OnPrimaryWhite    = Color(0xFFFFFFFF)
+// ── Theme-aware palette ──────────────────────────────────────────────────────────
+// Every semantic color the app uses lives here so the whole palette can be swapped
+// for a dark variant at runtime. The public top-level names below (RoseGold,
+// DeepRose, …) are @Composable getters that read the palette DashboardTheme
+// provides — so the hundreds of existing `DeepRose` / `Gradients.ScreenBg`
+// references across the screens become dark-mode-aware with NO change at the call
+// site. Only genuinely non-composable code (there is essentially none) would need
+// to read LightPalette/DarkPalette directly.
 
-// ── Dashboard palette ──────────────────────────────────────────────────────────
-val RoseGold          = Color(0xFFB76E79)
-val DeepRose          = Color(0xFF8B3A47)
-val BlushPink         = Color(0xFFF9CBDA)
-val SoftPurple        = Color(0xFF9C6B8A)
-val ElegantCream      = Color(0xFFFFF7FB)   // soft pink-white — warmer, more feminine
-val WarmGold          = Color(0xFFD4A853)
-val DashboardSurface  = Color(0xFFFDEFF6)
-val ChipActive        = Color(0xFFB76E79)
-val ChipInactive      = Color(0xFFEECAD8)
-val AvailableGreen    = Color(0xFF4CAF50)
-val UnavailableGrey   = Color(0xFF9E9E9E)
-val CardBorder        = Color(0xFFF3D2E0)
+data class Palette(
+    val isDark: Boolean,
+    val onPrimaryWhite: Color,
+    val roseGold: Color,
+    val deepRose: Color,
+    val blushPink: Color,
+    val softPurple: Color,
+    val elegantCream: Color,
+    val warmGold: Color,
+    val dashboardSurface: Color,
+    val chipActive: Color,
+    val chipInactive: Color,
+    val availableGreen: Color,
+    val unavailableGrey: Color,
+    val cardBorder: Color,
+    val deeperRose: Color,
+    val petalPink: Color,
+    val lilacMist: Color,
+    val softLavender: Color,
+    val rosePetal: Color,
+    // Gradient colour stops, so brand gradients get a dark variant too.
+    val brandRose: List<Color>,
+    val brandRoseSoft: List<Color>,
+    val screenBg: List<Color>,
+    val softPink: List<Color>,
+    val dreamy: List<Color>,
+    val petal: List<Color>,
+    val gold: List<Color>,
+)
 
-// A slightly deeper rose used as the far stop of the brand gradient, so
-// buttons/headers read as a rich rose→plum sweep rather than one flat tone.
-val DeeperRose        = Color(0xFF7A2F3D)
+// The original, unchanged brand palette — light mode.
+val LightPalette = Palette(
+    isDark           = false,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFFB76E79),
+    deepRose         = Color(0xFF8B3A47),
+    blushPink        = Color(0xFFF9CBDA),
+    softPurple       = Color(0xFF9C6B8A),
+    elegantCream     = Color(0xFFFFF7FB),
+    warmGold         = Color(0xFFD4A853),
+    dashboardSurface = Color(0xFFFDEFF6),
+    chipActive       = Color(0xFFB76E79),
+    chipInactive     = Color(0xFFEECAD8),
+    availableGreen   = Color(0xFF4CAF50),
+    unavailableGrey  = Color(0xFF9E9E9E),
+    cardBorder       = Color(0xFFF3D2E0),
+    deeperRose       = Color(0xFF7A2F3D),
+    petalPink        = Color(0xFFFCE4EF),
+    lilacMist        = Color(0xFFE9D5F0),
+    softLavender     = Color(0xFFF3E6F7),
+    rosePetal        = Color(0xFFEBA9C0),
+    brandRose        = listOf(Color(0xFFEBA9C0), Color(0xFFB76E79), Color(0xFF7A2F3D)),
+    brandRoseSoft    = listOf(Color(0xFFD98CA8), Color(0xFF8B3A47)),
+    screenBg         = listOf(Color(0xFFFFF7FB), Color(0xFFFDEAF3), Color(0xFFF5E7F6)),
+    softPink         = listOf(Color(0xFFFCE4EF), Color(0xFFF9D3E1)),
+    dreamy           = listOf(Color(0xFFFCE4EF), Color(0xFFE9D5F0)),
+    petal            = listOf(Color(0xFFFFF0F6), Color(0xFFFCE4EF), Color(0xFFF7D9E7)),
+    gold             = listOf(Color(0xFFE6C06A), Color(0xFFC79A3C)),
+)
 
-// ── Feminine accents ─────────────────────────────────────────────────────────────
-// Soft petal pink + lilac to lend a dreamy, girly warmth to hero areas, chips,
-// and highlights alongside the rose-gold brand core.
-val PetalPink         = Color(0xFFFCE4EF)
-val LilacMist         = Color(0xFFE9D5F0)
-val SoftLavender      = Color(0xFFF3E6F7)
-val RosePetal         = Color(0xFFEBA9C0)
+// Dark mode. Colors used as TEXT on light backgrounds (deepRose, roseGold) become
+// light so they stay readable; backgrounds/surfaces become deep warm plums. First
+// pass — we tune specific values by eye once it's on a device.
+val DarkPalette = Palette(
+    isDark           = true,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFFD79AA4),
+    deepRose         = Color(0xFFF2D6DE),
+    blushPink        = Color(0xFF3A2A31),
+    softPurple       = Color(0xFFC4A0BA),
+    elegantCream     = Color(0xFF15100F),
+    warmGold         = Color(0xFFE0B968),
+    dashboardSurface = Color(0xFF241A20),
+    chipActive       = Color(0xFFC77E8A),
+    chipInactive     = Color(0xFF33262D),
+    availableGreen   = Color(0xFF5CC462),
+    unavailableGrey  = Color(0xFF8A8A8A),
+    cardBorder       = Color(0xFF3A2C33),
+    deeperRose       = Color(0xFF5A2029),
+    petalPink        = Color(0xFF2E2028),
+    lilacMist        = Color(0xFF2A2233),
+    softLavender     = Color(0xFF241E2C),
+    rosePetal        = Color(0xFFC77E90),
+    brandRose        = listOf(Color(0xFF8B4A57), Color(0xFF6E3A45), Color(0xFF4A222B)),
+    brandRoseSoft    = listOf(Color(0xFF7A4653), Color(0xFF5A2E38)),
+    screenBg         = listOf(Color(0xFF15100F), Color(0xFF1A1218), Color(0xFF17141F)),
+    softPink         = listOf(Color(0xFF33262D), Color(0xFF2C2028)),
+    dreamy           = listOf(Color(0xFF2E2028), Color(0xFF2A2233)),
+    petal            = listOf(Color(0xFF241A20), Color(0xFF2E2028), Color(0xFF201820)),
+    gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
+)
 
-// ── Brand gradients ──────────────────────────────────────────────────────────────
-// Centralized so every surface pulls from the same set and the app reads as one
-// designed system. Use BrandRose for primary buttons/headers, ScreenBg as the
-// full-screen background (a soft blush→lilac wash), SoftPink for gentle chips,
-// and Dreamy/Petal for feminine hero and decorative surfaces.
+// Provided by DashboardTheme; defaults to light for any composable rendered
+// outside the theme (e.g. @Preview).
+val LocalPalette = staticCompositionLocalOf { LightPalette }
+
+// ── Public colour names (theme-aware) ────────────────────────────────────────────
+// Same names the whole codebase already imports and uses. Each reads the current
+// palette, so a value automatically flips in dark mode.
+val OnPrimaryWhite:   Color @Composable get() = LocalPalette.current.onPrimaryWhite
+val RoseGold:         Color @Composable get() = LocalPalette.current.roseGold
+val DeepRose:         Color @Composable get() = LocalPalette.current.deepRose
+val BlushPink:        Color @Composable get() = LocalPalette.current.blushPink
+val SoftPurple:       Color @Composable get() = LocalPalette.current.softPurple
+val ElegantCream:     Color @Composable get() = LocalPalette.current.elegantCream
+val WarmGold:         Color @Composable get() = LocalPalette.current.warmGold
+val DashboardSurface: Color @Composable get() = LocalPalette.current.dashboardSurface
+val ChipActive:       Color @Composable get() = LocalPalette.current.chipActive
+val ChipInactive:     Color @Composable get() = LocalPalette.current.chipInactive
+val AvailableGreen:   Color @Composable get() = LocalPalette.current.availableGreen
+val UnavailableGrey:  Color @Composable get() = LocalPalette.current.unavailableGrey
+val CardBorder:       Color @Composable get() = LocalPalette.current.cardBorder
+val DeeperRose:       Color @Composable get() = LocalPalette.current.deeperRose
+val PetalPink:        Color @Composable get() = LocalPalette.current.petalPink
+val LilacMist:        Color @Composable get() = LocalPalette.current.lilacMist
+val SoftLavender:     Color @Composable get() = LocalPalette.current.softLavender
+val RosePetal:        Color @Composable get() = LocalPalette.current.rosePetal
+
+// ── Brand gradients (theme-aware) ────────────────────────────────────────────────
+// Same object/name the screens use. Each getter rebuilds the brush from the
+// current palette's stops, so gradients (including the full-screen ScreenBg
+// background) darken in dark mode.
 object Gradients {
-    val BrandRose = Brush.linearGradient(listOf(RosePetal, RoseGold, DeeperRose))
-    val BrandRoseSoft = Brush.linearGradient(listOf(Color(0xFFD98CA8), DeepRose))
-    val ScreenBg = Brush.verticalGradient(
-        listOf(Color(0xFFFFF7FB), Color(0xFFFDEAF3), Color(0xFFF5E7F6))
-    )
-    val SoftPink = Brush.linearGradient(listOf(Color(0xFFFCE4EF), Color(0xFFF9D3E1)))
-    val Dreamy = Brush.linearGradient(listOf(PetalPink, LilacMist))
-    val Petal = Brush.radialGradient(listOf(Color(0xFFFFF0F6), PetalPink, Color(0xFFF7D9E7)))
-    val Gold = Brush.linearGradient(listOf(Color(0xFFE6C06A), Color(0xFFC79A3C)))
+    val BrandRose:     Brush @Composable get() = Brush.linearGradient(LocalPalette.current.brandRose)
+    val BrandRoseSoft: Brush @Composable get() = Brush.linearGradient(LocalPalette.current.brandRoseSoft)
+    val ScreenBg:      Brush @Composable get() = Brush.verticalGradient(LocalPalette.current.screenBg)
+    val SoftPink:      Brush @Composable get() = Brush.linearGradient(LocalPalette.current.softPink)
+    val Dreamy:        Brush @Composable get() = Brush.linearGradient(LocalPalette.current.dreamy)
+    val Petal:         Brush @Composable get() = Brush.radialGradient(LocalPalette.current.petal)
+    val Gold:          Brush @Composable get() = Brush.linearGradient(LocalPalette.current.gold)
 }
