@@ -821,6 +821,23 @@ class DashboardViewModel @Inject constructor(
     fun findSalon(salonId: String): SalonDocument? =
         _allAvailableSalons.value.firstOrNull { it.id == salonId }
 
+    /**
+     * How many consecutive slots a booking of [serviceNames] occupies at [salon].
+     * Kotlin mirror of the server-side serviceSlotSpan (functions/lib/slots.js):
+     * each service takes its own minutes when set in durationPerService, else one
+     * whole slot; the total is divided by the slot granularity and rounded up
+     * (min 1). With no durations set this equals the service count — unchanged.
+     */
+    fun slotSpanFor(salon: SalonDocument, serviceNames: List<String>): Int {
+        if (serviceNames.isEmpty()) return 1
+        val step = salon.slotDurationMinutes.coerceAtLeast(1)
+        val totalMinutes = serviceNames.sumOf { name ->
+            val d = salon.durationPerService[name] ?: 0
+            if (d > 0) d else step
+        }
+        return ((totalMinutes + step - 1) / step).coerceAtLeast(1)
+    }
+
     fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "", slotSpan: Int = 1) {
         viewModelScope.launch {
             slotsLoading = true

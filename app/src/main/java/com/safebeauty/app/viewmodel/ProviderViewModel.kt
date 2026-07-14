@@ -243,6 +243,7 @@ class ProviderViewModel @Inject constructor(
     var editSlotDuration by mutableStateOf(60)
         private set
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
+    var editDurations    by mutableStateOf<Map<String, Int>>(emptyMap())
     var editHesabAccountNumber by mutableStateOf("")
     // Salon location (0/0 = not set yet).
     var editLatitude     by mutableStateOf(0.0)
@@ -263,6 +264,7 @@ class ProviderViewModel @Inject constructor(
                     editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
                     editPrices = s.pricePerService
+                    editDurations = s.durationPerService
                     editStaff = s.staff
                     editLatitude = s.latitude
                     editLongitude = s.longitude
@@ -332,6 +334,10 @@ class ProviderViewModel @Inject constructor(
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
     fun setPriceForService(service: String, price: Int) {
         editPrices = editPrices + (service to price)
+    }
+    fun setDurationForService(service: String, minutes: Int) {
+        editDurations = if (minutes > 0) editDurations + (service to minutes)
+                        else editDurations - service
     }
 
     fun addService() {
@@ -414,6 +420,7 @@ class ProviderViewModel @Inject constructor(
                         workingHours        = editWorkingHours,
                         slotDurationMinutes = editSlotDuration,
                         pricePerService     = editPrices,
+                        durationPerService  = editDurations,
                         staff               = editStaff,
                         latitude            = editLatitude,
                         longitude           = editLongitude

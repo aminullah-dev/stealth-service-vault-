@@ -38,4 +38,25 @@ function expandBooked(appointments, slotMinutes) {
   return { slots, booked };
 }
 
-module.exports = { slotsForAppointment, expandBooked };
+// How many consecutive slots a booking of these services occupies. Each service
+// takes its own duration when set in durationPerService (minutes); services with
+// no duration fall back to one whole slot (slotMinutes). The total minutes are
+// divided by the slot granularity and rounded up, min 1. When every duration is
+// absent this equals the number of services — identical to the previous
+// one-slot-per-service behavior, so old salons are unaffected.
+function serviceSlotSpan(serviceNames, durationPerService, slotMinutes) {
+  const step = Math.max(1, Number(slotMinutes) || 30);
+  const names = Array.isArray(serviceNames) ? serviceNames : [];
+  const durs = durationPerService && typeof durationPerService === "object"
+    ? durationPerService
+    : {};
+  if (names.length === 0) return 1;
+  let totalMinutes = 0;
+  for (const name of names) {
+    const d = Number(durs[name]);
+    totalMinutes += Number.isFinite(d) && d > 0 ? d : step;
+  }
+  return Math.max(1, Math.ceil(totalMinutes / step));
+}
+
+module.exports = { slotsForAppointment, expandBooked, serviceSlotSpan };

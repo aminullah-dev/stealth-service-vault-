@@ -148,6 +148,10 @@ data class SalonDocument(
     val workingHours: List<WorkingHours> = emptyList(),
     val slotDurationMinutes: Int = 60,
     val pricePerService: Map<String, Int> = emptyMap(),
+    // Optional per-service duration in minutes (parallel to pricePerService).
+    // A service with no entry (or 0) falls back to one slot (slotDurationMinutes),
+    // so an unset map behaves exactly like the old one-slot-per-service model.
+    val durationPerService: Map<String, Int> = emptyMap(),
     val confirmedCount: Int = 0,
     // Geographic location (set by the provider from their device GPS). 0/0 means
     // "not set" — the map/distance features simply skip such salons.

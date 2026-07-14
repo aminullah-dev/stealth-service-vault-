@@ -264,6 +264,9 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                         var priceText by remember(service) {
                             mutableStateOf((viewModel.editPrices[service] ?: 0).toString())
                         }
+                        var minutesText by remember(service) {
+                            mutableStateOf((viewModel.editDurations[service] ?: 0).takeIf { it > 0 }?.toString() ?: "")
+                        }
                         Row(
                             verticalAlignment     = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -274,6 +277,20 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                                 fontSize = 13.sp,
                                 color    = DeepRose,
                                 modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value         = minutesText,
+                                onValueChange = { v ->
+                                    minutesText = v.filter { it.isDigit() }
+                                    viewModel.setDurationForService(service, minutesText.toIntOrNull() ?: 0)
+                                },
+                                singleLine        = true,
+                                keyboardOptions   = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                placeholder       = { Text(strings.serviceMinutesHint, fontSize = 11.sp) },
+                                modifier          = Modifier.width(92.dp),
+                                shape             = RoundedCornerShape(10.dp),
+                                colors            = fieldColors,
+                                suffix            = { Text(strings.minutesShort, fontSize = 11.sp, color = RoseGold) }
                             )
                             OutlinedTextField(
                                 value         = priceText,

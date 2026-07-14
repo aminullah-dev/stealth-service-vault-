@@ -38,7 +38,7 @@ const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("./lib/money");
-const { expandBooked } = require("./lib/slots");
+const { expandBooked, serviceSlotSpan } = require("./lib/slots");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -225,6 +225,17 @@ exports.createPaymentSession = onCall(
     // notifications, the HesabPay line item) reads naturally for multi-service.
     const serviceName = services.map((s) => s.name).join("، ");
 
+    // How many consecutive slots this booking occupies. Each service takes its
+    // own duration when the salon set one (durationPerService, minutes); services
+    // with no duration fall back to one whole slot. When no durations are set this
+    // equals services.length — identical to the previous behavior. Tested in
+    // lib/slots.js.
+    const slotSpan = serviceSlotSpan(
+      services.map((s) => s.name),
+      salon.durationPerService,
+      salon.slotDurationMinutes
+    );
+
     // Resolve the requested staff member (if any) server-side, so the stored
     // staffName can't be spoofed and a booking can't reference a staff member
     // who doesn't work here. An empty/omitted staffId means "any available".
@@ -292,7 +303,7 @@ exports.createPaymentSession = onCall(
         salonName:      salon.salonName || "",
         serviceName,
         services,
-        slotsCount:     services.length,
+        slotsCount:     slotSpan,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
@@ -388,7 +399,7 @@ exports.createPaymentSession = onCall(
       salonName:     salon.salonName || "",
       serviceName,
       services,
-      slotsCount:    services.length,
+      slotsCount:    slotSpan,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,

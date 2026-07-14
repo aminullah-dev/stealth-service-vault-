@@ -1,7 +1,7 @@
 // Unit tests for slot-occupancy math (lib/slots.js). Pure, no Firebase.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { slotsForAppointment, expandBooked } = require("../lib/slots");
+const { slotsForAppointment, expandBooked, serviceSlotSpan } = require("../lib/slots");
 
 const T = 1_000_000_000_000; // an arbitrary base time (ms)
 const MIN = 60_000;
@@ -62,4 +62,31 @@ test("expandBooked: a 5-service party at 60-min slots blocks a 5-hour span", () 
   );
   assert.equal(slots.length, 5);
   assert.equal(slots[4], T + 4 * 60 * MIN);
+});
+
+// ── serviceSlotSpan (adaptive per-service duration) ──────────────────────────
+test("serviceSlotSpan: all durations absent == number of services (legacy)", () => {
+  assert.equal(serviceSlotSpan(["a", "b", "c"], {}, 30), 3);
+  assert.equal(serviceSlotSpan(["a"], undefined, 30), 1);
+});
+
+test("serviceSlotSpan: one 120-min service at a 30-min salon blocks 4 slots", () => {
+  assert.equal(serviceSlotSpan(["haircut"], { haircut: 120 }, 30), 4);
+});
+
+test("serviceSlotSpan: mixed set rounds total minutes up", () => {
+  // 120 + 30(fallback) + 45 = 195 min / 30 = 6.5 -> 7 slots
+  assert.equal(serviceSlotSpan(["a", "b", "c"], { a: 120, c: 45 }, 30), 7);
+});
+
+test("serviceSlotSpan: zero/negative duration falls back to one slot", () => {
+  assert.equal(serviceSlotSpan(["a", "b"], { a: 0, b: -10 }, 30), 2);
+});
+
+test("serviceSlotSpan: empty service list -> 1", () => {
+  assert.equal(serviceSlotSpan([], { a: 120 }, 30), 1);
+});
+
+test("serviceSlotSpan: missing slotMinutes defaults to 30", () => {
+  assert.equal(serviceSlotSpan(["a"], { a: 60 }), 2);
 });
