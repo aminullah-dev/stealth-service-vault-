@@ -508,7 +508,7 @@ private fun ProviderReviewCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape    = RoundedCornerShape(16.dp),
-        colors   = CardDefaults.cardColors(containerColor = Color.White),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(Modifier.padding(14.dp)) {

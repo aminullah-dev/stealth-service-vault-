@@ -2472,7 +2472,7 @@ private fun RecommendedSalonCard(
     Card(
         modifier  = Modifier.width(180.dp),
         shape     = RoundedCornerShape(14.dp),
-        colors    = CardDefaults.cardColors(containerColor = Color.White),
+        colors    = CardDefaults.cardColors(containerColor = DashboardSurface),
         elevation = CardDefaults.cardElevation(3.dp),
         onClick   = onBook
     ) {

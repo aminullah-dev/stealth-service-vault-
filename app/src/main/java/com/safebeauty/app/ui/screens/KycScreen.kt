@@ -48,6 +48,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.ChipInactive
+import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
@@ -117,7 +118,7 @@ private fun StatusCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -269,7 +270,7 @@ private fun PhotoRow(
     val strings = LocalStrings.current
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(

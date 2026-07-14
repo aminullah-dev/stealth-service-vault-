@@ -217,7 +217,7 @@ private fun AdminStatCard(
 ) {
     ElevatedCard(
         shape     = RoundedCornerShape(18.dp),
-        colors    = CardDefaults.elevatedCardColors(containerColor = Color.White),
+        colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
         modifier  = modifier
     ) {

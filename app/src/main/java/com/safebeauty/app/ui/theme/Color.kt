@@ -80,7 +80,10 @@ val LightPalette = Palette(
 val DarkPalette = Palette(
     isDark           = true,
     onPrimaryWhite   = Color(0xFFFFFFFF),
-    roseGold         = Color(0xFFD79AA4),
+    // A medium rose: deep enough that white button text reads (buttonColors use
+    // roseGold as a container), light enough to stay legible as accent text/icons
+    // on the dark background.
+    roseGold         = Color(0xFFC56E7E),
     deepRose         = Color(0xFFF2D6DE),
     blushPink        = Color(0xFF3A2A31),
     softPurple       = Color(0xFFC4A0BA),
