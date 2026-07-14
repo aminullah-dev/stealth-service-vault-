@@ -982,7 +982,7 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
  * Lets a provider block off days (holidays, time off). Blocked days offer no
  * booking slots to customers. Dates are kept as Kabul-local "yyyy-MM-dd" keys.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun TimeOffSection(
     blockedDates: List<String>,

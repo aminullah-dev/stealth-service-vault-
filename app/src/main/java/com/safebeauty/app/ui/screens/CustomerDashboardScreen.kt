@@ -132,6 +132,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safebeauty.app.data.firebase.AppointmentDocument
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.GalleryImageDocument
+import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
