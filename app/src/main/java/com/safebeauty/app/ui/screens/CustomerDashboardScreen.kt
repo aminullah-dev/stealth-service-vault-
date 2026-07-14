@@ -180,7 +180,7 @@ import androidx.compose.material.icons.filled.Notifications
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
 // family so a list of salons reads as one designed system rather than a grab
 // bag of random hues. Each entry is a (top, bottom) gradient pair.
-private val avatarGradients = listOf(
+internal val avatarGradients = listOf(
     Color(0xFFC98490) to Color(0xFF8B3A47),   // rose
     Color(0xFFB08BAB) to Color(0xFF7C5273),   // plum
     Color(0xFFE0BC76) to Color(0xFFB08430),   // gold
