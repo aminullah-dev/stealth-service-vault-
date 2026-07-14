@@ -329,6 +329,7 @@ private fun NotificationCard(
     }
 }
 
+@Composable
 private fun notifIconAndColor(type: String): Pair<ImageVector, Color> = when (type) {
     "BOOKING_CONFIRMED"   -> Icons.Default.CheckCircle   to AvailableGreen
     "BOOKING_CANCELLED"   -> Icons.Default.Cancel         to Color(0xFFD32F2F)
