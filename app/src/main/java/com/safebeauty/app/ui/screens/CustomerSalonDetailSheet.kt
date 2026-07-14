@@ -62,6 +62,7 @@ import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Storefront
@@ -133,6 +134,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.safebeauty.app.data.firebase.AppointmentDocument
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.GalleryImageDocument
+import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
@@ -186,6 +188,7 @@ internal fun SalonDetailSheetContent(
     salon: SalonDocument,
     reviews: List<ReviewDocument>,
     gallery: List<GalleryImageDocument>,
+    offers: List<OfferDocument> = emptyList(),
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
@@ -324,6 +327,49 @@ internal fun SalonDetailSheetContent(
                                 contentScale       = ContentScale.Crop,
                                 modifier           = imageModifier
                             )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // ── Offers / deals (informational — do not change checkout price) ──
+        if (offers.isNotEmpty()) {
+            Text(strings.offersTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                offers.forEach { offer ->
+                    val badge = when {
+                        offer.discountPercent > 0 -> "%d%%".format(offer.discountPercent)
+                        offer.discountAmount  > 0 -> "%,d AFN".format(offer.discountAmount)
+                        else                      -> ""
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Gradients.BrandRose)
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LocalOffer, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(offer.title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            if (offer.description.isNotBlank()) {
+                                Text(offer.description, fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
+                            }
+                        }
+                        if (badge.isNotBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.White.copy(alpha = 0.25f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(badge, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
                 }

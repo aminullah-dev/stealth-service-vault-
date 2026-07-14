@@ -10,6 +10,7 @@ import com.safebeauty.app.data.firebase.AppointmentDocument
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.GalleryImageDocument
+import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
@@ -180,6 +181,52 @@ class ProviderViewModel @Inject constructor(
             if (storagePath.isNotBlank()) {
                 storageRepository.deleteFile(storagePath)
             }
+        }
+    }
+
+    // ── Salon offers (provider-posted promotions; informational) ──────────────
+
+    val offers: StateFlow<List<OfferDocument>> = salon
+        .flatMapLatest { s ->
+            if (s != null) firestoreRepository.observeOffersForSalon(s.id)
+            else flowOf(emptyList())
+        }
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addOffer(title: String, description: String, discountPercent: Int) {
+        val s = salon.value ?: return
+        val clean = title.trim()
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                firestoreRepository.upsertOffer(
+                    OfferDocument(
+                        salonId         = s.id,
+                        providerId      = providerId,
+                        salonName       = s.salonName,
+                        title           = clean,
+                        description     = description.trim(),
+                        discountPercent = discountPercent.coerceIn(0, 100),
+                        active          = true,
+                        createdAt       = System.currentTimeMillis()
+                    )
+                )
+            }.onFailure { CrashReporter.recordNonFatal(it, "provider:addOffer") }
+        }
+    }
+
+    fun toggleOffer(offerId: String, active: Boolean) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.setOfferActive(offerId, active) }
+                .onFailure { CrashReporter.recordNonFatal(it, "provider:toggleOffer") }
+        }
+    }
+
+    fun deleteOffer(offerId: String) {
+        viewModelScope.launch {
+            runCatching { firestoreRepository.deleteOffer(offerId) }
+                .onFailure { CrashReporter.recordNonFatal(it, "provider:deleteOffer") }
         }
     }
 

@@ -18,6 +18,7 @@ import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.GalleryImageDocument
 import com.safebeauty.app.data.firebase.NotificationDocument
+import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.CheckoutSession
 import com.safebeauty.app.data.firebase.PromoPreview
@@ -296,6 +297,16 @@ class DashboardViewModel @Inject constructor(
             if (id.isEmpty()) flowOf(emptyList())
             else firestoreRepository.observeGalleryForSalon(id)
         }
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // Live (active + unexpired) offers for the salon whose detail sheet is open.
+    val offersForSalon: StateFlow<List<OfferDocument>> = _activeSalonId
+        .flatMapLatest { id ->
+            if (id.isEmpty()) flowOf(emptyList())
+            else firestoreRepository.observeOffersForSalon(id)
+        }
+        .map { offers -> offers.filter { it.isLive() } }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

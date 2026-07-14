@@ -266,6 +266,24 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── salon_offers ─────────────────────────────────────────────────────────
+    // Provider-posted promotions, shown to customers. Informational only — they
+    // never change the checkout price (the server recomputes amounts from
+    // pricePerService), so a provider can freely edit the text/badge. Same
+    // ownership model as salon_gallery; salonId is frozen on update.
+    match /salon_offers/{offerId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if isProvider() && isApproved()
+                 && ownsThisSalon(resource.data.salonId)
+                 && request.resource.data.salonId == resource.data.salonId;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
     // ── broadcasts ─────────────────────────────────────────────────────────────
     match /broadcasts/{docId} {
       allow read:                    if isSignedIn();

@@ -43,6 +43,7 @@ class FirestoreRepository @Inject constructor(
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
+    private val offersCol       = db.collection("salon_offers")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
     private val platformConfigCol  = db.collection("platform_config")
@@ -439,6 +440,53 @@ class FirestoreRepository @Inject constructor(
 
     suspend fun deleteGalleryImage(imageId: String) {
         galleryCol.document(imageId).delete().await()
+    }
+
+    // ── salon offers (provider-posted promotions; informational) ────────────────
+
+    /** All offers a salon has posted (for the provider's own management list). */
+    fun observeOffersForSalon(salonId: String): Flow<List<OfferDocument>> = callbackFlow {
+        val listener = offersCol
+            .whereEqualTo("salonId", salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(OfferDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /** Every live offer across all salons (active + not expired), for customer display. */
+    fun observeActiveOffers(): Flow<List<OfferDocument>> = callbackFlow {
+        val listener = offersCol
+            .whereEqualTo("active", true)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val now = System.currentTimeMillis()
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(OfferDocument::class.java)?.copy(id = it.id) }
+                    ?.filter { it.isLive(now) }   // drop expired client-side (no index needed)
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /** Create or edit an offer (rules enforce the provider owns the salon). */
+    suspend fun upsertOffer(offer: OfferDocument) {
+        val id = offer.id.ifBlank { offersCol.document().id }
+        offersCol.document(id).set(offer.copy(id = id)).await()
+    }
+
+    suspend fun setOfferActive(offerId: String, active: Boolean) {
+        offersCol.document(offerId).update("active", active).await()
+    }
+
+    suspend fun deleteOffer(offerId: String) {
+        offersCol.document(offerId).delete().await()
     }
 
     suspend fun deleteUser(uid: String) {

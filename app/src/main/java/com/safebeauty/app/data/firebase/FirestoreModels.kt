@@ -251,6 +251,31 @@ data class BroadcastDocument(
     val createdAt: Long = 0L
 )
 
+/**
+ * A provider-posted promotion for their own salon (collection `salon_offers`).
+ * INFORMATIONAL only in v1: [discountPercent]/[discountAmount] render as a badge
+ * but never change the checkout price (the server recomputes from pricePerService).
+ * `active` is a plain field (not an `isX` getter) so no @PropertyName is needed.
+ */
+data class OfferDocument(
+    val id: String = "",                    // Firestore document ID
+    val salonId: String = "",
+    val providerId: String = "",
+    val salonName: String = "",
+    val title: String = "",                 // e.g. "۲۰٪ تخفیف ناخن این هفته"
+    val description: String = "",
+    val service: String = "",               // optional: one of salon.services
+    val discountPercent: Int = 0,           // badge only (0 = none)
+    val discountAmount: Int = 0,            // badge only, AFN (0 = none)
+    val expiresAt: Long = 0L,               // 0 = never expires
+    val active: Boolean = true,
+    val createdAt: Long = 0L
+) {
+    /** True when the offer is switched on and not past its expiry. */
+    fun isLive(now: Long = System.currentTimeMillis()): Boolean =
+        active && (expiresAt == 0L || expiresAt > now)
+}
+
 data class WaitlistEntry(
     val id: String = "",
     val salonId: String = "",

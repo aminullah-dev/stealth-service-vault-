@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
@@ -324,6 +325,9 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Portfolio / sample-work photos ────────────────────────────────
         PortfolioSection(viewModel = viewModel)
 
+        // ── Offers / promotions ───────────────────────────────────────────
+        OffersSection(viewModel = viewModel)
+
         // ── Staff / stylists roster ───────────────────────────────────────
         StaffSection(viewModel = viewModel)
 
@@ -547,6 +551,111 @@ private fun StaffSection(viewModel: ProviderViewModel) {
                         .clickable(enabled = viewModel.newStaffName.isNotBlank()) { viewModel.addStaff() }
                 ) {
                     Icon(Icons.Default.Add, contentDescription = strings.staffAdd, tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ── Offers section ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun OffersSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val offers  by viewModel.offers.collectAsStateWithLifecycle()
+    var title   by remember { mutableStateOf("") }
+    var desc    by remember { mutableStateOf("") }
+    var percent by remember { mutableStateOf("") }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        cursorColor          = RoseGold,
+        focusedLabelColor    = RoseGold
+    )
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocalOffer, null, tint = RoseGold, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(strings.offersTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            }
+            HorizontalDivider(color = BlushPink)
+
+            if (offers.isEmpty()) {
+                Text(strings.noOffersYet, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+            } else {
+                offers.forEach { offer ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                offer.title,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (offer.active) DeepRose else Color(0xFFAAAAAA)
+                            )
+                            if (offer.description.isNotBlank()) {
+                                Text(offer.description, fontSize = 11.sp, color = RoseGold)
+                            }
+                        }
+                        Switch(
+                            checked = offer.active,
+                            onCheckedChange = { viewModel.toggleOffer(offer.id, it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AvailableGreen
+                            )
+                        )
+                        IconButton(onClick = { viewModel.deleteOffer(offer.id) }) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFB00020))
+                        }
+                    }
+                    HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))
+                }
+            }
+
+            OutlinedTextField(
+                value = title, onValueChange = { title = it },
+                label = { Text(strings.offerTitleHint, fontSize = 12.sp) },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp), colors = fieldColors
+            )
+            OutlinedTextField(
+                value = desc, onValueChange = { desc = it },
+                label = { Text(strings.offerDescHint, fontSize = 12.sp) },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp), colors = fieldColors
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = percent,
+                    onValueChange = { v -> if (v.length <= 3 && v.all(Char::isDigit)) percent = v },
+                    label = { Text(strings.offerPercentHint, fontSize = 12.sp) },
+                    singleLine = true, modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp), colors = fieldColors
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (title.isNotBlank()) RoseGold else ChipInactive)
+                        .clickable(enabled = title.isNotBlank()) {
+                            viewModel.addOffer(title, desc, percent.toIntOrNull() ?: 0)
+                            title = ""; desc = ""; percent = ""
+                        }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = strings.addOffer, tint = Color.White)
                 }
             }
         }

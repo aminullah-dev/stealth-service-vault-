@@ -297,6 +297,7 @@ fun CustomerDashboardScreen(
     val recommendedSalons         by viewModel.recommendedSalons.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
+    val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -1706,6 +1707,7 @@ fun CustomerDashboardScreen(
                     salon            = salon,
                     reviews          = reviewsForSalon,
                     gallery          = galleryForSalon,
+                    offers           = offersForSalon,
                     isFavorite       = favoriteIds.contains(salon.id),
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
