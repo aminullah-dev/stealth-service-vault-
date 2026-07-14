@@ -85,6 +85,16 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.RegisterViewModel
+import com.safebeauty.app.util.PhoneUtils
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.fragment.app.FragmentActivity
+import com.google.firebase.FirebaseException
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.PhoneAuthCredential
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthProvider
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -101,6 +111,55 @@ fun RegisterScreen(
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     var showLangPicker  by remember { mutableStateOf(false) }
     val context         = LocalContext.current
+
+    // ── SMS OTP phone verification (step 2 of registration) ───────────────────
+    var verificationId by remember { mutableStateOf<String?>(null) }
+    var otpCode        by remember { mutableStateOf("") }
+    var otpError       by remember { mutableStateOf<String?>(null) }
+    var otpSending     by remember { mutableStateOf(false) }
+
+    val otpCallbacks = remember {
+        object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                // Instant / auto-retrieval on the same device — no typing needed.
+                otpSending = false
+                viewModel.completeRegistration(credential)
+            }
+            override fun onVerificationFailed(e: FirebaseException) {
+                otpSending = false
+                otpError = e.localizedMessage ?: "Verification failed"
+            }
+            override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
+                verificationId = id
+                otpSending = false
+            }
+        }
+    }
+
+    fun sendOtp() {
+        val activity = context.findRegisterActivity() ?: return
+        otpError = null
+        otpSending = true
+        val options = PhoneAuthOptions.newBuilder(FirebaseAuth.getInstance())
+            .setPhoneNumber(PhoneUtils.normalizeForLogin(viewModel.phone))
+            .setTimeout(60L, TimeUnit.SECONDS)
+            .setActivity(activity)
+            .setCallbacks(otpCallbacks)
+            .build()
+        PhoneAuthProvider.verifyPhoneNumber(options)
+    }
+
+    // Fire the SMS once when step 1 (validation + uniqueness) succeeds, and clear
+    // the OTP scratch state whenever we return to the idle form.
+    LaunchedEffect(viewModel.state) {
+        val s = viewModel.state
+        if (s is RegisterViewModel.RegisterState.AwaitingOtp && verificationId == null && !otpSending) {
+            sendOtp()
+        }
+        if (s is RegisterViewModel.RegisterState.Idle) {
+            verificationId = null; otpCode = ""; otpError = null; otpSending = false
+        }
+    }
 
     fun openUrl(url: String) {
         runCatching {
@@ -363,7 +422,7 @@ fun RegisterScreen(
 
                 // ── Register button ───────────────────────────────────────────
                 Button(
-                    onClick  = { viewModel.register() },
+                    onClick  = { viewModel.startRegistration() },
                     enabled  = viewModel.state !is RegisterViewModel.RegisterState.Loading,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -388,6 +447,50 @@ fun RegisterScreen(
 
         // ── Success / error dialogs ───────────────────────────────────────────
         when (val s = viewModel.state) {
+            is RegisterViewModel.RegisterState.AwaitingOtp -> {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissState() },
+                    title = { Text(strings.otpTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                    text = {
+                        Column {
+                            Text(strings.otpSubtitle, fontSize = 13.sp, color = Color(0xFF555555))
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value           = otpCode,
+                                onValueChange   = { v -> if (v.length <= 6 && v.all(Char::isDigit)) otpCode = v },
+                                label           = { Text(strings.otpHint) },
+                                singleLine      = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier        = Modifier.fillMaxWidth()
+                            )
+                            if (otpSending) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            }
+                            otpError?.let {
+                                Spacer(Modifier.height(8.dp))
+                                Text(it, fontSize = 12.sp, color = Color(0xFFCC0000))
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            enabled = otpCode.length == 6 && verificationId != null,
+                            onClick = {
+                                val id = verificationId ?: return@Button
+                                viewModel.completeRegistration(PhoneAuthProvider.getCredential(id, otpCode))
+                            },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.otpVerify, color = Color.White) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissState() }) {
+                            Text(strings.cancel, color = RoseGold)
+                        }
+                    },
+                    containerColor = ElegantCream
+                )
+            }
             is RegisterViewModel.RegisterState.CustomerSuccess -> {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState(); onBack() },
@@ -500,4 +603,16 @@ private fun FormField(
         shape               = RoundedCornerShape(12.dp),
         colors              = fieldColors()
     )
+}
+
+// Firebase Phone Auth needs a real Activity to host its reCAPTCHA / Play Integrity
+// check. LocalContext is usually the Activity but can be a ContextWrapper, so walk
+// up the chain to find it.
+private fun Context.findRegisterActivity(): FragmentActivity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is FragmentActivity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }

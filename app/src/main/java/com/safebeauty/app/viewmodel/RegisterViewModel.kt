@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
@@ -30,6 +31,7 @@ class RegisterViewModel @Inject constructor(
     sealed class RegisterState {
         object Idle       : RegisterState()
         object Loading    : RegisterState()
+        object AwaitingOtp : RegisterState()       // phone free; waiting for SMS code
         data class CustomerSuccess(val name: String) : RegisterState()
         object ProviderPending : RegisterState()   // needs admin approval
         data class Error(val message: String) : RegisterState()
@@ -88,35 +90,51 @@ class RegisterViewModel @Inject constructor(
 
     // ── Registration ──────────────────────────────────────────────────────────
 
-    fun register() {
+    /**
+     * Step 1 of registration: validate the form and confirm the phone number is
+     * not already taken, then hand off to the UI to send an SMS OTP. We verify the
+     * number BEFORE creating anything, so we never text a code for a duplicate.
+     */
+    fun startRegistration() {
         val error = validate()
         if (error != null) { state = RegisterState.Error(error); return }
 
         viewModelScope.launch {
             state = RegisterState.Loading
+            val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
+            // The phone is the login identifier, so it must be unique. This MUST be
+            // checked server-side: the users collection is not client-listable, so
+            // the old client query was silently denied and always "passed".
+            val exists = runCatching {
+                val r = functions.getHttpsCallable("lookupAccountByPhone")
+                    .call(hashMapOf("phone" to normalizedPhone))
+                    .await()
+                (r.getData() as? Map<*, *>)?.get("found") == true
+            }.getOrElse {
+                state = RegisterState.Error("Couldn't verify the phone number. Check your connection and try again.")
+                return@launch
+            }
+            if (exists) {
+                state = RegisterState.Error("An account with this phone number already exists.")
+                return@launch
+            }
+            // Phone is free — the UI now sends the SMS code and collects it.
+            state = RegisterState.AwaitingOtp
+        }
+    }
+
+    /**
+     * Step 2: called once the SMS OTP has been entered and turned into a verified
+     * [phoneCredential]. Creates the account and *links* the credential to it to
+     * prove the user owns the number; if linking fails (wrong/expired code), the
+     * half-created account is rolled back so nothing partial is left behind.
+     */
+    fun completeRegistration(phoneCredential: PhoneAuthCredential) {
+        viewModelScope.launch {
+            state = RegisterState.Loading
 
             runCatching {
                 val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
-                // The phone is the login identifier, so it must be unique. This
-                // MUST be checked server-side: the users collection is not
-                // client-listable (rules), so the old client query was silently
-                // denied and always "passed", letting one number open many
-                // accounts. lookupAccountByPhone runs with the Admin SDK.
-                val exists = runCatching {
-                    val r = functions.getHttpsCallable("lookupAccountByPhone")
-                        .call(hashMapOf("phone" to normalizedPhone))
-                        .await()
-                    (r.getData() as? Map<*, *>)?.get("found") == true
-                }.getOrElse {
-                    // If the check itself fails (e.g. offline), don't create a
-                    // possibly-duplicate account — surface an error instead.
-                    state = RegisterState.Error("Couldn't verify the phone number. Check your connection and try again.")
-                    return@launch
-                }
-                if (exists) {
-                    state = RegisterState.Error("An account with this phone number already exists.")
-                    return@launch
-                }
 
                 val uid           = UUID.randomUUID().toString()
                 val salt          = pinHasher.generateSalt()
@@ -139,6 +157,14 @@ class RegisterViewModel @Inject constructor(
                     .orEmpty()
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
+                // Prove the user owns the phone by linking the SMS-verified
+                // credential to the fresh account. A wrong/expired code throws here,
+                // so we delete the just-created account and surface the error rather
+                // than leaving a half-registered, unverified user behind.
+                firebaseAuth.linkPhoneCredential(phoneCredential).getOrElse { e ->
+                    firebaseAuth.deleteCurrentUser()
+                    throw e
+                }
 
                 firestoreRepository.createUser(
                     UserDocument(

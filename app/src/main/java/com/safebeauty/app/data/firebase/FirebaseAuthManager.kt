@@ -4,6 +4,7 @@ import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.PhoneAuthCredential
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -47,6 +48,24 @@ class FirebaseAuthManager @Inject constructor() {
 
     suspend fun confirmPasswordReset(oobCode: String, newPassword: String): Result<Unit> = runCatching {
         auth.confirmPasswordReset(oobCode, newPassword).await()
+    }
+
+    /**
+     * Attaches a verified phone credential (from an SMS OTP) to the currently
+     * signed-in account. Used at registration to *prove* the person owns the phone
+     * number: a wrong or expired code makes this throw, so the caller can roll back
+     * the half-created account. On success the phone is permanently linked, so no
+     * orphan phone-only user is ever left behind.
+     */
+    suspend fun linkPhoneCredential(credential: PhoneAuthCredential): Result<Unit> = runCatching {
+        auth.currentUser?.linkWithCredential(credential)?.await()
+            ?: error("No authenticated user")
+    }
+
+    /** Deletes the currently signed-in account (rollback when phone linking fails). */
+    suspend fun deleteCurrentUser(): Result<Unit> = runCatching {
+        auth.currentUser?.delete()?.await()
+            ?: error("No authenticated user")
     }
 
     fun signOut() = auth.signOut()
