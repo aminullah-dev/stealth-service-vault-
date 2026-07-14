@@ -272,7 +272,32 @@ exports.createPaymentSession = onCall(
     // actually paid, not the list price.
     const promo = await resolvePromoDiscount(promoCode, listPrice);
 
-    // Full checkout split (promo → referral credit → commission). The customer is
+    // Apply the best live salon offer (phase-2 deals actually reduce the price,
+    // not just show a badge). Offers stack with a promo code — both are genuine
+    // discounts — and are folded into the same discount channel as the promo. The
+    // per-offer math is pure/tested in lib/money.js; a lookup failure is ignored
+    // so a bad offer never blocks a booking.
+    let offerDiscount = 0;
+    let appliedOfferId = "";
+    try {
+      const now = Date.now();
+      const offersSnap = await db.collection("salon_offers")
+        .where("salonId", "==", salonId)
+        .where("active", "==", true)
+        .get();
+      for (const doc of offersSnap.docs) {
+        const o = doc.data();
+        if (o.expiresAt && Number(o.expiresAt) <= now) continue; // expired
+        const d = offerDiscountFor(o, services);
+        if (d > offerDiscount) { offerDiscount = d; appliedOfferId = doc.id; }
+      }
+    } catch (err) {
+      logger.warn("createPaymentSession: offer lookup failed (ignored)", {
+        error: String(err.message || err),
+      });
+    }
+
+    // Full checkout split (promo + offer → referral credit → commission). The customer is
     // charged the discounted price; commission is computed on that same discounted
     // amount so the platform's cut scales with what was actually paid, not the list
     // price. Referral credit auto-applies on top of any promo, capped at the
@@ -283,7 +308,7 @@ exports.createPaymentSession = onCall(
     const { afterPromo, referralUsed, price, commissionAmount, providerNet } =
       computeCheckout({
         listPrice,
-        promoDiscount:  promo.discount,
+        promoDiscount:  promo.discount + offerDiscount,
         referralCredit: appUser.referralCredit,
         commissionPercent,
       });
@@ -340,6 +365,8 @@ exports.createPaymentSession = onCall(
         listPrice,
         promoCode:         promo.code,
         discountAmount:    promo.discount,
+        offerDiscount,
+        offerId:           appliedOfferId,
         referralUsed,
         commissionPercent,
         commissionAmount,
@@ -436,6 +463,8 @@ exports.createPaymentSession = onCall(
       listPrice,
       promoCode:         promo.code,
       discountAmount:    promo.discount,
+      offerDiscount,
+      offerId:           appliedOfferId,
       referralUsed,
       // Counted/spent in the webhook only when the payment actually succeeds, so
       // an abandoned or failed online checkout never burns a promo use or credit.

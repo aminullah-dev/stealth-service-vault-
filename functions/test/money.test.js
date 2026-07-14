@@ -2,7 +2,7 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor } = require("../lib/money");
 
 test("loyaltyToCredit: exact multiple redeems fully at 1:1", () => {
   assert.deepEqual(loyaltyToCredit(100), { ok: true, spend: 100, credit: 100, reason: "" });
@@ -220,4 +220,36 @@ test("computeCheckout: garbage / missing inputs degrade to 0, not NaN", () => {
   const d = computeCheckout({ listPrice: 1000 }); // commissionPercent missing -> 0%
   assert.equal(d.commissionAmount, 0);
   assert.equal(d.providerNet, 1000);
+});
+
+// ── offerDiscountFor (price-affecting deals, phase 2) ────────────────────────
+const S = [{ name: "haircut", price: 400 }, { name: "nails", price: 200 }];
+
+test("offerDiscountFor: salon-wide percentage applies to the whole subtotal", () => {
+  // 20% of (400 + 200) = 120
+  assert.equal(offerDiscountFor({ discountPercent: 20 }, S), 120);
+});
+
+test("offerDiscountFor: salon-wide flat amount, capped at the subtotal", () => {
+  assert.equal(offerDiscountFor({ discountAmount: 100 }, S), 100);
+  assert.equal(offerDiscountFor({ discountAmount: 9999 }, S), 600);
+});
+
+test("offerDiscountFor: per-service offer only discounts the matching service", () => {
+  // 25% of just the 400 haircut = 100
+  assert.equal(offerDiscountFor({ service: "haircut", discountPercent: 25 }, S), 100);
+});
+
+test("offerDiscountFor: per-service offer for a service not booked -> 0", () => {
+  assert.equal(offerDiscountFor({ service: "massage", discountPercent: 50 }, S), 0);
+});
+
+test("offerDiscountFor: percentage wins when both percent and amount are set", () => {
+  // 10% of 600 = 60 (beats/overrides the flat 50, mirroring promoDiscountFor)
+  assert.equal(offerDiscountFor({ discountPercent: 10, discountAmount: 50 }, S), 60);
+});
+
+test("offerDiscountFor: no offer / empty services -> 0", () => {
+  assert.equal(offerDiscountFor(null, S), 0);
+  assert.equal(offerDiscountFor({ discountPercent: 20 }, []), 0);
 });

@@ -21,6 +21,26 @@ function promoDiscountFor(promo, priceAfn) {
   return discount;
 }
 
+// Discount (AFN) a live salon offer grants against a resolved [services]
+// breakdown (each {name, price}). A salon-wide offer (blank `service`) applies to
+// the whole subtotal; a per-service offer applies only to matching services'
+// prices. Uses the same percentage-wins-over-amount rule as a promo, capped at
+// the applicable base. The caller is responsible for only passing a live offer.
+function offerDiscountFor(offer, services) {
+  if (!offer) return 0;
+  const list = Array.isArray(services) ? services : [];
+  const svc = String(offer.service || "").trim();
+  const base = (svc
+    ? list.filter((s) => s && String(s.name) === svc)
+    : list
+  ).reduce((sum, s) => sum + (Number(s && s.price) || 0), 0);
+  if (base <= 0) return 0;
+  return promoDiscountFor(
+    { discountPercent: offer.discountPercent, discountAmount: offer.discountAmount },
+    base
+  );
+}
+
 // Full checkout split for one booking. Given the list price, an already-resolved
 // promo discount, the customer's available referral credit, and the platform
 // commission %, returns every derived amount the callable stores:
@@ -98,4 +118,5 @@ function loyaltyToCredit(points, opts) {
 
 module.exports = {
   promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit,
+  offerDiscountFor,
 };
