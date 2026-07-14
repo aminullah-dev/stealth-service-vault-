@@ -720,14 +720,14 @@ class DashboardViewModel @Inject constructor(
         bookingConfirmCashAmount = null
     }
 
-    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "") {
+    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "", slotSpan: Int = 1) {
         viewModelScope.launch {
             slotsLoading = true
             noWorkingHours = false
             val booked = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
             }.getOrDefault(emptyList())
-            val slots = computeSlots(salon, dateMs, booked, selectedStaffId)
+            val slots = computeSlots(salon, dateMs, booked, selectedStaffId, slotSpan)
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false
@@ -763,7 +763,8 @@ class DashboardViewModel @Inject constructor(
         salon: SalonDocument,
         dateMs: Long,
         booked: List<FirestoreRepository.BookedSlot>,
-        selectedStaffId: String
+        selectedStaffId: String,
+        slotSpan: Int = 1
     ): List<Long> {
         val cal = Calendar.getInstance().apply { timeInMillis = dateMs }
         val dayOfWeek = cal.get(Calendar.DAY_OF_WEEK)
@@ -809,7 +810,17 @@ class DashboardViewModel @Inject constructor(
             }
             openCal.add(Calendar.MINUTE, slotDuration)
         }
-        return slots
+        // A multi-service / group booking needs [slotSpan] back-to-back free slots,
+        // so a start time only qualifies when every slot it would occupy is also
+        // free (and still within opening hours). This mirrors the server-side
+        // expansion in lib/slots.js so the customer can't start a long booking that
+        // would run into an existing appointment or past closing time.
+        if (slotSpan <= 1) return slots
+        val freeSet = slots.toHashSet()
+        val stepMs  = slotDuration * 60_000L
+        return slots.filter { start ->
+            (0 until slotSpan).all { i -> freeSet.contains(start + i * stepMs) }
+        }
     }
 
     fun triggerLock() {

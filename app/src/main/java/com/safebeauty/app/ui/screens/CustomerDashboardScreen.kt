@@ -1044,7 +1044,7 @@ fun CustomerDashboardScreen(
                             val selectedDate = datePickerState.selectedDateMillis
                             if (selectedDate != null && bookingIntent != null) {
                                 bookingIntent = bookingIntent?.copy(dateMs = selectedDate)
-                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate)
+                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, slotSpan = bookingIntent!!.services.size.coerceAtLeast(1))
                             }
                             showSlotPicker = true
                         },
@@ -1082,7 +1082,7 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = "", staffName = "")
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "")
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", intent.services.size.coerceAtLeast(1))
                                         }
                                     },
                                     label = { Text(strings.staffAny, fontSize = 12.sp) },
@@ -1100,7 +1100,7 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = member.id, staffName = member.name)
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id)
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, intent.services.size.coerceAtLeast(1))
                                         }
                                     },
                                     label = { Text(member.name, fontSize = 12.sp) },

@@ -38,6 +38,7 @@ const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { promoDiscountFor, computeCheckout, resolveServicesTotal } = require("./lib/money");
+const { expandBooked } = require("./lib/slots");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -291,6 +292,7 @@ exports.createPaymentSession = onCall(
         salonName:      salon.salonName || "",
         serviceName,
         services,
+        slotsCount:     services.length,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
@@ -386,6 +388,7 @@ exports.createPaymentSession = onCall(
       salonName:     salon.salonName || "",
       serviceName,
       services,
+      slotsCount:    services.length,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,
@@ -1334,6 +1337,9 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
     throw new HttpsError("invalid-argument", "salonId, dayStart and dayEnd are required.");
   }
 
+  const salonSnap = await db.doc(`salons/${salonId}`).get();
+  const slotMinutes = Number((salonSnap.exists ? salonSnap.data().slotDurationMinutes : 0)) || 60;
+
   const snap = await db.collection("appointments")
     .where("salonId", "==", salonId)
     .get();
@@ -1344,15 +1350,11 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
       Number(a.appointmentDate) >= start &&
       Number(a.appointmentDate) <= end);
 
-  // Legacy shape: plain list of taken times (a solo salon, or an old client).
-  const slots = inWindow.map((a) => Number(a.appointmentDate));
-  // Staff-aware shape: each taken time tagged with the staff it belongs to, so
-  // the client can allow parallel bookings across a multi-staff salon (a slot is
-  // only truly full when every active staff member is booked at that time).
-  const booked = inWindow.map((a) => ({
-    time:    Number(a.appointmentDate),
-    staffId: String(a.staffId || ""),
-  }));
+  // A multi-service / group booking occupies several back-to-back slots, so expand
+  // each appointment into every slot it actually takes (see lib/slots.js, tested).
+  // `slots` is the legacy plain-times shape; `booked` tags each with its staff so
+  // the client only treats a time as full when every active staff member is taken.
+  const { slots, booked } = expandBooked(inWindow, slotMinutes);
 
   return { slots, booked };
 });
