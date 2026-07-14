@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.AddAPhoto
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -300,6 +301,8 @@ fun CustomerDashboardScreen(
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
+    val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
+    val offerSalonIds             by viewModel.offerSalonIds.collectAsStateWithLifecycle()
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -656,6 +659,19 @@ fun CustomerDashboardScreen(
                     )
                 }
 
+                // ── Deals strip ───────────────────────────────────────────────
+                if (activeOffers.isNotEmpty() && searchQuery.isBlank()) {
+                    DealsStrip(
+                        offers  = activeOffers,
+                        onOpen  = { salonId ->
+                            viewModel.findSalon(salonId)?.let { salon ->
+                                showSalonDetail = salon
+                                viewModel.setActiveSalon(salon.id)
+                            }
+                        }
+                    )
+                }
+
                 // ── Salon list / empty state ──────────────────────────────────
                 if (filteredSalons.isEmpty()) {
                     SalonEmptyState(
@@ -678,6 +694,7 @@ fun CustomerDashboardScreen(
                                 salon            = salon,
                                 isFavorite       = favoriteIds.contains(salon.id),
                                 distanceKm       = distanceKm,
+                                hasOffer         = offerSalonIds.contains(salon.id),
                                 onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                                 onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
                             )
@@ -2010,7 +2027,8 @@ private fun SalonCard(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
-    distanceKm: Double? = null
+    distanceKm: Double? = null,
+    hasOffer: Boolean = false
 ) {
     val strings  = LocalStrings.current
     val context  = LocalContext.current
@@ -2083,9 +2101,15 @@ private fun SalonCard(
                         }
                     }
                     val cardBadge = remember(salon.id, salon.isVerified, salon.rating, salon.confirmedCount) { salon.badge() }
-                    if (cardBadge != SalonBadge.NONE) {
+                    if (cardBadge != SalonBadge.NONE || hasOffer) {
                         Spacer(Modifier.height(5.dp))
-                        SalonBadgeChip(badge = cardBadge)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment     = Alignment.CenterVertically
+                        ) {
+                            if (cardBadge != SalonBadge.NONE) SalonBadgeChip(badge = cardBadge)
+                            if (hasOffer) OfferChip()
+                        }
                     }
                 }
                 Row(
@@ -2511,6 +2535,88 @@ internal fun SalonBadgeChip(badge: SalonBadge, modifier: Modifier = Modifier) {
         Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(10.dp))
         Spacer(Modifier.width(3.dp))
         Text(label, fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Small "🔥 آفر" chip shown on a salon card that has a live offer. */
+@Composable
+private fun OfferChip(modifier: Modifier = Modifier) {
+    val strings = LocalStrings.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(DeepRose)
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Icon(Icons.Default.LocalOffer, null, tint = Color.White, modifier = Modifier.size(10.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(strings.offerBadge, fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
+    }
+}
+
+/**
+ * Horizontal strip of live deals across all salons, shown above the salon list.
+ * Tapping a deal opens that salon's detail sheet.
+ */
+@Composable
+private fun DealsStrip(
+    offers: List<OfferDocument>,
+    onOpen: (String) -> Unit
+) {
+    val strings = LocalStrings.current
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Icon(Icons.Default.LocalOffer, null, tint = DeepRose, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(strings.dealsTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(offers, key = { it.id }) { offer ->
+                ElevatedCard(
+                    shape     = RoundedCornerShape(16.dp),
+                    colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+                    modifier  = Modifier
+                        .width(230.dp)
+                        .clickable { onOpen(offer.salonId) }
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OfferChip()
+                            if (offer.discountPercent > 0) {
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "${offer.discountPercent}%",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize   = 13.sp,
+                                    color      = DeepRose
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            offer.title,
+                            fontWeight = FontWeight.Bold,
+                            fontSize   = 14.sp,
+                            color      = DeepRose,
+                            maxLines   = 2,
+                            overflow   = TextOverflow.Ellipsis
+                        )
+                        if (offer.salonName.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                offer.salonName,
+                                fontSize = 12.sp,
+                                color    = RoseGold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

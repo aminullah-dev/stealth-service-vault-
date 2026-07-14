@@ -334,6 +334,18 @@ class DashboardViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // All live offers across every salon — powers the customer "Deals" strip and
+    // the offer badge on salon cards. observeActiveOffers already drops expired
+    // ones client-side; the map derives the set of salon ids that have an offer.
+    val activeOffers: StateFlow<List<OfferDocument>> =
+        firestoreRepository.observeActiveOffers()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val offerSalonIds: StateFlow<Set<String>> = activeOffers
+        .map { offers -> offers.map { it.salonId }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
     fun setActiveSalon(id: String) { _activeSalonId.value = id }
 
     var bookingConfirmSalonName  by mutableStateOf<String?>(null)
