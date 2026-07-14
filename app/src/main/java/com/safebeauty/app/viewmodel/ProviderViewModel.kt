@@ -99,12 +99,14 @@ class ProviderViewModel @Inject constructor(
         .map { appointments ->
             ProviderAnalytics(
                 total             = appointments.size,
-                confirmed         = appointments.count { it.status == "CONFIRMED" },
+                // COMPLETED is a finished CONFIRMED booking (a scheduled function
+                // flips past ones over), so it still counts as an accepted booking.
+                confirmed         = appointments.count { it.status == "CONFIRMED" || it.status == "COMPLETED" },
                 pending           = appointments.count { it.status == "PENDING" },
                 cancelled         = appointments.count { it.status == "CANCELLED" },
                 byService         = appointments.groupingBy { it.serviceName }.eachCount(),
                 confirmedByService = appointments
-                    .filter { it.status == "CONFIRMED" }
+                    .filter { it.status == "CONFIRMED" || it.status == "COMPLETED" }
                     .groupingBy { it.serviceName }.eachCount()
             )
         }

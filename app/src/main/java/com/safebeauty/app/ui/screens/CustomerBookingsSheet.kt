@@ -321,7 +321,7 @@ private fun BookingCard(
 ) {
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
-    val canReview     = appt.status == "CONFIRMED"
+    val canReview     = appt.status == "CONFIRMED" || appt.status == "COMPLETED"
     // "Book again" makes sense once a visit is done or was cancelled — not while a
     // payment is still pending.
     val canRebook     = appt.status == "CONFIRMED" || appt.status == "COMPLETED" ||
@@ -469,6 +469,7 @@ private fun BookingStatusTimeline(appt: AppointmentDocument) {
     }
     val now = System.currentTimeMillis()
     val reached = when {
+        appt.status == "COMPLETED"                                -> 2
         appt.status == "CONFIRMED" && appt.appointmentDate <= now -> 2
         appt.status == "CONFIRMED"                                -> 1
         else                                                      -> 0   // PENDING

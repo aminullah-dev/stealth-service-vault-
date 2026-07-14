@@ -700,7 +700,11 @@ class FirestoreRepository @Inject constructor(
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(ProviderBalance::class.java) }
-                ?.filter { it.owedAmount > 0 }
+                // Keep anything non-zero: positive = platform owes the provider (a
+                // payout), negative = the provider owes the platform (cash-booking
+                // commission debt). Only 0 (fully settled) is dropped, so a provider
+                // in debt no longer silently disappears from the admin finance list.
+                ?.filter { it.owedAmount != 0L }
                 ?.sortedByDescending { it.owedAmount }
                 ?: emptyList()
             trySend(list)

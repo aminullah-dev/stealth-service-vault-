@@ -179,7 +179,7 @@ data class AppointmentDocument(
     val staffId: String = "",
     val staffName: String = "",
     val appointmentDate: Long = 0L,         // epoch millis (date + time)
-    val status: String = "PENDING",         // "PENDING" | "CONFIRMED" | "CANCELLED"
+    val status: String = "PENDING",         // "AWAITING_PAYMENT" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
     val createdAt: Long = 0L,
     val notes: String = "",              // optional customer request/note
     // Denormalized from the payment doc at booking time so the provider's

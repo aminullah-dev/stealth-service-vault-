@@ -1658,6 +1658,34 @@ exports.sendBookingReminders = onSchedule(
   }
 );
 
+// A CONFIRMED appointment whose time has passed (plus a grace window so one that's
+// literally happening now isn't closed early) is finished — flip it to COMPLETED.
+// This gives "past" a real status instead of only being inferred from the date, so
+// review prompts, "book again", and provider stats read a booking as done. Once
+// flipped it no longer matches status=="CONFIRMED", so the scanned set stays small
+// and no composite index is needed (single-field equality + in-code date filter).
+const COMPLETE_GRACE_MS = 2 * 60 * 60 * 1000;
+
+exports.completePastAppointments = onSchedule(
+  { schedule: "every 60 minutes", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - COMPLETE_GRACE_MS;
+    const confirmed = await db.collection("appointments")
+      .where("status", "==", "CONFIRMED")
+      .get();
+    if (confirmed.empty) return;
+
+    let count = 0;
+    for (const doc of confirmed.docs) {
+      if (Number(doc.data().appointmentDate) <= cutoff) {
+        await doc.ref.update({ status: "COMPLETED", completedAt: Date.now() });
+        count++;
+      }
+    }
+    logger.log(`completePastAppointments: completed ${count} appointment(s)`);
+  }
+);
+
 // ── recordProviderPayout (callable, admin-only) ───────────────────────────────
 
 /**
