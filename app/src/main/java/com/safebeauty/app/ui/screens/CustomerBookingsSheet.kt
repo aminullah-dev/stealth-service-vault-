@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -186,6 +187,7 @@ import androidx.compose.material.icons.filled.Notifications
 internal fun BookingsSheetContent(
     appointments: List<AppointmentDocument>,
     waitlistEntries: List<WaitlistEntry> = emptyList(),
+    refundStatusByAppointment: Map<String, String> = emptyMap(),
     onDismiss: () -> Unit,
     onChatClick: (AppointmentDocument) -> Unit = {},
     onCancelClick: (AppointmentDocument) -> Unit = {},
@@ -248,7 +250,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
-                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick) }
+                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, refundStatusByAppointment[appt.id]) }
             }
 
             if (past.isNotEmpty()) {
@@ -260,7 +262,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
                 }
-                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick) }
+                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, refundStatusByAppointment[appt.id]) }
             }
         }
 
@@ -317,7 +319,8 @@ private fun BookingCard(
     onReviewClick: (AppointmentDocument) -> Unit,
     onCancelClick: () -> Unit,
     onSupportClick: (AppointmentDocument) -> Unit,
-    onRebookClick: (AppointmentDocument) -> Unit = {}
+    onRebookClick: (AppointmentDocument) -> Unit = {},
+    refundStatus: String? = null
 ) {
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
@@ -376,6 +379,29 @@ private fun BookingCard(
 
             // ── Order-tracking style status timeline ──────────────────────────
             BookingStatusTimeline(appt)
+
+            // ── Refund status (only for a cancelled booking that was paid) ─────
+            if (appt.status == "CANCELLED" && refundStatus != null) {
+                val processed = refundStatus == "PROCESSED"
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Icon(
+                        if (processed) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                        contentDescription = null,
+                        tint = if (processed) AvailableGreen else WarmGold,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (processed) strings.refundProcessed else strings.refundPending,
+                        fontSize   = 12.sp,
+                        color      = if (processed) AvailableGreen else WarmGold,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             run {
                 Spacer(Modifier.height(8.dp))

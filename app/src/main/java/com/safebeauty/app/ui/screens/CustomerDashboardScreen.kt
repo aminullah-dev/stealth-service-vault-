@@ -293,6 +293,7 @@ fun CustomerDashboardScreen(
     val filtersActive = sortMode != SalonSort.RECOMMENDED || minRating > 0.0 || maxPrice > 0
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
+    val refundStatusByAppointment by viewModel.refundStatusByAppointment.collectAsStateWithLifecycle()
     val loyaltyPoints             by viewModel.loyaltyPoints.collectAsStateWithLifecycle()
     val loyaltyTier               by viewModel.loyaltyTier.collectAsStateWithLifecycle()
     val referralCode              by viewModel.referralCode.collectAsStateWithLifecycle()
@@ -1704,6 +1705,7 @@ fun CustomerDashboardScreen(
                 BookingsSheetContent(
                     appointments = myAppointments,
                     waitlistEntries = myWaitlist,
+                    refundStatusByAppointment = refundStatusByAppointment,
                     onDismiss    = { showBookingsSheet = false },
                     onChatClick  = { appt ->
                         showBookingsSheet = false

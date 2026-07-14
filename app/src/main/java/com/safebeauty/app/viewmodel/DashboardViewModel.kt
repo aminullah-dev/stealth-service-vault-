@@ -252,6 +252,15 @@ class DashboardViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // Refund status per cancelled+paid booking, keyed by appointmentId. Lets the
+    // bookings list show "Refund pending" / "Refunded" on a cancelled online
+    // booking (the refund is processed manually by an admin — no HesabPay API).
+    val refundStatusByAppointment: StateFlow<Map<String, String>> =
+        firestoreRepository.observeRefundsForCustomer(customerId)
+            .map { refunds -> refunds.associate { it.appointmentId to it.status } }
+            .catch { emit(emptyMap()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     // Salons scored by how well they match the customer's booking history.
     // Requires ≥1 past appointment; shows up to 5 recommendations.
     val recommendedSalons: StateFlow<List<SalonDocument>> = combine(

@@ -807,6 +807,21 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
+    /** Live refund requests belonging to one customer (rules allow own rows). */
+    fun observeRefundsForCustomer(customerId: String): Flow<List<RefundRequestDocument>> = callbackFlow {
+        val listener = refundRequestsCol
+            .whereEqualTo("customerId", customerId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
+                    ?.sortedByDescending { it.createdAt }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
     /** Live refund requests (most recent first). Admin reads all rows. */
     fun observeRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
         val listener = refundRequestsCol.addSnapshotListener { snap, err ->
