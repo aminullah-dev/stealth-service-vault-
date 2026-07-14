@@ -59,6 +59,18 @@ service firebase.storage {
       allow delete: if salonOwner(salonId) || isAdmin();
     }
 
+    // ── Review photos ──────────────────────────────────────────────────────────
+    // Path: reviews/{reviewId}/{fileName}. Any signed-in customer can attach a
+    // photo to a review they're creating (the review doc itself is guarded by
+    // firestore.rules — customer creates own). World-readable like the gallery
+    // so thumbnails render on the salon sheet.
+    match /reviews/{reviewId}/{fileName} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn() && isValidImage();
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
     // ── KYC documents (private) ──────────────────────────────────────────────────
     // Path: kyc/{uid}/{fileName}  — tazkira.jpg, selfie.jpg. Sensitive PII, so
     // unlike profile photos these are NOT world-readable to signed-in users:

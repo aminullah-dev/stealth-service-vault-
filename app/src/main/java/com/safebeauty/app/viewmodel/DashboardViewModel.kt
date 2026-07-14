@@ -653,21 +653,39 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun submitReview(salonId: String, rating: Int, comment: String) {
+    fun submitReview(
+        salonId: String,
+        rating: Int,
+        comment: String,
+        photos: List<ByteArray> = emptyList()
+    ) {
         if (rating < 1) return
         viewModelScope.launch {
             runCatching {
+                // Reserve the review id first so photos can be stored under
+                // reviews/{id}/ before the review doc is written.
+                val reviewId = firestoreRepository.newReviewId()
+                val imageUrls = photos.take(3).mapIndexedNotNull { index, bytes ->
+                    runCatching {
+                        storageRepository.uploadReviewImage(reviewId, index, bytes)
+                    }.getOrNull()
+                }
                 firestoreRepository.addReview(
                     ReviewDocument(
+                        id           = reviewId,
                         salonId      = salonId,
                         customerId   = customerId,
                         customerName = _currentUserName.value,
                         rating       = rating,
                         comment      = comment.trim(),
-                        createdAt    = System.currentTimeMillis()
+                        createdAt    = System.currentTimeMillis(),
+                        imageUrls    = imageUrls
                     )
                 )
-                vaultRepository.log("REVIEW_SUBMITTED", "salonId=$salonId rating=$rating")
+                vaultRepository.log(
+                    "REVIEW_SUBMITTED",
+                    "salonId=$salonId rating=$rating photos=${imageUrls.size}"
+                )
                 reviewThanksShown = true
             }
         }

@@ -46,6 +46,17 @@ class StorageRepository @Inject constructor() {
     }
 
     /**
+     * Uploads one photo attached to a review. [reviewId] is the reserved review
+     * document ID and [index] disambiguates multiple photos on the same review.
+     * Returns the HTTPS download URL, or throws on failure.
+     */
+    suspend fun uploadReviewImage(reviewId: String, index: Int, bytes: ByteArray): String {
+        val ref = storage.reference.child("reviews/$reviewId/$index.jpg")
+        ref.putBytes(bytes).await()
+        return ref.downloadUrl.await().toString()
+    }
+
+    /**
      * Uploads the user's national-ID (tazkira) photo to the private KYC path.
      * Returns the HTTPS download URL (readable only by the owner + admins per
      * storage.rules), or throws on failure.

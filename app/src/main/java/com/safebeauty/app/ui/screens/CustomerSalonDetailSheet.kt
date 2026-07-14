@@ -508,6 +508,21 @@ private fun ReviewCard(review: ReviewDocument) {
                 Spacer(Modifier.height(5.dp))
                 Text(review.comment, fontSize = 12.sp, color = Color(0xFF555555))
             }
+            if (review.imageUrls.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(review.imageUrls) { url ->
+                        AsyncImage(
+                            model              = url,
+                            contentDescription = null,
+                            contentScale       = ContentScale.Crop,
+                            modifier           = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(5.dp))
             Text(
                 text     = dateFmt.format(Date(review.createdAt)),

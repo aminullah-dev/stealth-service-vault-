@@ -233,7 +233,8 @@ data class ReviewDocument(
     val comment: String = "",
     val createdAt: Long = 0L,
     val providerReply: String = "",         // Provider's response (blank = not replied)
-    val repliedAt: Long = 0L
+    val repliedAt: Long = 0L,
+    val imageUrls: List<String> = emptyList() // Optional review photos (Storage URLs, max 3)
 )
 
 /**

@@ -393,12 +393,22 @@ class FirestoreRepository @Inject constructor(
         ).await()
     }
 
+    /** Reserves a review document ID up front so photos can be uploaded under
+     *  reviews/{id}/ before the review doc itself is written. */
+    fun newReviewId(): String = reviewsCol.document().id
+
     /**
      * Adds a review, then recomputes the salon's average rating from all of its
-     * reviews and writes it back so salon cards stay in sync.
+     * reviews and writes it back so salon cards stay in sync. When [review.id]
+     * is set (photo reviews reserve it via [newReviewId]) the doc is written at
+     * that ID; otherwise Firestore auto-generates one.
      */
     suspend fun addReview(review: ReviewDocument) {
-        reviewsCol.add(review).await()
+        if (review.id.isNotBlank()) {
+            reviewsCol.document(review.id).set(review).await()
+        } else {
+            reviewsCol.add(review).await()
+        }
         val all = reviewsCol.whereEqualTo("salonId", review.salonId).get().await()
             .documents.mapNotNull { it.toObject(ReviewDocument::class.java) }
         if (all.isNotEmpty()) {

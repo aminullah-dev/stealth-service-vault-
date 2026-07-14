@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -1817,8 +1818,8 @@ fun CustomerDashboardScreen(
         reviewTarget?.let { appt ->
             ReviewDialog(
                 salonName = appt.salonName,
-                onSubmit  = { rating, comment ->
-                    viewModel.submitReview(appt.salonId, rating, comment)
+                onSubmit  = { rating, comment, photos ->
+                    viewModel.submitReview(appt.salonId, rating, comment, photos)
                     reviewTarget = null
                 },
                 onDismiss = { reviewTarget = null }
@@ -1874,12 +1875,29 @@ fun CustomerDashboardScreen(
 @Composable
 private fun ReviewDialog(
     salonName: String,
-    onSubmit: (Int, String) -> Unit,
+    onSubmit: (Int, String, List<ByteArray>) -> Unit,
     onDismiss: () -> Unit
 ) {
     val strings    = LocalStrings.current
+    val context    = LocalContext.current
+    val scope      = rememberCoroutineScope()
     var rating     by remember { mutableStateOf(0) }
     var comment    by remember { mutableStateOf("") }
+    // Up to 3 photos, kept as compressed JPEG bytes ready for upload.
+    val photos     = remember { mutableStateListOf<ByteArray>() }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null || photos.size >= 3) return@rememberLauncherForActivityResult
+        scope.launch {
+            when (val result = ImageUtils.uriToCompressedBytes(context, uri)) {
+                is ImageUtils.BytesResult.Success  -> photos.add(result.bytes)
+                is ImageUtils.BytesResult.TooLarge -> { /* silently skip oversized */ }
+                is ImageUtils.BytesResult.Failed   -> { /* silently skip */ }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1919,11 +1937,59 @@ private fun ReviewDialog(
                         cursorColor          = RoseGold
                     )
                 )
+                Spacer(Modifier.height(12.dp))
+                // ── Photo attachments (optional, max 3) ───────────────────────
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    photos.forEachIndexed { index, bytes ->
+                        val bmp = remember(bytes) {
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        }
+                        Box(modifier = Modifier.padding(end = 8.dp)) {
+                            if (bmp != null) {
+                                Image(
+                                    bitmap             = bmp.asImageBitmap(),
+                                    contentDescription = null,
+                                    contentScale       = ContentScale.Crop,
+                                    modifier           = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                )
+                            }
+                            IconButton(
+                                onClick  = { photos.removeAt(index) },
+                                modifier = Modifier.size(20.dp).align(Alignment.TopEnd)
+                            ) {
+                                Icon(
+                                    Icons.Default.Cancel,
+                                    contentDescription = strings.cancel,
+                                    tint               = DeepRose,
+                                    modifier           = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (photos.size < 3) {
+                        OutlinedButton(
+                            onClick = { photoPickerLauncher.launch("image/*") },
+                            shape   = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(strings.addPhoto, fontSize = 13.sp)
+                        }
+                    }
+                }
+                Text(
+                    strings.reviewPhotosHint,
+                    fontSize = 11.sp,
+                    color    = RoseGold,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onSubmit(rating, comment) },
+                onClick = { onSubmit(rating, comment, photos.toList()) },
                 enabled = rating >= 1,
                 colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
             ) { Text(strings.submit, color = Color.White) }
