@@ -121,7 +121,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -158,6 +160,7 @@ import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
@@ -2164,6 +2167,7 @@ private fun SalonCard(
 ) {
     val strings  = LocalStrings.current
     val context  = LocalContext.current
+    val haptic   = LocalHapticFeedback.current
     val gradient = remember(salon.salonName) { avatarGradient(salon.salonName) }
 
     ElevatedCard(
@@ -2186,7 +2190,10 @@ private fun SalonCard(
                         .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
                 ) {
                     AsyncImage(
-                        model              = salon.coverImageUrl,
+                        model              = ImageRequest.Builder(context)
+                            .data(salon.coverImageUrl)
+                            .crossfade(true)
+                            .build(),
                         contentDescription = null,
                         contentScale       = ContentScale.Crop,
                         modifier           = Modifier.fillMaxSize()
@@ -2371,7 +2378,10 @@ private fun SalonCard(
                                     .shadow(4.dp, RoundedCornerShape(12.dp), clip = false)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(Gradients.BrandRose)
-                                    .clickable(onClick = onBook)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onBook()
+                                    }
                             else
                                 Modifier
                                     .clip(RoundedCornerShape(12.dp))

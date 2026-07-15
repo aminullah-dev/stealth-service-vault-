@@ -161,7 +161,10 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
@@ -198,6 +201,8 @@ internal fun SalonDetailSheetContent(
     onDismiss: () -> Unit
 ) {
     val strings  = LocalStrings.current
+    val context  = LocalContext.current
+    val haptic   = LocalHapticFeedback.current
     val gradient = remember(salon.salonName) { avatarGradient(salon.salonName) }
 
     Column(
@@ -230,7 +235,10 @@ internal fun SalonDetailSheetContent(
                     .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
             ) {
                 AsyncImage(
-                    model              = salon.coverImageUrl,
+                    model              = ImageRequest.Builder(context)
+                        .data(salon.coverImageUrl)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
                     contentScale       = ContentScale.Crop,
                     modifier           = Modifier.fillMaxSize()
@@ -365,7 +373,10 @@ internal fun SalonDetailSheetContent(
                             .shadow(6.dp, RoundedCornerShape(16.dp), clip = false)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Gradients.BrandRose)
-                            .clickable(onClick = onBook)
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onBook()
+                            }
                     else
                         Modifier
                             .clip(RoundedCornerShape(16.dp))
