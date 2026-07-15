@@ -1002,13 +1002,20 @@ exports.hesabPayWebhook = onRequest(
         // Idempotency — already settled.
         if (fresh.status === "PAID") return "already_paid";
 
-        // Replay guard — a transaction_id may settle exactly one payment.
-        let webhookRef = null;
-        if (transactionId) {
-          webhookRef = db.doc(`processed_webhooks/${transactionId}`);
-          const seen = await tx.get(webhookRef);
-          if (seen.exists) return "replay";
-        }
+        // Replay guard — a webhook settles exactly one payment, ever. Prefer the
+        // transaction_id; when the payload omits it (or it isn't path-safe), fall
+        // back to a hash of the signature so a captured (signature, timestamp)
+        // pair can't be replayed against a DIFFERENT payment. Previously the guard
+        // was skipped entirely with no transaction_id, so the only defense left
+        // was the same-payment status check — a replay aimed at another paymentId
+        // sailed through. The key is always present and path-safe now.
+        const replayKey = (transactionId && isValidDocId(transactionId))
+          ? transactionId
+          : "sig_" + crypto.createHash("sha256")
+              .update(String(signature) + "|" + String(transactionId)).digest("hex");
+        const webhookRef = db.doc(`processed_webhooks/${replayKey}`);
+        const seen = await tx.get(webhookRef);
+        if (seen.exists) return "replay";
 
         if (paidSignal) {
           // Gift-card payment: credit the recipient's wallet (referralCredit) so
