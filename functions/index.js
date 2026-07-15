@@ -40,6 +40,16 @@ const crypto = require("crypto");
 const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("./lib/money");
 const { expandBooked, serviceSlotSpan } = require("./lib/slots");
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
+const { isValidDocId } = require("./lib/validate");
+
+// Reject a malformed / path-unsafe document id before it is interpolated into a
+// Firestore doc path — defense-in-depth: a value with a slash makes an
+// odd-segment path (unhandled 500), and untrusted strings don't belong in paths.
+function assertDocId(id, field) {
+  if (!isValidDocId(id)) {
+    throw new HttpsError("invalid-argument", `Invalid ${field}.`);
+  }
+}
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -205,6 +215,7 @@ exports.createPaymentSession = onCall(
       );
     }
 
+    assertDocId(salonId, "salonId");
     // Read the salon + price server-side so the client can't spoof the amount.
     const salonSnap = await db.doc(`salons/${salonId}`).get();
     if (!salonSnap.exists) {
@@ -894,8 +905,10 @@ exports.hesabPayWebhook = onRequest(
     let paymentId   = "";
     let paymentSnap = null;
 
-    if (itemId) {
-      // Direct document lookup — O(1), no index required.
+    if (itemId && isValidDocId(itemId)) {
+      // Direct document lookup — O(1), no index required. itemId comes straight
+      // from the (attacker-controllable) payload, so it's path-validated first;
+      // a malformed value falls through to the session-id lookup / 404 below.
       const snap = await db.collection("payments").doc(itemId).get();
       if (snap.exists) {
         paymentSnap = snap;
@@ -1326,6 +1339,7 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
   if (!targetUid) {
     throw new HttpsError("invalid-argument", "targetUid is required.");
   }
+  assertDocId(targetUid, "targetUid");
   if (!approve && !reason) {
     throw new HttpsError("invalid-argument", "A rejection reason is required.");
   }
@@ -2112,6 +2126,7 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
   if (!providerId) {
     throw new HttpsError("invalid-argument", "providerId is required.");
   }
+  assertDocId(providerId, "providerId");
 
   const balanceRef = db.doc(`provider_balances/${providerId}`);
 
@@ -2169,6 +2184,7 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
   if (!refundRequestId) {
     throw new HttpsError("invalid-argument", "refundRequestId is required.");
   }
+  assertDocId(refundRequestId, "refundRequestId");
 
   const refundRef = db.doc(`refund_requests/${refundRequestId}`);
 
