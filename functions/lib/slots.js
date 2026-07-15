@@ -59,4 +59,30 @@ function serviceSlotSpan(serviceNames, durationPerService, slotMinutes) {
   return Math.max(1, Math.ceil(totalMinutes / step));
 }
 
-module.exports = { slotsForAppointment, expandBooked, serviceSlotSpan };
+// True when a booking of [reqSpan] consecutive slots starting at [reqStart] for
+// staff [staffId] would overlap any existing appointment. A different staffId is
+// a different chair, so it never conflicts (parallel bookings across a
+// multi-staff salon); a solo salon uses staffId "" for everything, so any
+// overlap there conflicts. CANCELLED appointments are ignored, and [excludeId]
+// (the appointment being rescheduled onto a new time) is skipped so it can't
+// conflict with its own current slot. Each existing item may carry an `id`.
+function hasSlotConflict(existing, reqStart, reqSpan, staffId, slotMinutes, excludeId) {
+  const start = Number(reqStart);
+  if (!Number.isFinite(start)) return false;
+  const step = Math.max(1, Number(slotMinutes) || 30) * 60000;
+  const span = Math.max(1, Number(reqSpan) || 1);
+  const wanted = new Set();
+  for (let i = 0; i < span; i++) wanted.add(start + i * step);
+  const wantStaff = String(staffId || "");
+  for (const a of existing || []) {
+    if (!a || a.status === "CANCELLED") continue;
+    if (excludeId && a.id === excludeId) continue;
+    if (String(a.staffId || "") !== wantStaff) continue;
+    for (const t of slotsForAppointment(a, slotMinutes)) {
+      if (wanted.has(t)) return true;
+    }
+  }
+  return false;
+}
+
+module.exports = { slotsForAppointment, expandBooked, serviceSlotSpan, hasSlotConflict };

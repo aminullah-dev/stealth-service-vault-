@@ -1,10 +1,52 @@
 // Unit tests for slot-occupancy math (lib/slots.js). Pure, no Firebase.
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { slotsForAppointment, expandBooked, serviceSlotSpan } = require("../lib/slots");
+const { slotsForAppointment, expandBooked, serviceSlotSpan, hasSlotConflict } = require("../lib/slots");
 
 const T = 1_000_000_000_000; // an arbitrary base time (ms)
 const MIN = 60_000;
+
+test("hasSlotConflict: exact same slot + staff conflicts", () => {
+  const existing = [{ appointmentDate: T, services: ["A"], staffId: "s1", status: "CONFIRMED" }];
+  assert.equal(hasSlotConflict(existing, T, 1, "s1", 30), true);
+});
+
+test("hasSlotConflict: different staff is a different chair (no conflict)", () => {
+  const existing = [{ appointmentDate: T, services: ["A"], staffId: "s1", status: "CONFIRMED" }];
+  assert.equal(hasSlotConflict(existing, T, 1, "s2", 30), false);
+});
+
+test("hasSlotConflict: solo salon (staffId '') any overlap conflicts", () => {
+  const existing = [{ appointmentDate: T, services: ["A"], staffId: "", status: "PENDING" }];
+  assert.equal(hasSlotConflict(existing, T, 1, "", 30), true);
+});
+
+test("hasSlotConflict: a multi-slot booking overlapping a later slot conflicts", () => {
+  // existing takes T; new 3-slot booking starts one slot earlier and runs over T.
+  const existing = [{ appointmentDate: T + 30 * MIN, services: ["A"], staffId: "s1", status: "CONFIRMED" }];
+  assert.equal(hasSlotConflict(existing, T, 3, "s1", 30), true); // T, T+30, T+60 → hits T+30
+});
+
+test("hasSlotConflict: adjacent non-overlapping slots do not conflict", () => {
+  const existing = [{ appointmentDate: T, services: ["A"], staffId: "s1", status: "CONFIRMED" }];
+  assert.equal(hasSlotConflict(existing, T + 30 * MIN, 1, "s1", 30), false);
+});
+
+test("hasSlotConflict: CANCELLED and excludeId are ignored", () => {
+  const cancelled = [{ id: "x", appointmentDate: T, staffId: "s1", status: "CANCELLED" }];
+  assert.equal(hasSlotConflict(cancelled, T, 1, "s1", 30), false);
+  const self = [{ id: "me", appointmentDate: T, staffId: "s1", status: "CONFIRMED" }];
+  assert.equal(hasSlotConflict(self, T, 1, "s1", 30, "me"), false);
+});
+
+test("hasSlotConflict: AWAITING_PAYMENT reserves the slot", () => {
+  const existing = [{ appointmentDate: T, services: ["A"], staffId: "", status: "AWAITING_PAYMENT" }];
+  assert.equal(hasSlotConflict(existing, T, 1, "", 30), true);
+});
+
+test("hasSlotConflict: non-finite start never conflicts", () => {
+  assert.equal(hasSlotConflict([{ appointmentDate: T, staffId: "", status: "PENDING" }], NaN, 1, "", 30), false);
+});
 
 test("slotsForAppointment: single-service booking takes one slot", () => {
   const r = slotsForAppointment({ appointmentDate: T, services: ["Haircut"] }, 30);

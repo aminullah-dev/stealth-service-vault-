@@ -38,7 +38,7 @@ const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("./lib/money");
-const { expandBooked, serviceSlotSpan } = require("./lib/slots");
+const { expandBooked, serviceSlotSpan, hasSlotConflict } = require("./lib/slots");
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 const { isValidDocId } = require("./lib/validate");
 
@@ -275,6 +275,23 @@ exports.createPaymentSession = onCall(
       }
       resolvedStaffId = member.id;
       resolvedStaffName = String(member.name || "");
+    }
+
+    // Slot-conflict guard — reject a booking whose slots are already taken on the
+    // same chair (different staff = a different chair, so it books in parallel).
+    // This is a pre-write check rather than a full transaction because the online
+    // path then hands off to HesabPay; it catches the common collision, and the
+    // AWAITING_PAYMENT / PENDING rows it counts also reserve the slot against
+    // other bookers until they settle or expire (expireAbandonedPayments).
+    {
+      const slotMinutes = Number(salon.slotDurationMinutes) || 60;
+      const existingSnap = await db.collection("appointments")
+        .where("salonId", "==", salonId)
+        .get();
+      const existing = existingSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (hasSlotConflict(existing, appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
+        throw new HttpsError("failed-precondition", "That time slot is no longer available.");
+      }
     }
 
     // Apply a promo code if one was entered (throws a clear error if invalid).
@@ -1768,7 +1785,37 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     }
 
     const salonSnap  = await tx.get(db.doc(`salons/${appt.salonId}`));
-    const providerId = salonSnap.exists ? (salonSnap.data().providerId || "") : "";
+    const salon      = salonSnap.exists ? salonSnap.data() : {};
+    const providerId = salon.providerId || "";
+
+    // Reject a move onto a day the salon blocked off (defense in depth; the
+    // client hides them). Kabul-local "yyyy-MM-dd", matching createPaymentSession.
+    const blocked = Array.isArray(salon.blockedDates) ? salon.blockedDates : [];
+    if (blocked.length > 0) {
+      const day = new Date(dateMs).toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
+      if (blocked.includes(day)) {
+        throw new HttpsError("failed-precondition", "The salon is closed on that day.");
+      }
+    }
+
+    // Reject a move that collides with another live booking on the same chair.
+    // Read inside the transaction (all reads precede the write) so two concurrent
+    // reschedules can't both land on the same slot. Exclude this booking so it
+    // never conflicts with its own current slot.
+    const slotMinutes = Number(salon.slotDurationMinutes) || 60;
+    const span = Math.max(
+      1,
+      Number(appt.slotsCount) ||
+        (Array.isArray(appt.services) ? appt.services.length : 0) ||
+        1
+    );
+    const otherSnap = await tx.get(
+      db.collection("appointments").where("salonId", "==", appt.salonId)
+    );
+    const others = otherSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (hasSlotConflict(others, dateMs, span, String(appt.staffId || ""), slotMinutes, appointmentId)) {
+      throw new HttpsError("failed-precondition", "That time is no longer available.");
+    }
 
     tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
     if (providerId) {
