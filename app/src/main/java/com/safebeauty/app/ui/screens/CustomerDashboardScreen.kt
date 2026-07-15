@@ -119,6 +119,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -2386,6 +2387,9 @@ private fun SalonCard(
                         .clip(RoundedCornerShape(14.dp))
                         .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
                 ) {
+                    // Blurred crop fills the band edge-to-edge; the sharp Fit image
+                    // on top shows the WHOLE photo instead of center-cropping it. On
+                    // API < 31 blur is a no-op — the crop fill just shows unblurred.
                     AsyncImage(
                         model              = ImageRequest.Builder(context)
                             .data(salon.coverImageUrl)
@@ -2393,6 +2397,15 @@ private fun SalonCard(
                             .build(),
                         contentDescription = null,
                         contentScale       = ContentScale.Crop,
+                        modifier           = Modifier.fillMaxSize().blur(18.dp)
+                    )
+                    AsyncImage(
+                        model              = ImageRequest.Builder(context)
+                            .data(salon.coverImageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        contentScale       = ContentScale.Fit,
                         modifier           = Modifier.fillMaxSize()
                     )
                     Box(
