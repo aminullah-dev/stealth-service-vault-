@@ -844,7 +844,13 @@ fun CustomerDashboardScreen(
             val servicesTotal = selectedServices.sumOf { salon?.pricePerService?.get(it) ?: 0 }
             AlertDialog(
                 onDismissRequest = { showServiceDialog = false; bookingIntent = null; selectedServices.clear() },
-                title = { Text(strings.chooseService, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose) },
+                title = {
+                    Column {
+                        BookingStepper(1, listOf(strings.stepServices, strings.stepTime, strings.stepConfirm))
+                        Spacer(Modifier.height(10.dp))
+                        Text(strings.chooseService, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = DeepRose)
+                    }
+                },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         salon?.services?.forEach { service ->
@@ -1223,7 +1229,13 @@ fun CustomerDashboardScreen(
         if (showSlotPicker) {
             AlertDialog(
                 onDismissRequest = { showSlotPicker = false; bookingIntent = null; viewModel.clearSlots() },
-                title = { Text(strings.selectTimeSlot, fontWeight = FontWeight.Bold, color = DeepRose) },
+                title = {
+                    Column {
+                        BookingStepper(2, listOf(strings.stepServices, strings.stepTime, strings.stepConfirm))
+                        Spacer(Modifier.height(10.dp))
+                        Text(strings.selectTimeSlot, fontWeight = FontWeight.Bold, color = DeepRose)
+                    }
+                },
                 text = {
                   Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // Staff picker — only shown for a salon that actually has
@@ -1348,7 +1360,13 @@ fun CustomerDashboardScreen(
                     viewModel.clearPromo()
                     viewModel.clearSlots()
                 },
-                title = { Text(strings.bookingNotesTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                title = {
+                    Column {
+                        BookingStepper(3, listOf(strings.stepServices, strings.stepTime, strings.stepConfirm))
+                        Spacer(Modifier.height(10.dp))
+                        Text(strings.bookingNotesTitle, fontWeight = FontWeight.Bold, color = DeepRose)
+                    }
+                },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
@@ -2151,6 +2169,47 @@ private fun TipDialog(
         },
         containerColor = ElegantCream
     )
+}
+
+// ── Booking progress stepper ────────────────────────────────────────────────
+
+/**
+ * Compact progress header for the multi-step booking journey
+ * (Services → Time → Confirm). [current] is 1-based; every segment up to and
+ * including it fills in, and the current step's label is emphasised.
+ */
+@Composable
+private fun BookingStepper(current: Int, labels: List<String>) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier              = Modifier.fillMaxWidth()
+        ) {
+            labels.forEachIndexed { i, _ ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (i + 1 <= current) RoseGold else BlushPink)
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier              = Modifier.fillMaxWidth()
+        ) {
+            labels.forEachIndexed { i, label ->
+                Text(
+                    label,
+                    fontSize   = 10.sp,
+                    color      = if (i + 1 == current) DeepRose else Color(0xFFAAAAAA),
+                    fontWeight = if (i + 1 == current) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+    }
 }
 
 // ── Salon card ────────────────────────────────────────────────────────────────
