@@ -132,6 +132,25 @@ function hesabHeaders(apiKey) {
   };
 }
 
+// Refund a checkout-time reservation (referral credit + one promo use) when a
+// reserved booking never durably completes — a HesabPay create/session failure,
+// a failed write, or an abandoned online payment that later expires. Only
+// payments written with `reserved:true` are ever routed here; legacy
+// spend-at-settlement payments are untouched. Best-effort with logged failures.
+async function refundReservation({ customerId, referralUsed, promoId }) {
+  const used = Number(referralUsed || 0);
+  if (used > 0 && customerId) {
+    await db.doc(`users/${customerId}`)
+      .set({ referralCredit: admin.firestore.FieldValue.increment(used) }, { merge: true })
+      .catch((e) => logger.error("refundReservation: referral", e));
+  }
+  if (promoId) {
+    await db.doc(`promo_codes/${promoId}`)
+      .set({ usedCount: admin.firestore.FieldValue.increment(-1) }, { merge: true })
+      .catch((e) => logger.error("refundReservation: promo", e));
+  }
+}
+
 // The app's `users/{uid}` documents are keyed by a UUID the client generates
 // at registration (see RegisterViewModel) — NOT by the Firebase Auth uid that
 // `request.auth.uid` carries. The two are only linked via `firebaseEmail`.
@@ -362,21 +381,61 @@ exports.createPaymentSession = onCall(
     // booking completes (immediately for cash; in the webhook for online). The
     // arithmetic lives in lib/money.js so it can be unit-tested without Firebase.
     const commissionPercent = await getCommissionPercent();
-    const { afterPromo, referralUsed, price, commissionAmount, providerNet } =
-      computeCheckout({
-        listPrice,
-        promoDiscount:  promo.discount + offerDiscount + lastMinuteDisc + packageDiscount,
-        referralCredit: appUser.referralCredit,
-        commissionPercent,
-      });
+    const totalDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
 
-    // A fully-discounted booking can't go through HesabPay (it can't charge 0),
-    // so route those to cash instead of failing opaquely.
-    if (paymentMethod === "ONLINE" && price <= 0) {
-      throw new HttpsError(
-        "failed-precondition",
-        "Your discount makes this booking free — please choose Cash payment."
-      );
+    // Reserve referral credit + the promo use ATOMICALLY at checkout, reading the
+    // LIVE balance/usedCount inside the transaction — so two of the customer's
+    // bookings in flight can't over-spend the same credit, and a limited code
+    // can't exceed maxUses (the earlier reads were only a plan). The split is
+    // recomputed from the live credit here; the payment is written reserved:true
+    // so settlement does NOT spend again, and the abandon / write-failure /
+    // HesabPay-failure paths refund it (refundReservation).
+    let afterPromo, referralUsed, price, commissionAmount, providerNet;
+    {
+      const split = await db.runTransaction(async (tx) => {
+        const uRef  = db.doc(`users/${uid}`);
+        const uSnap = await tx.get(uRef);
+        const liveCredit = uSnap.exists ? Math.max(0, Number(uSnap.data().referralCredit || 0)) : 0;
+
+        let promoRef = null;
+        if (promo.promoId) {
+          promoRef = db.doc(`promo_codes/${promo.promoId}`);
+          const pSnap = await tx.get(promoRef);
+          if (pSnap.exists) {
+            const pd = pSnap.data();
+            const maxUses = Number(pd.maxUses || 0);
+            if (maxUses > 0 && Number(pd.usedCount || 0) >= maxUses) {
+              throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.");
+            }
+          }
+        }
+
+        const s = computeCheckout({
+          listPrice,
+          promoDiscount:  totalDiscount,
+          referralCredit: liveCredit,
+          commissionPercent,
+        });
+
+        // A fully-discounted booking can't go through HesabPay (it can't charge
+        // 0) — reject BEFORE reserving (the throw rolls the transaction back, so
+        // nothing is spent) and the customer re-books as cash.
+        if (paymentMethod === "ONLINE" && s.price <= 0) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Your discount makes this booking free — please choose Cash payment."
+          );
+        }
+
+        if (s.referralUsed > 0) {
+          tx.update(uRef, { referralCredit: admin.firestore.FieldValue.increment(-s.referralUsed) });
+        }
+        if (promoRef) {
+          tx.update(promoRef, { usedCount: admin.firestore.FieldValue.increment(1) });
+        }
+        return s;
+      });
+      ({ afterPromo, referralUsed, price, commissionAmount, providerNet } = split);
     }
 
     const providerId        = salon.providerId || "";
@@ -428,6 +487,7 @@ exports.createPaymentSession = onCall(
         packageDiscount,
         packageId:         appliedPackageId,
         referralUsed,
+        reserved:          true,
         commissionPercent,
         commissionAmount,
         providerNet,
@@ -437,18 +497,8 @@ exports.createPaymentSession = onCall(
         hesabSessionId:    "",
         createdAt:         Date.now(),
       });
-      // Cash bookings are confirmed immediately, so count the promo use and
-      // spend the referral credit now.
-      if (promo.promoId) {
-        batch.update(db.doc(`promo_codes/${promo.promoId}`), {
-          usedCount: admin.firestore.FieldValue.increment(1),
-        });
-      }
-      if (referralUsed > 0) {
-        batch.update(db.doc(`users/${uid}`), {
-          referralCredit: admin.firestore.FieldValue.increment(-referralUsed),
-        });
-      }
+      // Referral credit + promo use were already reserved atomically at checkout
+      // (reserved:true above), so the batch doesn't touch them here.
       if (providerId) {
         batch.set(
           db.doc(`provider_balances/${providerId}`),
@@ -469,7 +519,13 @@ exports.createPaymentSession = onCall(
           relatedId:   apptRef.id,
         });
       }
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (err) {
+        await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
+        logger.error("createPaymentSession cash write failed", err);
+        throw new HttpsError("internal", "Could not create the booking. Please try again.");
+      }
 
       return {
         paymentId:     paymentRef.id,
@@ -529,8 +585,11 @@ exports.createPaymentSession = onCall(
       packageDiscount,
       packageId:         appliedPackageId,
       referralUsed,
-      // Counted/spent in the webhook only when the payment actually succeeds, so
-      // an abandoned or failed online checkout never burns a promo use or credit.
+      // Reserved atomically at checkout (see the reservation transaction), so the
+      // webhook settlement must NOT spend referral / promo again — it checks
+      // `reserved` first. The abandon/failure paths refund it instead.
+      reserved:          true,
+      // Legacy flag, kept so any in-flight pre-reservation payment still settles.
       promoCounted:      false,
       commissionPercent,
       commissionAmount,
@@ -541,7 +600,13 @@ exports.createPaymentSession = onCall(
       hesabSessionId:    "",
       createdAt:         Date.now(),
     });
-    await createBatch.commit();
+    try {
+      await createBatch.commit();
+    } catch (err) {
+      await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
+      logger.error("createPaymentSession online write failed", err);
+      throw new HttpsError("internal", "Could not create the booking. Please try again.");
+    }
 
     // ── Call HesabPay create-session ─────────────────────────────────────────
     // Request : items[]{id, name, price}, email,
@@ -589,9 +654,11 @@ exports.createPaymentSession = onCall(
         throw new Error("HesabPay returned no checkout url.");
       }
     } catch (err) {
-      // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings.
+      // Roll back so we don't leave orphaned AWAITING_PAYMENT bookings, and
+      // refund the checkout reservation (referral credit + promo use).
       await paymentRef.update({ status: "FAILED" });
       await apptRef.delete();
+      await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
       logger.error("createPaymentSession failed", err);
       throw new HttpsError("internal", String(err.message || err));
     }
@@ -1103,11 +1170,11 @@ exports.hesabPayWebhook = onRequest(
             },
             { merge: true }
           );
-          // Count the promo use and spend any referral credit now that the
-          // payment actually succeeded — this branch runs exactly once per
-          // payment (the status/replay guards above short-circuit any retry), so
-          // neither can double-apply.
-          if (!fresh.promoCounted) {
+          // Count the promo use and spend any referral credit. Reserved payments
+          // (reserved:true) already did this atomically at checkout, so settlement
+          // must NOT spend again — only legacy pre-reservation payments fall here,
+          // and the status/replay guards make even those apply exactly once.
+          if (!fresh.reserved && !fresh.promoCounted) {
             tx.update(paymentRef, { promoCounted: true });
             if (fresh.promoCode) {
               tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
@@ -2035,6 +2102,16 @@ exports.expireAbandonedPayments = onSchedule(
         batch.update(db.doc(`appointments/${payment.appointmentId}`), { status: "CANCELLED" });
       }
       await batch.commit();
+      // A reserved online checkout spent the referral credit + promo use up front;
+      // since it was abandoned, hand them back (legacy payments never spent them
+      // until settlement, so they have nothing to refund).
+      if (payment.reserved) {
+        await refundReservation({
+          customerId:   payment.customerId,
+          referralUsed: payment.referralUsed,
+          promoId:      payment.promoCode,
+        });
+      }
       count++;
     }
     logger.log(`expireAbandonedPayments: expired ${count} stale payment(s)`);
