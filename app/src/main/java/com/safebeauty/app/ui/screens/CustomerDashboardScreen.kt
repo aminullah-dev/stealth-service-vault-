@@ -777,13 +777,14 @@ fun CustomerDashboardScreen(
                     }
                     // Jump-to-top pill — floats over the list once scrolled a few
                     // cards deep, so the user isn't stuck scrolling all the way back.
-                    AnimatedVisibility(
-                        visible  = showJumpTop,
-                        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
-                    ) {
+                    // (A plain `if` rather than AnimatedVisibility: inside a Box the
+                    // scoped AnimatedVisibility overloads are ambiguous.)
+                    if (showJumpTop) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
                                 .shadow(6.dp, RoundedCornerShape(24.dp), clip = false)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(Gradients.BrandRose)
