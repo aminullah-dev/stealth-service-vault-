@@ -53,6 +53,10 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.DangerRed
+import com.safebeauty.app.ui.theme.CardBorder
 import com.safebeauty.app.viewmodel.ForgotPinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -97,7 +101,7 @@ fun ForgotPinScreen(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(ElegantCream, Color(0xFFF0D9DF))
+                            colors = listOf(ElegantCream, CardBorder)
                         )
                     )
                     .padding(padding)
@@ -124,7 +128,7 @@ fun ForgotPinScreen(
                             Text(
                                 strings.forgotPinSubtitle,
                                 fontSize  = 13.sp,
-                                color     = Color(0xFF666666),
+                                color     = TextMuted,
                                 textAlign = TextAlign.Start
                             )
 
@@ -144,7 +148,7 @@ fun ForgotPinScreen(
                                 Text(
                                     (viewModel.state as ForgotPinViewModel.State.Error).message,
                                     fontSize = 12.sp,
-                                    color    = Color(0xFFD32F2F)
+                                    color    = DangerRed
                                 )
                             }
 
@@ -152,7 +156,7 @@ fun ForgotPinScreen(
                                 Text(
                                     strings.forgotPinNoEmail,
                                     fontSize  = 13.sp,
-                                    color     = Color(0xFF888888),
+                                    color     = TextMuted,
                                     textAlign = TextAlign.Start
                                 )
                             }
@@ -214,7 +218,7 @@ fun ForgotPinScreen(
                 Text(
                     strings.forgotPinEmailSentText,
                     fontSize  = 13.sp,
-                    color     = Color(0xFF555555),
+                    color     = TextStrong,
                     textAlign = TextAlign.Center
                 )
             },

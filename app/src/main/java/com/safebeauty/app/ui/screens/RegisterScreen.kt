@@ -83,6 +83,9 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.RegisterViewModel
 import com.safebeauty.app.util.PhoneUtils
@@ -399,7 +402,7 @@ fun RegisterScreen(
                     verticalArrangement   = Arrangement.spacedBy(0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(strings.registerConsentPrefix, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(strings.registerConsentPrefix, fontSize = 12.sp, color = TextMuted)
                     Text(
                         " ${strings.legalTermsLabel} ",
                         fontSize = 12.sp,
@@ -407,7 +410,7 @@ fun RegisterScreen(
                         color = RoseGold,
                         modifier = Modifier.clickable { openUrl("https://safebeauty.web.app/terms") }
                     )
-                    Text(strings.registerConsentAnd, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(strings.registerConsentAnd, fontSize = 12.sp, color = TextMuted)
                     Text(
                         " ${strings.legalPrivacyLabel} ",
                         fontSize = 12.sp,
@@ -415,7 +418,7 @@ fun RegisterScreen(
                         color = RoseGold,
                         modifier = Modifier.clickable { openUrl("https://safebeauty.web.app/privacy") }
                     )
-                    Text(strings.registerConsentSuffix, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(strings.registerConsentSuffix, fontSize = 12.sp, color = TextMuted)
                 }
 
                 Spacer(Modifier.height(4.dp))
@@ -453,7 +456,7 @@ fun RegisterScreen(
                     title = { Text(strings.otpTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                     text = {
                         Column {
-                            Text(strings.otpSubtitle, fontSize = 13.sp, color = Color(0xFF555555))
+                            Text(strings.otpSubtitle, fontSize = 13.sp, color = TextStrong)
                             Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value           = otpCode,
@@ -469,7 +472,7 @@ fun RegisterScreen(
                             }
                             otpError?.let {
                                 Spacer(Modifier.height(8.dp))
-                                Text(it, fontSize = 12.sp, color = Color(0xFFCC0000))
+                                Text(it, fontSize = 12.sp, color = DangerRed)
                             }
                         }
                     },
@@ -498,7 +501,7 @@ fun RegisterScreen(
                         Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp))
                     },
                     title = { Text(strings.welcomeTitle(s.name), fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text(strings.accountReadyText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                    text  = { Text(strings.accountReadyText, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
                         Button(
                             onClick = { viewModel.dismissState(); onBack() },
@@ -515,7 +518,7 @@ fun RegisterScreen(
                         Icon(Icons.Default.CheckCircle, null, tint = RoseGold, modifier = Modifier.size(40.dp))
                     },
                     title = { Text(strings.registrationSubmittedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text(strings.salonUnderReviewText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                    text  = { Text(strings.salonUnderReviewText, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
                         Button(
                             onClick = { viewModel.dismissState(); onBack() },
@@ -529,7 +532,7 @@ fun RegisterScreen(
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState() },
                     title = { Text(strings.pleaseCheckTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text(s.message, fontSize = 14.sp, color = Color(0xFF555555)) },
+                    text  = { Text(s.message, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
                         TextButton(onClick = { viewModel.dismissState() }) {
                             Text(strings.ok, color = RoseGold)

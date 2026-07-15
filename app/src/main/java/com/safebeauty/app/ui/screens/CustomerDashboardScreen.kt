@@ -159,6 +159,10 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.safebeauty.app.util.AnnouncementPrefs
@@ -525,7 +529,7 @@ fun CustomerDashboardScreen(
                         contentAlignment = Alignment.Center,
                         modifier         = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFFC0392B))
+                            .background(DangerRed)
                             .padding(vertical = 6.dp, horizontal = 16.dp)
                     ) {
                         Text(
@@ -815,7 +819,7 @@ fun CustomerDashboardScreen(
                             )
                         }
                         Spacer(Modifier.height(12.dp))
-                        Text(strings.photoConfirmBody, fontSize = 13.sp, color = Color(0xFF555555), textAlign = TextAlign.Center)
+                        Text(strings.photoConfirmBody, fontSize = 13.sp, color = TextStrong, textAlign = TextAlign.Center)
                     }
                 },
                 confirmButton = {
@@ -1128,7 +1132,7 @@ fun CustomerDashboardScreen(
                         when (giftState) {
                             is GiftUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
                             is GiftUiState.Sent     -> Text(strings.giftSent, fontSize = 12.sp, color = AvailableGreen)
-                            is GiftUiState.Failed   -> Text(strings.giftFailed, fontSize = 12.sp, color = Color(0xFFCC0000))
+                            is GiftUiState.Failed   -> Text(strings.giftFailed, fontSize = 12.sp, color = DangerRed)
                             else                    -> {}
                         }
                     }
@@ -1169,7 +1173,7 @@ fun CustomerDashboardScreen(
                 title = { Text(strings.redeemPoints, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(strings.redeemHint, fontSize = 13.sp, color = Color(0xFF555555))
+                        Text(strings.redeemHint, fontSize = 13.sp, color = TextStrong)
                         if (eligible >= 100) {
                             Text(
                                 "$eligible ${strings.loyaltyPtsUnit} → %,d AFN".format(eligible),
@@ -1177,7 +1181,7 @@ fun CustomerDashboardScreen(
                             )
                         }
                         if (redeemResult == "redeem_failed") {
-                            Text(strings.redeemTooFew, fontSize = 12.sp, color = Color(0xFFCC0000))
+                            Text(strings.redeemTooFew, fontSize = 12.sp, color = DangerRed)
                         }
                     }
                 },
@@ -1489,7 +1493,7 @@ fun CustomerDashboardScreen(
                                 }
                             }
                             viewModel.promoError?.let { err ->
-                                Text(err, fontSize = 11.sp, color = Color(0xFFD32F2F))
+                                Text(err, fontSize = 11.sp, color = DangerRed)
                             }
                         }
                     }
@@ -1556,7 +1560,7 @@ fun CustomerDashboardScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(color = RoseGold, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(14.dp))
-                                Text(strings.paymentPreparing, fontSize = 14.sp, color = Color(0xFF555555))
+                                Text(strings.paymentPreparing, fontSize = 14.sp, color = TextStrong)
                             }
                         },
                         confirmButton = { },
@@ -1580,7 +1584,7 @@ fun CustomerDashboardScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = DeepRose
                                 )
-                                Text(strings.paymentOpenInstruction, fontSize = 13.sp, color = Color(0xFF555555))
+                                Text(strings.paymentOpenInstruction, fontSize = 13.sp, color = TextStrong)
                                 Spacer(Modifier.height(4.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     CircularProgressIndicator(color = RoseGold, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -1607,7 +1611,7 @@ fun CustomerDashboardScreen(
                     AlertDialog(
                         onDismissRequest = { viewModel.cancelCheckout() },
                         title = { Text(strings.paymentTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                        text = { Text(strings.paymentFailed, fontSize = 14.sp, color = Color(0xFF555555)) },
+                        text = { Text(strings.paymentFailed, fontSize = 14.sp, color = TextStrong) },
                         confirmButton = {
                             Button(
                                 onClick = { viewModel.cancelCheckout() },
@@ -1641,7 +1645,7 @@ fun CustomerDashboardScreen(
                 onDismissRequest = { viewModel.dismissWaitlistJoined() },
                 icon  = { Icon(Icons.Default.CheckCircle, null, tint = AvailableGreen, modifier = Modifier.size(40.dp)) },
                 title = { Text(strings.waitlistJoined, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(strings.waitlistJoinedText(salonName), fontSize = 14.sp, color = Color(0xFF555555)) },
+                text  = { Text(strings.waitlistJoinedText(salonName), fontSize = 14.sp, color = TextStrong) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissWaitlistJoined() },
@@ -1664,7 +1668,7 @@ fun CustomerDashboardScreen(
                         if (cashAmount != null) strings.cashBookingConfirmText(salonName, cashAmount)
                         else strings.bookingConfirmText(salonName),
                         fontSize = 14.sp,
-                        color    = Color(0xFF555555)
+                        color    = TextStrong
                     )
                 },
                 confirmButton = {
@@ -1681,7 +1685,7 @@ fun CustomerDashboardScreen(
             AlertDialog(
                 onDismissRequest = { viewModel.dismissCancelFailed() },
                 title = { Text(strings.actionFailedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = TextStrong) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissCancelFailed() },
@@ -2145,7 +2149,7 @@ private fun TipDialog(
                 when (tipState) {
                     is TipUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
                     is TipUiState.Sent     -> Text(strings.tipSent, fontSize = 12.sp, color = AvailableGreen)
-                    is TipUiState.Failed   -> Text(strings.tipFailed, fontSize = 12.sp, color = Color(0xFFCC0000))
+                    is TipUiState.Failed   -> Text(strings.tipFailed, fontSize = 12.sp, color = DangerRed)
                     else -> {}
                 }
             }
@@ -2204,7 +2208,7 @@ private fun BookingStepper(current: Int, labels: List<String>) {
                 Text(
                     label,
                     fontSize   = 10.sp,
-                    color      = if (i + 1 == current) DeepRose else Color(0xFFAAAAAA),
+                    color      = if (i + 1 == current) DeepRose else TextFaint,
                     fontWeight = if (i + 1 == current) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -2306,7 +2310,7 @@ private fun SalonCard(
                         Text(
                             text     = salon.district,
                             fontSize = 12.sp,
-                            color    = Color(0xFF888888),
+                            color    = TextMuted,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -2488,7 +2492,7 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFFFF8F0))
+                .background(ElegantCream)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             SwipeToDismissBox(
@@ -2671,7 +2675,7 @@ private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier =
             Text(
                 text      = if (favoritesOnly) strings.noFavoritesSubtext else strings.noProvidersSubtext,
                 fontSize  = 13.sp,
-                color     = Color(0xFFAAAAAA),
+                color     = TextFaint,
                 textAlign = TextAlign.Center
             )
         }
@@ -2753,9 +2757,9 @@ internal fun SalonBadgeChip(badge: SalonBadge, modifier: Modifier = Modifier) {
     if (badge == SalonBadge.NONE) return
     val strings = LocalStrings.current
     val (label, color) = when (badge) {
-        SalonBadge.VERIFIED -> Pair(strings.badgeVerified, Color(0xFF4CAF50))
-        SalonBadge.GOLD     -> Pair(strings.badgeGold,     Color(0xFFD4A853))
-        SalonBadge.SILVER   -> Pair(strings.badgeSilver,   Color(0xFF9E9E9E))
+        SalonBadge.VERIFIED -> Pair(strings.badgeVerified, AvailableGreen)
+        SalonBadge.GOLD     -> Pair(strings.badgeGold,     WarmGold)
+        SalonBadge.SILVER   -> Pair(strings.badgeSilver,   UnavailableGrey)
         SalonBadge.NONE     -> Pair("",                    Color.Transparent)
     }
     Row(

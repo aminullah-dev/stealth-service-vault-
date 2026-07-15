@@ -144,6 +144,9 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -253,7 +256,7 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                         }
                     }
                 } else {
-                    Text(strings.noServicesAdded, fontSize = 13.sp, color = Color(0xFFAAAAAA))
+                    Text(strings.noServicesAdded, fontSize = 13.sp, color = TextFaint)
                 }
 
                 // ── Price per service ──────────────────────────────────────
@@ -453,7 +456,7 @@ private fun LocationSection(viewModel: ProviderViewModel) {
                 Spacer(Modifier.width(8.dp))
                 Text(strings.sectionLocationPin, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
             }
-            Text(strings.locationPinHint, fontSize = 11.sp, color = Color(0xFF999999))
+            Text(strings.locationPinHint, fontSize = 11.sp, color = TextMuted)
             HorizontalDivider(color = BlushPink)
 
             val isSet = viewModel.editLatitude != 0.0 || viewModel.editLongitude != 0.0
@@ -461,14 +464,14 @@ private fun LocationSection(viewModel: ProviderViewModel) {
                 Icon(
                     if (isSet) Icons.Default.CheckCircle else Icons.Default.LocationOff,
                     null,
-                    tint = if (isSet) AvailableGreen else Color(0xFFAAAAAA),
+                    tint = if (isSet) AvailableGreen else TextFaint,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     if (isSet) strings.locationIsSet else strings.locationNotSet,
                     fontSize = 13.sp,
-                    color    = if (isSet) DeepRose else Color(0xFF888888)
+                    color    = if (isSet) DeepRose else TextMuted
                 )
             }
 
@@ -532,11 +535,11 @@ private fun StaffSection(viewModel: ProviderViewModel) {
                 Spacer(Modifier.width(8.dp))
                 Text(strings.sectionStaff, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
             }
-            Text(strings.staffHint, fontSize = 11.sp, color = Color(0xFF999999))
+            Text(strings.staffHint, fontSize = 11.sp, color = TextMuted)
             HorizontalDivider(color = BlushPink)
 
             if (viewModel.editStaff.isEmpty()) {
-                Text(strings.staffEmpty, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+                Text(strings.staffEmpty, fontSize = 12.sp, color = TextFaint)
             } else {
                 viewModel.editStaff.forEach { member ->
                     Row(
@@ -548,7 +551,7 @@ private fun StaffSection(viewModel: ProviderViewModel) {
                                 member.name,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (member.active) DeepRose else Color(0xFFAAAAAA)
+                                color = if (member.active) DeepRose else TextFaint
                             )
                             if (member.specialty.isNotBlank()) {
                                 Text(member.specialty, fontSize = 11.sp, color = RoseGold)
@@ -565,7 +568,7 @@ private fun StaffSection(viewModel: ProviderViewModel) {
                             )
                         )
                         IconButton(onClick = { viewModel.removeStaff(member.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = strings.staffRemove, tint = Color(0xFFB00020))
+                            Icon(Icons.Default.Delete, contentDescription = strings.staffRemove, tint = DangerRed)
                         }
                     }
                     // ── Per-stylist portfolio (up to 4 photos) ────────────────
@@ -676,7 +679,7 @@ private fun OffersSection(viewModel: ProviderViewModel) {
             HorizontalDivider(color = BlushPink)
 
             if (offers.isEmpty()) {
-                Text(strings.noOffersYet, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+                Text(strings.noOffersYet, fontSize = 12.sp, color = TextFaint)
             } else {
                 offers.forEach { offer ->
                     Row(
@@ -688,7 +691,7 @@ private fun OffersSection(viewModel: ProviderViewModel) {
                                 offer.title,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (offer.active) DeepRose else Color(0xFFAAAAAA)
+                                color = if (offer.active) DeepRose else TextFaint
                             )
                             if (offer.description.isNotBlank()) {
                                 Text(offer.description, fontSize = 11.sp, color = RoseGold)
@@ -703,7 +706,7 @@ private fun OffersSection(viewModel: ProviderViewModel) {
                             )
                         )
                         IconButton(onClick = { viewModel.deleteOffer(offer.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFB00020))
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = DangerRed)
                         }
                     }
                     HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))
@@ -795,7 +798,7 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
             }
 
             if (gallery.isEmpty() && !viewModel.isUploadingPhoto) {
-                Text(strings.noPhotosYet, fontSize = 13.sp, color = Color(0xFFAAAAAA))
+                Text(strings.noPhotosYet, fontSize = 13.sp, color = TextFaint)
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (viewModel.isUploadingPhoto) {
@@ -829,7 +832,7 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
             }
 
             viewModel.photoError?.let { err ->
-                Text(err, fontSize = 12.sp, color = Color(0xFFD32F2F))
+                Text(err, fontSize = 12.sp, color = DangerRed)
             }
 
             Button(
@@ -976,7 +979,7 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                                 Text(
                                     text     = strings.closedThisDay,
                                     fontSize = 12.sp,
-                                    color    = Color(0xFFAAAAAA)
+                                    color    = TextFaint
                                 )
                                 Spacer(Modifier.width(8.dp))
                             }
@@ -987,7 +990,7 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                                     checkedThumbColor   = Color.White,
                                     checkedTrackColor   = RoseGold,
                                     uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFCCCCCC)
+                                    uncheckedTrackColor = TextFaint
                                 )
                             )
                         }
@@ -1000,7 +1003,7 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                                 val openLabel  = "%02d:%02d".format(wh.openHour, wh.openMinute)
                                 val closeLabel = "%02d:%02d".format(wh.closeHour, wh.closeMinute)
 
-                                Text(strings.openTime, fontSize = 12.sp, color = Color(0xFF888888))
+                                Text(strings.openTime, fontSize = 12.sp, color = TextMuted)
                                 TextButton(
                                     onClick = {
                                         TimePickerDialog(context, { _, h, m ->
@@ -1011,9 +1014,9 @@ private fun WorkingHoursSection(viewModel: ProviderViewModel) {
                                     Text(openLabel, fontSize = 14.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
                                 }
 
-                                Text("–", fontSize = 14.sp, color = Color(0xFF888888))
+                                Text("–", fontSize = 14.sp, color = TextMuted)
 
-                                Text(strings.closeTime, fontSize = 12.sp, color = Color(0xFF888888))
+                                Text(strings.closeTime, fontSize = 12.sp, color = TextMuted)
                                 TextButton(
                                     onClick = {
                                         TimePickerDialog(context, { _, h, m ->
@@ -1088,7 +1091,7 @@ private fun TimeOffSection(
             Text(strings.timeOffHint, fontSize = 11.sp, color = DeepRose)
 
             if (blockedDates.isEmpty()) {
-                Text(strings.timeOffNone, fontSize = 12.sp, color = Color(0xFFAAAAAA))
+                Text(strings.timeOffNone, fontSize = 12.sp, color = TextFaint)
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     blockedDates.forEach { date ->
@@ -1264,7 +1267,7 @@ private fun PackagesSection(viewModel: ProviderViewModel) {
                         Text(pkg.services.joinToString("، "), fontSize = 11.sp, color = RoseGold)
                     }
                     IconButton(onClick = { viewModel.removePackage(pkg.id) }) {
-                        Icon(Icons.Default.Delete, contentDescription = strings.remove, tint = Color(0xFFB00020))
+                        Icon(Icons.Default.Delete, contentDescription = strings.remove, tint = DangerRed)
                     }
                 }
                 HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))

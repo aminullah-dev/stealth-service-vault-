@@ -51,6 +51,8 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextFaint
 
 private const val SUPPORT_EMAIL = "Aminhashemi979@gmail.com"
 private const val TERMS_URL   = "https://safebeauty.web.app/terms"
@@ -118,7 +120,7 @@ fun SupportScreen(onBack: () -> Unit) {
                 Text(
                     strings.supportIntro,
                     fontSize = 14.sp,
-                    color = Color(0xFF555555),
+                    color = TextStrong,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -212,6 +214,6 @@ private fun LegalLinkRow(
     ) {
         Icon(icon, null, tint = RoseGold, modifier = Modifier.size(22.dp))
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = DeepRose, modifier = Modifier.weight(1f))
-        Icon(Icons.Default.OpenInNew, null, tint = Color(0xFFAAAAAA), modifier = Modifier.size(16.dp))
+        Icon(Icons.Default.OpenInNew, null, tint = TextFaint, modifier = Modifier.size(16.dp))
     }
 }

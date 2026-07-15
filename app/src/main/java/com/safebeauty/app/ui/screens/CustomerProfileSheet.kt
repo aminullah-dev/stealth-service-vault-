@@ -158,6 +158,9 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
@@ -348,7 +351,7 @@ internal fun CustomerProfileSheetContent(
                         Text(
                             dateFmt.format(Date(appt.appointmentDate)),
                             fontSize = 10.sp,
-                            color    = Color(0xFFAAAAAA)
+                            color    = TextFaint
                         )
                     }
                     Spacer(Modifier.width(8.dp))
@@ -429,7 +432,7 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
                     }
                 }
             }
-            Text(strings.referralCardBody, fontSize = 12.sp, color = Color(0xFF777777), lineHeight = 18.sp)
+            Text(strings.referralCardBody, fontSize = 12.sp, color = TextMuted, lineHeight = 18.sp)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -471,7 +474,7 @@ internal fun LoyaltyCard(points: Int, tier: LoyaltyTier, modifier: Modifier = Mo
 
     val (tierLabel, tierColor, nextTarget) = when (tier) {
         LoyaltyTier.NEWCOMER -> Triple(strings.loyaltyTierNewcomer, Color(0xFFCD7F32), 50)
-        LoyaltyTier.REGULAR  -> Triple(strings.loyaltyTierRegular,  Color(0xFF9E9E9E), 150)
+        LoyaltyTier.REGULAR  -> Triple(strings.loyaltyTierRegular,  UnavailableGrey, 150)
         LoyaltyTier.VIP      -> Triple(strings.loyaltyTierVIP,      WarmGold,          150)
     }
     val progress = when (tier) {
@@ -590,7 +593,7 @@ fun ChangePinSection(
                 Text(
                     (changePinVm.state as ChangePinViewModel.State.Error).message,
                     fontSize = 12.sp,
-                    color    = Color(0xFFD32F2F)
+                    color    = DangerRed
                 )
             }
             Button(

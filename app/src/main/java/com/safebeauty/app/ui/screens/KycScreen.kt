@@ -53,6 +53,8 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.viewmodel.KycViewModel
 import kotlinx.coroutines.launch
@@ -128,7 +130,7 @@ private fun StatusCard(
         ) {
             Icon(icon, null, tint = tint, modifier = Modifier.size(48.dp))
             Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
-            Text(body, fontSize = 14.sp, color = Color(0xFF555555))
+            Text(body, fontSize = 14.sp, color = TextStrong)
         }
     }
 }
@@ -145,13 +147,13 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
         cursorColor          = RoseGold
     )
 
-    Text(strings.kycSubtitle, fontSize = 14.sp, color = Color(0xFF555555))
+    Text(strings.kycSubtitle, fontSize = 14.sp, color = TextStrong)
 
     // If a previous submission was rejected, show the admin's reason.
     if (status == "REJECTED") {
         Card(
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFDECEC)),
+            colors = CardDefaults.cardColors(containerColor = DangerRed.copy(alpha = 0.1f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -159,10 +161,10 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Icon(Icons.Default.Warning, null, tint = Color(0xFFB00020), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Warning, null, tint = DangerRed, modifier = Modifier.size(20.dp))
                 Text(
                     strings.kycRejectedReason(viewModel.user.collectAsStateWithLifecycle().value?.kycRejectionReason ?: ""),
-                    fontSize = 13.sp, color = Color(0xFFB00020)
+                    fontSize = 13.sp, color = DangerRed
                 )
             }
         }
@@ -237,7 +239,7 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
 
     val submitState = viewModel.submitState
     (submitState as? KycViewModel.SubmitState.Error)?.let {
-        Text(it.message, color = Color(0xFFB00020), fontSize = 13.sp)
+        Text(it.message, color = DangerRed, fontSize = 13.sp)
     }
 
     Spacer(Modifier.height(4.dp))

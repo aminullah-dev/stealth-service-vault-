@@ -137,6 +137,7 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -213,7 +214,7 @@ private fun StatCard(label: String, value: String, color: Color, modifier: Modif
         ) {
             Text(value, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = color)
             Spacer(Modifier.height(4.dp))
-            Text(label, fontSize = 11.sp, color = Color(0xFF888888), textAlign = TextAlign.Center)
+            Text(label, fontSize = 11.sp, color = TextMuted, textAlign = TextAlign.Center)
         }
     }
 }

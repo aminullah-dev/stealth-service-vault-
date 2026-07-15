@@ -134,6 +134,10 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
+import com.safebeauty.app.ui.theme.WarningOrange
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -379,7 +383,7 @@ fun ProviderDashboardScreen(
                     )
                 },
                 title = { Text(strings.profileSavedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(strings.profileSavedText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                text  = { Text(strings.profileSavedText, fontSize = 14.sp, color = TextStrong) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissSaveSuccess() },
@@ -395,7 +399,7 @@ fun ProviderDashboardScreen(
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.dismissSaveError() },
                 title = { Text(strings.actionFailedTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = Color(0xFF555555)) },
+                text  = { Text(strings.actionFailedText, fontSize = 14.sp, color = TextStrong) },
                 confirmButton = {
                     Button(
                         onClick = { viewModel.dismissSaveError() },
@@ -494,7 +498,7 @@ private fun RateCustomerDialog(
                             Icon(
                                 if (star <= rating) Icons.Default.Star else Icons.Default.StarBorder,
                                 contentDescription = "$star",
-                                tint     = if (star <= rating) WarmGold else Color(0xFFCCCCCC),
+                                tint     = if (star <= rating) WarmGold else TextFaint,
                                 modifier = Modifier.size(30.dp)
                             )
                         }
@@ -508,9 +512,9 @@ private fun RateCustomerDialog(
                     androidx.compose.material3.Checkbox(
                         checked = noShow,
                         onCheckedChange = { noShow = it },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color(0xFFB00020))
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = DangerRed)
                     )
-                    Text(strings.rateCustomerNoShow, fontSize = 14.sp, color = Color(0xFF444444))
+                    Text(strings.rateCustomerNoShow, fontSize = 14.sp, color = TextStrong)
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -519,9 +523,9 @@ private fun RateCustomerDialog(
                     androidx.compose.material3.Checkbox(
                         checked = flagged,
                         onCheckedChange = { flagged = it },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = Color(0xFFB00020))
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(checkedColor = DangerRed)
                     )
-                    Text(strings.rateCustomerFlag, fontSize = 14.sp, color = Color(0xFF444444))
+                    Text(strings.rateCustomerFlag, fontSize = 14.sp, color = TextStrong)
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
@@ -586,7 +590,7 @@ private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFFFF8F0))
+                .background(ElegantCream)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             SwipeToDismissBox(
@@ -642,7 +646,7 @@ private fun ProviderHiddenBanner(onGoLive: () -> Unit) {
     val strings = LocalStrings.current
     ElevatedCard(
         shape     = RoundedCornerShape(20.dp),
-        colors    = CardDefaults.elevatedCardColors(containerColor = Color(0xFFFFF3E0)),
+        colors    = CardDefaults.elevatedCardColors(containerColor = WarningOrange.copy(alpha = 0.12f)),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         modifier  = Modifier
             .fillMaxWidth()
@@ -653,7 +657,7 @@ private fun ProviderHiddenBanner(onGoLive: () -> Unit) {
                 Icon(
                     Icons.Default.VisibilityOff,
                     contentDescription = null,
-                    tint     = Color(0xFFB26A00),
+                    tint     = WarningOrange,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(Modifier.width(10.dp))
@@ -661,14 +665,14 @@ private fun ProviderHiddenBanner(onGoLive: () -> Unit) {
                     strings.providerHiddenTitle,
                     fontWeight = FontWeight.Bold,
                     fontSize   = 15.sp,
-                    color      = Color(0xFF8A5200)
+                    color      = WarningOrange
                 )
             }
             Spacer(Modifier.height(8.dp))
             Text(
                 strings.providerHiddenBody,
                 fontSize = 13.sp,
-                color    = Color(0xFF9A6A2E),
+                color    = WarningOrange,
                 lineHeight = 19.sp
             )
             Spacer(Modifier.height(12.dp))

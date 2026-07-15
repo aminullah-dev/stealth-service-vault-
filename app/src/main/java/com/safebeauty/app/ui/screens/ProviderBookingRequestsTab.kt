@@ -138,6 +138,9 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -206,7 +209,7 @@ internal fun BookingRequestsTab(
                 Text(
                     text      = strings.noPendingRequestsSubtext,
                     fontSize  = 13.sp,
-                    color     = Color(0xFFAAAAAA),
+                    color     = TextFaint,
                     textAlign = TextAlign.Center
                 )
             }
@@ -323,14 +326,14 @@ private fun BookingRequestCard(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                                        .background(DangerRed.copy(alpha = 0.12f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text       = strings.paymentMethodCash,
                                         fontSize   = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color      = Color(0xFFB00020)
+                                        color      = DangerRed
                                     )
                                 }
                             }
@@ -341,14 +344,14 @@ private fun BookingRequestCard(
                                 Icon(
                                     Icons.Default.Person,
                                     contentDescription = null,
-                                    tint     = Color(0xFF888888),
+                                    tint     = TextMuted,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     text     = appointment.customerPhone,
                                     fontSize = 12.sp,
-                                    color    = Color(0xFF666666),
+                                    color    = TextMuted,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -411,7 +414,7 @@ private fun BookingRequestCard(
                         Icon(
                             Icons.Default.SupportAgent,
                             contentDescription = strings.contactSupport,
-                            tint     = Color(0xFF888888),
+                            tint     = TextMuted,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -425,7 +428,7 @@ private fun BookingRequestCard(
                 Text(
                     text     = "${strings.requestedAt} ${dateFmt.format(Date(appointment.appointmentDate))}",
                     fontSize = 12.sp,
-                    color    = Color(0xFF888888)
+                    color    = TextMuted
                 )
 
                 if (appointment.notes.isNotBlank()) {
@@ -436,7 +439,7 @@ private fun BookingRequestCard(
                         Text(
                             text      = appointment.notes,
                             fontSize  = 12.sp,
-                            color     = Color(0xFF666666),
+                            color     = TextMuted,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
                             maxLines  = 3,
                             overflow  = TextOverflow.Ellipsis
@@ -505,7 +508,7 @@ private fun CustomerReputationBadge(appointment: AppointmentDocument) {
         Text(
             text     = strings.customerNewBadge,
             fontSize = 11.sp,
-            color    = Color(0xFF9E9E9E),
+            color    = TextMuted,
             fontWeight = FontWeight.Medium
         )
         return
@@ -527,14 +530,14 @@ private fun CustomerReputationBadge(appointment: AppointmentDocument) {
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                    .background(DangerRed.copy(alpha = 0.12f))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
                     text       = strings.customerNoShowBadge(noShows),
                     fontSize   = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color      = Color(0xFFB00020)
+                    color      = DangerRed
                 )
             }
         }
@@ -567,7 +570,7 @@ private fun SwipeableRequestCard(
             val bg by animateColorAsState(
                 targetValue = when (dir) {
                     SwipeToDismissBoxValue.StartToEnd -> AvailableGreen
-                    SwipeToDismissBoxValue.EndToStart -> Color(0xFFD32F2F)
+                    SwipeToDismissBoxValue.EndToStart -> DangerRed
                     else -> Color.Transparent
                 },
                 label = "swipe_bg"

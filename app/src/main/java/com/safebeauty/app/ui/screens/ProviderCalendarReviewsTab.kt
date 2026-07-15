@@ -138,6 +138,11 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.RosePetal
+import com.safebeauty.app.ui.theme.PetalPink
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -232,7 +237,7 @@ internal fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                         Text(
                             text      = d,
                             fontSize  = 11.sp,
-                            color     = Color(0xFF999999),
+                            color     = TextMuted,
                             textAlign = TextAlign.Center,
                             modifier  = Modifier.weight(1f)
                         )
@@ -283,7 +288,7 @@ internal fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                                         color      = when {
                                             isSelected -> Color.White
                                             isToday    -> DeepRose
-                                            else       -> Color(0xFF333333)
+                                            else       -> TextStrong
                                         },
                                         fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
                                         textAlign  = TextAlign.Center
@@ -317,7 +322,7 @@ internal fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                     contentAlignment = Alignment.Center,
                     modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                 ) {
-                    Text(strings.calendarTapDay, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                    Text(strings.calendarTapDay, fontSize = 14.sp, color = TextFaint, textAlign = TextAlign.Center)
                 }
             }
             selectedDayAppts.isEmpty() -> {
@@ -325,7 +330,7 @@ internal fun CalendarTab(allAppointments: List<AppointmentDocument>) {
                     contentAlignment = Alignment.Center,
                     modifier         = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                 ) {
-                    Text(strings.calendarNoAppointments, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                    Text(strings.calendarNoAppointments, fontSize = 14.sp, color = TextFaint, textAlign = TextAlign.Center)
                 }
             }
             else -> {
@@ -376,7 +381,7 @@ private fun CalendarAppointmentRow(appt: AppointmentDocument) {
                 Text(appt.customerName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
                 Text(appt.serviceName,  fontSize   = 12.sp,               color = RoseGold)
                 if (appt.customerPhone.isNotBlank()) {
-                    Text(appt.customerPhone, fontSize = 11.sp, color = Color(0xFF888888))
+                    Text(appt.customerPhone, fontSize = 11.sp, color = TextMuted)
                 }
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -418,7 +423,7 @@ internal fun ReviewsTab(
 
     if (reviews.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(strings.noReviewsYet, color = Color(0xFF888888), fontSize = 14.sp)
+            Text(strings.noReviewsYet, color = TextMuted, fontSize = 14.sp)
         }
         return
     }
@@ -436,7 +441,7 @@ internal fun ReviewsTab(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(16.dp),
-                colors   = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F3))
+                colors   = CardDefaults.cardColors(containerColor = PetalPink)
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -459,10 +464,10 @@ internal fun ReviewsTab(
                                         progress   = { if (reviews.isNotEmpty()) count.toFloat() / reviews.size else 0f },
                                         modifier   = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
                                         color      = WarmGold,
-                                        trackColor = Color(0xFFE0C8CF)
+                                        trackColor = BlushPink
                                     )
                                     Spacer(Modifier.width(6.dp))
-                                    Text("$count", fontSize = 11.sp, color = Color(0xFF888888),
+                                    Text("$count", fontSize = 11.sp, color = TextMuted,
                                         modifier = Modifier.width(20.dp))
                                 }
                                 Spacer(Modifier.height(3.dp))
@@ -471,7 +476,7 @@ internal fun ReviewsTab(
                     }
                     Text(
                         "${reviews.size} ${strings.reviews}",
-                        fontSize = 12.sp, color = Color(0xFF888888),
+                        fontSize = 12.sp, color = TextMuted,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -520,7 +525,7 @@ private fun ProviderReviewCard(
                 Column(Modifier.weight(1f)) {
                     Text(review.customerName, fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp, color = DeepRose)
-                    Text(dateStr, fontSize = 11.sp, color = Color(0xFF888888))
+                    Text(dateStr, fontSize = 11.sp, color = TextMuted)
                 }
                 // Stars
                 Row {
@@ -537,7 +542,7 @@ private fun ProviderReviewCard(
             // Comment
             if (review.comment.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text(review.comment, fontSize = 13.sp, color = Color(0xFF333333))
+                Text(review.comment, fontSize = 13.sp, color = TextStrong)
             }
             // Existing reply (collapsed view)
             if (review.providerReply.isNotBlank() && !isExpanded) {
@@ -547,11 +552,11 @@ private fun ProviderReviewCard(
                         .fillMaxWidth()
                         .border(
                             width = 3.dp,
-                            color = Color(0xFFE8A0B0),
+                            color = RosePetal,
                             shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 8.dp,
                                 topEnd = 8.dp, bottomEnd = 8.dp)
                         )
-                        .background(Color(0xFFFFF0F3), RoundedCornerShape(topStart = 0.dp,
+                        .background(PetalPink, RoundedCornerShape(topStart = 0.dp,
                             bottomStart = 8.dp, topEnd = 8.dp, bottomEnd = 8.dp))
                         .padding(10.dp)
                 ) {
@@ -559,7 +564,7 @@ private fun ProviderReviewCard(
                         Text(strings.providerReplied, fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold, color = RoseGold)
                         Spacer(Modifier.height(2.dp))
-                        Text(review.providerReply, fontSize = 12.sp, color = Color(0xFF444444))
+                        Text(review.providerReply, fontSize = 12.sp, color = TextStrong)
                     }
                     IconButton(onClick = onExpand, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.RateReview, contentDescription = null,
@@ -581,7 +586,7 @@ private fun ProviderReviewCard(
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     TextButton(onClick = onExpand) {
-                        Text(strings.cancel, color = Color(0xFF888888))
+                        Text(strings.cancel, color = TextMuted)
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(

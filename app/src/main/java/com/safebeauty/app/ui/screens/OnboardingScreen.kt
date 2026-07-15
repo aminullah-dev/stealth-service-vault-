@@ -43,6 +43,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextMuted
 
 private data class OnboardingSlide(
     val icon: ImageVector,
@@ -112,7 +113,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         Text(
                             slide.subtitle,
                             fontSize = 14.sp,
-                            color = Color(0xFF777777),
+                            color = TextMuted,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )

@@ -73,6 +73,10 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.DangerRed
+import com.safebeauty.app.ui.theme.PetalPink
+import com.safebeauty.app.ui.theme.AdminPurple
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -237,7 +241,7 @@ private fun SwipeableNotificationCard(
         backgroundContent  = {
             val bg by animateColorAsState(
                 targetValue = if (dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart)
-                    Color(0xFFD32F2F) else Color.Transparent,
+                    DangerRed else Color.Transparent,
                 label = "swipe_bg"
             )
             Box(
@@ -261,7 +265,7 @@ private fun NotificationCard(
     notification: NotificationDocument,
     onClick: () -> Unit
 ) {
-    val bgColor = if (!notification.isRead) Color(0xFFFFF0F3) else DashboardSurface
+    val bgColor = if (!notification.isRead) PetalPink else DashboardSurface
 
     Card(
         modifier = Modifier
@@ -303,7 +307,7 @@ private fun NotificationCard(
                     Text(
                         text     = notification.body,
                         fontSize = 13.sp,
-                        color    = Color(0xFF555555),
+                        color    = TextStrong,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -332,12 +336,12 @@ private fun NotificationCard(
 @Composable
 private fun notifIconAndColor(type: String): Pair<ImageVector, Color> = when (type) {
     "BOOKING_CONFIRMED"   -> Icons.Default.CheckCircle   to AvailableGreen
-    "BOOKING_CANCELLED"   -> Icons.Default.Cancel         to Color(0xFFD32F2F)
+    "BOOKING_CANCELLED"   -> Icons.Default.Cancel         to DangerRed
     "NEW_BOOKING"         -> Icons.Default.CalendarMonth  to RoseGold
     "BOOKING_RESCHEDULED" -> Icons.Default.CalendarMonth  to WarmGold
     "BOOKING_REMINDER"    -> Icons.Default.Schedule       to RoseGold
     "WAITLIST"            -> Icons.Default.Schedule       to WarmGold
-    "BROADCAST"           -> Icons.Default.Campaign       to Color(0xFF7B6FA0)
+    "BROADCAST"           -> Icons.Default.Campaign       to AdminPurple
     else                  -> Icons.Default.Info           to ChipInactive
 }
 

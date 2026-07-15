@@ -57,6 +57,7 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.ChipInactive
+import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -155,7 +156,7 @@ private fun ChatBubble(message: ChatMessage, isMine: Boolean) {
     val timeFmt   = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val bg        = if (isMine) RoseGold else DashboardSurface
     val fg        = if (isMine) Color.White else DeepRose
-    val timeColor = if (isMine) Color.White.copy(alpha = 0.7f) else Color(0xFFAAAAAA)
+    val timeColor = if (isMine) Color.White.copy(alpha = 0.7f) else TextFaint
 
     Row(
         modifier              = Modifier.fillMaxWidth(),
@@ -230,7 +231,7 @@ private fun ChatInputBar(
             OutlinedTextField(
                 value         = draft,
                 onValueChange = onDraftChanged,
-                placeholder   = { Text(placeholder, fontSize = 14.sp, color = Color(0xFFAAAAAA)) },
+                placeholder   = { Text(placeholder, fontSize = 14.sp, color = TextFaint) },
                 singleLine    = false,
                 maxLines      = 4,
                 modifier      = Modifier.weight(1f),

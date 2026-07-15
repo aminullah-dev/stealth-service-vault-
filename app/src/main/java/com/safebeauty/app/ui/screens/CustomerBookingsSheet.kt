@@ -159,6 +159,10 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
@@ -229,7 +233,7 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.height(12.dp))
                     Text(strings.noBookingsTitle, fontSize = 15.sp, color = DeepRose, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
-                    Text(strings.noBookingsSubtext, fontSize = 13.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                    Text(strings.noBookingsSubtext, fontSize = 13.sp, color = TextFaint, textAlign = TextAlign.Center)
                 }
             }
         } else {
@@ -261,7 +265,7 @@ internal fun BookingsSheetContent(
                         modifier = Modifier.size(8.dp).clip(CircleShape).background(UnavailableGrey)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF888888))
+                    Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextMuted)
                 }
                 past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id]) }
             }
@@ -293,11 +297,11 @@ internal fun BookingsSheetContent(
         AlertDialog(
             onDismissRequest = { cancelTarget = null },
             title = { Text(strings.cancelConfirmTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-            text  = { Text(strings.cancelConfirmText, fontSize = 14.sp, color = Color(0xFF555555)) },
+            text  = { Text(strings.cancelConfirmText, fontSize = 14.sp, color = TextStrong) },
             confirmButton = {
                 Button(
                     onClick = { onCancelClick(appt); cancelTarget = null },
-                    colors  = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))
+                    colors  = ButtonDefaults.buttonColors(containerColor = DangerRed)
                 ) { Text(strings.cancelAppointment, color = Color.White) }
             },
             dismissButton = {
@@ -366,7 +370,7 @@ private fun BookingCard(
                     Text(
                         "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
                         fontSize = 11.sp,
-                        color    = Color(0xFFAAAAAA)
+                        color    = TextFaint
                     )
                 }
                 Spacer(Modifier.width(4.dp))
@@ -476,8 +480,8 @@ private fun BookingCard(
                         OutlinedButton(
                             onClick        = onCancelClick,
                             shape          = RoundedCornerShape(8.dp),
-                            border         = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFC0392B)),
-                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC0392B)),
+                            border         = androidx.compose.foundation.BorderStroke(1.dp, DangerRed),
+                            colors         = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
                             Text(strings.cancelAppointment, fontSize = 12.sp)
@@ -502,9 +506,9 @@ private fun BookingStatusTimeline(appt: AppointmentDocument) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
         ) {
-            Icon(Icons.Default.Cancel, null, tint = Color(0xFFC0392B), modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.Cancel, null, tint = DangerRed, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(strings.timelineCancelled, fontSize = 12.sp, color = Color(0xFFC0392B), fontWeight = FontWeight.SemiBold)
+            Text(strings.timelineCancelled, fontSize = 12.sp, color = DangerRed, fontWeight = FontWeight.SemiBold)
         }
         return
     }
@@ -545,7 +549,7 @@ private fun BookingStatusTimeline(appt: AppointmentDocument) {
                 Text(
                     l,
                     fontSize   = 10.sp,
-                    color      = if (i <= reached) DeepRose else Color(0xFFAAAAAA),
+                    color      = if (i <= reached) DeepRose else TextFaint,
                     fontWeight = if (i == reached) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -610,7 +614,7 @@ private fun WaitlistCard(
                 Text(entry.salonName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 13.sp)
                 Text(
                     "📅 ${dateFmt.format(Date(entry.requestedDate))}",
-                    fontSize = 11.sp, color = Color(0xFFAAAAAA)
+                    fontSize = 11.sp, color = TextFaint
                 )
                 if (isSlotAvail) {
                     Text(strings.waitlistSlotAvailableTitle, fontSize = 11.sp, color = AvailableGreen, fontWeight = FontWeight.SemiBold)

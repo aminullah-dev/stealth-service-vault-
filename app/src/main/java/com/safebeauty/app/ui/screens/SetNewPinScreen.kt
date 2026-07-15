@@ -55,6 +55,9 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.DangerRed
+import com.safebeauty.app.ui.theme.CardBorder
 import com.safebeauty.app.viewmodel.SetNewPinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +109,7 @@ fun SetNewPinScreen(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(ElegantCream, Color(0xFFF0D9DF))
+                            colors = listOf(ElegantCream, CardBorder)
                         )
                     )
                     .padding(padding)
@@ -133,7 +136,7 @@ fun SetNewPinScreen(
                             Text(
                                 strings.setNewPinSubtitle,
                                 fontSize  = 13.sp,
-                                color     = Color(0xFF666666),
+                                color     = TextMuted,
                                 textAlign = TextAlign.Start
                             )
 
@@ -179,7 +182,7 @@ fun SetNewPinScreen(
                                 Text(
                                     (viewModel.state as SetNewPinViewModel.State.Error).message,
                                     fontSize = 12.sp,
-                                    color    = Color(0xFFD32F2F)
+                                    color    = DangerRed
                                 )
                             }
 

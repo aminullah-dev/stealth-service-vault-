@@ -161,6 +161,10 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.TextStrong
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.ui.theme.PetalPink
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.compose.AsyncImage
@@ -272,7 +276,7 @@ internal fun SalonDetailSheetContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text(salon.district, fontSize = 12.sp, color = Color(0xFF888888))
+                    Text(salon.district, fontSize = 12.sp, color = TextMuted)
                 }
                 Spacer(Modifier.height(5.dp))
                 Row(
@@ -286,7 +290,7 @@ internal fun SalonDetailSheetContent(
                     Spacer(Modifier.width(3.dp))
                     Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                     if (reviews.isNotEmpty()) {
-                        Text("  (${reviews.size})", fontSize = 11.sp, color = Color(0xFF999999))
+                        Text("  (${reviews.size})", fontSize = 11.sp, color = TextMuted)
                     }
                 }
                 val detailBadge = remember(salon.id, salon.isVerified, salon.rating, salon.confirmedCount) { salon.badge() }
@@ -627,7 +631,7 @@ internal fun SalonDetailSheetContent(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier.fillMaxWidth().padding(vertical = 20.dp)
             ) {
-                Text(strings.noReviewsYet, fontSize = 14.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                Text(strings.noReviewsYet, fontSize = 14.sp, color = TextFaint, textAlign = TextAlign.Center)
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -670,7 +674,7 @@ private fun ReviewCard(review: ReviewDocument) {
             }
             if (review.comment.isNotBlank()) {
                 Spacer(Modifier.height(5.dp))
-                Text(review.comment, fontSize = 12.sp, color = Color(0xFF555555))
+                Text(review.comment, fontSize = 12.sp, color = TextStrong)
             }
             if (review.imageUrls.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
@@ -691,7 +695,7 @@ private fun ReviewCard(review: ReviewDocument) {
             Text(
                 text     = dateFmt.format(Date(review.createdAt)),
                 fontSize = 10.sp,
-                color    = Color(0xFFAAAAAA)
+                color    = TextFaint
             )
             if (review.providerReply.isNotBlank()) {
                 val strings = LocalStrings.current
@@ -701,18 +705,18 @@ private fun ReviewCard(review: ReviewDocument) {
                         .fillMaxWidth()
                         .border(
                             width = 3.dp,
-                            color = Color(0xFFE8A0B0),
+                            color = RosePetal,
                             shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 8.dp,
                                 topEnd = 8.dp, bottomEnd = 8.dp)
                         )
-                        .background(Color(0xFFFFF0F3), RoundedCornerShape(topStart = 0.dp,
+                        .background(PetalPink, RoundedCornerShape(topStart = 0.dp,
                             bottomStart = 8.dp, topEnd = 8.dp, bottomEnd = 8.dp))
                         .padding(8.dp)
                 ) {
                     Text(strings.providerReplied, fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold, color = RoseGold)
                     Spacer(Modifier.height(2.dp))
-                    Text(review.providerReply, fontSize = 11.sp, color = Color(0xFF444444))
+                    Text(review.providerReply, fontSize = 11.sp, color = TextStrong)
                 }
             }
         }

@@ -76,6 +76,8 @@ import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
+import com.safebeauty.app.ui.theme.TextMuted
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.viewmodel.AuthViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 
@@ -313,7 +315,7 @@ fun LoginScreen(
             Text(
                 text     = if (showError) strings.loginWrongPin else "",
                 fontSize = 13.sp,
-                color    = Color(0xFFD32F2F)
+                color    = DangerRed
             )
             Spacer(Modifier.height(8.dp))
 
@@ -354,7 +356,7 @@ fun LoginScreen(
                     BiometricVault.disable(context)
                     biometricEnabled = false
                 }) {
-                    Text(strings.biometricDisable, fontSize = 12.sp, color = Color(0xFF999999))
+                    Text(strings.biometricDisable, fontSize = 12.sp, color = TextMuted)
                 }
             }
 
@@ -364,7 +366,7 @@ fun LoginScreen(
                 Text(strings.loginRegisterPrompt, fontSize = 14.sp, color = RoseGold)
             }
             TextButton(onClick = onForgotPinTapped) {
-                Text(strings.forgotPin, fontSize = 13.sp, color = Color(0xFF999999))
+                Text(strings.forgotPin, fontSize = 13.sp, color = TextMuted)
             }
 
             Spacer(Modifier.height(32.dp))

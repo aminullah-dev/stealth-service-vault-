@@ -30,6 +30,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.TextStrong
 
 /**
  * Shown after login when the account is not APPROVED:
@@ -94,7 +95,7 @@ fun AccountStatusScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = message,
-                color = Color(0xFF555555),
+                color = TextStrong,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
             )
