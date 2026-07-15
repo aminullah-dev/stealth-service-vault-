@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -104,6 +106,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -115,6 +118,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -224,7 +228,7 @@ private data class BookingIntent(
     val packageId: String = ""
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerDashboardScreen(
     onLockTriggered: () -> Unit,
@@ -672,7 +676,16 @@ fun CustomerDashboardScreen(
                         modifier      = Modifier.fillMaxSize()
                     )
                 } else {
+                    val listState = rememberLazyListState()
+                    val feedScope = rememberCoroutineScope()
+                    // Show a jump-to-top pill once the user has scrolled a few
+                    // cards deep — a fast way back to search/filters in a long list.
+                    val showJumpTop by remember {
+                        derivedStateOf { listState.firstVisibleItemIndex > 3 }
+                    }
+                    Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
+                        state               = listState,
                         contentPadding      = PaddingValues(bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         modifier            = Modifier.fillMaxSize()
@@ -711,6 +724,39 @@ fun CustomerDashboardScreen(
                                 )
                             }
                         } else {
+                            // Sticky section bar: the count + "All salons" label stay
+                            // pinned at the top of the list while the cards scroll, so
+                            // the user always knows how many salons there are.
+                            stickyHeader(key = "allHeader") {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(ElegantCream)
+                                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Default.Storefront, null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        strings.allSalonsTitle,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize   = 14.sp,
+                                        color      = DeepRose,
+                                        modifier   = Modifier.weight(1f)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(DeepRose)
+                                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            "${filteredSalons.size}",
+                                            color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                             items(filteredSalons, key = { it.id }) { salon ->
                                 val distanceKm = customerLoc?.let { (la, lo) ->
                                     if (salon.hasLocation())
@@ -728,6 +774,27 @@ fun CustomerDashboardScreen(
                                 )
                             }
                         }
+                    }
+                    // Jump-to-top pill — floats over the list once scrolled a few
+                    // cards deep, so the user isn't stuck scrolling all the way back.
+                    AnimatedVisibility(
+                        visible  = showJumpTop,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .shadow(6.dp, RoundedCornerShape(24.dp), clip = false)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(Gradients.BrandRose)
+                                .clickable { feedScope.launch { listState.animateScrollToItem(0) } }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowUp, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(strings.backToTop, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                     }
                 }
             }
