@@ -9,10 +9,11 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 | Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleDebug` | Install the APK from `app/build/outputs/apk/debug/` |
 | Cloud Functions (`functions/index.js`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
+| Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
 | Web admin console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
 | Desktop admin app (`desktop/main.js`, `desktop/preload.js`, `desktop/package.json`) | `cd desktop && npm run dist:mac` | Reinstall the `.dmg` from `desktop/dist/` |
 
-Deploy several at once: `firebase deploy --only functions,firestore:rules,hosting`
+Deploy several at once: `firebase deploy --only functions,firestore:rules,storage,hosting`
 
 ## Common gotchas
 - **App-only change?** No Firebase deploy needed — just rebuild the app.
@@ -23,6 +24,10 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,hostin
   under `desktop/` change.
 - **Unsigned Mac app** first launch: `xattr -cr "/Applications/SafeBeauty Admin.app"` then open.
 - **Firebase asks "delete these indexes?"** → answer `n`.
+- **Firebase asks "delete function `authenticateWithPin`?"** → answer `y`. It was
+  removed on purpose (a security fix — it was a pre-auth account-takeover oracle);
+  confirming deletes it from the cloud. This prompt appears once, on the first
+  `firebase deploy --only functions` after the removal.
 
 ## Release AAB for Google Play
 1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.

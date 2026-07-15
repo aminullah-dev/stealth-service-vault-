@@ -39,8 +39,11 @@ silently hit "permission denied".
   (the users collection is not client‑listable). Any phone lookup must normalize.
 - **Payments**: HesabPay. `createPaymentSession` handles online (returns a
   checkout URL, webhook flips AWAITING_PAYMENT→PENDING) and cash (confirmed
-  immediately, commission becomes a debt on `provider_balances`). Commission,
-  promo discount and referral credit all apply here.
+  immediately, commission becomes a debt on `provider_balances`). Commission and
+  every discount apply here — promo code, referral credit, salon offer,
+  last‑minute deal and service‑package bundle (discount math is pure/tested in
+  `functions/lib/money.js`). It also rejects a slot already taken on the same
+  chair (`hasSlotConflict`, `functions/lib/slots.js`).
 - **Server‑authoritative mutations**: appointment status changes, payouts,
   refunds, KYC review, reports, promo admin, etc. all go through callables — the
   rules leave clients no direct write path for these. Sensitive/reputation
