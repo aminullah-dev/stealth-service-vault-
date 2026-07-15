@@ -659,58 +659,74 @@ fun CustomerDashboardScreen(
                     )
                 }
 
-                // ── Recommendations carousel ──────────────────────────────────
-                if (recommendedSalons.isNotEmpty() && searchQuery.isBlank()) {
-                    RecommendedSection(
-                        salons      = recommendedSalons,
-                        favoriteIds = favoriteIds,
-                        onToggleFav = { viewModel.toggleFavorite(it) },
-                        onBook      = { salon ->
-                            showSalonDetail = salon
-                            viewModel.setActiveSalon(salon.id)
-                        }
-                    )
-                }
-
-                // ── Deals strip ───────────────────────────────────────────────
-                if (activeOffers.isNotEmpty() && searchQuery.isBlank()) {
-                    DealsStrip(
-                        offers  = activeOffers,
-                        onOpen  = { salonId ->
-                            viewModel.findSalon(salonId)?.let { salon ->
-                                showSalonDetail = salon
-                                viewModel.setActiveSalon(salon.id)
-                            }
-                        }
-                    )
-                }
-
-                // ── Salon list / empty state ──────────────────────────────────
-                if (filteredSalons.isEmpty()) {
+                // ── Discovery feed ────────────────────────────────────────────
+                // Recommendations + deals now scroll WITH the salon list inside one
+                // LazyColumn instead of sitting in the fixed header above it. Before,
+                // the carousel + deals strip permanently ate ~320dp at the top and
+                // squeezed the real list into a sliver, hiding the other salons below
+                // the fold; now they scroll away and the list gets the full height.
+                // The search/filter header above stays pinned.
+                if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
                     SalonEmptyState(
                         favoritesOnly = showFavoritesOnly,
                         modifier      = Modifier.fillMaxSize()
                     )
                 } else {
                     LazyColumn(
-                        contentPadding      = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        contentPadding      = PaddingValues(bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                         modifier            = Modifier.fillMaxSize()
                     ) {
-                        items(filteredSalons, key = { it.id }) { salon ->
-                            val distanceKm = customerLoc?.let { (la, lo) ->
-                                if (salon.hasLocation())
-                                    com.safebeauty.app.util.LocationHelper.distanceKm(la, lo, salon.latitude, salon.longitude)
-                                else null
+                        if (recommendedSalons.isNotEmpty() && searchQuery.isBlank()) {
+                            item(key = "recommended") {
+                                RecommendedSection(
+                                    salons      = recommendedSalons,
+                                    favoriteIds = favoriteIds,
+                                    onToggleFav = { viewModel.toggleFavorite(it) },
+                                    onBook      = { salon ->
+                                        showSalonDetail = salon
+                                        viewModel.setActiveSalon(salon.id)
+                                    }
+                                )
                             }
-                            SalonCard(
-                                salon            = salon,
-                                isFavorite       = favoriteIds.contains(salon.id),
-                                distanceKm       = distanceKm,
-                                hasOffer         = offerSalonIds.contains(salon.id),
-                                onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
-                                onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
-                            )
+                        }
+                        if (activeOffers.isNotEmpty() && searchQuery.isBlank()) {
+                            item(key = "deals") {
+                                DealsStrip(
+                                    offers  = activeOffers,
+                                    onOpen  = { salonId ->
+                                        viewModel.findSalon(salonId)?.let { salon ->
+                                            showSalonDetail = salon
+                                            viewModel.setActiveSalon(salon.id)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        if (filteredSalons.isEmpty()) {
+                            item(key = "empty") {
+                                SalonEmptyState(
+                                    favoritesOnly = showFavoritesOnly,
+                                    modifier      = Modifier.fillParentMaxWidth().padding(vertical = 40.dp)
+                                )
+                            }
+                        } else {
+                            items(filteredSalons, key = { it.id }) { salon ->
+                                val distanceKm = customerLoc?.let { (la, lo) ->
+                                    if (salon.hasLocation())
+                                        com.safebeauty.app.util.LocationHelper.distanceKm(la, lo, salon.latitude, salon.longitude)
+                                    else null
+                                }
+                                SalonCard(
+                                    salon            = salon,
+                                    modifier         = Modifier.padding(horizontal = 16.dp),
+                                    isFavorite       = favoriteIds.contains(salon.id),
+                                    distanceKm       = distanceKm,
+                                    hasOffer         = offerSalonIds.contains(salon.id),
+                                    onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
+                                    onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -2274,6 +2290,7 @@ private fun SalonCard(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
+    modifier: Modifier = Modifier,
     distanceKm: Double? = null,
     hasOffer: Boolean = false
 ) {
@@ -2286,7 +2303,7 @@ private fun SalonCard(
         shape     = RoundedCornerShape(20.dp),
         colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-        modifier  = Modifier.fillMaxWidth()
+        modifier  = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
