@@ -34,6 +34,13 @@ data class Palette(
     val lilacMist: Color,
     val softLavender: Color,
     val rosePetal: Color,
+    // Semantic state colours (danger, warning, neutral secondary text, admin role).
+    // Added so the admin screens stop hardcoding light-only literals and flip in
+    // dark mode. Badge gold/green/silver reuse warmGold/availableGreen/unavailableGrey.
+    val dangerRed: Color,
+    val warningOrange: Color,
+    val neutralGrey: Color,
+    val adminPurple: Color,
     // Gradient colour stops, so brand gradients get a dark variant too.
     val brandRose: List<Color>,
     val brandRoseSoft: List<Color>,
@@ -65,6 +72,10 @@ val LightPalette = Palette(
     lilacMist        = Color(0xFFE9D5F0),
     softLavender     = Color(0xFFF3E6F7),
     rosePetal        = Color(0xFFEBA9C0),
+    dangerRed        = Color(0xFFC0392B),
+    warningOrange    = Color(0xFFE67E22),
+    neutralGrey      = Color(0xFF97878F),
+    adminPurple      = Color(0xFF7B6FA0),
     brandRose        = listOf(Color(0xFFEBA9C0), Color(0xFFB76E79), Color(0xFF7A2F3D)),
     brandRoseSoft    = listOf(Color(0xFFD98CA8), Color(0xFF8B3A47)),
     screenBg         = listOf(Color(0xFFFFF7FB), Color(0xFFFDEAF3), Color(0xFFF5E7F6)),
@@ -100,6 +111,10 @@ val DarkPalette = Palette(
     lilacMist        = Color(0xFF2A2233),
     softLavender     = Color(0xFF241E2C),
     rosePetal        = Color(0xFFC77E90),
+    dangerRed        = Color(0xFFE06C5E),
+    warningOrange    = Color(0xFFE9975A),
+    neutralGrey      = Color(0xFFA895A0),
+    adminPurple      = Color(0xFFB6A0D0),
     brandRose        = listOf(Color(0xFF8B4A57), Color(0xFF6E3A45), Color(0xFF4A222B)),
     brandRoseSoft    = listOf(Color(0xFF7A4653), Color(0xFF5A2E38)),
     screenBg         = listOf(Color(0xFF15100F), Color(0xFF1A1218), Color(0xFF17141F)),
@@ -134,6 +149,10 @@ val PetalPink:        Color @Composable get() = LocalPalette.current.petalPink
 val LilacMist:        Color @Composable get() = LocalPalette.current.lilacMist
 val SoftLavender:     Color @Composable get() = LocalPalette.current.softLavender
 val RosePetal:        Color @Composable get() = LocalPalette.current.rosePetal
+val DangerRed:        Color @Composable get() = LocalPalette.current.dangerRed
+val WarningOrange:    Color @Composable get() = LocalPalette.current.warningOrange
+val NeutralGrey:      Color @Composable get() = LocalPalette.current.neutralGrey
+val AdminPurple:      Color @Composable get() = LocalPalette.current.adminPurple
 
 // ── Brand gradients (theme-aware) ────────────────────────────────────────────────
 // Same object/name the screens use. Each getter rebuilds the brush from the

@@ -106,11 +106,13 @@ import com.safebeauty.app.data.firebase.badge
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
 import com.safebeauty.app.ui.theme.DashboardSurface
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
@@ -185,7 +187,7 @@ internal fun ApprovalsTab(
                     viewModel.rejectProvider(provider.uid, rejectReason)
                     rejectTarget = null
                 }) {
-                    Text(strings.reject, color = Color(0xFFC0392B), fontWeight = FontWeight.Bold)
+                    Text(strings.reject, color = DangerRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -260,7 +262,7 @@ internal fun KycReviewTab(
                         viewModel.rejectKyc(u.uid, rejectReason)
                         rejectTarget = null
                     }
-                ) { Text(strings.reject, color = Color(0xFFC0392B), fontWeight = FontWeight.Bold) }
+                ) { Text(strings.reject, color = DangerRed, fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { rejectTarget = null }) {
@@ -294,7 +296,7 @@ private fun KycReviewCard(
         Column(modifier = Modifier.padding(14.dp)) {
             Text(user.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = DeepRose)
             Text(strings.kycReviewTazkiraNo(user.tazkiraNumber), fontSize = 12.sp, color = RoseGold)
-            Text("${user.addressProvince} — ${user.addressDetail}", fontSize = 12.sp, color = Color(0xFF777777))
+            Text("${user.addressProvince} — ${user.addressDetail}", fontSize = 12.sp, color = NeutralGrey)
 
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,7 +326,7 @@ private fun KycReviewCard(
                     enabled  = !busy,
                     modifier = Modifier.weight(1f),
                     shape    = RoundedCornerShape(12.dp),
-                    colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))
+                    colors   = ButtonDefaults.buttonColors(containerColor = DangerRed)
                 ) {
                     Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
@@ -468,7 +470,7 @@ private fun ReportRow(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Flag, null, tint = Color(0xFFB00020), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Flag, null, tint = DangerRed, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(report.customerName.ifBlank { report.customerId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
@@ -485,10 +487,10 @@ private fun ReportRow(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFFB00020).copy(alpha = 0.12f))
+                        .background(DangerRed.copy(alpha = 0.12f))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text(strings.rateCustomerNoShow, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB00020))
+                    Text(strings.rateCustomerNoShow, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = DangerRed)
                 }
             }
             if (report.comment.isNotBlank()) {
@@ -496,12 +498,12 @@ private fun ReportRow(
                 Text(
                     report.comment,
                     fontSize  = 13.sp,
-                    color     = Color(0xFF555555),
+                    color     = NeutralGrey,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(dateFmt.format(Date(report.createdAt)), fontSize = 11.sp, color = Color(0xFF999999))
+            Text(dateFmt.format(Date(report.createdAt)), fontSize = 11.sp, color = NeutralGrey)
             Spacer(Modifier.height(10.dp))
             if (inProgress) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -520,7 +522,7 @@ private fun ReportRow(
                         onClick  = onSuspend,
                         modifier = Modifier.weight(1f),
                         shape    = RoundedCornerShape(10.dp),
-                        colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
+                        colors   = ButtonDefaults.buttonColors(containerColor = DangerRed)
                     ) {
                         Text(strings.reportSuspend, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
@@ -567,18 +569,18 @@ internal fun SupportTab(
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (ticket.unreadForAdmin) {
-                            Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFB00020)))
+                            Box(modifier = Modifier.size(9.dp).clip(CircleShape).background(DangerRed))
                             Spacer(Modifier.width(8.dp))
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(ticket.userName.ifBlank { ticket.userId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
                             Text(ticket.userRole, fontSize = 11.sp, color = RoseGold)
                         }
-                        Text(dateFmt.format(Date(ticket.updatedAt)), fontSize = 11.sp, color = Color(0xFF999999))
+                        Text(dateFmt.format(Date(ticket.updatedAt)), fontSize = 11.sp, color = NeutralGrey)
                     }
                     if (ticket.relatedInfo.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
-                        Text(ticket.relatedInfo, fontSize = 13.sp, color = Color(0xFF555555))
+                        Text(ticket.relatedInfo, fontSize = 13.sp, color = NeutralGrey)
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {

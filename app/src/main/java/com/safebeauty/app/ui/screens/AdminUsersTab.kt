@@ -102,6 +102,7 @@ import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.UserDocument
 import com.safebeauty.app.data.firebase.badge
+import com.safebeauty.app.ui.theme.AdminPurple
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
 import com.safebeauty.app.ui.theme.DashboardSurface
@@ -113,6 +114,7 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.WarningOrange
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -242,15 +244,15 @@ private fun UserRow(
 ) {
     val strings = LocalStrings.current
     val roleColor = when (user.role) {
-        "ADMIN"    -> Color(0xFF7B6FA0)
+        "ADMIN"    -> AdminPurple
         "PROVIDER" -> AvailableGreen
         else       -> RoseGold
     }
     val statusColor = when (user.status) {
         "APPROVED"  -> AvailableGreen
         "REJECTED"  -> UnavailableGrey
-        "SUSPENDED" -> Color(0xFFE67E22)
-        else        -> Color(0xFFE67E22)
+        "SUSPENDED" -> WarningOrange
+        else        -> WarningOrange
     }
 
     ElevatedCard(
@@ -287,7 +289,7 @@ private fun UserRow(
                     }
                 } else {
                     IconButton(onClick = onSuspend, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.Block, strings.suspendUser, tint = Color(0xFFE67E22), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Block, strings.suspendUser, tint = WarningOrange, modifier = Modifier.size(20.dp))
                     }
                 }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {

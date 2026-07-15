@@ -106,11 +106,13 @@ import com.safebeauty.app.data.firebase.badge
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
 import com.safebeauty.app.ui.theme.DashboardSurface
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
@@ -262,7 +264,7 @@ internal fun FinanceTab(
             item {
                 Column(modifier = Modifier.padding(top = 8.dp)) {
                     Text(strings.financeDebtTitle, fontSize = 13.sp, color = RoseGold, fontWeight = FontWeight.SemiBold)
-                    Text(strings.financeDebtHint, fontSize = 11.sp, color = Color(0xFF999999))
+                    Text(strings.financeDebtHint, fontSize = 11.sp, color = NeutralGrey)
                 }
             }
             items(owedByProviders, key = { "debt_${it.providerId}" }) { balance ->
@@ -459,7 +461,7 @@ private fun ProviderBalanceRow(
                             strings.financeHesabAccountLabel(balance.hesabAccountNumber)
                         else strings.financeHesabAccountMissing,
                         fontSize = 11.sp,
-                        color    = if (balance.hesabAccountNumber.isNotBlank()) Color(0xFF777777) else Color(0xFFB00020)
+                        color    = if (balance.hesabAccountNumber.isNotBlank()) NeutralGrey else DangerRed
                     )
                 }
                 Text(
@@ -507,9 +509,9 @@ private fun ProviderDebtRow(balance: ProviderBalance) {
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
                     .size(40.dp)
-                    .background(Color(0xFFB00020).copy(alpha = 0.12f), CircleShape)
+                    .background(DangerRed.copy(alpha = 0.12f), CircleShape)
             ) {
-                Icon(Icons.Default.Percent, null, tint = Color(0xFFB00020), modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.Percent, null, tint = DangerRed, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -520,7 +522,7 @@ private fun ProviderDebtRow(balance: ProviderBalance) {
                 "${-balance.owedAmount} AFN",
                 fontWeight = FontWeight.Bold,
                 fontSize   = 16.sp,
-                color      = Color(0xFFB00020)
+                color      = DangerRed
             )
         }
     }
@@ -545,9 +547,9 @@ private fun RefundRequestRow(
                     contentAlignment = Alignment.Center,
                     modifier         = Modifier
                         .size(40.dp)
-                        .background(Color(0xFFC0392B).copy(alpha = 0.12f), CircleShape)
+                        .background(DangerRed.copy(alpha = 0.12f), CircleShape)
                 ) {
-                    Icon(Icons.Default.Payments, null, tint = Color(0xFFC0392B), modifier = Modifier.size(22.dp))
+                    Icon(Icons.Default.Payments, null, tint = DangerRed, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -558,7 +560,7 @@ private fun RefundRequestRow(
                     "${refund.amount} AFN",
                     fontWeight = FontWeight.Bold,
                     fontSize   = 16.sp,
-                    color      = Color(0xFFC0392B)
+                    color      = DangerRed
                 )
             }
             Spacer(Modifier.height(10.dp))
@@ -567,7 +569,7 @@ private fun RefundRequestRow(
                 enabled  = !isProcessing,
                 modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(12.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B)),
+                colors   = ButtonDefaults.buttonColors(containerColor = DangerRed),
                 contentPadding = PaddingValues(vertical = 10.dp)
             ) {
                 if (isProcessing) {

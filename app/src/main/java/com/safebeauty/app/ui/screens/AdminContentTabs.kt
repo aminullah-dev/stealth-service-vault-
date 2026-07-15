@@ -106,14 +106,17 @@ import com.safebeauty.app.data.firebase.badge
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
 import com.safebeauty.app.ui.theme.DashboardSurface
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.ui.theme.WarningOrange
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -157,7 +160,7 @@ internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
                     icon    = Icons.Default.QueryStats,
                     label   = strings.statsPendingApprovals,
                     value   = "${stats.pendingApprovals}",
-                    tint    = Color(0xFFE67E22),
+                    tint    = WarningOrange,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -199,7 +202,7 @@ internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
                     icon    = Icons.Default.Block,
                     label   = strings.statsSuspended,
                     value   = "${stats.suspendedUsers}",
-                    tint    = Color(0xFFE67E22),
+                    tint    = WarningOrange,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -222,34 +225,31 @@ private fun AdminStatCard(
         modifier  = modifier
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier            = Modifier.padding(20.dp).fillMaxWidth()
+            modifier = Modifier.padding(16.dp).fillMaxWidth()
         ) {
+            // Icon in a soft rounded chip (tinted by the metric) — a cleaner
+            // dashboard tile than a full gradient circle, matching the web console.
             Box(
                 contentAlignment = Alignment.Center,
                 modifier         = Modifier
-                    .size(52.dp)
-                    .background(
-                        androidx.compose.ui.graphics.Brush.linearGradient(
-                            listOf(tint.copy(alpha = 0.85f), tint)
-                        ),
-                        CircleShape
-                    )
+                    .size(38.dp)
+                    .background(tint.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
             ) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                Icon(icon, null, tint = tint, modifier = Modifier.size(20.dp))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             Text(
                 text       = value,
-                fontSize   = 28.sp,
+                fontSize   = 30.sp,
                 fontWeight = FontWeight.Bold,
-                color      = tint
+                color      = DeepRose
             )
+            Spacer(Modifier.height(2.dp))
             Text(
-                text      = label,
-                fontSize  = 11.sp,
-                color     = RoseGold,
-                textAlign = TextAlign.Center
+                text       = label,
+                fontSize   = 11.sp,
+                color      = RoseGold,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -306,9 +306,9 @@ private fun SalonAdminRow(salon: SalonDocument, onVerifyToggle: () -> Unit) {
                     Text(salon.salonName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = DeepRose)
                     if (badge != SalonBadge.NONE) {
                         val (badgeLabel, badgeColor) = when (badge) {
-                            SalonBadge.VERIFIED -> Pair(strings.badgeVerified, Color(0xFF4CAF50))
-                            SalonBadge.GOLD     -> Pair(strings.badgeGold,     Color(0xFFD4A853))
-                            SalonBadge.SILVER   -> Pair(strings.badgeSilver,   Color(0xFF9E9E9E))
+                            SalonBadge.VERIFIED -> Pair(strings.badgeVerified, AvailableGreen)
+                            SalonBadge.GOLD     -> Pair(strings.badgeGold,     WarmGold)
+                            SalonBadge.SILVER   -> Pair(strings.badgeSilver,   UnavailableGrey)
                             SalonBadge.NONE     -> Pair("", Color.Transparent)
                         }
                         Box(
@@ -335,7 +335,7 @@ private fun SalonAdminRow(salon: SalonDocument, onVerifyToggle: () -> Unit) {
                 Icon(
                     Icons.Default.CheckCircle,
                     contentDescription = if (salon.isVerified) strings.badgeUnverify else strings.badgeVerifyToggle,
-                    tint   = if (salon.isVerified) Color(0xFF4CAF50) else UnavailableGrey.copy(alpha = 0.4f),
+                    tint   = if (salon.isVerified) AvailableGreen else UnavailableGrey.copy(alpha = 0.4f),
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -527,7 +527,7 @@ internal fun PromosTab(
                         colors        = fieldColors
                     )
                     viewModel.promoErrorMsg?.let { err ->
-                        Text(err, fontSize = 12.sp, color = Color(0xFFD32F2F))
+                        Text(err, fontSize = 12.sp, color = DangerRed)
                     }
                     Button(
                         onClick  = { viewModel.savePromo() },
@@ -602,7 +602,7 @@ private fun PromoRow(
                     if (promo.active) strings.promoActive else strings.promoInactive,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (promo.active) AvailableGreen else Color(0xFF999999)
+                    color = if (promo.active) AvailableGreen else NeutralGrey
                 )
             }
             Switch(
@@ -612,7 +612,7 @@ private fun PromoRow(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = AvailableGreen,
                     uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = Color(0xFFBBBBBB)
+                    uncheckedTrackColor = UnavailableGrey
                 )
             )
         }

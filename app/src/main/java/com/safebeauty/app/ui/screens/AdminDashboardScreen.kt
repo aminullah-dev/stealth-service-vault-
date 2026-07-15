@@ -107,6 +107,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
@@ -293,7 +294,7 @@ internal fun CenteredEmpty(icon: ImageVector, title: String, subtext: String) {
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
             if (subtext.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text(subtext, fontSize = 13.sp, color = Color(0xFFAAAAAA), textAlign = TextAlign.Center)
+                Text(subtext, fontSize = 13.sp, color = NeutralGrey, textAlign = TextAlign.Center)
             }
         }
     }
