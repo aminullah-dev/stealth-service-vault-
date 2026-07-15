@@ -766,6 +766,47 @@ exports.redeemLoyaltyPoints = onCall({ region: "us-central1" }, async (request) 
   return { spent: conv.spend, credited: conv.credit };
 });
 
+// ── claimProfileReward (callable) ─────────────────────────────────────────────
+// One-time loyalty bonus for completing a profile (name + phone + photo). Awarded
+// exactly once (guarded by profileRewardClaimed, which is client-frozen) so the
+// client can safely call this whenever the profile looks complete. loyaltyPoints
+// is client-frozen, so this Admin-SDK callable is the only path.
+const PROFILE_REWARD_POINTS = 20;
+exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  const userRef = db.doc(`users/${appUser.uid}`);
+
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) return { awarded: false };
+    const u = snap.data();
+    if (u.profileRewardClaimed === true) return { awarded: false };
+    const complete =
+      String(u.name || "").trim() !== "" &&
+      String(u.phone || "").trim() !== "" &&
+      (String(u.profilePhotoUrl || "").trim() !== "" ||
+       String(u.profilePhotoBase64 || "").trim() !== "");
+    if (!complete) return { awarded: false };
+    tx.update(userRef, {
+      profileRewardClaimed: true,
+      loyaltyPoints: admin.firestore.FieldValue.increment(PROFILE_REWARD_POINTS),
+    });
+    tx.set(db.collection("notifications").doc(), {
+      recipientId: appUser.uid,
+      type:        "SYSTEM",
+      title:       "Profile complete 🌟",
+      body:        `You earned ${PROFILE_REWARD_POINTS} loyalty points for completing your profile.`,
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   "",
+    });
+    return { awarded: true };
+  });
+
+  return { awarded: result.awarded === true, points: PROFILE_REWARD_POINTS };
+});
+
 // ── hesabPayWebhook (HTTP) ────────────────────────────────────────────────────
 
 exports.hesabPayWebhook = onRequest(
@@ -2422,5 +2463,40 @@ exports.pushOfferToFavoriters = onDocumentCreated(
     }
     if (pending > 0) await batch.commit();
     logger.log(`pushOfferToFavoriters: notified ${total} favoriter(s) of salon ${offer.salonId}`);
+  }
+);
+
+// ── awardReviewPoints ─────────────────────────────────────────────────────────
+// Loyalty points for leaving a review, with a bonus for attaching a photo (their
+// review + photos help other customers). loyaltyPoints is client-frozen, so this
+// server-side trigger is the only path that can grant them.
+const REVIEW_POINTS       = 5;
+const REVIEW_PHOTO_BONUS  = 5;
+exports.awardReviewPoints = onDocumentCreated(
+  "reviews/{reviewId}",
+  async (event) => {
+    const review = event.data && event.data.data();
+    if (!review || !review.customerId) return;
+    const hasPhoto = Array.isArray(review.imageUrls) && review.imageUrls.length > 0;
+    const points = REVIEW_POINTS + (hasPhoto ? REVIEW_PHOTO_BONUS : 0);
+
+    const batch = db.batch();
+    batch.set(
+      db.doc(`users/${review.customerId}`),
+      { loyaltyPoints: admin.firestore.FieldValue.increment(points) },
+      { merge: true }
+    );
+    batch.set(db.collection("notifications").doc(), {
+      recipientId: review.customerId,
+      type:        "SYSTEM",
+      title:       "Thanks for your review 💬",
+      body:        hasPhoto
+        ? `You earned ${points} loyalty points for your review and photo.`
+        : `You earned ${points} loyalty points for your review.`,
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   review.salonId || "",
+    });
+    await batch.commit();
   }
 );

@@ -168,6 +168,22 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:redeemLoyalty") }
 
     /**
+     * Claims the one-time profile-completion loyalty bonus. Safe to call whenever
+     * the profile looks complete — the backend awards it at most once. Returns
+     * true only when points were actually granted (so the UI can celebrate once).
+     */
+    suspend fun claimProfileReward(): Boolean =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("claimProfileReward")
+                .call()
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+            map["awarded"] as? Boolean ?: false
+        }.getOrDefault(false)
+
+    /**
      * Validates a promo [code] against a salon service before booking, so the
      * customer sees the discount applied up front. Returns a PromoPreview with
      * valid=false and a message when the code is rejected by the backend.

@@ -52,6 +52,9 @@ data class UserDocument(
     val referredBy: String = "",
     val referralCredit: Long = 0L,
     val referralRewarded: Boolean = false,
+    // Set once by the claimProfileReward Cloud Function when the profile-completion
+    // loyalty bonus is granted (frozen against client writes in firestore.rules).
+    val profileRewardClaimed: Boolean = false,
     // ── Customer reputation (two-way ratings) ───────────────────────────────────
     // Providers rate/report customers after an appointment via the reportCustomer
     // Cloud Function; these aggregates are server-controlled (frozen against

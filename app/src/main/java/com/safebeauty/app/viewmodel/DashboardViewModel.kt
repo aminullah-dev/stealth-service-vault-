@@ -569,6 +569,15 @@ class DashboardViewModel @Inject constructor(
                     // Prefer Storage URL; fall back to legacy Base64 for pre-migration photos.
                     _currentUserPhoto.value = it.profilePhotoUrl.ifBlank { it.profilePhotoBase64 }
                     editName = it.name
+
+                    // One-time loyalty bonus once the profile is complete. The
+                    // backend awards it at most once; we only bother calling when
+                    // it isn't claimed yet and the profile actually looks complete.
+                    val photo = it.profilePhotoUrl.ifBlank { it.profilePhotoBase64 }
+                    if (!it.profileRewardClaimed &&
+                        it.name.isNotBlank() && it.phone.isNotBlank() && photo.isNotBlank()) {
+                        runCatching { paymentRepository.claimProfileReward() }
+                    }
                 }
         }
 

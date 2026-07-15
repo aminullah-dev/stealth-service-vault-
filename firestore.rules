@@ -159,7 +159,11 @@ service cloud.firestore {
                      && request.resource.data.get('lastVisitAt', 0)
                           == resource.data.get('lastVisitAt', 0)
                      && request.resource.data.get('lastNudgedAt', 0)
-                          == resource.data.get('lastNudgedAt', 0));
+                          == resource.data.get('lastNudgedAt', 0)
+                     // Set once by claimProfileReward when the profile-completion
+                     // bonus is granted; frozen so it can't be reset to re-claim.
+                     && request.resource.data.get('profileRewardClaimed', false)
+                          == resource.data.get('profileRewardClaimed', false));
 
       allow delete: if isAdmin();
     }
