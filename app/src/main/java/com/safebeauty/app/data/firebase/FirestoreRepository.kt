@@ -1,6 +1,5 @@
 package com.safebeauty.app.data.firebase
 
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
@@ -115,11 +114,10 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("hesabAccountNumber", hesabAccountNumber).await()
     }
 
-    suspend fun incrementLoyaltyPoints(customerId: String) {
-        runCatching {
-            usersCol.document(customerId).update("loyaltyPoints", FieldValue.increment(10)).await()
-        }
-    }
+    // Loyalty points are awarded server-side (confirmAppointment) and are now
+    // frozen against client writes in firestore.rules — so the old client-side
+    // incrementLoyaltyPoints() writer was removed (it was unused and would now
+    // be denied). The client only ever reads the points below.
 
     fun observeUserLoyaltyPoints(uid: String): Flow<Int> = callbackFlow {
         val listener = usersCol.document(uid).addSnapshotListener { snap, err ->

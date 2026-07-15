@@ -1136,46 +1136,14 @@ function hashesEqual(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-/**
- * Verifies a PIN against every user server-side. Returns:
- *   { mode: "REAL", uid, name, role, firebaseEmail, salt } — client then derives
- *       the auth password and signs in (the hash never leaves the server).
- *   { mode: "INVALID" } — no match.
- * No auth required (this IS the pre-auth login step).
- */
-exports.authenticateWithPin = onCall({ region: "us-central1" }, async (request) => {
-  const pin = String((request.data || {}).pin || "");
-  if (!/^\d{4,}$/.test(pin)) {
-    return { mode: "INVALID" };
-  }
-
-  const snap = await db.collection("users").get();
-
-  // We return the account status too so the client can gate a non-APPROVED
-  // provider (PENDING → "under review", SUSPENDED → blocked) instead of
-  // dropping them into a live dashboard. Provider WRITES are also blocked
-  // server-side by the Firestore rules' isApproved() checks, so this is
-  // defense-in-depth, not the only gate.
-  for (const doc of snap.docs) {
-    const u = doc.data();
-    if (!u.pinHash || !u.salt) continue;
-    if (hashesEqual(pbkdf2Hash(pin, u.salt), u.pinHash)) {
-      return {
-        mode:           "REAL",
-        uid:            doc.id,
-        name:           u.name  || "",
-        role:           u.role  || "CUSTOMER",
-        status:         u.status || "",
-        rejectionReason: u.rejectionReason || "",
-        kycStatus:      u.kycStatus || "NONE",
-        firebaseEmail:  u.firebaseEmail || "",
-        salt:           u.salt,
-      };
-    }
-  }
-
-  return { mode: "INVALID" };
-});
+// NOTE: authenticateWithPin was removed. It was a pre-auth callable that hashed
+// a submitted numeric string against EVERY user's pinHash and, on a match,
+// returned that user's salt + firebaseEmail — a mass account-takeover oracle
+// (one unauthenticated request tested the whole user base, and password login
+// stores its hash in the same pinHash field). PINs are gone; the client only
+// uses authenticateWithPassword (which resolves ONE account by phone first).
+// Deleting the export removes the function on the next `firebase deploy
+// --only functions`.
 
 /**
  * Password login, keyed by phone number (the app's login identifier now that

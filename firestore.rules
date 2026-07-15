@@ -105,7 +105,17 @@ service cloud.firestore {
                  // Referral credit is server-granted only — a self-registration
                  // may not seed itself any balance or pre-mark itself rewarded.
                  && request.resource.data.get('referralCredit', 0) == 0
-                 && request.resource.data.get('referralRewarded', false) == false;
+                 && request.resource.data.get('referralRewarded', false) == false
+                 // A fresh account may not seed itself server-authoritative balances
+                 // or reputation: no loyalty points (redeemable for real credit), no
+                 // customer rating / no-show history, no self-asserted KYC, no
+                 // pre-claimed profile bonus. All written only by Cloud Functions.
+                 && request.resource.data.get('loyaltyPoints', 0) == 0
+                 && request.resource.data.get('customerRatingSum', 0) == 0
+                 && request.resource.data.get('customerRatingCount', 0) == 0
+                 && request.resource.data.get('noShowCount', 0) == 0
+                 && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
+                 && request.resource.data.get('profileRewardClaimed', false) == false;
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -163,7 +173,18 @@ service cloud.firestore {
                      // Set once by claimProfileReward when the profile-completion
                      // bonus is granted; frozen so it can't be reset to re-claim.
                      && request.resource.data.get('profileRewardClaimed', false)
-                          == resource.data.get('profileRewardClaimed', false));
+                          == resource.data.get('profileRewardClaimed', false)
+                     // loyaltyPoints is server-authoritative: confirmAppointment
+                     // awards it and redeemLoyaltyPoints spends it into
+                     // referralCredit (real checkout money). Frozen so a client
+                     // can't mint points on its own doc and redeem them.
+                     && request.resource.data.get('loyaltyPoints', 0)
+                          == resource.data.get('loyaltyPoints', 0)
+                     // phone is the login identifier; uniqueness is enforced only
+                     // server-side at registration, so a self-edit could shadow
+                     // another account's login resolution. Frozen post-signup.
+                     && request.resource.data.get('phone', '')
+                          == resource.data.get('phone', ''));
 
       allow delete: if isAdmin();
     }
@@ -187,7 +208,14 @@ service cloud.firestore {
                  || (isProvider() && isApproved()
                      && resource.data.providerId == me()
                      && request.resource.data.providerId == resource.data.providerId
-                     && request.resource.data.isVerified  == resource.data.isVerified);
+                     && request.resource.data.isVerified  == resource.data.isVerified
+                     // confirmedCount is a server aggregate (confirmAppointment);
+                     // frozen so a provider can't inflate it to self-award a GOLD/
+                     // SILVER badge (badge() thresholds on it). The rating average
+                     // is still recomputed client-side today — a server-side move
+                     // is tracked so rating can be frozen too.
+                     && request.resource.data.get('confirmedCount', 0)
+                          == resource.data.get('confirmedCount', 0));
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());
