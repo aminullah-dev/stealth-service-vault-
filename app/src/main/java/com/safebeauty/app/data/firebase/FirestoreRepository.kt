@@ -397,22 +397,18 @@ class FirestoreRepository @Inject constructor(
     fun newReviewId(): String = reviewsCol.document().id
 
     /**
-     * Adds a review, then recomputes the salon's average rating from all of its
-     * reviews and writes it back so salon cards stay in sync. When [review.id]
-     * is set (photo reviews reserve it via [newReviewId]) the doc is written at
-     * that ID; otherwise Firestore auto-generates one.
+     * Adds a review. Writing the review doc is the only client write now — the
+     * salon's average rating is recomputed server-side (awardReviewPoints trigger)
+     * so a provider can't forge it; `rating` is frozen against client writes in
+     * firestore.rules. When [review.id] is set (photo reviews reserve it via
+     * [newReviewId]) the doc is written at that ID; otherwise Firestore
+     * auto-generates one.
      */
     suspend fun addReview(review: ReviewDocument) {
         if (review.id.isNotBlank()) {
             reviewsCol.document(review.id).set(review).await()
         } else {
             reviewsCol.add(review).await()
-        }
-        val all = reviewsCol.whereEqualTo("salonId", review.salonId).get().await()
-            .documents.mapNotNull { it.toObject(ReviewDocument::class.java) }
-        if (all.isNotEmpty()) {
-            val avg = all.map { it.rating }.average()
-            runCatching { salonsCol.document(review.salonId).update("rating", avg).await() }
         }
     }
 

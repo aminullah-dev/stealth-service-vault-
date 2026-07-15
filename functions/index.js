@@ -41,6 +41,7 @@ const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmo
 const { expandBooked, serviceSlotSpan, hasSlotConflict } = require("./lib/slots");
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 const { isValidDocId } = require("./lib/validate");
+const { averageRating } = require("./lib/reviews");
 
 // Reject a malformed / path-unsafe document id before it is interpolated into a
 // Firestore doc path — defense-in-depth: a value with a slash makes an
@@ -2626,7 +2627,22 @@ exports.awardReviewPoints = onDocumentCreated(
   "reviews/{reviewId}",
   async (event) => {
     const review = event.data && event.data.data();
-    if (!review || !review.customerId) return;
+    if (!review) return;
+
+    // Recompute the salon's average rating server-side. rating is frozen against
+    // client writes in firestore.rules (so a provider can't self-award a 5.0);
+    // this Admin-SDK write is the authoritative source. Reviews are immutable
+    // except for a provider reply (which doesn't change the score), so
+    // recomputing on create covers it. Runs regardless of customerId.
+    const salonId = String(review.salonId || "");
+    if (salonId) {
+      const snap = await db.collection("reviews").where("salonId", "==", salonId).get();
+      const avg = averageRating(snap.docs.map((d) => d.data()));
+      await db.doc(`salons/${salonId}`).set({ rating: avg }, { merge: true });
+    }
+
+    // Award loyalty points for leaving a review (+ a bonus when it has a photo).
+    if (!review.customerId) return;
     const hasPhoto = Array.isArray(review.imageUrls) && review.imageUrls.length > 0;
     const points = REVIEW_POINTS + (hasPhoto ? REVIEW_PHOTO_BONUS : 0);
 

@@ -209,13 +209,14 @@ service cloud.firestore {
                      && resource.data.providerId == me()
                      && request.resource.data.providerId == resource.data.providerId
                      && request.resource.data.isVerified  == resource.data.isVerified
-                     // confirmedCount is a server aggregate (confirmAppointment);
-                     // frozen so a provider can't inflate it to self-award a GOLD/
-                     // SILVER badge (badge() thresholds on it). The rating average
-                     // is still recomputed client-side today — a server-side move
-                     // is tracked so rating can be frozen too.
+                     // Server-maintained reputation fields, frozen so a provider
+                     // can't self-award a GOLD/SILVER badge (badge() thresholds on
+                     // both) or a top rating: confirmedCount by confirmAppointment,
+                     // and rating by the awardReviewPoints review trigger.
                      && request.resource.data.get('confirmedCount', 0)
-                          == resource.data.get('confirmedCount', 0));
+                          == resource.data.get('confirmedCount', 0)
+                     && request.resource.data.get('rating', 0)
+                          == resource.data.get('rating', 0));
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());
