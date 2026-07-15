@@ -219,23 +219,45 @@ internal fun SalonDetailSheetContent(
         HorizontalDivider(color = BlushPink)
         Spacer(Modifier.height(16.dp))
 
-        // ── Identity block ────────────────────────────────────────────
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // ── Cover hero (same photo the browse card leads with; gradient behind
+        //     it as a safe fallback for an empty or broken cover URL) ─────────
+        if (salon.coverImageUrl.isNotBlank()) {
             Box(
-                contentAlignment = Alignment.Center,
-                modifier         = Modifier
-                    .size(68.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
             ) {
-                Text(
-                    text       = salon.salonName.first().toString(),
-                    fontSize   = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = Color.White
+                AsyncImage(
+                    model              = salon.coverImageUrl,
+                    contentDescription = null,
+                    contentScale       = ContentScale.Crop,
+                    modifier           = Modifier.fillMaxSize()
                 )
             }
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // ── Identity block ────────────────────────────────────────────
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (salon.coverImageUrl.isBlank()) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier         = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
+                ) {
+                    Text(
+                        text       = salon.salonName.first().toString(),
+                        fontSize   = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color      = Color.White
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(salon.salonName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = DeepRose)
                 Spacer(Modifier.height(3.dp))
