@@ -59,6 +59,33 @@ function lastMinuteDiscount(listPrice, appointmentDate, now, opts) {
   return Math.min(price, Math.round((price * Math.min(pct, 100)) / 100));
 }
 
+// Discount (AFN) for booking a service package. Applies only when the booked
+// [services] (each {name, price}) include every service in the package; the
+// discount is a percentage of just those package services' subtotal, capped at
+// it. Returns 0 if the package isn't fully present or has no percent.
+function packageDiscountFor(pkg, services) {
+  if (!pkg) return 0;
+  const pct = Number(pkg.discountPercent || 0);
+  const need = Array.isArray(pkg.services) ? pkg.services.map((s) => String(s)) : [];
+  if (pct <= 0 || need.length === 0) return 0;
+  const list = Array.isArray(services) ? services : [];
+  // Count booked services by name so duplicates in the package are honoured.
+  const remaining = {};
+  for (const s of list) {
+    const n = String(s && s.name);
+    remaining[n] = (remaining[n] || 0) + 1;
+  }
+  let base = 0;
+  for (const name of need) {
+    if (!remaining[name]) return 0; // a package service isn't in the booking
+    remaining[name] -= 1;
+    const svc = list.find((s) => String(s && s.name) === name && Number(s.price) >= 0);
+    base += Number((svc && svc.price) || 0);
+  }
+  if (base <= 0) return 0;
+  return Math.min(base, Math.round((base * Math.min(pct, 100)) / 100));
+}
+
 // Full checkout split for one booking. Given the list price, an already-resolved
 // promo discount, the customer's available referral credit, and the platform
 // commission %, returns every derived amount the callable stores:
@@ -136,5 +163,5 @@ function loyaltyToCredit(points, opts) {
 
 module.exports = {
   promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit,
-  offerDiscountFor, lastMinuteDiscount,
+  offerDiscountFor, lastMinuteDiscount, packageDiscountFor,
 };

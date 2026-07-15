@@ -102,6 +102,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -351,6 +352,9 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
 
         // ── Last-minute deal ──────────────────────────────────────────────
         LastMinuteSection(viewModel = viewModel)
+
+        // ── Packages (discounted bundles) ─────────────────────────────────
+        PackagesSection(viewModel = viewModel)
 
         // ── Staff / stylists roster ───────────────────────────────────────
         StaffSection(viewModel = viewModel)
@@ -1187,6 +1191,111 @@ private fun LastMinuteSection(viewModel: ProviderViewModel) {
                         suffix          = { Text(strings.hoursShort, fontSize = 11.sp, color = RoseGold) }
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Lets a provider create discounted service bundles ("packages"). A package is a
+ * name + a set of the salon's services + a discount %. Booking all of a package's
+ * services together applies the discount at checkout (server-authoritative).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PackagesSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        cursorColor          = RoseGold,
+        focusedLabelColor    = RoseGold
+    )
+    var pkgName  by remember { mutableStateOf("") }
+    var pctText  by remember { mutableStateOf("") }
+    val picked   = remember { mutableStateListOf<String>() }
+
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(strings.packagesTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            HorizontalDivider(color = BlushPink)
+            Text(strings.packagesHint, fontSize = 11.sp, color = DeepRose)
+
+            // Existing packages
+            viewModel.editPackages.forEach { pkg ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${pkg.name.ifBlank { pkg.services.joinToString("، ") }} · ${pkg.discountPercent}%",
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = DeepRose
+                        )
+                        Text(pkg.services.joinToString("، "), fontSize = 11.sp, color = RoseGold)
+                    }
+                    IconButton(onClick = { viewModel.removePackage(pkg.id) }) {
+                        Icon(Icons.Default.Delete, contentDescription = strings.remove, tint = Color(0xFFB00020))
+                    }
+                }
+                HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))
+            }
+
+            // New package builder
+            OutlinedTextField(
+                value         = pkgName,
+                onValueChange = { pkgName = it },
+                label         = { Text(strings.packageNameHint, fontSize = 12.sp) },
+                singleLine    = true,
+                modifier      = Modifier.fillMaxWidth(),
+                shape         = RoundedCornerShape(12.dp),
+                colors        = fieldColors
+            )
+            if (viewModel.editServices.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    viewModel.editServices.forEach { svc ->
+                        val on = picked.contains(svc)
+                        FilterChip(
+                            selected = on,
+                            onClick  = { if (on) picked.remove(svc) else picked.add(svc) },
+                            label    = { Text(svc, fontSize = 12.sp) },
+                            colors   = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = ChipActive,
+                                selectedLabelColor     = Color.White,
+                                containerColor         = ChipInactive,
+                                labelColor             = DeepRose
+                            )
+                        )
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value         = pctText,
+                    onValueChange = { pctText = it.filter { c -> c.isDigit() }.take(3) },
+                    label         = { Text(strings.lastMinutePercentLabel, fontSize = 11.sp) },
+                    singleLine    = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier      = Modifier.width(120.dp),
+                    shape         = RoundedCornerShape(10.dp),
+                    colors        = fieldColors,
+                    suffix        = { Text("%", fontSize = 11.sp, color = RoseGold) }
+                )
+                Button(
+                    onClick = {
+                        viewModel.addPackage(pkgName, picked.toList(), pctText.toIntOrNull() ?: 0)
+                        pkgName = ""; pctText = ""; picked.clear()
+                    },
+                    enabled = picked.isNotEmpty() && (pctText.toIntOrNull() ?: 0) > 0,
+                    shape   = RoundedCornerShape(10.dp),
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) { Text(strings.addPackage, color = Color.White, fontSize = 13.sp) }
             }
         }
     }

@@ -212,7 +212,9 @@ private data class BookingIntent(
     val dateMs: Long? = null,
     // "" = any available stylist (or a solo salon).
     val staffId: String = "",
-    val staffName: String = ""
+    val staffName: String = "",
+    // Non-empty when booking a discounted package; the server applies its discount.
+    val packageId: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -1483,7 +1485,7 @@ fun CustomerDashboardScreen(
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
                                 val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
-                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId)
+                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId, intent.packageId)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
@@ -1882,6 +1884,15 @@ fun CustomerDashboardScreen(
                         selectedServices.clear()
                         bookingIntent     = BookingIntent(salon, emptyList())
                         showServiceDialog = true
+                    },
+                    onBookPackage = { pkg ->
+                        // Package services are fixed — skip service selection and go
+                        // straight to date/time; the server applies the bundle discount.
+                        showSalonDetail = null
+                        selectedServices.clear()
+                        selectedServices.addAll(pkg.services)
+                        bookingIntent  = BookingIntent(salon, pkg.services, packageId = pkg.id)
+                        showDatePicker = true
                     },
                     onDismiss = { showSalonDetail = null }
                 )

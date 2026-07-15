@@ -139,6 +139,7 @@ import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.ServicePackage
 import com.safebeauty.app.data.firebase.activeStaff
 import com.safebeauty.app.data.firebase.hasLocation
 import com.safebeauty.app.data.firebase.LoyaltyTier
@@ -193,6 +194,7 @@ internal fun SalonDetailSheetContent(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
+    onBookPackage: (ServicePackage) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val strings  = LocalStrings.current
@@ -413,6 +415,52 @@ internal fun SalonDetailSheetContent(
                 )
             }
             Spacer(Modifier.height(14.dp))
+        }
+
+        // ── Packages (discounted service bundles) ─────────────────────
+        val packages = salon.packages.filter { it.services.isNotEmpty() && it.discountPercent > 0 }
+        if (packages.isNotEmpty()) {
+            Text(strings.packagesTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                packages.forEach { pkg ->
+                    Card(
+                        shape  = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = DashboardSurface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(pkg.name.ifBlank { pkg.services.joinToString("، ") },
+                                    fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = DeepRose,
+                                    modifier = Modifier.weight(1f))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DeepRose)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text("${pkg.discountPercent}%", fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                            Text(pkg.services.joinToString("، "), fontSize = 11.sp, color = RoseGold)
+                            Spacer(Modifier.height(8.dp))
+                            Button(
+                                onClick = { onBookPackage(pkg) },
+                                modifier = Modifier.fillMaxWidth().height(38.dp),
+                                shape    = RoundedCornerShape(10.dp),
+                                colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                            ) { Text(strings.bookPackage, color = Color.White, fontSize = 13.sp) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
         }
 
         // ── Offers / deals (informational — do not change checkout price) ──

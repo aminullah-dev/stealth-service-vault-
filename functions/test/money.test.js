@@ -2,7 +2,7 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("../lib/money");
 
 test("loyaltyToCredit: exact multiple redeems fully at 1:1", () => {
   assert.deepEqual(loyaltyToCredit(100), { ok: true, spend: 100, credit: 100, reason: "" });
@@ -285,4 +285,44 @@ test("lastMinuteDiscount: boundary at exactly the window edge still applies", ()
 test("lastMinuteDiscount: never exceeds the price and rounds", () => {
   assert.equal(lastMinuteDiscount(999, NOW + HOUR, NOW, { enabled: true, percent: 50, windowHours: 24 }), 500);
   assert.equal(lastMinuteDiscount(1000, NOW + HOUR, NOW, { enabled: true, percent: 150, windowHours: 24 }), 1000);
+});
+
+// ── packageDiscountFor (service bundles) ─────────────────────────────────────
+const PKG_SERVICES = [{ name: "nails", price: 200 }, { name: "hair", price: 400 }, { name: "makeup", price: 800 }];
+
+test("packageDiscountFor: all package services present -> % of their subtotal", () => {
+  // package = nails + hair (600), 15% = 90
+  const pkg = { services: ["nails", "hair"], discountPercent: 15 };
+  assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 90);
+});
+
+test("packageDiscountFor: a missing package service -> 0", () => {
+  const pkg = { services: ["nails", "spa"], discountPercent: 20 };
+  assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 0);
+});
+
+test("packageDiscountFor: honours duplicate services in the package", () => {
+  // two nails needed but only one booked -> 0
+  const pkg = { services: ["nails", "nails"], discountPercent: 10 };
+  assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 0);
+  // two nails booked -> base 400, 10% = 40
+  const twoNails = [{ name: "nails", price: 200 }, { name: "nails", price: 200 }];
+  assert.equal(packageDiscountFor(pkg, twoNails), 40);
+});
+
+test("packageDiscountFor: only the package services count, not extras", () => {
+  // package nails(200) 50% = 100, even though makeup(800) is also booked
+  const pkg = { services: ["nails"], discountPercent: 50 };
+  assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 100);
+});
+
+test("packageDiscountFor: no percent / no services / null -> 0", () => {
+  assert.equal(packageDiscountFor({ services: ["nails"], discountPercent: 0 }, PKG_SERVICES), 0);
+  assert.equal(packageDiscountFor({ services: [], discountPercent: 20 }, PKG_SERVICES), 0);
+  assert.equal(packageDiscountFor(null, PKG_SERVICES), 0);
+});
+
+test("packageDiscountFor: caps at the package subtotal and rounds", () => {
+  const pkg = { services: ["nails"], discountPercent: 150 };
+  assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 200);
 });

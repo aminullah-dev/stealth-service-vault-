@@ -124,6 +124,18 @@ data class WorkingHours(
  * customer may book a specific staff member; "active = false" hides them from
  * the booking picker without losing their history.
  */
+/**
+ * A discounted bundle of services a salon offers (e.g. "4 nail sessions, 15% off").
+ * Booking all of a package's [services] together applies [discountPercent] off
+ * those services' subtotal at checkout (server-authoritative, tested in money.js).
+ */
+data class ServicePackage(
+    val id: String = "",
+    val name: String = "",
+    val services: List<String> = emptyList(),
+    val discountPercent: Int = 0
+)
+
 data class StaffMember(
     val id: String = "",                    // stable UUID, generated when added
     val name: String = "",
@@ -167,6 +179,9 @@ data class SalonDocument(
     var lastMinuteEnabled: Boolean = false,
     val lastMinutePercent: Int = 0,
     val lastMinuteWindowHours: Int = 0,
+    // Discounted service bundles (Feature: packages). Booking a package applies
+    // its discount at checkout server-side.
+    val packages: List<ServicePackage> = emptyList(),
     val confirmedCount: Int = 0,
     // Geographic location (set by the provider from their device GPS). 0/0 means
     // "not set" — the map/distance features simply skip such salons.

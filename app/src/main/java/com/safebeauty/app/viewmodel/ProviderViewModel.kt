@@ -14,6 +14,7 @@ import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.ServicePackage
 import com.safebeauty.app.data.firebase.StaffMember
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WorkingHours
@@ -248,6 +249,7 @@ class ProviderViewModel @Inject constructor(
     var editLastMinuteEnabled by mutableStateOf(false)
     var editLastMinutePercent by mutableStateOf(0)
     var editLastMinuteWindow  by mutableStateOf(0)
+    var editPackages by mutableStateOf<List<ServicePackage>>(emptyList())
     var editHesabAccountNumber by mutableStateOf("")
     // Salon location (0/0 = not set yet).
     var editLatitude     by mutableStateOf(0.0)
@@ -273,6 +275,7 @@ class ProviderViewModel @Inject constructor(
                     editLastMinuteEnabled = s.lastMinuteEnabled
                     editLastMinutePercent = s.lastMinutePercent
                     editLastMinuteWindow  = s.lastMinuteWindowHours
+                    editPackages = s.packages
                     editStaff = s.staff
                     editLatitude = s.latitude
                     editLongitude = s.longitude
@@ -384,6 +387,18 @@ class ProviderViewModel @Inject constructor(
 
     fun removeStaff(id: String) { editStaff = editStaff.filter { it.id != id } }
 
+    // ── Packages (discounted service bundles) ───────────────────────────────────
+    fun addPackage(name: String, services: List<String>, percent: Int) {
+        if (services.isEmpty() || percent <= 0) return
+        editPackages = editPackages + ServicePackage(
+            id = java.util.UUID.randomUUID().toString(),
+            name = name.trim(),
+            services = services,
+            discountPercent = percent.coerceIn(1, 100)
+        )
+    }
+    fun removePackage(id: String) { editPackages = editPackages.filter { it.id != id } }
+
     /**
      * Uploads a portfolio photo for staff [staffId] and appends the URL to that
      * member in [editStaff] (persisted on the next saveProfile). Capped at 4. A
@@ -466,6 +481,7 @@ class ProviderViewModel @Inject constructor(
                         lastMinuteEnabled     = editLastMinuteEnabled,
                         lastMinutePercent     = editLastMinutePercent.coerceIn(0, 100),
                         lastMinuteWindowHours = editLastMinuteWindow.coerceIn(0, 168),
+                        packages            = editPackages,
                         staff               = editStaff,
                         latitude            = editLatitude,
                         longitude           = editLongitude

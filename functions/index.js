@@ -37,7 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount } = require("./lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("./lib/money");
 const { expandBooked, serviceSlotSpan } = require("./lib/slots");
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 
@@ -175,7 +175,7 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId } =
       request.data || {};
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
 
@@ -306,6 +306,17 @@ exports.createPaymentSession = onCall(
       windowHours: salon.lastMinuteWindowHours,
     });
 
+    // Package bundle discount: when the customer books a named package, apply its
+    // discount if all its services are actually in the booking. Validated
+    // server-side against the salon's stored packages; pure math in lib/money.js.
+    let packageDiscount = 0;
+    let appliedPackageId = "";
+    if (packageId) {
+      const pkg = (salon.packages || []).find((p) => p && p.id === packageId);
+      const d = packageDiscountFor(pkg, services);
+      if (d > 0) { packageDiscount = d; appliedPackageId = packageId; }
+    }
+
     // Full checkout split (promo + offer + last-minute → referral credit → commission).
     // The customer is
     // charged the discounted price; commission is computed on that same discounted
@@ -318,7 +329,7 @@ exports.createPaymentSession = onCall(
     const { afterPromo, referralUsed, price, commissionAmount, providerNet } =
       computeCheckout({
         listPrice,
-        promoDiscount:  promo.discount + offerDiscount + lastMinuteDisc,
+        promoDiscount:  promo.discount + offerDiscount + lastMinuteDisc + packageDiscount,
         referralCredit: appUser.referralCredit,
         commissionPercent,
       });
@@ -378,6 +389,8 @@ exports.createPaymentSession = onCall(
         offerDiscount,
         offerId:           appliedOfferId,
         lastMinuteDiscount: lastMinuteDisc,
+        packageDiscount,
+        packageId:         appliedPackageId,
         referralUsed,
         commissionPercent,
         commissionAmount,
@@ -477,6 +490,8 @@ exports.createPaymentSession = onCall(
       offerDiscount,
       offerId:           appliedOfferId,
       lastMinuteDiscount: lastMinuteDisc,
+      packageDiscount,
+      packageId:         appliedPackageId,
       referralUsed,
       // Counted/spent in the webhook only when the payment actually succeeds, so
       // an abandoned or failed online checkout never burns a promo use or credit.

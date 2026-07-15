@@ -826,7 +826,8 @@ class DashboardViewModel @Inject constructor(
         appointmentDateMs: Long,
         notes: String = "",
         paymentMethod: String = "ONLINE",
-        staffId: String = ""
+        staffId: String = "",
+        packageId: String = ""
     ) {
         checkout = CheckoutUiState.Creating
         // Only send a code that was actually validated for THIS service, so a
@@ -841,7 +842,8 @@ class DashboardViewModel @Inject constructor(
                 email             = _currentUserEmail.value,
                 method            = paymentMethod,
                 promoCode         = appliedCode,
-                staffId           = staffId
+                staffId           = staffId,
+                packageId         = packageId
             )
             if (session == null) {
                 checkout = CheckoutUiState.Failed("checkout_failed")
