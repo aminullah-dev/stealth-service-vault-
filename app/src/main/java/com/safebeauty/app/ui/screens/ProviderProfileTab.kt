@@ -790,6 +790,9 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
         ) {
             Text(strings.portfolioTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
             HorizontalDivider(color = BlushPink)
+            if (gallery.isNotEmpty()) {
+                Text(strings.coverPhotoHint, fontSize = 11.sp, color = RoseGold)
+            }
 
             if (gallery.isEmpty() && !viewModel.isUploadingPhoto) {
                 Text(strings.noPhotosYet, fontSize = 13.sp, color = Color(0xFFAAAAAA))
@@ -814,9 +817,12 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
                     }
                     items(gallery, key = { it.id }) { image ->
                         ProviderGalleryThumb(
-                            image    = image,
-                            onDelete = { viewModel.deleteGalleryImage(image.id) },
-                            deleteCd = strings.deletePhoto
+                            image      = image,
+                            isCover    = image.imageUrl.isNotBlank() && image.imageUrl == viewModel.editCoverImageUrl,
+                            onSetCover = { if (image.imageUrl.isNotBlank()) viewModel.setCoverImage(image.imageUrl) },
+                            onDelete   = { viewModel.deleteGalleryImage(image.id) },
+                            deleteCd   = strings.deletePhoto,
+                            coverCd    = strings.setAsCover
                         )
                     }
                 }
@@ -851,8 +857,11 @@ private fun PortfolioSection(viewModel: ProviderViewModel) {
 @Composable
 private fun ProviderGalleryThumb(
     image: GalleryImageDocument,
+    isCover: Boolean,
+    onSetCover: () -> Unit,
     onDelete: () -> Unit,
-    deleteCd: String
+    deleteCd: String,
+    coverCd: String
 ) {
     val thumbModifier = Modifier
         .fillMaxSize()
@@ -878,6 +887,20 @@ private fun ProviderGalleryThumb(
                 Box(modifier = thumbModifier.background(BlushPink))
             }
         }
+        // Cover badge — tap the star to make this the salon's browse-card cover.
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(4.dp)
+                .size(22.dp)
+                .clip(CircleShape)
+                .background(if (isCover) RoseGold else Color(0xCC000000))
+                .clickable(onClickLabel = coverCd) { onSetCover() }
+        ) {
+            Text(if (isCover) "★" else "☆", color = Color.White, fontSize = 13.sp)
+        }
+
         // Delete badge
         Box(
             contentAlignment = Alignment.Center,

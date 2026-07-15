@@ -174,6 +174,11 @@ class ProviderViewModel @Inject constructor(
     }
 
     fun deleteGalleryImage(imageId: String) {
+        // If this photo was the salon cover, drop it (persisted on the next save)
+        // so the card falls back to the gradient instead of a broken image.
+        if (gallery.value.find { it.id == imageId }?.imageUrl == editCoverImageUrl) {
+            editCoverImageUrl = ""
+        }
         viewModelScope.launch {
             // Look up the storagePath before deleting the Firestore doc.
             val storagePath = firestoreRepository.getGalleryImageStoragePath(imageId)
@@ -258,6 +263,10 @@ class ProviderViewModel @Inject constructor(
         private set
     // Staff (stylists) roster editing.
     var editStaff        by mutableStateOf<List<StaffMember>>(emptyList())
+    // The provider-chosen browse-card cover (one of the portfolio image URLs).
+    // Persisted on the next saveProfile.
+    var editCoverImageUrl by mutableStateOf("")
+        private set
     var newStaffName     by mutableStateOf("")
     var newStaffSpecialty by mutableStateOf("")
 
@@ -277,6 +286,7 @@ class ProviderViewModel @Inject constructor(
                     editLastMinuteWindow  = s.lastMinuteWindowHours
                     editPackages = s.packages
                     editStaff = s.staff
+                    editCoverImageUrl = s.coverImageUrl
                     editLatitude = s.latitude
                     editLongitude = s.longitude
                 }
@@ -425,6 +435,10 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
+    /** Marks a portfolio photo (by its Storage URL) as the salon's browse-card
+     *  cover. Persisted on the next saveProfile. */
+    fun setCoverImage(url: String) { editCoverImageUrl = url }
+
     /** Records the salon's pinned location (from the provider's device GPS). */
     fun setLocation(lat: Double, lng: Double) {
         editLatitude = lat
@@ -483,6 +497,7 @@ class ProviderViewModel @Inject constructor(
                         lastMinuteWindowHours = editLastMinuteWindow.coerceIn(0, 168),
                         packages            = editPackages,
                         staff               = editStaff,
+                        coverImageUrl       = editCoverImageUrl,
                         latitude            = editLatitude,
                         longitude           = editLongitude
                     )

@@ -2174,24 +2174,56 @@ private fun SalonCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
-            Row(verticalAlignment = Alignment.Top) {
+            // Photo-first hero: the provider's chosen cover leads the card. The
+            // gradient sits behind the image, so an empty or broken cover URL
+            // degrades to the monogram gradient instead of a blank band.
+            if (salon.coverImageUrl.isNotBlank()) {
                 Box(
-                    contentAlignment = Alignment.Center,
-                    modifier         = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            Brush.linearGradient(listOf(gradient.first, gradient.second))
-                        )
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
                 ) {
-                    Text(
-                        text       = salon.salonName.first().toString(),
-                        fontSize   = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color      = Color.White
+                    AsyncImage(
+                        model              = salon.coverImageUrl,
+                        contentDescription = null,
+                        contentScale       = ContentScale.Crop,
+                        modifier           = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Transparent, Color(0x55000000))
+                                )
+                            )
                     )
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.height(12.dp))
+            }
+
+            Row(verticalAlignment = Alignment.Top) {
+                if (salon.coverImageUrl.isBlank()) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier         = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.linearGradient(listOf(gradient.first, gradient.second))
+                            )
+                    ) {
+                        Text(
+                            text       = salon.salonName.first().toString(),
+                            fontSize   = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            color      = Color.White
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text       = salon.salonName,

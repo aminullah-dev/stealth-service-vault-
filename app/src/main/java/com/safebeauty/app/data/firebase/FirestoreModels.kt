@@ -182,6 +182,11 @@ data class SalonDocument(
     // Discounted service bundles (Feature: packages). Booking a package applies
     // its discount at checkout server-side.
     val packages: List<ServicePackage> = emptyList(),
+    // Cover photo for the browse card — one of the salon_gallery image URLs the
+    // provider marks as the cover. Empty ⇒ the card/sheet fall back to the
+    // gradient monogram. Just a stored URL, so it reuses the existing public
+    // gallery path (no new Storage path or rule needed).
+    val coverImageUrl: String = "",
     val confirmedCount: Int = 0,
     // Geographic location (set by the provider from their device GPS). 0/0 means
     // "not set" — the map/distance features simply skip such salons.
