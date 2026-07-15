@@ -41,6 +41,12 @@ data class Palette(
     val warningOrange: Color,
     val neutralGrey: Color,
     val adminPurple: Color,
+    // Text hierarchy below the DeepRose headline level. The screens used to
+    // hardcode ~7 different grey literals for these three roles; in dark mode a
+    // dark grey on a dark background disappears, so they must flip with the theme.
+    val textStrong: Color,   // emphasised body copy (was 0xFF444444 / 0xFF555555)
+    val textMuted: Color,    // secondary copy      (was 0xFF666–999999 greys)
+    val textFaint: Color,    // hints/placeholders  (was 0xFFAAAAAA)
     // Gradient colour stops, so brand gradients get a dark variant too.
     val brandRose: List<Color>,
     val brandRoseSoft: List<Color>,
@@ -76,6 +82,9 @@ val LightPalette = Palette(
     warningOrange    = Color(0xFFE67E22),
     neutralGrey      = Color(0xFF97878F),
     adminPurple      = Color(0xFF7B6FA0),
+    textStrong       = Color(0xFF4A3E44),
+    textMuted        = Color(0xFF8A7A81),
+    textFaint        = Color(0xFFAA9AA1),
     brandRose        = listOf(Color(0xFFEBA9C0), Color(0xFFB76E79), Color(0xFF7A2F3D)),
     brandRoseSoft    = listOf(Color(0xFFD98CA8), Color(0xFF8B3A47)),
     screenBg         = listOf(Color(0xFFFFF7FB), Color(0xFFFDEAF3), Color(0xFFF5E7F6)),
@@ -115,6 +124,9 @@ val DarkPalette = Palette(
     warningOrange    = Color(0xFFE9975A),
     neutralGrey      = Color(0xFFA895A0),
     adminPurple      = Color(0xFFB6A0D0),
+    textStrong       = Color(0xFFDCCDD4),
+    textMuted        = Color(0xFFB79FA9),
+    textFaint        = Color(0xFF8F7B84),
     brandRose        = listOf(Color(0xFF8B4A57), Color(0xFF6E3A45), Color(0xFF4A222B)),
     brandRoseSoft    = listOf(Color(0xFF7A4653), Color(0xFF5A2E38)),
     screenBg         = listOf(Color(0xFF15100F), Color(0xFF1A1218), Color(0xFF17141F)),
@@ -153,6 +165,9 @@ val DangerRed:        Color @Composable get() = LocalPalette.current.dangerRed
 val WarningOrange:    Color @Composable get() = LocalPalette.current.warningOrange
 val NeutralGrey:      Color @Composable get() = LocalPalette.current.neutralGrey
 val AdminPurple:      Color @Composable get() = LocalPalette.current.adminPurple
+val TextStrong:       Color @Composable get() = LocalPalette.current.textStrong
+val TextMuted:        Color @Composable get() = LocalPalette.current.textMuted
+val TextFaint:        Color @Composable get() = LocalPalette.current.textFaint
 
 // ── Brand gradients (theme-aware) ────────────────────────────────────────────────
 // Same object/name the screens use. Each getter rebuilds the brush from the
