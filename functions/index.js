@@ -214,6 +214,14 @@ exports.createPaymentSession = onCall(
         "salonId, at least one service, and appointmentDate are required."
       );
     }
+    // appointmentDate flows into date math (blocked-day, last-minute window, slot
+    // conflict) and is stored — reject a non-finite / garbage value up front so it
+    // can't produce a NaN downstream or a malformed booking document.
+    if (!Number.isFinite(Number(appointmentDate)) || Number(appointmentDate) <= 0) {
+      throw new HttpsError("invalid-argument", "A valid appointment time is required.");
+    }
+    // Cap free-text notes so a client can't store an oversized document.
+    const safeNotes = String(notes || "").slice(0, 500);
 
     assertDocId(salonId, "salonId");
     // Read the salon + price server-side so the client can't spoof the amount.
@@ -397,7 +405,7 @@ exports.createPaymentSession = onCall(
         status:         "PENDING",
         paymentMethod:  "CASH",
         createdAt:      Date.now(),
-        notes:          notes || "",
+        notes:          safeNotes,
         reminderSent:   false,
         customerReported:    false,
         customerRatingSum:   Number(user.customerRatingSum || 0),
@@ -498,7 +506,7 @@ exports.createPaymentSession = onCall(
       status:        "AWAITING_PAYMENT",
       paymentMethod: "ONLINE",
       createdAt:     Date.now(),
-      notes:         notes || "",
+      notes:         safeNotes,
       reminderSent:  false,
       customerReported:    false,
       customerRatingSum:   Number(user.customerRatingSum || 0),
