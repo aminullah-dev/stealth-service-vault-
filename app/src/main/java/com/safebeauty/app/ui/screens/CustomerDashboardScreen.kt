@@ -1866,7 +1866,10 @@ fun CustomerDashboardScreen(
 
         // ── Salon detail sheet ────────────────────────────────────────────────
         showSalonDetail?.let { salon ->
-            val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            // Peek-then-expand sheet (Lyft/Uber-style): opens at a partial
+            // "peek" height showing the salon identity + primary Book action,
+            // with a drag handle to pull it up to full for the rest.
+            val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
             ModalBottomSheet(
                 onDismissRequest = { showSalonDetail = null },
                 sheetState       = detailSheetState,

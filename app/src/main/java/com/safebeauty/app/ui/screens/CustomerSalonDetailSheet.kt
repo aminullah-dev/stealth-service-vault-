@@ -329,6 +329,37 @@ internal fun SalonDetailSheetContent(
             Spacer(Modifier.height(14.dp))
         }
 
+        // ── Book (primary action — kept high so it stays visible at the
+        //     sheet's peek height; drag the sheet up for team, services,
+        //     packages & reviews, Lyft/Uber-style) ──────────────────────
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .then(
+                    if (salon.isAvailable)
+                        Modifier
+                            .shadow(6.dp, RoundedCornerShape(16.dp), clip = false)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Gradients.BrandRose)
+                            .clickable(onClick = onBook)
+                    else
+                        Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(UnavailableGrey.copy(alpha = 0.22f))
+                )
+        ) {
+            Text(
+                strings.book,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (salon.isAvailable) Color.White else UnavailableGrey
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+
         // ── Portfolio / sample work ───────────────────────────────────
         if (gallery.isNotEmpty()) {
             Text(strings.portfolioTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
@@ -540,35 +571,6 @@ internal fun SalonDetailSheetContent(
             }
             Spacer(Modifier.height(16.dp))
         }
-
-        // ── Book button ───────────────────────────────────────────────
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .then(
-                    if (salon.isAvailable)
-                        Modifier
-                            .shadow(6.dp, RoundedCornerShape(16.dp), clip = false)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Gradients.BrandRose)
-                            .clickable(onClick = onBook)
-                    else
-                        Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(UnavailableGrey.copy(alpha = 0.22f))
-                )
-        ) {
-            Text(
-                strings.book,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (salon.isAvailable) Color.White else UnavailableGrey
-            )
-        }
-
-        Spacer(Modifier.height(22.dp))
 
         // ── Reviews ───────────────────────────────────────────────────
         Row(
