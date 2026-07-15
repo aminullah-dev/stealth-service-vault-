@@ -57,6 +57,16 @@ class StorageRepository @Inject constructor() {
     }
 
     /**
+     * Uploads one portfolio photo for a staff member. [staffId] and [index] keep
+     * the Storage path unique. Returns the HTTPS download URL, or throws.
+     */
+    suspend fun uploadStaffPhoto(salonId: String, staffId: String, index: Int, bytes: ByteArray): String {
+        val ref = storage.reference.child("staff_portfolio/$salonId/${staffId}_$index.jpg")
+        ref.putBytes(bytes).await()
+        return ref.downloadUrl.await().toString()
+    }
+
+    /**
      * Uploads the user's national-ID (tazkira) photo to the private KYC path.
      * Returns the HTTPS download URL (readable only by the owner + admins per
      * storage.rules), or throws on failure.

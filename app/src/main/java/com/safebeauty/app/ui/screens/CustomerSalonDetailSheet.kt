@@ -334,6 +334,40 @@ internal fun SalonDetailSheetContent(
             Spacer(Modifier.height(16.dp))
         }
 
+        // ── Our team (stylists + their portfolios) ────────────────────
+        val team = salon.activeStaff()
+        if (team.isNotEmpty()) {
+            Text(strings.teamTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                team.forEach { member ->
+                    Column {
+                        Text(member.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = DeepRose)
+                        if (member.specialty.isNotBlank()) {
+                            Text(member.specialty, fontSize = 11.sp, color = RoseGold)
+                        }
+                        if (member.photoUrls.isNotEmpty()) {
+                            Spacer(Modifier.height(6.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(member.photoUrls) { url ->
+                                    AsyncImage(
+                                        model              = url,
+                                        contentDescription = null,
+                                        contentScale       = ContentScale.Crop,
+                                        modifier           = Modifier
+                                            .size(96.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BlushPink)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
         // ── Offers / deals (informational — do not change checkout price) ──
         if (offers.isNotEmpty()) {
             Text(strings.offersTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)

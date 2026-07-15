@@ -490,12 +490,28 @@ private fun LocationSection(viewModel: ProviderViewModel) {
 @Composable
 private fun StaffSection(viewModel: ProviderViewModel) {
     val strings = LocalStrings.current
+    val context = LocalContext.current
+    val scope   = rememberCoroutineScope()
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor   = RoseGold,
         unfocusedBorderColor = ChipInactive,
         cursorColor          = RoseGold,
         focusedLabelColor    = RoseGold
     )
+    // One picker shared by all staff rows; the tapped row sets the target first.
+    var photoTargetStaff by remember { mutableStateOf("") }
+    val staffPhotoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        val target = photoTargetStaff
+        if (uri == null || target.isBlank()) return@rememberLauncherForActivityResult
+        scope.launch {
+            when (val result = ImageUtils.uriToCompressedBytes(context, uri)) {
+                is ImageUtils.BytesResult.Success -> viewModel.addStaffPhoto(target, result.bytes)
+                else -> { /* size/format errors surfaced elsewhere */ }
+            }
+        }
+    }
     Card(
         shape  = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = DashboardSurface)
@@ -543,6 +559,44 @@ private fun StaffSection(viewModel: ProviderViewModel) {
                         )
                         IconButton(onClick = { viewModel.removeStaff(member.id) }) {
                             Icon(Icons.Default.Delete, contentDescription = strings.staffRemove, tint = Color(0xFFB00020))
+                        }
+                    }
+                    // ── Per-stylist portfolio (up to 4 photos) ────────────────
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
+                    ) {
+                        items(member.photoUrls) { url ->
+                            Box {
+                                AsyncImage(
+                                    model              = url,
+                                    contentDescription = null,
+                                    contentScale       = ContentScale.Crop,
+                                    modifier           = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp))
+                                )
+                                IconButton(
+                                    onClick  = { viewModel.removeStaffPhoto(member.id, url) },
+                                    modifier = Modifier.size(20.dp).align(Alignment.TopEnd)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = strings.remove,
+                                        tint = DeepRose, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        if (member.photoUrls.size < 4) {
+                            item {
+                                OutlinedButton(
+                                    onClick = { photoTargetStaff = member.id
+                                        staffPhotoPicker.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        ) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp),
+                                    modifier = Modifier.height(56.dp)
+                                ) {
+                                    Icon(Icons.Default.AddAPhoto, contentDescription = null, modifier = Modifier.size(16.dp))
+                                }
+                            }
                         }
                     }
                     HorizontalDivider(color = BlushPink.copy(alpha = 0.4f))

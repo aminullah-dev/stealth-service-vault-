@@ -378,6 +378,32 @@ class ProviderViewModel @Inject constructor(
 
     fun removeStaff(id: String) { editStaff = editStaff.filter { it.id != id } }
 
+    /**
+     * Uploads a portfolio photo for staff [staffId] and appends the URL to that
+     * member in [editStaff] (persisted on the next saveProfile). Capped at 4. A
+     * timestamp keeps the Storage path unique (the rule forbids overwrites).
+     */
+    fun addStaffPhoto(staffId: String, bytes: ByteArray) {
+        val salonId = salon.value?.id ?: return
+        val member = editStaff.find { it.id == staffId } ?: return
+        if (member.photoUrls.size >= 4) return
+        viewModelScope.launch {
+            runCatching {
+                val index = (System.currentTimeMillis() and 0x7FFFFFFF).toInt()
+                val url = storageRepository.uploadStaffPhoto(salonId, staffId, index, bytes)
+                editStaff = editStaff.map {
+                    if (it.id == staffId) it.copy(photoUrls = it.photoUrls + url) else it
+                }
+            }.onFailure { CrashReporter.recordNonFatal(it, "provider:addStaffPhoto") }
+        }
+    }
+
+    fun removeStaffPhoto(staffId: String, url: String) {
+        editStaff = editStaff.map {
+            if (it.id == staffId) it.copy(photoUrls = it.photoUrls - url) else it
+        }
+    }
+
     /** Records the salon's pinned location (from the provider's device GPS). */
     fun setLocation(lat: Double, lng: Double) {
         editLatitude = lat

@@ -128,6 +128,7 @@ data class StaffMember(
     val id: String = "",                    // stable UUID, generated when added
     val name: String = "",
     val specialty: String = "",             // e.g. "Hair", "Makeup", "Nails"
+    val photoUrls: List<String> = emptyList(), // portfolio / sample-work photos
     @get:PropertyName("active") @set:PropertyName("active")
     var active: Boolean = true
 )

@@ -59,6 +59,17 @@ service firebase.storage {
       allow delete: if salonOwner(salonId) || isAdmin();
     }
 
+    // ── Staff portfolio photos ───────────────────────────────────────────────────
+    // Path: staff_portfolio/{salonId}/{fileName}. Same ownership model as the salon
+    // gallery — only the salon owner uploads; publicly readable so customers see a
+    // stylist's sample work on the salon sheet.
+    match /staff_portfolio/{salonId}/{fileName} {
+      allow read:   if isSignedIn();
+      allow create: if salonOwner(salonId) && isValidImage();
+      allow update: if false;
+      allow delete: if salonOwner(salonId) || isAdmin();
+    }
+
     // ── Review photos ──────────────────────────────────────────────────────────
     // Path: reviews/{reviewId}/{fileName}. Any signed-in customer can attach a
     // photo to a review they're creating (the review doc itself is guarded by
