@@ -1608,15 +1608,64 @@ fun CustomerDashboardScreen(
                 }
 
                 is CheckoutUiState.Failed -> {
+                    // The message field now carries the server's reason code, so
+                    // we can explain exactly what went wrong AND offer the recovery
+                    // that saves the user from re-entering the whole booking.
+                    val reason  = state.message
+                    val message = when (reason) {
+                        "SLOT_TAKEN"        -> strings.bookFailSlotTaken
+                        "SALON_CLOSED"      -> strings.bookFailSalonClosed
+                        "STAFF_UNAVAILABLE" -> strings.bookFailStaffUnavailable
+                        "FREE_USE_CASH"     -> strings.bookFailFreeUseCash
+                        "PROMO_LIMIT"       -> strings.bookFailPromoLimit
+                        else                -> strings.paymentFailed
+                    }
                     AlertDialog(
                         onDismissRequest = { viewModel.cancelCheckout() },
-                        title = { Text(strings.paymentTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                        text = { Text(strings.paymentFailed, fontSize = 14.sp, color = TextStrong) },
+                        title = { Text(strings.bookFailTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                        text  = { Text(message, fontSize = 14.sp, color = TextStrong) },
                         confirmButton = {
-                            Button(
-                                onClick = { viewModel.cancelCheckout() },
-                                colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                            ) { Text(strings.ok, color = Color.White) }
+                            when (reason) {
+                                "FREE_USE_CASH" -> Button(
+                                    onClick = { viewModel.retryLastAsCash() },
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.payCashInstead, color = Color.White) }
+                                "PROMO_LIMIT" -> Button(
+                                    onClick = { viewModel.retryLastWithoutPromo() },
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.continueWithoutCode, color = Color.White) }
+                                "SLOT_TAKEN", "SALON_CLOSED", "STAFF_UNAVAILABLE" -> Button(
+                                    onClick = {
+                                        // Reopen the date picker with the same salon
+                                        // + services so only the time changes.
+                                        val salon = viewModel.lastAttemptSalon
+                                        if (salon != null) {
+                                            selectedServices.clear()
+                                            selectedServices.addAll(viewModel.lastAttemptServiceList)
+                                            bookingIntent = BookingIntent(
+                                                salon     = salon,
+                                                services  = viewModel.lastAttemptServiceList,
+                                                staffId   = viewModel.lastAttemptStaff,
+                                                packageId = viewModel.lastAttemptPackage
+                                            )
+                                            showDatePicker = true
+                                        }
+                                        viewModel.cancelCheckout()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.chooseAnotherTime, color = Color.White) }
+                                else -> Button(
+                                    onClick = { viewModel.cancelCheckout() },
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.ok, color = Color.White) }
+                            }
+                        },
+                        dismissButton = {
+                            if (reason != "GENERIC") {
+                                TextButton(onClick = { viewModel.cancelCheckout() }) {
+                                    Text(strings.cancel, color = RoseGold)
+                                }
+                            }
                         },
                         containerColor = ElegantCream
                     )

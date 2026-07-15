@@ -115,7 +115,7 @@ async function resolvePromoDiscount(codeRaw, priceAfn) {
   const maxUses  = Number(p.maxUses || 0);
   const usedCount = Number(p.usedCount || 0);
   if (maxUses > 0 && usedCount >= maxUses) {
-    throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.");
+    throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.", { reason: "PROMO_LIMIT" });
   }
 
   // Percentage takes precedence when both are set; discount can never exceed the
@@ -259,7 +259,7 @@ exports.createPaymentSession = onCall(
       const bookingDay = new Date(Number(appointmentDate))
         .toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
       if (blockedDates.includes(bookingDay)) {
-        throw new HttpsError("failed-precondition", "The salon is closed on that day.");
+        throw new HttpsError("failed-precondition", "The salon is closed on that day.", { reason: "SALON_CLOSED" });
       }
     }
 
@@ -299,7 +299,7 @@ exports.createPaymentSession = onCall(
         (s) => s && s.id === wantStaffId && s.active !== false
       );
       if (!member) {
-        throw new HttpsError("failed-precondition", "That staff member is not available.");
+        throw new HttpsError("failed-precondition", "That staff member is not available.", { reason: "STAFF_UNAVAILABLE" });
       }
       resolvedStaffId = member.id;
       resolvedStaffName = String(member.name || "");
@@ -318,7 +318,7 @@ exports.createPaymentSession = onCall(
         .get();
       const existing = existingSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       if (hasSlotConflict(existing, appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
-        throw new HttpsError("failed-precondition", "That time slot is no longer available.");
+        throw new HttpsError("failed-precondition", "That time slot is no longer available.", { reason: "SLOT_TAKEN" });
       }
     }
 
@@ -406,7 +406,7 @@ exports.createPaymentSession = onCall(
             const pd = pSnap.data();
             const maxUses = Number(pd.maxUses || 0);
             if (maxUses > 0 && Number(pd.usedCount || 0) >= maxUses) {
-              throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.");
+              throw new HttpsError("failed-precondition", "This promo code has reached its usage limit.", { reason: "PROMO_LIMIT" });
             }
           }
         }
@@ -424,7 +424,8 @@ exports.createPaymentSession = onCall(
         if (paymentMethod === "ONLINE" && s.price <= 0) {
           throw new HttpsError(
             "failed-precondition",
-            "Your discount makes this booking free — please choose Cash payment."
+            "Your discount makes this booking free — please choose Cash payment.",
+            { reason: "FREE_USE_CASH" }
           );
         }
 
@@ -1877,7 +1878,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     if (blocked.length > 0) {
       const day = new Date(dateMs).toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
       if (blocked.includes(day)) {
-        throw new HttpsError("failed-precondition", "The salon is closed on that day.");
+        throw new HttpsError("failed-precondition", "The salon is closed on that day.", { reason: "SALON_CLOSED" });
       }
     }
 

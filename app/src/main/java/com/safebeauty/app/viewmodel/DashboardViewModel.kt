@@ -21,6 +21,7 @@ import com.safebeauty.app.data.firebase.NotificationDocument
 import com.safebeauty.app.data.firebase.OfferDocument
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.CheckoutSession
+import com.safebeauty.app.data.firebase.CheckoutOutcome
 import com.safebeauty.app.data.firebase.PromoPreview
 import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonDocument
@@ -820,6 +821,22 @@ class DashboardViewModel @Inject constructor(
      * also releases the booking to the provider). For "CASH" the backend
      * confirms the booking immediately — there is nothing to open or poll.
      */
+    // The last booking attempt, kept so a rejected booking can be retried
+    // (pay cash / drop the promo / pick a new time) without the user re-entering
+    // it. lastAttemptSalon is observable so the Failed dialog can rebuild the
+    // date picker with the same salon + services.
+    var lastAttemptSalon: SalonDocument? by mutableStateOf(null)
+        private set
+    private var lastAttemptServices: List<String> = emptyList()
+    private var lastAttemptSlotMs: Long = 0L
+    private var lastAttemptNotes: String = ""
+    private var lastAttemptStaffId: String = ""
+    private var lastAttemptPackageId: String = ""
+    val lastAttemptServiceList: List<String> get() = lastAttemptServices
+    val lastAttemptStaff: String   get() = lastAttemptStaffId
+    val lastAttemptPackage: String get() = lastAttemptPackageId
+    val lastAttemptSlot: Long      get() = lastAttemptSlotMs
+
     fun bookService(
         salon: SalonDocument,
         serviceNames: List<String>,
@@ -830,11 +847,19 @@ class DashboardViewModel @Inject constructor(
         packageId: String = ""
     ) {
         checkout = CheckoutUiState.Creating
+        // Remember the attempt so a rejection can be retried (see the recovery
+        // methods below) instead of forcing the user to start over.
+        lastAttemptSalon     = salon
+        lastAttemptServices  = serviceNames
+        lastAttemptSlotMs    = appointmentDateMs
+        lastAttemptNotes     = notes
+        lastAttemptStaffId   = staffId
+        lastAttemptPackageId = packageId
         // Only send a code that was actually validated for THIS service, so a
         // stale/mismatched code can't slip into the charge.
         val appliedCode = promoApplied?.code.orEmpty()
         viewModelScope.launch {
-            val session = paymentRepository.createCheckout(
+            val outcome = paymentRepository.createCheckout(
                 salonId           = salon.id,
                 serviceNames      = serviceNames,
                 appointmentDateMs = appointmentDateMs,
@@ -845,10 +870,12 @@ class DashboardViewModel @Inject constructor(
                 staffId           = staffId,
                 packageId         = packageId
             )
-            if (session == null) {
-                checkout = CheckoutUiState.Failed("checkout_failed")
+            if (outcome is CheckoutOutcome.Failure) {
+                // Keep the attempt so the Failed dialog can offer a specific retry.
+                checkout = CheckoutUiState.Failed(outcome.reason)
                 return@launch
             }
+            val session = (outcome as CheckoutOutcome.Success).session
             clearPromo()
             vaultRepository.log(
                 "PAYMENT_STARTED",
@@ -863,6 +890,21 @@ class DashboardViewModel @Inject constructor(
                 observePayment(session.paymentId, salon.salonName)
             }
         }
+    }
+
+    /** Retry the last rejected booking as CASH — used when a discount made the
+     *  online charge 0 (HesabPay can't charge 0). Keeps every other selection. */
+    fun retryLastAsCash() {
+        val salon = lastAttemptSalon ?: return
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "CASH", lastAttemptStaffId, lastAttemptPackageId)
+    }
+
+    /** Retry the last rejected booking after dropping the promo code — used when
+     *  the code just hit its usage limit. Keeps every other selection. */
+    fun retryLastWithoutPromo() {
+        val salon = lastAttemptSalon ?: return
+        clearPromo()
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "ONLINE", lastAttemptStaffId, lastAttemptPackageId)
     }
 
     private fun observePayment(paymentId: String, salonName: String) {

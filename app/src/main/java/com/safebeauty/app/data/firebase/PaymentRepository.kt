@@ -2,6 +2,7 @@ package com.safebeauty.app.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.safebeauty.app.util.CrashReporter
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -44,6 +45,16 @@ data class PromoPreview(
  * for a checkout URL and (2) observe the resulting payment document's status,
  * which the webhook flips to PAID once HesabPay confirms.
  */
+/**
+ * Result of a booking attempt: either a usable checkout session, or a rejection
+ * carrying a stable reason code the UI maps to a specific recovery action
+ * (pick another time, pay cash, drop the promo) instead of a dead-end "failed".
+ */
+sealed interface CheckoutOutcome {
+    data class Success(val session: CheckoutSession) : CheckoutOutcome
+    data class Failure(val reason: String) : CheckoutOutcome
+}
+
 @Singleton
 class PaymentRepository @Inject constructor() {
 
@@ -55,7 +66,8 @@ class PaymentRepository @Inject constructor() {
      * session ([method] = "ONLINE") or confirmed immediately for in-person cash
      * payment ([method] = "CASH", server debits the platform's commission from
      * the provider's payout balance since no online transaction occurs).
-     * Returns null on failure.
+     * Returns a [CheckoutOutcome]: Success with the session, or Failure with a
+     * reason code so the UI can offer the right recovery.
      */
     suspend fun createCheckout(
         salonId: String,
@@ -67,7 +79,7 @@ class PaymentRepository @Inject constructor() {
         promoCode: String = "",
         staffId: String = "",
         packageId: String = ""
-    ): CheckoutSession? = runCatching {
+    ): CheckoutOutcome {
         val payload = hashMapOf(
             "salonId" to salonId,
             "serviceNames" to serviceNames,
@@ -79,30 +91,48 @@ class PaymentRepository @Inject constructor() {
             "staffId" to staffId,
             "packageId" to packageId
         )
-        val result = functions
-            .getHttpsCallable("createPaymentSession")
-            .call(payload)
-            .await()
+        return try {
+            val result = functions
+                .getHttpsCallable("createPaymentSession")
+                .call(payload)
+                .await()
 
-        @Suppress("UNCHECKED_CAST")
-        val map = result.getData() as? Map<String, Any?> ?: return@runCatching null
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?>
+                ?: return CheckoutOutcome.Failure("GENERIC")
 
-        val session = CheckoutSession(
-            paymentId        = map["paymentId"] as? String ?: "",
-            appointmentId    = map["appointmentId"] as? String ?: "",
-            checkoutUrl      = map["checkoutUrl"] as? String ?: "",
-            method           = map["method"] as? String ?: method,
-            amount           = (map["amount"] as? Number)?.toLong() ?: 0L,
-            listPrice        = (map["listPrice"] as? Number)?.toLong() ?: 0L,
-            discountAmount   = (map["discountAmount"] as? Number)?.toLong() ?: 0L,
-            commissionAmount = (map["commissionAmount"] as? Number)?.toLong() ?: 0L,
-            providerNet      = (map["providerNet"] as? Number)?.toLong() ?: 0L
-        )
-        // Online bookings must have a checkout URL to be usable; cash bookings
-        // never have one (nothing to open) and are already confirmed.
-        session.takeIf { it.method == "CASH" || it.checkoutUrl.isNotBlank() }
-    }.onFailure { CrashReporter.recordNonFatal(it, "payment:createCheckout") }
-        .getOrNull()
+            val session = CheckoutSession(
+                paymentId        = map["paymentId"] as? String ?: "",
+                appointmentId    = map["appointmentId"] as? String ?: "",
+                checkoutUrl      = map["checkoutUrl"] as? String ?: "",
+                method           = map["method"] as? String ?: method,
+                amount           = (map["amount"] as? Number)?.toLong() ?: 0L,
+                listPrice        = (map["listPrice"] as? Number)?.toLong() ?: 0L,
+                discountAmount   = (map["discountAmount"] as? Number)?.toLong() ?: 0L,
+                commissionAmount = (map["commissionAmount"] as? Number)?.toLong() ?: 0L,
+                providerNet      = (map["providerNet"] as? Number)?.toLong() ?: 0L
+            )
+            // Online bookings must have a checkout URL to be usable; cash bookings
+            // never have one (nothing to open) and are already confirmed.
+            if (session.method == "CASH" || session.checkoutUrl.isNotBlank()) {
+                CheckoutOutcome.Success(session)
+            } else {
+                CheckoutOutcome.Failure("GENERIC")
+            }
+        } catch (e: Exception) {
+            CrashReporter.recordNonFatal(e, "payment:createCheckout")
+            CheckoutOutcome.Failure(checkoutFailureReason(e))
+        }
+    }
+
+    // The server attaches a stable machine code to a rejected booking
+    // (HttpsError details.reason: SLOT_TAKEN, SALON_CLOSED, FREE_USE_CASH,
+    // PROMO_LIMIT, STAFF_UNAVAILABLE) so the UI can offer the right recovery
+    // instead of a dead-end "failed". Anything else is GENERIC.
+    private fun checkoutFailureReason(e: Throwable): String {
+        val details = (e as? FirebaseFunctionsException)?.details
+        return (details as? Map<*, *>)?.get("reason") as? String ?: "GENERIC"
+    }
 
     /**
      * Buys a gift card of [amount] AFN for the user with [recipientPhone]. On
