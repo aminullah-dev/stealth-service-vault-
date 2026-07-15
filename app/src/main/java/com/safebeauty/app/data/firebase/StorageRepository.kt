@@ -50,8 +50,10 @@ class StorageRepository @Inject constructor() {
      * document ID and [index] disambiguates multiple photos on the same review.
      * Returns the HTTPS download URL, or throws on failure.
      */
-    suspend fun uploadReviewImage(reviewId: String, index: Int, bytes: ByteArray): String {
-        val ref = storage.reference.child("reviews/$reviewId/$index.jpg")
+    suspend fun uploadReviewImage(uid: String, reviewId: String, index: Int, bytes: ByteArray): String {
+        // Path scoped to the uploader's app uid — storage.rules only lets a user
+        // write under reviews/{their own uid}/… (prevents cross-user upload spam).
+        val ref = storage.reference.child("reviews/$uid/$reviewId/$index.jpg")
         ref.putBytes(bytes).await()
         return ref.downloadUrl.await().toString()
     }

@@ -71,15 +71,16 @@ service firebase.storage {
     }
 
     // ── Review photos ──────────────────────────────────────────────────────────
-    // Path: reviews/{reviewId}/{fileName}. Any signed-in customer can attach a
-    // photo to a review they're creating (the review doc itself is guarded by
-    // firestore.rules — customer creates own). World-readable like the gallery
-    // so thumbnails render on the salon sheet.
-    match /reviews/{reviewId}/{fileName} {
+    // Path: reviews/{uid}/{reviewId}/{fileName} — scoped to the uploader's app
+    // uid so a signed-in user can only write under their OWN prefix (previously
+    // any signed-in user could spam-upload under any reviewId). World-readable
+    // like the gallery so thumbnails render on the salon sheet (download URLs
+    // work regardless of path).
+    match /reviews/{uid}/{reviewId}/{fileName} {
       allow read:   if isSignedIn();
-      allow create: if isSignedIn() && isValidImage();
+      allow create: if isSignedIn() && uid == appUid() && isValidImage();
       allow update: if false;
-      allow delete: if isAdmin();
+      allow delete: if uid == appUid() || isAdmin();
     }
 
     // ── KYC documents (private) ──────────────────────────────────────────────────

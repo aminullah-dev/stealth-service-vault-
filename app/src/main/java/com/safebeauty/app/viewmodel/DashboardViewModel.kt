@@ -749,11 +749,11 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 // Reserve the review id first so photos can be stored under
-                // reviews/{id}/ before the review doc is written.
+                // reviews/{uid}/{id}/ before the review doc is written.
                 val reviewId = firestoreRepository.newReviewId()
                 val imageUrls = photos.take(3).mapIndexedNotNull { index, bytes ->
                     runCatching {
-                        storageRepository.uploadReviewImage(reviewId, index, bytes)
+                        storageRepository.uploadReviewImage(customerId, reviewId, index, bytes)
                     }.getOrNull()
                 }
                 firestoreRepository.addReview(
