@@ -262,6 +262,31 @@ internal fun SalonDetailSheetContent(
                     SalonBadgeChip(badge = detailBadge)
                 }
             }
+            val shareCtx = LocalContext.current
+            IconButton(
+                onClick = {
+                    // A share link a friend can tap to open this salon in the app
+                    // (App Links verify safebeauty.firebaseapp.com); non-app users
+                    // land on the web page. Word-of-mouth growth loop.
+                    val url = "https://safebeauty.firebaseapp.com/salon?id=${salon.id}"
+                    val text = strings.shareSalonText(salon.salonName, url)
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    runCatching {
+                        shareCtx.startActivity(Intent.createChooser(send, strings.shareSalon))
+                    }
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector        = Icons.Default.Share,
+                    contentDescription = strings.shareSalon,
+                    tint               = RoseGold,
+                    modifier           = Modifier.size(20.dp)
+                )
+            }
             IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
