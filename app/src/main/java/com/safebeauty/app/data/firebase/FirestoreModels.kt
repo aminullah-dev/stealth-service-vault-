@@ -160,6 +160,13 @@ data class SalonDocument(
     // Kabul-local time. No slots are offered on these days, and the booking
     // function rejects them server-side as defense in depth.
     val blockedDates: List<String> = emptyList(),
+    // Last-minute deal: an automatic discount for booking a slot within
+    // lastMinuteWindowHours of now, to help fill empty chairs. Applied server-side
+    // at checkout (createPaymentSession, tested in lib/money.js).
+    @get:PropertyName("lastMinuteEnabled") @set:PropertyName("lastMinuteEnabled")
+    var lastMinuteEnabled: Boolean = false,
+    val lastMinutePercent: Int = 0,
+    val lastMinuteWindowHours: Int = 0,
     val confirmedCount: Int = 0,
     // Geographic location (set by the provider from their device GPS). 0/0 means
     // "not set" — the map/distance features simply skip such salons.

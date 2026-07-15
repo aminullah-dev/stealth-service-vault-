@@ -37,7 +37,7 @@ const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit } = require("./lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount } = require("./lib/money");
 const { expandBooked, serviceSlotSpan } = require("./lib/slots");
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 
@@ -297,7 +297,17 @@ exports.createPaymentSession = onCall(
       });
     }
 
-    // Full checkout split (promo + offer → referral credit → commission). The customer is
+    // Last-minute deal: an extra auto-discount for booking a soon slot, to help
+    // the salon fill an empty chair. Folded into the same discount channel; math
+    // is pure/tested in lib/money.js.
+    const lastMinuteDisc = lastMinuteDiscount(listPrice, appointmentDate, Date.now(), {
+      enabled:     salon.lastMinuteEnabled === true,
+      percent:     salon.lastMinutePercent,
+      windowHours: salon.lastMinuteWindowHours,
+    });
+
+    // Full checkout split (promo + offer + last-minute → referral credit → commission).
+    // The customer is
     // charged the discounted price; commission is computed on that same discounted
     // amount so the platform's cut scales with what was actually paid, not the list
     // price. Referral credit auto-applies on top of any promo, capped at the
@@ -308,7 +318,7 @@ exports.createPaymentSession = onCall(
     const { afterPromo, referralUsed, price, commissionAmount, providerNet } =
       computeCheckout({
         listPrice,
-        promoDiscount:  promo.discount + offerDiscount,
+        promoDiscount:  promo.discount + offerDiscount + lastMinuteDisc,
         referralCredit: appUser.referralCredit,
         commissionPercent,
       });
@@ -367,6 +377,7 @@ exports.createPaymentSession = onCall(
         discountAmount:    promo.discount,
         offerDiscount,
         offerId:           appliedOfferId,
+        lastMinuteDiscount: lastMinuteDisc,
         referralUsed,
         commissionPercent,
         commissionAmount,
@@ -465,6 +476,7 @@ exports.createPaymentSession = onCall(
       discountAmount:    promo.discount,
       offerDiscount,
       offerId:           appliedOfferId,
+      lastMinuteDiscount: lastMinuteDisc,
       referralUsed,
       // Counted/spent in the webhook only when the payment actually succeeds, so
       // an abandoned or failed online checkout never burns a promo use or credit.

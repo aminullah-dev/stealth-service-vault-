@@ -245,6 +245,9 @@ class ProviderViewModel @Inject constructor(
     var editPrices       by mutableStateOf<Map<String, Int>>(emptyMap())
     var editDurations    by mutableStateOf<Map<String, Int>>(emptyMap())
     var editBlockedDates by mutableStateOf<List<String>>(emptyList())
+    var editLastMinuteEnabled by mutableStateOf(false)
+    var editLastMinutePercent by mutableStateOf(0)
+    var editLastMinuteWindow  by mutableStateOf(0)
     var editHesabAccountNumber by mutableStateOf("")
     // Salon location (0/0 = not set yet).
     var editLatitude     by mutableStateOf(0.0)
@@ -267,6 +270,9 @@ class ProviderViewModel @Inject constructor(
                     editPrices = s.pricePerService
                     editDurations = s.durationPerService
                     editBlockedDates = s.blockedDates
+                    editLastMinuteEnabled = s.lastMinuteEnabled
+                    editLastMinutePercent = s.lastMinutePercent
+                    editLastMinuteWindow  = s.lastMinuteWindowHours
                     editStaff = s.staff
                     editLatitude = s.latitude
                     editLongitude = s.longitude
@@ -457,6 +463,9 @@ class ProviderViewModel @Inject constructor(
                         pricePerService     = editPrices,
                         durationPerService  = editDurations,
                         blockedDates        = editBlockedDates,
+                        lastMinuteEnabled     = editLastMinuteEnabled,
+                        lastMinutePercent     = editLastMinutePercent.coerceIn(0, 100),
+                        lastMinuteWindowHours = editLastMinuteWindow.coerceIn(0, 168),
                         staff               = editStaff,
                         latitude            = editLatitude,
                         longitude           = editLongitude

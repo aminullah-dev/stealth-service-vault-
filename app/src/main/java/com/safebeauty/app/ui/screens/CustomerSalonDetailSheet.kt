@@ -60,6 +60,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.LocalOffer
@@ -391,6 +392,27 @@ internal fun SalonDetailSheetContent(
                 }
             }
             Spacer(Modifier.height(16.dp))
+        }
+
+        // ── Last-minute deal hint (the discount itself applies at checkout) ──
+        if (salon.lastMinuteEnabled && salon.lastMinutePercent > 0 && salon.lastMinuteWindowHours > 0) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(WarmGold.copy(alpha = 0.15f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Default.Schedule, null, tint = WarmGold, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "${strings.lastMinuteTitle} — ${salon.lastMinutePercent}%",
+                    fontSize   = 12.sp,
+                    color      = DeepRose,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(14.dp))
         }
 
         // ── Offers / deals (informational — do not change checkout price) ──

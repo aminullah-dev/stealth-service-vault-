@@ -2,7 +2,7 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor } = require("../lib/money");
+const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount } = require("../lib/money");
 
 test("loyaltyToCredit: exact multiple redeems fully at 1:1", () => {
   assert.deepEqual(loyaltyToCredit(100), { ok: true, spend: 100, credit: 100, reason: "" });
@@ -252,4 +252,37 @@ test("offerDiscountFor: percentage wins when both percent and amount are set", (
 test("offerDiscountFor: no offer / empty services -> 0", () => {
   assert.equal(offerDiscountFor(null, S), 0);
   assert.equal(offerDiscountFor({ discountPercent: 20 }, []), 0);
+});
+
+// ── lastMinuteDiscount (fill-empty-chairs) ───────────────────────────────────
+const NOW = 1_000_000_000_000;
+const HOUR = 3_600_000;
+const LM = { enabled: true, percent: 20, windowHours: 24 };
+
+test("lastMinuteDiscount: a slot within the window is discounted", () => {
+  // 2 hours out, 20% of 1000 = 200
+  assert.equal(lastMinuteDiscount(1000, NOW + 2 * HOUR, NOW, LM), 200);
+});
+
+test("lastMinuteDiscount: a slot beyond the window is not discounted", () => {
+  assert.equal(lastMinuteDiscount(1000, NOW + 48 * HOUR, NOW, LM), 0);
+});
+
+test("lastMinuteDiscount: a past slot gets nothing", () => {
+  assert.equal(lastMinuteDiscount(1000, NOW - 1 * HOUR, NOW, LM), 0);
+});
+
+test("lastMinuteDiscount: disabled / zero percent / zero window -> 0", () => {
+  assert.equal(lastMinuteDiscount(1000, NOW + HOUR, NOW, { enabled: false, percent: 20, windowHours: 24 }), 0);
+  assert.equal(lastMinuteDiscount(1000, NOW + HOUR, NOW, { enabled: true, percent: 0, windowHours: 24 }), 0);
+  assert.equal(lastMinuteDiscount(1000, NOW + HOUR, NOW, { enabled: true, percent: 20, windowHours: 0 }), 0);
+});
+
+test("lastMinuteDiscount: boundary at exactly the window edge still applies", () => {
+  assert.equal(lastMinuteDiscount(1000, NOW + 24 * HOUR, NOW, LM), 200);
+});
+
+test("lastMinuteDiscount: never exceeds the price and rounds", () => {
+  assert.equal(lastMinuteDiscount(999, NOW + HOUR, NOW, { enabled: true, percent: 50, windowHours: 24 }), 500);
+  assert.equal(lastMinuteDiscount(1000, NOW + HOUR, NOW, { enabled: true, percent: 150, windowHours: 24 }), 1000);
 });

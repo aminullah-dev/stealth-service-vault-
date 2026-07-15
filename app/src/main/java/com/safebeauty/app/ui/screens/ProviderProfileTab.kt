@@ -349,6 +349,9 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
         // ── Offers / promotions ───────────────────────────────────────────
         OffersSection(viewModel = viewModel)
 
+        // ── Last-minute deal ──────────────────────────────────────────────
+        LastMinuteSection(viewModel = viewModel)
+
         // ── Staff / stylists roster ───────────────────────────────────────
         StaffSection(viewModel = viewModel)
 
@@ -1102,6 +1105,89 @@ private fun TimeOffSection(
             }
         ) {
             DatePicker(state = pickerState)
+        }
+    }
+}
+
+/**
+ * Lets a provider turn on an automatic "last-minute" discount that applies to any
+ * booking whose slot starts within the chosen window — a simple way to fill
+ * soon-to-be-empty chairs. The discount is applied server-side at checkout.
+ */
+@Composable
+private fun LastMinuteSection(viewModel: ProviderViewModel) {
+    val strings = LocalStrings.current
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor   = RoseGold,
+        unfocusedBorderColor = ChipInactive,
+        cursorColor          = RoseGold,
+        focusedLabelColor    = RoseGold
+    )
+    Card(
+        shape  = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DashboardSurface)
+    ) {
+        Column(
+            modifier            = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    strings.lastMinuteTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 13.sp,
+                    color      = RoseGold,
+                    modifier   = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = viewModel.editLastMinuteEnabled,
+                    onCheckedChange = { viewModel.editLastMinuteEnabled = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = AvailableGreen
+                    )
+                )
+            }
+            Text(strings.lastMinuteHint, fontSize = 11.sp, color = DeepRose)
+
+            if (viewModel.editLastMinuteEnabled) {
+                var pctText by remember {
+                    mutableStateOf(viewModel.editLastMinutePercent.takeIf { it > 0 }?.toString() ?: "")
+                }
+                var winText by remember {
+                    mutableStateOf(viewModel.editLastMinuteWindow.takeIf { it > 0 }?.toString() ?: "")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value         = pctText,
+                        onValueChange = { v ->
+                            pctText = v.filter { it.isDigit() }.take(3)
+                            viewModel.editLastMinutePercent = pctText.toIntOrNull() ?: 0
+                        },
+                        singleLine      = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label           = { Text(strings.lastMinutePercentLabel, fontSize = 11.sp) },
+                        modifier        = Modifier.weight(1f),
+                        shape           = RoundedCornerShape(10.dp),
+                        colors          = fieldColors,
+                        suffix          = { Text("%", fontSize = 11.sp, color = RoseGold) }
+                    )
+                    OutlinedTextField(
+                        value         = winText,
+                        onValueChange = { v ->
+                            winText = v.filter { it.isDigit() }.take(3)
+                            viewModel.editLastMinuteWindow = winText.toIntOrNull() ?: 0
+                        },
+                        singleLine      = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label           = { Text(strings.lastMinuteWindowLabel, fontSize = 11.sp) },
+                        modifier        = Modifier.weight(1f),
+                        shape           = RoundedCornerShape(10.dp),
+                        colors          = fieldColors,
+                        suffix          = { Text(strings.hoursShort, fontSize = 11.sp, color = RoseGold) }
+                    )
+                }
+            }
         }
     }
 }

@@ -41,6 +41,24 @@ function offerDiscountFor(offer, services) {
   );
 }
 
+// Discount (AFN) for a last-minute booking, to help fill soon-to-be-empty chairs.
+// Applies when the salon enabled it and the appointment starts within
+// `windowHours` from now (and not in the past). A percentage of the list price,
+// capped at it. Returns 0 when disabled or the slot is outside the window.
+function lastMinuteDiscount(listPrice, appointmentDate, now, opts) {
+  const enabled = !!(opts && opts.enabled);
+  const pct     = Number((opts && opts.percent) || 0);
+  const windowH = Number((opts && opts.windowHours) || 0);
+  if (!enabled || pct <= 0 || windowH <= 0) return 0;
+  const price = Number(listPrice) || 0;
+  const start = Number(appointmentDate);
+  const n     = Number(now);
+  if (price <= 0 || !Number.isFinite(start) || !Number.isFinite(n)) return 0;
+  const hoursUntil = (start - n) / 3_600_000;
+  if (hoursUntil < 0 || hoursUntil > windowH) return 0;
+  return Math.min(price, Math.round((price * Math.min(pct, 100)) / 100));
+}
+
 // Full checkout split for one booking. Given the list price, an already-resolved
 // promo discount, the customer's available referral credit, and the platform
 // commission %, returns every derived amount the callable stores:
@@ -118,5 +136,5 @@ function loyaltyToCredit(points, opts) {
 
 module.exports = {
   promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit,
-  offerDiscountFor,
+  offerDiscountFor, lastMinuteDiscount,
 };
