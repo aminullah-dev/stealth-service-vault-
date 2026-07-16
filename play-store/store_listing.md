@@ -12,13 +12,13 @@ SafeBeauty
 ## SHORT DESCRIPTION  (80 chars max — appears under the app name in search)
 
 ### English
-Private beauty salon booking for women — discreet, safe & trusted.
+Private beauty salon booking for women — safe, simple & trusted.
 
 ### دری (Dari)
-رزرو خصوصی سالن زیبایی برای خانم‌ها — محرمانه، ایمن و قابل اعتماد.
+رزرو خصوصی سالن زیبایی برای خانم‌ها — ایمن، ساده و قابل اعتماد.
 
 ### پښتو (Pashto)
-د ښځو لپاره شخصي د سالون د بکینګ اپ — پټ، خوندي او باوروړ.
+د ښځو لپاره شخصي د سالون بکینګ — خوندي، ساده او باوروړ.
 
 
 ---
@@ -27,165 +27,160 @@ Private beauty salon booking for women — discreet, safe & trusted.
 
 ### English  ──────────────────────────────────────────────────────────────────
 
-SafeBeauty is a private, encrypted booking platform designed exclusively for
-women in Kabul. It connects women with trusted, female-only beauty salons while
-keeping every interaction completely discreet.
+SafeBeauty is a private booking platform designed for women in Kabul. It
+connects women with trusted, female-only beauty salons — quickly, safely, and
+respectfully.
 
-🌸 PRIVACY FIRST
-The app opens as a plain notepad. Only your secret PIN reveals the real
-experience. A separate Safety Exit PIN instantly shows a convincing decoy
-notepad if you are ever pressured to unlock your phone — your real activity
-stays completely hidden.
+🌸 PRIVATE & SECURE
+Sign in with your own password or fingerprint. Your account and activity are
+protected, all data is encrypted in transit (TLS), and on-device data is
+encrypted with SQLCipher (AES-256).
 
 📅 BOOK IN SECONDS
-Browse available salons by neighborhood (Kabul Districts 1, 3, 6, 9, 11, 13),
-filter by service (Hair, Makeup, Nails, Skincare, Eyebrows), and book an
-appointment slot directly. Real-time availability — no calls, no waiting.
+Browse salons across every Kabul neighborhood, filter by service (Hair, Makeup,
+Nails, Skincare, Eyebrows), pick a specific stylist, and book a real-time slot —
+no calls, no waiting.
 
-⭐ LOYALTY REWARDS
-Earn 10 loyalty points for every confirmed booking. Reach Regular (50 pts) or
-VIP (150 pts) status and enjoy priority treatment.
+💳 EASY PAYMENT
+Pay securely online with HesabPay, or choose cash at the salon.
+
+⭐ LOYALTY & OFFERS
+Earn loyalty points on every confirmed booking, and enjoy last-minute deals,
+promo codes, and salon offers.
 
 💬 TRANSPARENT REVIEWS
-Read real reviews from verified customers. See how providers respond to
-feedback before you book.
+Read real reviews from verified customers and see how salons respond before you
+book.
 
-🔔 SMART WAITLIST
-Fully booked? Join the waitlist for your preferred salon. You'll be notified
-the moment a slot opens.
+🔔 SMART WAITLIST & NOTIFICATIONS
+Fully booked? Join the waitlist and get notified the moment a slot opens.
 
-🛡 MILITARY-GRADE SECURITY
-• All data is encrypted at rest (SQLCipher AES-256) and in transit (TLS)
-• No GPS tracking, no camera access, no sensitive permissions
-• Cloud backup is completely disabled — your data never leaves your device
-  to a third-party server
-• Decoy PIN: enter an alternative PIN to show a fake notepad to anyone
-  who forces you to open the app
+🌍 THREE LANGUAGES + DARK MODE
+Full support for English, دری (Dari), and پښتو (Pashto), including right-to-left
+layout, plus a comfortable dark mode.
 
-🌍 THREE LANGUAGES
-Full support for English, دری (Dari), and پښتو (Pashto), including
-right-to-left layout.
-
-FOR PROVIDERS
-Beauty salon owners can manage bookings, set availability and working hours,
-set service prices, reply to customer reviews, upload portfolio photos, and
-view income analytics — all from a dedicated provider dashboard.
+FOR SALON OWNERS
+Manage bookings, availability and working hours, service prices, staff, gallery
+photos, offers, and income analytics — all from a dedicated dashboard, in the
+app or on the web.
 
 ──────────────────────────────────────────────────────────────────────────────
 
 ### دری (Dari)  ───────────────────────────────────────────────────────────────
 
-سیف‌بیوتی یک پلتفرم رزرو خصوصی و رمزگذاری‌شده است که منحصراً برای خانم‌های
-کابل طراحی شده. این اپ خانم‌ها را با سالن‌های زیبایی زنانه و مورد اعتماد
-مرتبط می‌کند، در حالی که هر تعامل کاملاً محرمانه باقی می‌ماند.
+سیف‌بیوتی یک پلتفرم رزرو خصوصی است که برای خانم‌های کابل طراحی شده. این اپ
+خانم‌ها را با سالن‌های زیبایی زنانه و مورد اعتماد به‌سرعت، ایمن و محترمانه
+مرتبط می‌کند.
 
-🌸 حریم خصوصی در اولویت
-اپ به شکل یک دفترچه ساده باز می‌شود. فقط پین سری شما تجربه اصلی را آشکار
-می‌کند. پین خروج ایمن یک دفترچه جعلی متقاعدکننده نشان می‌دهد اگر کسی شما را
-مجبور کند گوشی را باز کنید.
+🌸 خصوصی و امن
+با رمز یا اثر انگشت خود وارد شوید. حساب و فعالیت شما محافظت می‌شود، همه داده‌ها
+هنگام انتقال (TLS) رمزگذاری می‌شوند و داده‌های روی دستگاه با SQLCipher
+(AES-256) رمزگذاری شده‌اند.
 
 📅 رزرو در چند ثانیه
-سالن‌های موجود را بر اساس ناحیه (ناحیه ۱، ۳، ۶، ۹، ۱۱، ۱۳ کابل) جستجو کنید،
-بر اساس خدمت (مو، آرایش، ناخن، مراقبت پوست، ابرو) فیلتر کنید و مستقیماً وقت
-بگیرید. موجودی آنی — بدون تماس تلفنی، بدون انتظار.
+سالن‌ها را در همه محله‌های کابل جستجو کنید، بر اساس خدمت (مو، آرایش، ناخن،
+مراقبت پوست، ابرو) فیلتر کنید، آرایشگر مشخص انتخاب کنید و وقت آنی بگیرید —
+بدون تماس، بدون انتظار.
 
-⭐ جوایز وفاداری
-به ازای هر رزرو تایید شده ۱۰ امتیاز وفاداری دریافت کنید. به سطح دائمی
-(۵۰ امتیاز) یا ویژه (۱۵۰ امتیاز) برسید.
+💳 پرداخت آسان
+به‌صورت آنلاین با HesabPay پرداخت کنید، یا نقدی در سالن.
+
+⭐ وفاداری و آفرها
+به ازای هر رزرو تایید شده امتیاز بگیرید و از تخفیف‌های لحظه‌آخری، کد تخفیف و
+آفرهای سالن بهره‌مند شوید.
 
 💬 نظرات شفاف
-نظرات واقعی مشتریان تایید‌شده را بخوانید و ببینید ارائه‌دهندگان چگونه پاسخ
-می‌دهند.
+نظرات واقعی مشتریان تایید‌شده را بخوانید و پاسخ سالن‌ها را ببینید.
 
-🔔 لیست انتظار هوشمند
-وقت کامل است؟ در لیست انتظار ثبت‌نام کنید. به محض خالی شدن وقت، اطلاع
-خواهید یافت.
+🔔 لیست انتظار هوشمند و اعلان‌ها
+وقت کامل است؟ در لیست انتظار ثبت‌نام کنید تا به‌محض خالی شدن وقت خبر شوید.
 
-🛡 امنیت نظامی
-• تمام داده‌ها رمزگذاری شده‌اند (SQLCipher AES-256) و در انتقال (TLS)
-• بدون ردیابی GPS، بدون دسترسی به دوربین
-• پشتیبان‌گیری ابری کاملاً غیرفعال است
-• پین فریب: پین دیگری وارد کنید تا دفترچه جعلی نشان دهد
+🌍 سه زبان و حالت تاریک
+پشتیبانی کامل از English، دری و پښتو، شامل چیدمان راست‌به‌چپ و حالت تاریک.
 
-🌍 سه زبان
-پشتیبانی کامل از English، دری و پښتو، شامل چیدمان راست‌به‌چپ.
+برای صاحبان سالن
+رزروها، ساعات کاری، قیمت خدمات، کارکنان، گالری عکس، آفرها و درآمد را از یک
+داشبورد اختصاصی (در اپ یا وب) مدیریت کنید.
 
 ──────────────────────────────────────────────────────────────────────────────
 
 ### پښتو (Pashto)  ────────────────────────────────────────────────────────────
 
-سیف‌بیوتي یو شخصي او کوډ شوی د بکینګ پلیټفارم دی چې د کابل ښځو لپاره جوړ
-شوی دی. دا اپ ښځې د باوروړو، یوازې ښځو سالونونو سره نښلوي، پداسې حال کې چې
-هره اړیکه بشپړه پټه وي.
+سیف‌بیوتي یو شخصي د بکینګ پلیټفارم دی چې د کابل ښځو لپاره جوړ شوی. دا اپ ښځې د
+باوروړو، یوازې د ښځو سالونونو سره په چټکه، خوندي او درناوي سره نښلوي.
 
-🌸 حریم خصوصي لومړی
-اپ د ساده یادداشت اپ په توګه خلاصیږي. یوازې ستاسو پټ PIN اصلي تجربه ښکاره
-کوي. د خوندي وتلو PIN د جعلي یادداشت اپ ښکاره کوي که چا مجبور کړئ ستاسو
-ګوشي خلاص کړئ.
+🌸 شخصي او خوندي
+د خپل پټ نوم یا ګوته‌نښې سره ننوځئ. ستاسو حساب او فعالیت خوندي دی، ټول ډیټا د
+لیږد پرمهال (TLS) کوډ کیږي، او په وسیله کې ډیټا د SQLCipher (AES-256) سره کوډ
+شوی دی.
 
-📅 د چند ثانیو کې بک کول
-د سیمې له مخې (د کابل ناحیه ۱، ۳، ۶، ۹، ۱۱، ۱۳) د شتون لرونکو سالونونو
-لټون وکړئ، د خدمت له مخې فلټر کړئ (ویښتان، سینګار، نوکان، جلدي پاملرنه،
-وروځې)، او مستقیم وخت واخلئ.
+📅 په څو ثانیو کې بک کول
+سالونونه د کابل په ټولو ګاونډونو کې ولټوئ، د خدمت له مخې فلټر کړئ (ویښتان،
+سینګار، نوکان، پوستکي پاملرنه، وروځې)، ځانګړی سټایلست وټاکئ او سمدلاسه وخت
+واخلئ.
 
-⭐ د وفادارۍ جوایز
-د هر تایید شوي بک لپاره ۱۰ د وفادارۍ ټکي ترلاسه کړئ. دایمي (۵۰ ټکي) یا
-ځانګړي (۱۵۰ ټکي) سطحو ته ورسیږئ.
+💳 اسانه تادیه
+په آنلاین ډول د HesabPay سره تادیه وکړئ، یا په سالون کې نغدي.
+
+⭐ وفاداري او وړاندیزونه
+د هر تایید شوي بک لپاره ټکي ترلاسه کړئ او د وروستۍ شیبې تخفیفونو، کوډونو او د
+سالون وړاندیزونو څخه ګټه واخلئ.
 
 💬 شفاف نظرونه
-د تایید شوو پیرودونکو ریښتیني نظرونه ولولئ.
+د تایید شوو پیرودونکو ریښتیني نظرونه ولولئ او د سالونونو ځوابونه وګورئ.
 
-🔔 هوښیار د انتظار لیست
-وخت نشته؟ د انتظار لیست ته ورننوتئ. کله چې وخت خالي شي به خبر شئ.
+🔔 هوښیار د انتظار لیست او خبرتیاوې
+وخت نشته؟ د انتظار لیست ته ورننوځئ چې د وخت خالي کیدو سره سم خبر شئ.
 
-🛡 پوځي امنیت
-• ټول ډیټا کوډ شوی (SQLCipher AES-256) او د لیږد پرمهال (TLS)
-• د GPS پرته، د کمیرې پرته
-• د کلاوډ بیک اپ بشپړه بند دی
-• جعلي PIN: بل PIN دننه کړئ چې جعلي یادداشت ښکاره کړي
+🌍 درې ژبې او تیاره حالت
+د English، دری او پښتو بشپړه ملاتړ، د ښي‌خوا اویچپه لوري جوړښت او تیاره حالت سره.
 
-🌍 درې ژبې
-د English، دری او پښتو بشپړه ملاتړ، د ښي‌خوا اویچپه لوري جوړښت سره.
+د سالون خاوندانو لپاره
+بکینګونه، د کار ساعتونه، د خدماتو بیې، کارمندان، ګالري، وړاندیزونه او عاید له
+یوه ځانګړي ډشبورډ (په اپ یا وب کې) اداره کړئ.
 
 
 ---
 
 ## NOTES TO REVIEWER  (private — shown only to Google reviewers)
 
-SafeBeauty is a safety tool for women in Kabul, Afghanistan, where women face
-significant social and legal restrictions on accessing beauty services.
+SafeBeauty is a beauty-salon booking marketplace for women in Kabul,
+Afghanistan. Customers book appointments; salon owners manage their business
+from a provider dashboard; a platform admin moderates the marketplace.
 
-The "decoy notepad" feature is intentional and NOT deceptive in the harmful
-sense: it exists so that women can protect themselves if physically pressured
-by family members or authorities to reveal what apps they are using. This is
-analogous to panic-mode features in other personal-safety apps.
+Payments are processed through HesabPay (a local payment provider). All data is
+processed via Firebase (Google infrastructure). No personal data is sold or
+shared with third parties beyond the processors needed to run the service.
 
-The app does NOT:
-• disguise itself from the user who installed it
-• perform any hidden actions
-• impersonate other apps
-• collect location, contacts, or any sensitive data without consent
+To review the full experience, please sign in with the demo credentials below
+(or register a new account from the sign-up screen):
 
-All data is processed via Firebase (Google infrastructure). No personal data
-is sold or shared with third parties.
+    Role:     Customer
+    Phone:    <FILL IN a real demo phone, e.g. +93700000000>
+    Password: <FILL IN the demo password>
 
-We request reviewers test with the demo credentials below (if required):
-Role: Customer
-PIN: 123456  (or create a new account via Register)
+(The app signs in with phone + password; fingerprint unlock is optional.)
 
 
 ---
 
 ## DATA SAFETY ANSWERS  (for Play Console "Data safety" section)
 
+Declare accurately — misdeclaring data collection can get the app suspended.
+
 | Question | Answer |
 |----------|--------|
 | Does your app collect or share user data? | Yes |
-| Data types collected | Name, Phone number, App activity (bookings, reviews) |
-| Data types NOT collected | Location, Financial info, Health info, Contacts, Photos, Device ID |
+| Personal info | Name, Phone number |
+| Location | Approximate location (used to show salon distance & directions) |
+| Photos | Profile, salon gallery, and review photos |
+| Identity / sensitive (providers only) | Tazkira (national ID) number + tazkira & selfie photos, for salon verification (KYC) |
+| App activity | Bookings, reviews, in-app messages |
+| Financial | Payments are handled by HesabPay; the app does not store card/bank details |
+| Advertising ID | NOT used (the AD_ID permission is removed from the manifest) |
 | Is data encrypted in transit? | Yes (TLS / HTTPS) |
-| Can users request data deletion? | Yes (contact developer) |
-| Data shared with third parties? | No |
+| Can users request data deletion? | Yes (in-app / contact developer) |
+| Data shared with third parties? | No (processors only: Google Firebase, HesabPay) |
 
 
 ---
@@ -204,8 +199,8 @@ PIN: 123456  (or create a new account via Register)
 - Sexual content: None
 - Language: None
 - Controlled substances: None
-- User-generated content: Yes (reviews — moderated by provider)
+- User-generated content: Yes (reviews + in-app chat — moderated by the provider/admin)
 - Ads: No
-- Purchases: No
+- In-app purchases (Google Play Billing): No — bookings are paid via HesabPay for real-world services
 
 → Expected rating: **Everyone** (or Parental Guidance in some regions)

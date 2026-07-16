@@ -33,8 +33,8 @@ firebase deploy --only functions,firestore:rules,storage,hosting
 ## 2. Test the RELEASE build on a real device 🔴
 > This is the #1 pre-launch trap: R8/ProGuard can break Firestore deserialization
 > even when debug works. Install the **release** AAB/APK (not debug) and verify:
-- [ ] 🔴 App installs and opens (decoy notepad shows first)
-- [ ] 🔴 Real PIN unlocks the real app; **Safety-Exit PIN** shows the decoy
+- [ ] 🔴 App installs and opens to the sign-in screen
+- [ ] 🔴 PIN / password sign-in and app-lock work
 - [ ] 🔴 Register a new account → salons **load** (proves Firestore `toObject` still works under R8)
 - [ ] 🔴 Sign in / sign out / fingerprint unlock
 - [ ] 🔴 Customer: browse → open a salon → **book + pay with real HesabPay** → booking reaches PENDING
@@ -76,9 +76,8 @@ firebase deploy --only functions,firestore:rules,storage,hosting
 - [ ] 🔴 **Ads / Advertising ID**: the `AD_ID` permission is stripped in the manifest → declare **the app does NOT use an advertising ID**
 - [ ] 🔴 **Content rating** questionnaire completed
 - [ ] 🔴 **Target audience**: adults (women's beauty booking) — not directed at children
-- [ ] 🟠 **App access** instructions for the reviewer: the app opens as a decoy notepad — **give Google a demo PIN + test phone/password** so the reviewer can reach the real app and a seeded salon, or it will be rejected as "non-functional"
+- [ ] 🟠 **App access** instructions for the reviewer: **give Google a demo phone + password** (see `store_listing.md` → Notes to Reviewer) so the reviewer can sign in and reach a seeded salon, or it may be rejected as "non-functional"
 - [ ] 🟠 **Permissions**: justify camera/photos (KYC + gallery), location (salon distance), notifications, biometric
-- [ ] 🟡 Note the disguise/panic-exit feature honestly in the review notes to avoid a "deceptive behavior" flag — frame it as a safety feature for at-risk women
 
 ## 7. Config & safety sanity 🟠
 - [ ] No secrets committed: `keystore.properties`, `*.jks`, `functions/.env.*` are gitignored ✓
