@@ -77,6 +77,12 @@
   .btn-sm:active{transform:none}
   .btn-sm:disabled{opacity:.55;cursor:default}
   .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+  .langpick{display:flex;gap:6px;justify-content:center;margin:-6px 0 20px}
+  .langpick button{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:700;
+    background:var(--petal);color:var(--deep);transition:opacity .15s,transform .1s}
+  .langpick button:hover{opacity:.85}
+  .langpick button:active{transform:scale(.96)}
+  .langpick button.on{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(183,110,121,.32)}
 
   /* ── Shell ─────────────────────────────────────────────────────── */
   #app{height:100vh;display:flex;overflow:hidden}
@@ -272,6 +278,11 @@
     <div class="logo">❀</div>
     <h1>SafeBeauty</h1>
     <div class="sub" id="lsub">Salon Console</div>
+    <div class="langpick" id="langpick">
+      <button data-lang="fa">دری</button>
+      <button data-lang="ps">پښتو</button>
+      <button data-lang="en">English</button>
+    </div>
     <input id="lp" class="field" type="tel" autocomplete="username" />
     <input id="lw" class="field" type="password" autocomplete="current-password" />
     <button id="lbtn" class="btn">Sign in</button>
@@ -534,6 +545,9 @@ function paintStatic(){
   // Shell chrome
   $('logout').textContent = t('signOut');
   $('langToggle').textContent = '🌐 ' + LANG_NAME[lang];
+  // Highlight the active language on the login picker.
+  document.querySelectorAll('#langpick button').forEach(b =>
+    b.classList.toggle('on', b.dataset.lang === lang));
   paintThemeBtn();
   if(provider) $('who').textContent = t('signedInAs', provider.name);
   const tab = TABS.find(x=>x.id===activeTab);
@@ -556,6 +570,9 @@ $('langToggle').addEventListener('click', () => {
   setLang(LANGS[(i+1) % LANGS.length]);
 });
 $('themeToggle').addEventListener('click', () => window.toggleTheme());
+// Login-screen language picker (visible before sign-in).
+document.querySelectorAll('#langpick button').forEach(b =>
+  b.addEventListener('click', () => setLang(b.dataset.lang)));
 
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
 function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
