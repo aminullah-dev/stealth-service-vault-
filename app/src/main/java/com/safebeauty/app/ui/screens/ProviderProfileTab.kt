@@ -199,15 +199,43 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
             ) {
                 Text(strings.sectionLocation, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
                 HorizontalDivider(color = BlushPink)
-                OutlinedTextField(
-                    value         = viewModel.editDistrict,
-                    onValueChange = viewModel::onDistrictChanged,
-                    label         = { Text(strings.districtArea, fontSize = 13.sp) },
-                    singleLine    = true,
-                    modifier      = Modifier.fillMaxWidth(),
-                    shape         = RoundedCornerShape(12.dp),
-                    colors        = fieldColors
-                )
+                // District picker — the salon's `district` is stored as a canonical
+                // KabulAreas key so it always matches the customer neighborhood filter.
+                var showDistrictMenu by remember { mutableStateOf(false) }
+                val hasDistrict = viewModel.editDistrict.isNotBlank()
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick  = { showDistrictMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape    = RoundedCornerShape(12.dp),
+                        border   = androidx.compose.foundation.BorderStroke(1.dp, BlushPink),
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                    ) {
+                        Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(15.dp), tint = RoseGold)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (hasDistrict)
+                                com.safebeauty.app.util.KabulAreas.labelForKey(viewModel.editDistrict, strings.language)
+                            else strings.districtArea,
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f),
+                            color    = if (hasDistrict) DeepRose else RoseGold
+                        )
+                        Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded         = showDistrictMenu,
+                        onDismissRequest = { showDistrictMenu = false },
+                        modifier         = Modifier.background(DashboardSurface)
+                    ) {
+                        com.safebeauty.app.util.KabulAreas.areas.forEach { area ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text    = { Text(com.safebeauty.app.util.KabulAreas.labelFor(area, strings.language), fontSize = 13.sp, color = DeepRose) },
+                                onClick = { viewModel.onDistrictChanged(area.key); showDistrictMenu = false }
+                            )
+                        }
+                    }
+                }
             }
         }
 

@@ -13,6 +13,9 @@ fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.ENGLISH) LayoutDirection.Ltr else LayoutDirection.Rtl
 
 class AppStrings {
+    // Active language — lets screens localize data-driven lists (e.g. KabulAreas)
+    // that live outside these string blocks.
+    var language: AppLanguage = AppLanguage.ENGLISH
     // Login screen
     var loginTitle: String = ""
     var loginTagline: String = ""
@@ -638,6 +641,7 @@ class AppStrings {
 object StringResources {
 
     val ENGLISH = AppStrings().apply {
+        language                   = AppLanguage.ENGLISH
         loginTitle                 = "SafeBeauty"
         loginTagline               = "Trusted Beauty Booking"
         loginWrongPin              = "Wrong phone number or password. Try again."
@@ -1195,6 +1199,7 @@ object StringResources {
     }
 
     val DARI = AppStrings().apply {
+        language                   = AppLanguage.DARI
         loginTitle                 = "سیف بیوتی"
         loginTagline               = "رزرو معتبر خدمات زیبایی"
         loginWrongPin              = "شماره تلفن یا رمز عبور اشتباه است. دوباره امتحان کنید."
@@ -1752,6 +1757,7 @@ object StringResources {
     }
 
     val PASHTO = AppStrings().apply {
+        language                   = AppLanguage.PASHTO
         loginTitle                 = "سیف بیوتي"
         loginTagline               = "د ښکلا د خدماتو باوري بکینګ"
         loginWrongPin              = "د تلیفون شمېره یا پټنوم غلط دی. بیا هڅه وکړئ."

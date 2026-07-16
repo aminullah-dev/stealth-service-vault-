@@ -334,12 +334,12 @@ fun CustomerDashboardScreen(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
         strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
     )
-    val neighborhoodLabels = listOf(
-        strings.neighborhoodAll,
-        strings.neighborhood1, strings.neighborhood3,
-        strings.neighborhood6, strings.neighborhood9,
-        strings.neighborhood11, strings.neighborhood13
-    )
+    // "All neighborhoods" + every canonical Kabul area (KabulAreas), localized
+    // to the current language. Parallel to the ViewModel's NEIGHBORHOOD_KEYS.
+    val neighborhoodLabels = remember(strings.language) {
+        listOf(strings.neighborhoodAll) +
+            com.safebeauty.app.util.KabulAreas.labels(strings.language)
+    }
 
     var showNeighborhoodMenu by remember { mutableStateOf(false) }
     var showBookingsSheet    by remember { mutableStateOf(false) }

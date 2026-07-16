@@ -59,15 +59,10 @@ import javax.inject.Inject
 
 // Internal English keys used for Firestore filtering — independent of display language.
 private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
-private val NEIGHBORHOOD_KEYS = listOf(
-    "All Neighborhoods",
-    "District 1 – Kabul Center",
-    "District 3 – Khair Khana",
-    "District 6 – Karte Seh",
-    "District 9 – Dasht-e Barchi",
-    "District 11 – Qala-e Wahed",
-    "District 13 – Afshar"
-)
+// Index 0 is the "show everything" sentinel; the rest are the canonical Kabul
+// area keys shared with the provider's district picker (see KabulAreas), so a
+// salon's stored `district` always lines up with a filter option.
+private val NEIGHBORHOOD_KEYS = listOf("All Neighborhoods") + com.safebeauty.app.util.KabulAreas.keys
 
 data class BookingStatusChange(
     val salonName: String,
