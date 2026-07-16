@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="fa">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -7,8 +7,9 @@
 <style>
   /* ============================================================
      SafeBeauty Salon Console — shares the admin design system
-     (light + dark). Same class names / tokens so both consoles
-     stay visually identical; only the tabs & data differ.
+     (light + dark) plus multi-language (English / Dari / Pashto)
+     with RTL support. Same class names / tokens as the admin
+     console; only the tabs, data & language layer differ.
      ============================================================ */
   :root{
     --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
@@ -147,7 +148,7 @@
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
   .badge.cash{background:rgba(212,168,83,.22);color:var(--gold)}
   .badge.warn2{background:rgba(192,57,43,.14);color:#e06c5e}
-  .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600}
+  .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600;line-height:1.7}
   .section-title{font-size:11px;color:var(--rose);font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin:4px 0 13px}
   .card-pad{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px}
 
@@ -212,11 +213,29 @@
     .day-row .dl{grid-column:1 / -1}
   }
 
+  /* Latin/numeric inputs stay LTR even in an RTL layout. */
+  input[type="tel"],input[type="password"],input[type="number"],input[type="time"]{direction:ltr}
+
+  /* ── RTL (Dari / Pashto) ───────────────────────────────────────── */
+  [dir="rtl"] .navitem{text-align:right}
+  [dir="rtl"] .navitem .tag{margin-left:0;margin-right:auto}
+  [dir="rtl"] .sidebar{border-right:none;border-left:1px solid var(--line)}
+  [dir="rtl"] .tbl th,[dir="rtl"] .tbl td{text-align:right}
+  [dir="rtl"] .avail-card::before{inset:0 0 0 auto}
+  [dir="rtl"] .stat::after{right:auto;left:-30px}
+  [dir="rtl"] .switch .knob{left:auto;right:3px}
+  [dir="rtl"] .switch.on .knob{transform:translateX(-26px)}
+  @media(min-width:680px){
+    [dir="rtl"] .row:not(.wide){padding-right:16px;padding-left:168px}
+    [dir="rtl"] .row:not(.wide) .actions{right:auto;left:15px}
+  }
+
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
     .sidebar{width:100%;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;
       border-right:none;border-bottom:1px solid var(--line)}
+    [dir="rtl"] .sidebar{border-left:none;border-bottom:1px solid var(--line)}
     .sidebar .brand{white-space:nowrap}
     .who2{display:none}
     .nav{flex-direction:row;flex:1;gap:4px}
@@ -228,23 +247,21 @@
   }
 </style>
 <script>
-  /* Apply the saved / system theme before first paint (no flash). Shared with
-     the admin console via the same 'sb-theme' localStorage key. */
+  /* Apply the saved / system theme + language direction before first paint
+     (no flash). Shared with the admin console via the same localStorage keys. */
   (function(){
     try{
       var t = localStorage.getItem('sb-theme') ||
               (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', t);
     }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
+    try{
+      var l = localStorage.getItem('sb-lang') || 'fa';
+      if(['fa','ps','en'].indexOf(l) < 0) l = 'fa';
+      document.documentElement.lang = l;
+      document.documentElement.dir = (l === 'en') ? 'ltr' : 'rtl';
+    }catch(e){ document.documentElement.dir = 'rtl'; }
   })();
-  function toggleTheme(){
-    var el = document.documentElement;
-    var next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    el.setAttribute('data-theme', next);
-    try{ localStorage.setItem('sb-theme', next); }catch(e){}
-    var b = document.getElementById('themeToggle');
-    if(b) b.innerHTML = next === 'dark' ? '☀︎ Light mode' : '☾ Dark mode';
-  }
 </script>
 </head>
 <body>
@@ -254,13 +271,13 @@
   <div class="card">
     <div class="logo">❀</div>
     <h1>SafeBeauty</h1>
-    <div class="sub">Salon Console</div>
-    <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
-    <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="sub" id="lsub">Salon Console</div>
+    <input id="lp" class="field" type="tel" autocomplete="username" />
+    <input id="lw" class="field" type="password" autocomplete="current-password" />
     <button id="lbtn" class="btn">Sign in</button>
     <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
-      <input type="checkbox" id="lremc" /> Remember me with Touch ID
+      <input type="checkbox" id="lremc" /> <span id="lremtext">Remember me with Touch ID</span>
     </label>
     <div id="lerr" class="err"></div>
   </div>
@@ -273,7 +290,8 @@
     <div class="who2" id="who"></div>
     <nav class="nav" id="nav"></nav>
     <div class="foot">
-      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">☾ Dark mode</button>
+      <button class="theme-toggle" id="langToggle">🌐</button>
+      <button class="theme-toggle" id="themeToggle">☾</button>
       <button class="btn-sm" id="logout" style="width:100%;background:var(--rose)">Sign out</button>
     </div>
   </aside>
@@ -282,14 +300,6 @@
     <main id="view"></main>
   </div>
 </div>
-<script>
-  /* Sync the toggle's label to the theme resolved before paint. */
-  (function(){
-    var el = document.getElementById('themeToggle');
-    if(el) el.innerHTML =
-      document.documentElement.getAttribute('data-theme') === 'dark' ? '☀︎ Light mode' : '☾ Dark mode';
-  })();
-</script>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -314,6 +324,239 @@ const auth = getAuth(app);
 const db   = getFirestore(app);
 const fns  = getFunctions(app, 'us-central1');
 
+// ── i18n ──────────────────────────────────────────────────────────────────────
+// English / Dari (fa) / Pashto (ps). Values are strings or (…args)=>string.
+const LANGS = ['fa','ps','en'];
+const LANG_NAME = { fa:'دری', ps:'پښتو', en:'English' };
+let lang = 'fa';
+try{ const s = localStorage.getItem('sb-lang'); if(LANGS.includes(s)) lang = s; }catch(_){}
+
+const STR = {
+  // Login
+  consoleSub:{en:'Salon Console', fa:'کنسول سالن', ps:'د سالون کنسول'},
+  phonePh:{en:'Phone (e.g. +93700…)', fa:'شماره تلفن (مثل ‎+93700…)', ps:'د تلیفون شمېره (لکه ‎+93700…)'},
+  passwordPh:{en:'Password', fa:'رمز عبور', ps:'پټ نوم'},
+  signIn:{en:'Sign in', fa:'ورود', ps:'ننوتل'},
+  signingIn:{en:'Signing in…', fa:'در حال ورود…', ps:'ننوتل کیږي…'},
+  touchId:{en:'☝ Sign in with Touch ID', fa:'☝ ورود با Touch ID', ps:'☝ د Touch ID په مرسته ننوتل'},
+  rememberTouch:{en:'Remember me with Touch ID', fa:'مرا با Touch ID به خاطر بسپار', ps:'ما د Touch ID سره وساتئ'},
+  errEnter:{en:'Enter phone and password.', fa:'شماره تلفن و رمز را وارد کنید.', ps:'د تلیفون شمېره او پټ نوم دننه کړئ.'},
+  errInvalid:{en:'Invalid phone or password.', fa:'شماره تلفن یا رمز نادرست است.', ps:'د تلیفون شمېره یا پټ نوم ناسم دی.'},
+  errNotProvider:{en:'This account is not a salon provider.', fa:'این حساب متعلق به یک سالن نیست.', ps:'دا حساب د سالون نه دی.'},
+  errSuspended:{en:'This account is suspended. Please contact support.', fa:'این حساب مسدود شده است. با پشتیبانی تماس بگیرید.', ps:'دا حساب بند شوی دی. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
+  errFailed:{en:'Sign-in failed.', fa:'ورود ناموفق بود.', ps:'ننوتل ناکام شو.'},
+  // Shell
+  signedInAs:{en:(n)=>`Signed in as ${n}`, fa:(n)=>`واردشده به‌عنوان ${n}`, ps:(n)=>`د ${n} په توګه ننوتلی`},
+  signOut:{en:'Sign out', fa:'خروج', ps:'وتل'},
+  darkMode:{en:'☾ Dark mode', fa:'☾ حالت تاریک', ps:'☾ تیاره حالت'},
+  lightMode:{en:'☀︎ Light mode', fa:'☀︎ حالت روشن', ps:'☀︎ رڼا حالت'},
+  loading:{en:'Loading…', fa:'در حال بارگذاری…', ps:'پورته کیږي…'},
+  noSalon:{en:'No salon is linked to this account yet.<br>If you were just approved, sign out and back in.',
+           fa:'هنوز سالنی به این حساب متصل نیست.<br>اگر تازه تأیید شده‌اید، خارج و دوباره وارد شوید.',
+           ps:'تر اوسه له دې حساب سره کوم سالون نه دی تړل شوی.<br>که تازه تصویب شوي یاست، ووځئ او بیا ننوځئ.'},
+  loadErr:{en:(m)=>`Couldn't load: ${m}`, fa:(m)=>`بارگذاری ممکن نشد: ${m}`, ps:(m)=>`پورته کول ونشول: ${m}`},
+  // Nav
+  today:{en:'Today', fa:'امروز', ps:'نن'},
+  requests:{en:'Requests', fa:'درخواست‌ها', ps:'غوښتنې'},
+  calendar:{en:'Calendar', fa:'تقویم', ps:'کلیز'},
+  reviews:{en:'Reviews', fa:'نظرات', ps:'نظرونه'},
+  income:{en:'Income', fa:'درآمد', ps:'عاید'},
+  offers:{en:'Offers', fa:'آفرها', ps:'وړاندیزونه'},
+  profile:{en:'Profile', fa:'پروفایل', ps:'پروفایل'},
+  // Today
+  salonStatus:{en:'Salon status', fa:'وضعیت سالن', ps:'د سالون حالت'},
+  availOn:{en:'Available — customers can find and book your salon.', fa:'فعال — مشتریان می‌توانند سالن شما را پیدا و رزرو کنند.', ps:'فعال — پیرودونکي کولی شي ستاسو سالون ومومي او خوندي کړي.'},
+  availOff:{en:'Unavailable — your salon is hidden from booking.', fa:'غیرفعال — سالن شما از دید رزرو پنهان است.', ps:'غیرفعال — ستاسو سالون د خوندي کولو څخه پټ دی.'},
+  atAGlance:{en:'At a glance', fa:'یک نگاه کلی', ps:'لنډه کتنه'},
+  pendingRequests:{en:'Pending requests', fa:'درخواست‌های معلق', ps:'پاتې غوښتنې'},
+  todaysBookings:{en:"Today's bookings", fa:'رزروهای امروز', ps:'د نن ورځې خوندي‌کول'},
+  confirmedTotal:{en:'Confirmed total', fa:'مجموع تأییدشده', ps:'ټول تایید شوي'},
+  averageRating:{en:'Average rating', fa:'میانگین امتیاز', ps:'منځنۍ نمره'},
+  owedToYou:{en:'Owed to you', fa:'طلب شما', ps:'ستاسو پور'},
+  youOwe:{en:'You owe platform', fa:'بدهی شما به پلتفرم', ps:'تاسو پر پلیټ‌فارم پور یاست'},
+  estRevenue:{en:'Est. revenue', fa:'درآمد تخمینی', ps:'اټکل شوی عاید'},
+  // Requests
+  allCaughtUp:{en:"🎉 No pending requests — you're all caught up.", fa:'🎉 درخواست معلقی نیست — همه‌چیز به‌روز است.', ps:'🎉 هیڅ پاتې غوښتنه نشته — هرڅه سم دي.'},
+  awaitingResponse:{en:(n)=>`${n} booking${n>1?'s':''} awaiting your response`, fa:(n)=>`${n} رزرو در انتظار پاسخ شما`, ps:(n)=>`${n} خوندي‌کول ستاسو د ځواب په تمه`},
+  cash:{en:'CASH', fa:'نقدی', ps:'نغدي'},
+  newCustomer:{en:'New customer', fa:'مشتری جدید', ps:'نوی پیرودونکی'},
+  noShow:{en:(n)=>`${n} no-show`, fa:(n)=>`${n} غیبت`, ps:(n)=>`${n} غیرحاضري`},
+  accept:{en:'Accept', fa:'پذیرش', ps:'منل'},
+  decline:{en:'Decline', fa:'رد', ps:'ردول'},
+  accepting:{en:'Accepting…', fa:'در حال پذیرش…', ps:'منل کیږي…'},
+  declining:{en:'Declining…', fa:'در حال رد…', ps:'ردول کیږي…'},
+  actionErr:{en:(m)=>`Could not complete that action: ${m}`, fa:(m)=>`انجام این عمل ممکن نشد: ${m}`, ps:(m)=>`دا کار ترسره نشو: ${m}`},
+  // Calendar
+  f_all:{en:'All', fa:'همه', ps:'ټول'},
+  colService:{en:'Service', fa:'خدمت', ps:'خدمت'},
+  colCustomer:{en:'Customer', fa:'مشتری', ps:'پیرودونکی'},
+  colStaff:{en:'Staff', fa:'کارمند', ps:'کارمند'},
+  colWhen:{en:'When', fa:'زمان', ps:'وخت'},
+  colPayment:{en:'Payment', fa:'پرداخت', ps:'تادیه'},
+  colStatus:{en:'Status', fa:'وضعیت', ps:'حالت'},
+  anyStaff:{en:'Any', fa:'هرکدام', ps:'هر یو'},
+  online:{en:'Online', fa:'آنلاین', ps:'آنلاین'},
+  noBookingsView:{en:'No bookings in this view.', fa:'در این نما رزروی نیست.', ps:'په دې کتنه کې کوم خوندي‌کول نشته.'},
+  st_PENDING:{en:'Pending', fa:'معلق', ps:'پاتې'},
+  st_CONFIRMED:{en:'Confirmed', fa:'تأییدشده', ps:'تایید شوی'},
+  st_COMPLETED:{en:'Completed', fa:'تکمیل‌شده', ps:'بشپړ شوی'},
+  st_CANCELLED:{en:'Cancelled', fa:'لغوشده', ps:'لغوه شوی'},
+  st_AWAITING_PAYMENT:{en:'Awaiting payment', fa:'در انتظار پرداخت', ps:'د تادیې په تمه'},
+  // Reviews
+  reviewsSummary:{en:(n,a)=>`${n} review${n>1?'s':''} · ${a} average`, fa:(n,a)=>`${n} نظر · میانگین ${a}`, ps:(n,a)=>`${n} نظرونه · منځنی ${a}`},
+  yourReply:{en:'Your reply:', fa:'پاسخ شما:', ps:'ستاسو ځواب:'},
+  writeReply:{en:'Write a reply…', fa:'پاسخی بنویسید…', ps:'ځواب ولیکئ…'},
+  reply:{en:'Reply', fa:'پاسخ', ps:'ځواب'},
+  saving:{en:'Saving…', fa:'در حال ذخیره…', ps:'خوندي کیږي…'},
+  noReviews:{en:'No reviews yet.', fa:'هنوز نظری نیست.', ps:'تر اوسه کوم نظر نشته.'},
+  replyErr:{en:(m)=>`Could not save your reply: ${m}`, fa:(m)=>`ذخیره‌ی پاسخ ممکن نشد: ${m}`, ps:(m)=>`ستاسو د ځواب خوندي کول ونشول: ${m}`},
+  // Income
+  platformOwesYou:{en:'Platform owes you', fa:'پلتفرم به شما بدهکار است', ps:'پلیټ‌فارم تاسو ته پوروړی دی'},
+  youOweCommission:{en:'You owe the platform (cash commission)', fa:'شما به پلتفرم بدهکارید (کمیسیون نقدی)', ps:'تاسو پلیټ‌فارم ته پوروړي یاست (نغدي کمیشن)'},
+  balanceLbl:{en:'Balance', fa:'موجودی', ps:'بیلانس'},
+  payoutsLbl:{en:'Payouts', fa:'تسویه‌ها', ps:'تادیات'},
+  payoutHistory:{en:'Payout history', fa:'تاریخچه‌ی تسویه', ps:'د تادیاتو تاریخچه'},
+  colAmount:{en:'Amount', fa:'مبلغ', ps:'اندازه'},
+  colMethod:{en:'Method', fa:'روش', ps:'طریقه'},
+  colDate:{en:'Date', fa:'تاریخ', ps:'نېټه'},
+  noPayouts:{en:'No payouts yet.', fa:'هنوز تسویه‌ای انجام نشده.', ps:'تر اوسه کومه تادیه نده شوې.'},
+  incomeNote:{en:'Payouts are issued by the platform admin. Your online-booking earnings accrue here net of commission.',
+              fa:'تسویه‌ها توسط ادمین پلتفرم انجام می‌شود. درآمد رزروهای آنلاین شما پس از کسر کمیسیون اینجا جمع می‌شود.',
+              ps:'تادیات د پلیټ‌فارم مدیر لخوا کیږي. ستاسو آنلاین عاید د کمیشن له کمولو وروسته دلته ټولیږي.'},
+  // Offers
+  newOffer:{en:'New offer', fa:'آفر جدید', ps:'نوی وړاندیز'},
+  offerTitlePh:{en:'Title (e.g. 20% off nails this week)', fa:'عنوان (مثلاً ۲۰٪ تخفیف ناخن این هفته)', ps:'سرلیک (لکه دا اونۍ ۲۰٪ تخفیف)'},
+  offerDescPh:{en:'Short description (optional)', fa:'توضیح کوتاه (اختیاری)', ps:'لنډه تشریح (اختیاري)'},
+  discountPct:{en:'Discount %', fa:'درصد تخفیف', ps:'د تخفیف سلنه'},
+  addOffer:{en:'Add offer', fa:'افزودن آفر', ps:'وړاندیز زیاتول'},
+  adding:{en:'Adding…', fa:'در حال افزودن…', ps:'زیاتیږي…'},
+  offerNote:{en:'Offers show as a badge on your salon card. The final price is always set by your service prices.',
+             fa:'آفرها به‌صورت نشان روی کارت سالن نمایش داده می‌شوند. قیمت نهایی همیشه بر اساس قیمت خدمات شماست.',
+             ps:'وړاندیزونه ستاسو د سالون کارت باندې د نښې په توګه ښکاري. وروستۍ بیه تل ستاسو د خدماتو بیه ټاکي.'},
+  yourOffers:{en:'Your offers', fa:'آفرهای شما', ps:'ستاسو وړاندیزونه'},
+  activeLbl:{en:'Active', fa:'فعال', ps:'فعال'},
+  offLbl:{en:'Off', fa:'خاموش', ps:'بند'},
+  turnOff:{en:'Turn off', fa:'خاموش کردن', ps:'بندول'},
+  turnOn:{en:'Turn on', fa:'روشن کردن', ps:'چالانول'},
+  del:{en:'Delete', fa:'حذف', ps:'ړنګول'},
+  noOffers:{en:'No offers yet — add one below.', fa:'هنوز آفری نیست — یکی در پایین اضافه کنید.', ps:'تر اوسه وړاندیز نشته — لاندې یو زیات کړئ.'},
+  pctOff:{en:(p)=>`${p}% off`, fa:(p)=>`${p}٪ تخفیف`, ps:(p)=>`${p}٪ تخفیف`},
+  confirmDelOffer:{en:'Delete this offer?', fa:'این آفر حذف شود؟', ps:'دا وړاندیز ړنګ شي؟'},
+  offerAddErr:{en:(m)=>`Could not add offer: ${m}`, fa:(m)=>`افزودن آفر ممکن نشد: ${m}`, ps:(m)=>`وړاندیز زیاتول ونشول: ${m}`},
+  offerUpdErr:{en:(m)=>`Could not update offer: ${m}`, fa:(m)=>`به‌روزرسانی آفر ممکن نشد: ${m}`, ps:(m)=>`د وړاندیز تازه کول ونشول: ${m}`},
+  offerDelErr:{en:(m)=>`Could not delete offer: ${m}`, fa:(m)=>`حذف آفر ممکن نشد: ${m}`, ps:(m)=>`د وړاندیز ړنګول ونشول: ${m}`},
+  // Profile
+  salonBasics:{en:'Salon basics', fa:'اطلاعات پایه سالن', ps:'د سالون بنسټیز معلومات'},
+  district:{en:'District', fa:'ناحیه', ps:'ناحیه'},
+  districtPh:{en:'District / area', fa:'ناحیه / منطقه', ps:'ناحیه / سیمه'},
+  slotLen:{en:'Slot length (min)', fa:'طول اسلات (دقیقه)', ps:'د سلاټ اوږدوالی (دقیقه)'},
+  hesabAccount:{en:'HesabPay account', fa:'حساب HesabPay', ps:'د HesabPay حساب'},
+  hesabPh:{en:'Payout account number', fa:'شماره حساب دریافت وجه', ps:'د تادیې د حساب شمېره'},
+  servicesPricing:{en:'Services & pricing', fa:'خدمات و قیمت‌ها', ps:'خدمات او بیې'},
+  colPrice:{en:'Price (AFN)', fa:'قیمت (افغانی)', ps:'بیه (افغانۍ)'},
+  colDuration:{en:'Duration (min)', fa:'مدت (دقیقه)', ps:'موده (دقیقه)'},
+  addServicePh:{en:'Add a service (e.g. Haircut)', fa:'افزودن خدمت (مثلاً کوتاهی مو)', ps:'خدمت زیاتول (لکه د ویښتانو کمول)'},
+  addService:{en:'Add service', fa:'افزودن خدمت', ps:'خدمت زیاتول'},
+  noServices:{en:'No services yet — add your first below.', fa:'هنوز خدمتی نیست — اولی را در پایین اضافه کنید.', ps:'تر اوسه خدمت نشته — لومړی یې لاندې زیات کړئ.'},
+  workingHours:{en:'Working hours', fa:'ساعات کاری', ps:'د کار ساعتونه'},
+  openLbl:{en:'Open', fa:'باز', ps:'خلاص'},
+  closedLbl:{en:'Closed', fa:'بسته', ps:'تړلی'},
+  lastMinuteDeal:{en:'Last-minute deal', fa:'تخفیف لحظه‌آخری', ps:'د وروستۍ شیبې تخفیف'},
+  lastMinuteLabel:{en:'Offer an automatic discount to fill last-minute slots', fa:'ارائه‌ی تخفیف خودکار برای پر کردن اسلات‌های لحظه‌آخری', ps:'د وروستۍ شیبې د سلاټونو ډکولو لپاره اتومات تخفیف وړاندې کړئ'},
+  within:{en:'Within (hours)', fa:'در بازه‌ی (ساعت)', ps:'په (ساعتونو) کې'},
+  saveChanges:{en:'Save changes', fa:'ذخیره تغییرات', ps:'بدلونونه خوندي کړئ'},
+  appliesInstantly:{en:'Applies instantly across the customer app.', fa:'بلافاصله در اپ مشتری اعمال می‌شود.', ps:'سمدلاسه د پیرودونکي په اپ کې پلي کیږي.'},
+  savedLive:{en:'✓ Saved. Your changes are live.', fa:'✓ ذخیره شد. تغییرات شما فعال شد.', ps:'✓ خوندي شو. ستاسو بدلونونه ژوندي دي.'},
+  saveErr:{en:(m)=>`Couldn't save: ${m}`, fa:(m)=>`ذخیره ممکن نشد: ${m}`, ps:(m)=>`خوندي کول ونشول: ${m}`},
+  salonNotLoaded:{en:'Salon not loaded.', fa:'سالن بارگذاری نشد.', ps:'سالون نه دی پورته شوی.'},
+  // Days
+  Saturday:{en:'Saturday', fa:'شنبه', ps:'شنبه'},
+  Sunday:{en:'Sunday', fa:'یکشنبه', ps:'یکشنبه'},
+  Monday:{en:'Monday', fa:'دوشنبه', ps:'دوشنبه'},
+  Tuesday:{en:'Tuesday', fa:'سه‌شنبه', ps:'سه‌شنبه'},
+  Wednesday:{en:'Wednesday', fa:'چهارشنبه', ps:'چهارشنبه'},
+  Thursday:{en:'Thursday', fa:'پنجشنبه', ps:'پنجشنبه'},
+  Friday:{en:'Friday', fa:'جمعه', ps:'جمعه'},
+};
+
+function t(key, ...args){
+  const e = STR[key];
+  if(!e) return key;
+  const v = (e[lang] != null) ? e[lang] : e.en;
+  return (typeof v === 'function') ? v(...args) : v;
+}
+
+// ── State ───────────────────────────────────────────────────────────────────
+let provider = null;   // { uid, name }
+let salonId  = null;   // salons/{id}
+let salon    = null;   // latest salon snapshot data
+let hesab    = '';     // provider's HesabPay account number (users doc)
+let salonUnsub = null; // always-on salon listener
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
+const fmtDT = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
+const fmtD  = (ms) => ms ? new Date(Number(ms)).toLocaleDateString() : '—';
+const starStr = (n) => { const r=Math.round(Number(n)||0); return '★'.repeat(r)+'☆'.repeat(Math.max(0,5-r)); };
+const stLabel = (s) => STR['st_'+s] ? t('st_'+s) : (s||'—');
+const apptPill = (s) => {
+  const c = { CONFIRMED:'ok', COMPLETED:'ok', PENDING:'warn', AWAITING_PAYMENT:'warn', CANCELLED:'bad' }[s] || 'info';
+  return `<span class="pill ${c}">${esc(stLabel(s))}</span>`;
+};
+
+// ── Language + static-text painting ───────────────────────────────────────────
+function paintThemeBtn(){
+  const b = $('themeToggle'); if(!b) return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  b.textContent = dark ? t('lightMode') : t('darkMode');
+}
+window.toggleTheme = function(){
+  const el = document.documentElement;
+  const next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  el.setAttribute('data-theme', next);
+  try{ localStorage.setItem('sb-theme', next); }catch(e){}
+  paintThemeBtn();
+};
+
+function applyLangDir(){
+  document.documentElement.lang = lang;
+  document.documentElement.dir = (lang === 'en') ? 'ltr' : 'rtl';
+}
+
+function paintStatic(){
+  // Login card
+  $('lsub').textContent = t('consoleSub');
+  $('lp').placeholder = t('phonePh');
+  $('lw').placeholder = t('passwordPh');
+  if(!$('lbtn').disabled) $('lbtn').textContent = t('signIn');
+  $('lbio').textContent = t('touchId');
+  $('lremtext').textContent = t('rememberTouch');
+  // Shell chrome
+  $('logout').textContent = t('signOut');
+  $('langToggle').textContent = '🌐 ' + LANG_NAME[lang];
+  paintThemeBtn();
+  if(provider) $('who').textContent = t('signedInAs', provider.name);
+  const tab = TABS.find(x=>x.id===activeTab);
+  if(tab && !$('app').classList.contains('hidden')) $('topbar').textContent = t(tab.id);
+}
+
+function setLang(next){
+  lang = next;
+  try{ localStorage.setItem('sb-lang', next); }catch(_){}
+  applyLangDir();
+  paintStatic();
+  if(!$('app').classList.contains('hidden')){
+    buildNav();
+    selectTab(activeTab);   // re-render the current view in the new language
+  }
+}
+
+$('langToggle').addEventListener('click', () => {
+  const i = LANGS.indexOf(lang);
+  setLang(LANGS[(i+1) % LANGS.length]);
+});
+$('themeToggle').addEventListener('click', () => window.toggleTheme());
+
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
 function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
 function normalizeAfghan(raw){
@@ -335,23 +578,6 @@ async function deriveAuthPassword(pin, saltB64){
   return bytesToB64(new Uint8Array(bits));
 }
 
-// ── State ───────────────────────────────────────────────────────────────────
-let provider = null;   // { uid, name }
-let salonId  = null;   // salons/{id}
-let salon    = null;   // latest salon snapshot data
-let hesab    = '';     // provider's HesabPay account number (users doc)
-let salonUnsub = null; // always-on salon listener
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
-const fmtDT = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
-const fmtD  = (ms) => ms ? new Date(Number(ms)).toLocaleDateString() : '—';
-const starStr = (n) => { const r=Math.round(Number(n)||0); return '★'.repeat(r)+'☆'.repeat(Math.max(0,5-r)); };
-const apptPill = (s) => {
-  const c = { CONFIRMED:'ok', COMPLETED:'ok', PENDING:'warn', AWAITING_PAYMENT:'warn', CANCELLED:'bad' }[s] || 'info';
-  return `<span class="pill ${c}">${esc(s||'—')}</span>`;
-};
-
 // ── Login ────────────────────────────────────────────────────────────────────
 $('lbtn').addEventListener('click', doLogin);
 $('lw').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
@@ -360,27 +586,26 @@ async function doLogin(){
   const phone = normalizeForLogin($('lp').value);
   const pw = $('lw').value;
   $('lerr').textContent = '';
-  if(!phone || !pw){ $('lerr').textContent='Enter phone and password.'; return; }
-  $('lbtn').disabled = true; $('lbtn').textContent = 'Signing in…';
+  if(!phone || !pw){ $('lerr').textContent = t('errEnter'); return; }
+  $('lbtn').disabled = true; $('lbtn').textContent = t('signingIn');
   try{
     const res = await httpsCallable(fns,'authenticateWithPassword')({ phone, password: pw });
     const m = res.data || {};
-    if(m.mode !== 'REAL'){ throw new Error('Invalid phone or password.'); }
-    if((m.role||'') !== 'PROVIDER'){ throw new Error('This account is not a salon provider.'); }
-    if((m.status||'') === 'SUSPENDED'){ throw new Error('This account is suspended. Please contact support.'); }
+    if(m.mode !== 'REAL'){ throw new Error(t('errInvalid')); }
+    if((m.role||'') !== 'PROVIDER'){ throw new Error(t('errNotProvider')); }
+    if((m.status||'') === 'SUSPENDED'){ throw new Error(t('errSuspended')); }
     const authPw = await deriveAuthPassword(pw, m.salt || '');
     await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
     await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
-    // Save the credential for Touch ID if opted in (desktop app only).
     if (window.electronBiometric && $('lremc') && $('lremc').checked) {
       try { await window.electronBiometric.save(phone, pw); } catch(_){}
     }
     provider = { uid: m.uid, name: m.name || 'Salon', status: m.status || '' };
     await enterApp();
   }catch(e){
-    $('lerr').textContent = (e && e.message) ? e.message : 'Sign-in failed.';
+    $('lerr').textContent = (e && e.message) ? e.message : t('errFailed');
   }finally{
-    $('lbtn').disabled = false; $('lbtn').textContent = 'Sign in';
+    $('lbtn').disabled = false; $('lbtn').textContent = t('signIn');
   }
 }
 
@@ -412,13 +637,13 @@ $('logout').addEventListener('click', async () => {
 
 // ── App shell ────────────────────────────────────────────────────────────────
 const TABS = [
-  { id:'today',    label:'Today',    icon:'🏠', render:renderToday },
-  { id:'requests', label:'Requests', icon:'🔔', render:renderRequests },
-  { id:'calendar', label:'Calendar', icon:'📅', render:renderCalendar },
-  { id:'reviews',  label:'Reviews',  icon:'⭐', render:renderReviews },
-  { id:'income',   label:'Income',   icon:'💰', render:renderIncome },
-  { id:'offers',   label:'Offers',   icon:'🏷️', render:renderOffers },
-  { id:'profile',  label:'Profile',  icon:'✂️', render:renderProfile },
+  { id:'today',    icon:'🏠', render:renderToday },
+  { id:'requests', icon:'🔔', render:renderRequests },
+  { id:'calendar', icon:'📅', render:renderCalendar },
+  { id:'reviews',  icon:'⭐', render:renderReviews },
+  { id:'income',   icon:'💰', render:renderIncome },
+  { id:'offers',   icon:'🏷️', render:renderOffers },
+  { id:'profile',  icon:'✂️', render:renderProfile },
 ];
 let activeTab = 'today';
 let unsub = [];          // per-view onSnapshot cleanups
@@ -427,16 +652,14 @@ let pendingCount = 0;    // shown as a badge on the Requests tab
 async function enterApp(){
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
-  $('who').textContent = 'Signed in as ' + provider.name;
+  $('who').textContent = t('signedInAs', provider.name);
 
-  // Resolve this provider's salon (created server-side at registration).
   try{
     const snap = await getDocs(query(collection(db,'salons'), where('providerId','==',provider.uid)));
     const d = snap.docs[0];
     if(d){ salonId = d.id; salon = d.data(); }
   }catch(_){}
 
-  // Load the HesabPay account number from the user doc (for the Profile tab).
   try{
     const us = await getDoc(doc(db,'users',provider.uid));
     if(us.exists()) hesab = us.data().hesabAccountNumber || '';
@@ -444,14 +667,13 @@ async function enterApp(){
 
   $('salonName').textContent = salon ? (salon.salonName || '') : '';
 
-  // Keep the salon fresh so availability + profile always reflect reality, and
-  // the Requests badge can update live.
   if(salonId){
     salonUnsub = onSnapshot(doc(db,'salons',salonId), (s)=>{
       if(s.exists()){ salon = s.data(); $('salonName').textContent = salon.salonName || ''; paintAvailability(); }
     });
   }
 
+  paintStatic();
   buildNav();
   selectTab(activeTab);
 }
@@ -459,13 +681,13 @@ async function enterApp(){
 function buildNav(){
   const nav = $('nav');
   nav.innerHTML = '';
-  TABS.forEach(t => {
+  TABS.forEach(tab => {
     const b = document.createElement('button');
-    b.className = 'navitem' + (t.id===activeTab?' active':'');
-    b.dataset.id = t.id;
-    b.innerHTML = `<span class="ico">${t.icon}</span><span>${t.label}</span>` +
-      (t.id==='requests' ? `<span class="tag hidden" id="reqTag"></span>` : '');
-    b.onclick = () => selectTab(t.id);
+    b.className = 'navitem' + (tab.id===activeTab?' active':'');
+    b.dataset.id = tab.id;
+    b.innerHTML = `<span class="ico">${tab.icon}</span><span>${esc(t(tab.id))}</span>` +
+      (tab.id==='requests' ? `<span class="tag hidden" id="reqTag"></span>` : '');
+    b.onclick = () => selectTab(tab.id);
     nav.appendChild(b);
   });
   paintReqTag();
@@ -474,12 +696,12 @@ function buildNav(){
 function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
-  const tab = TABS.find(t=>t.id===id);
+  const tab = TABS.find(x=>x.id===id);
   [...$('nav').children].forEach(b => b.classList.toggle('active', b.dataset.id===id));
-  $('topbar').textContent = tab.label;
-  $('view').innerHTML = '<div class="empty">Loading…</div>';
+  $('topbar').textContent = t(tab.id);
+  $('view').innerHTML = `<div class="empty">${t('loading')}</div>`;
   if(!salonId && id!=='today'){
-    $('view').innerHTML = `<div class="empty">No salon is linked to this account yet.<br>If you were just approved, sign out and back in.</div>`;
+    $('view').innerHTML = `<div class="empty">${t('noSalon')}</div>`;
     return;
   }
   tab.render();
@@ -496,9 +718,7 @@ function paintAvailability(){
   const sw = $('availSwitch'); if(!sw || !salon) return;
   const on = salon.isAvailable === true;
   sw.classList.toggle('on', on);
-  $('availLabel').textContent = on
-    ? 'Available — customers can find and book your salon.'
-    : 'Unavailable — your salon is hidden from booking.';
+  $('availLabel').textContent = on ? t('availOn') : t('availOff');
 }
 
 function sameDay(ms, ref){
@@ -507,10 +727,7 @@ function sameDay(ms, ref){
 }
 
 async function renderToday(){
-  if(!salonId){
-    $('view').innerHTML = `<div class="empty">No salon is linked to this account yet.<br>If you were just approved, sign out and back in.</div>`;
-    return;
-  }
+  if(!salonId){ $('view').innerHTML = `<div class="empty">${t('noSalon')}</div>`; return; }
   try{
     const [apptSnap, balSnap] = await Promise.all([
       getDocs(query(collection(db,'appointments'), where('salonId','==',salonId))),
@@ -524,28 +741,26 @@ async function renderToday(){
     const owed      = balSnap && balSnap.exists() ? (balSnap.data().owedAmount||0) : 0;
     pendingCount = pending; paintReqTag();
 
-    // Estimated revenue from confirmed bookings × the salon's own price list.
     const prices = (salon && salon.pricePerService) || {};
     const est = appts
       .filter(a=>a.status==='CONFIRMED'||a.status==='COMPLETED')
       .reduce((sum,a)=> sum + (Number(prices[a.serviceName])||0), 0);
 
-    const owedLabel = owed >= 0 ? 'Owed to you' : 'You owe platform';
     const cards = [
-      ['🔔', pending,   'Pending requests'],
-      ['📅', todays,    "Today's bookings"],
-      ['✅', confirmed, 'Confirmed total'],
-      ['⭐', (Number(salon&&salon.rating)||0).toFixed(1), 'Average rating'],
-      ['💰', AFN(Math.abs(owed)), owedLabel],
-      ['📈', AFN(est), 'Est. revenue'],
+      ['🔔', pending,   t('pendingRequests')],
+      ['📅', todays,    t('todaysBookings')],
+      ['✅', confirmed, t('confirmedTotal')],
+      ['⭐', (Number(salon&&salon.rating)||0).toFixed(1), t('averageRating')],
+      ['💰', AFN(Math.abs(owed)), owed>=0 ? t('owedToYou') : t('youOwe')],
+      ['📈', AFN(est), t('estRevenue')],
     ];
 
     $('view').innerHTML =
       `<div class="avail-card">
-         <div><div class="avail-title">Salon status</div><div class="avail-sub" id="availLabel">…</div></div>
-         <button class="switch" id="availSwitch" role="switch" aria-label="Toggle availability"><span class="knob"></span></button>
+         <div><div class="avail-title">${t('salonStatus')}</div><div class="avail-sub" id="availLabel">…</div></div>
+         <button class="switch" id="availSwitch" role="switch" aria-label="${esc(t('salonStatus'))}"><span class="knob"></span></button>
        </div>
-       <div class="section-title">At a glance</div>
+       <div class="section-title">${t('atAGlance')}</div>
        <div class="grid">` +
       cards.map(([ic,n,l]) => `<div class="stat"><div class="ico">${ic}</div><div class="n">${esc(String(n))}</div><div class="l">${esc(l)}</div></div>`).join('') +
       `</div>`;
@@ -555,14 +770,12 @@ async function renderToday(){
       if(!salonId) return;
       const next = !(salon && salon.isAvailable===true);
       const sw = $('availSwitch');
-      sw.classList.toggle('on', next);            // optimistic
-      $('availLabel').textContent = next
-        ? 'Available — customers can find and book your salon.'
-        : 'Unavailable — your salon is hidden from booking.';
+      sw.classList.toggle('on', next);
+      $('availLabel').textContent = next ? t('availOn') : t('availOff');
       try{ await updateDoc(doc(db,'salons',salonId), { isAvailable: next }); }
-      catch(e){ paintAvailability(); }            // revert from the live snapshot on failure
+      catch(e){ paintAvailability(); }
     };
-  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load your overview: ${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; }
 }
 
 // ── Requests (pending bookings → accept / decline) ──────────────────────────────
@@ -572,50 +785,49 @@ function renderRequests(){
       .filter(a=>a.status==='PENDING')
       .sort((a,b)=>(a.appointmentDate||0)-(b.appointmentDate||0));
     pendingCount = list.length; paintReqTag();
-    if(!list.length){ $('view').innerHTML = `<div class="empty">🎉 No pending requests — you're all caught up.</div>`; return; }
+    if(!list.length){ $('view').innerHTML = `<div class="empty">${t('allCaughtUp')}</div>`; return; }
     $('view').innerHTML =
-      `<div class="section-title">${list.length} booking${list.length>1?'s':''} awaiting your response</div>` +
+      `<div class="section-title">${t('awaitingResponse', list.length)}</div>` +
       list.map(a => {
-        const cash = a.paymentMethod==='CASH' ? `<span class="badge cash">CASH</span>` : '';
+        const cash = a.paymentMethod==='CASH' ? `<span class="badge cash">${t('cash')}</span>` : '';
         const rep = (a.customerRatingCount>0)
-          ? `${starStr(a.customerRatingSum/a.customerRatingCount)} (${a.customerRatingCount})` : 'New customer';
-        const noShow = (a.noShowCount>0) ? ` <span class="badge warn2">${a.noShowCount} no-show</span>` : '';
+          ? `${starStr(a.customerRatingSum/a.customerRatingCount)} (${a.customerRatingCount})` : t('newCustomer');
+        const noShow = (a.noShowCount>0) ? ` <span class="badge warn2">${t('noShow', a.noShowCount)}</span>` : '';
         const staff = a.staffName ? ` · ${esc(a.staffName)}` : '';
         return `<div class="row" data-id="${esc(a.id)}">
-          <h3>${esc(a.serviceName||'Service')} ${cash}</h3>
+          <h3>${esc(a.serviceName||t('colService'))} ${cash}</h3>
           <div class="meta">
             🗓 ${esc(fmtDT(a.appointmentDate))}${staff}<br>
-            👤 ${esc(a.customerName||'Customer')} · ${esc(a.customerPhone||'')}<br>
+            👤 ${esc(a.customerName||t('colCustomer'))} · ${esc(a.customerPhone||'')}<br>
             ⭐ ${rep}${noShow}${a.notes?`<br>📝 ${esc(a.notes)}`:''}
           </div>
           <div class="actions">
-            <button class="btn-sm act-accept" style="background:var(--green)">Accept</button>
-            <button class="btn-sm act-decline" style="background:var(--red)">Decline</button>
+            <button class="btn-sm act-accept" style="background:var(--green)">${t('accept')}</button>
+            <button class="btn-sm act-decline" style="background:var(--red)">${t('decline')}</button>
           </div>
         </div>`;
       }).join('');
-    // Wire actions
     $('view').querySelectorAll('.row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.act-accept').onclick  = () => actOnBooking(row, id, 'confirmAppointment', 'Accepting…');
-      row.querySelector('.act-decline').onclick = () => actOnBooking(row, id, 'providerDeclineAppointment', 'Declining…');
+      row.querySelector('.act-accept').onclick  = () => actOnBooking(row, id, 'confirmAppointment', 'accepting');
+      row.querySelector('.act-decline').onclick = () => actOnBooking(row, id, 'providerDeclineAppointment', 'declining');
     });
-  }, (e)=>{ $('view').innerHTML = `<div class="empty">Couldn't load requests: ${esc(e.message)}</div>`; });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(unsubFn);
 }
 
-async function actOnBooking(row, id, callable, working){
-  const btns = row.querySelectorAll('button');
-  btns.forEach(b=>{ b.disabled=true; });
-  const acc = row.querySelector('.act-accept'); if(acc) acc.textContent = working==='Accepting…'?working:'Accept';
-  const dec = row.querySelector('.act-decline'); if(dec && working==='Declining…') dec.textContent = working;
+async function actOnBooking(row, id, callable, workingKey){
+  const acc = row.querySelector('.act-accept'), dec = row.querySelector('.act-decline');
+  [acc,dec].forEach(b=>{ if(b) b.disabled=true; });
+  if(workingKey==='accepting' && acc) acc.textContent = t('accepting');
+  if(workingKey==='declining' && dec) dec.textContent = t('declining');
   try{
     await httpsCallable(fns, callable)({ appointmentId: id });
     // The onSnapshot listener drops the row automatically when the status flips.
   }catch(e){
-    btns.forEach(b=>{ b.disabled=false; });
-    if(acc) acc.textContent='Accept'; if(dec) dec.textContent='Decline';
-    alert('Could not complete that action: ' + (e.message||'unknown error'));
+    [acc,dec].forEach(b=>{ if(b) b.disabled=false; });
+    if(acc) acc.textContent=t('accept'); if(dec) dec.textContent=t('decline');
+    alert(t('actionErr', e.message||''));
   }
 }
 
@@ -626,28 +838,28 @@ function renderCalendar(){
     const all = snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(b.appointmentDate||0)-(a.appointmentDate||0));
     paintCalendar(all);
-  }, (e)=>{ $('view').innerHTML = `<div class="empty">Couldn't load your calendar: ${esc(e.message)}</div>`; });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(unsubFn);
 }
 function paintCalendar(all){
   const filters = ['ALL','PENDING','CONFIRMED','COMPLETED','CANCELLED'];
   const shown = calFilter==='ALL' ? all : all.filter(a=>a.status===calFilter);
   const chips = filters.map(f =>
-    `<button class="chip ${f===calFilter?'on':''}" data-f="${f}">${f.charAt(0)+f.slice(1).toLowerCase()}</button>`).join('');
+    `<button class="chip ${f===calFilter?'on':''}" data-f="${f}">${esc(f==='ALL'?t('f_all'):stLabel(f))}</button>`).join('');
   const body = shown.length ? shown.map(a => `
       <tr>
         <td class="name">${esc(a.serviceName||'—')}</td>
         <td>${esc(a.customerName||'—')}</td>
-        <td>${esc(a.staffName||'Any')}</td>
+        <td>${esc(a.staffName||t('anyStaff'))}</td>
         <td>${esc(fmtDT(a.appointmentDate))}</td>
-        <td>${a.paymentMethod==='CASH'?'<span class="badge cash">CASH</span>':'Online'}</td>
+        <td>${a.paymentMethod==='CASH'?`<span class="badge cash">${t('cash')}</span>`:t('online')}</td>
         <td>${apptPill(a.status)}</td>
       </tr>`).join('')
-    : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:34px">No bookings in this view.</td></tr>`;
+    : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:34px">${t('noBookingsView')}</td></tr>`;
   $('view').innerHTML =
     `<div class="chips">${chips}</div>
      <div class="tbl-wrap"><table class="tbl">
-       <thead><tr><th>Service</th><th>Customer</th><th>Staff</th><th>When</th><th>Payment</th><th>Status</th></tr></thead>
+       <thead><tr><th>${t('colService')}</th><th>${t('colCustomer')}</th><th>${t('colStaff')}</th><th>${t('colWhen')}</th><th>${t('colPayment')}</th><th>${t('colStatus')}</th></tr></thead>
        <tbody>${body}</tbody></table></div>`;
   $('view').querySelectorAll('.chip').forEach(c => c.onclick = () => { calFilter = c.dataset.f; paintCalendar(all); });
 }
@@ -657,21 +869,21 @@ function renderReviews(){
   const unsubFn = onSnapshot(query(collection(db,'reviews'), where('salonId','==',salonId)), (snap)=>{
     const list = snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    if(!list.length){ $('view').innerHTML = `<div class="empty">No reviews yet.</div>`; return; }
+    if(!list.length){ $('view').innerHTML = `<div class="empty">${t('noReviews')}</div>`; return; }
     const avg = list.reduce((s,r)=>s+(Number(r.rating)||0),0) / list.length;
     $('view').innerHTML =
-      `<div class="section-title">${list.length} review${list.length>1?'s':''} · ${avg.toFixed(1)} average</div>` +
+      `<div class="section-title">${t('reviewsSummary', list.length, avg.toFixed(1))}</div>` +
       list.map(r => {
         const photos = (r.imageUrls||[]).map(u =>
           `<img src="${esc(u)}" style="width:64px;height:64px;object-fit:cover;border-radius:10px;margin:6px 6px 0 0" />`).join('');
         const reply = r.providerReply
-          ? `<div class="reply-shown"><b>Your reply:</b> ${esc(r.providerReply)}</div>`
+          ? `<div class="reply-shown"><b>${t('yourReply')}</b> ${esc(r.providerReply)}</div>`
           : `<div class="reply-box">
-               <textarea class="mini rp-text" placeholder="Write a reply…"></textarea>
-               <button class="btn-sm rp-send" style="background:var(--rose)">Reply</button>
+               <textarea class="mini rp-text" placeholder="${esc(t('writeReply'))}"></textarea>
+               <button class="btn-sm rp-send" style="background:var(--rose)">${t('reply')}</button>
              </div>`;
         return `<div class="row wide" data-id="${esc(r.id)}">
-          <h3>${esc(r.customerName||'Customer')} <span class="stars">${starStr(r.rating)}</span></h3>
+          <h3>${esc(r.customerName||t('colCustomer'))} <span class="stars">${starStr(r.rating)}</span></h3>
           <div class="meta">${esc(fmtD(r.createdAt))}</div>
           ${r.comment?`<div style="margin-top:7px;font-size:13px;color:var(--ink);line-height:1.5">${esc(r.comment)}</div>`:''}
           ${photos?`<div>${photos}</div>`:''}
@@ -684,16 +896,16 @@ function renderReviews(){
         const ta = row.querySelector('.rp-text');
         const text = (ta.value||'').trim();
         if(!text) return;
-        send.disabled = true; send.textContent = 'Saving…';
+        send.disabled = true; send.textContent = t('saving');
         try{
           await updateDoc(doc(db,'reviews',row.dataset.id), { providerReply: text, repliedAt: Date.now() });
         }catch(e){
-          send.disabled = false; send.textContent = 'Reply';
-          alert('Could not save your reply: ' + (e.message||'error'));
+          send.disabled = false; send.textContent = t('reply');
+          alert(t('replyErr', e.message||''));
         }
       };
     });
-  }, (e)=>{ $('view').innerHTML = `<div class="empty">Couldn't load reviews: ${esc(e.message)}</div>`; });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(unsubFn);
 }
 
@@ -703,7 +915,7 @@ function paintOwed(owed){
   const pos = owed >= 0;
   el.textContent = AFN(Math.abs(owed));
   el.style.color = pos ? 'var(--green)' : 'var(--red)';
-  if(lbl) lbl.textContent = pos ? 'Platform owes you' : 'You owe the platform (cash commission)';
+  if(lbl) lbl.textContent = pos ? t('platformOwesYou') : t('youOweCommission');
 }
 function renderIncome(){
   const payUnsub = onSnapshot(query(collection(db,'payouts'), where('providerId','==',provider.uid)), (snap)=>{
@@ -715,26 +927,23 @@ function renderIncome(){
           <td>${esc(p.method||'MANUAL')}</td>
           <td>${esc(fmtDT(p.createdAt))}</td>
         </tr>`).join('')
-      : `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:34px">No payouts yet.</td></tr>`;
+      : `<tr><td colspan="3" style="text-align:center;color:var(--muted);padding:34px">${t('noPayouts')}</td></tr>`;
     $('view').innerHTML =
       `<div class="card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:16px">
          <div>
-           <div class="avail-sub" id="owedLbl" style="margin:0 0 4px">Balance</div>
+           <div class="avail-sub" id="owedLbl" style="margin:0 0 4px">${t('balanceLbl')}</div>
            <div id="owedNum" style="font-size:34px;font-weight:800;color:var(--green);line-height:1">—</div>
          </div>
-         <div class="stat" style="min-width:120px"><div class="ico">💸</div><div class="n">${payouts.length}</div><div class="l">Payouts</div></div>
+         <div class="stat" style="min-width:120px"><div class="ico">💸</div><div class="n">${payouts.length}</div><div class="l">${t('payoutsLbl')}</div></div>
        </div>
-       <div class="section-title">Payout history</div>
+       <div class="section-title">${t('payoutHistory')}</div>
        <div class="tbl-wrap"><table class="tbl">
-         <thead><tr><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
+         <thead><tr><th>${t('colAmount')}</th><th>${t('colMethod')}</th><th>${t('colDate')}</th></tr></thead>
          <tbody>${rows}</tbody></table></div>
-       <div class="meta" style="color:var(--muted);margin-top:12px;font-size:12px">
-         Payouts are issued by the platform admin. Your online-booking earnings accrue here net of commission.
-       </div>`;
-  }, (e)=>{ $('view').innerHTML = `<div class="empty">Couldn't load income: ${esc(e.message)}</div>`; });
+       <div class="meta" style="color:var(--muted);margin-top:12px;font-size:12px">${t('incomeNote')}</div>`;
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(payUnsub);
 
-  // Live owed balance — updates the big number in place whenever it changes.
   const balUnsub = onSnapshot(doc(db,'provider_balances',provider.uid),
     (b)=> paintOwed(b.exists() ? (b.data().owedAmount||0) : 0),
     ()=>{});
@@ -748,29 +957,29 @@ function renderOffers(){
       .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     const rows = list.length ? list.map(o => `
         <div class="row wide" data-id="${esc(o.id)}">
-          <h3>${esc(o.title||'Offer')} ${o.discountPercent?`<span class="badge cash">${o.discountPercent}% off</span>`:''}</h3>
-          <div class="meta">${esc(o.description||'')}${o.description?'<br>':''}${o.active?'<span class="pill ok">Active</span>':'<span class="pill bad">Off</span>'}</div>
+          <h3>${esc(o.title||t('newOffer'))} ${o.discountPercent?`<span class="badge cash">${t('pctOff', o.discountPercent)}</span>`:''}</h3>
+          <div class="meta">${esc(o.description||'')}${o.description?'<br>':''}${o.active?`<span class="pill ok">${t('activeLbl')}</span>`:`<span class="pill bad">${t('offLbl')}</span>`}</div>
           <div class="actions" style="margin-top:10px">
-            <button class="btn-sm o-toggle" style="background:${o.active?'var(--gold)':'var(--green)'}">${o.active?'Turn off':'Turn on'}</button>
-            <button class="btn-sm o-del" style="background:var(--red)">Delete</button>
+            <button class="btn-sm o-toggle" style="background:${o.active?'var(--gold)':'var(--green)'}">${o.active?t('turnOff'):t('turnOn')}</button>
+            <button class="btn-sm o-del" style="background:var(--red)">${t('del')}</button>
           </div>
-        </div>`).join('') : `<div class="empty">No offers yet — add one below.</div>`;
+        </div>`).join('') : `<div class="empty">${t('noOffers')}</div>`;
     $('view').innerHTML =
       `<div class="card-pad">
-         <span class="fl">New offer</span>
-         <input id="of-title" class="mini" placeholder="Title (e.g. 20% off nails this week)" style="margin-bottom:9px" />
-         <input id="of-desc" class="mini" placeholder="Short description (optional)" style="margin-bottom:9px" />
+         <span class="fl">${t('newOffer')}</span>
+         <input id="of-title" class="mini" placeholder="${esc(t('offerTitlePh'))}" style="margin-bottom:9px" />
+         <input id="of-desc" class="mini" placeholder="${esc(t('offerDescPh'))}" style="margin-bottom:9px" />
          <div class="inline" style="margin-bottom:12px">
-           <div><span class="fl">Discount %</span><input id="of-pct" class="mini" type="number" min="0" max="100" placeholder="0" /></div>
+           <div><span class="fl">${t('discountPct')}</span><input id="of-pct" class="mini" type="number" min="0" max="100" placeholder="0" /></div>
          </div>
-         <button id="of-add" class="btn" style="width:auto;padding:11px 26px">Add offer</button>
-         <div class="meta" style="color:var(--muted);margin-top:9px;font-size:11.5px">Offers show as a badge on your salon card. The final price is always set by your service prices.</div>
+         <button id="of-add" class="btn" style="width:auto;padding:11px 26px">${t('addOffer')}</button>
+         <div class="meta" style="color:var(--muted);margin-top:9px;font-size:11.5px">${t('offerNote')}</div>
        </div>
-       <div class="section-title">Your offers</div>${rows}`;
+       <div class="section-title">${t('yourOffers')}</div>${rows}`;
     $('of-add').onclick = async () => {
       const title = ($('of-title').value||'').trim();
       if(!title){ $('of-title').focus(); return; }
-      const btn = $('of-add'); btn.disabled=true; btn.textContent='Adding…';
+      const btn = $('of-add'); btn.disabled=true; btn.textContent=t('adding');
       try{
         await addDoc(collection(db,'salon_offers'), {
           salonId, providerId: provider.uid, salonName: (salon&&salon.salonName)||'',
@@ -778,23 +987,23 @@ function renderOffers(){
           service: '', discountPercent: Math.max(0,Math.min(100, parseInt($('of-pct').value||'0',10)||0)),
           discountAmount: 0, expiresAt: 0, active: true, createdAt: Date.now()
         });
-      }catch(e){ alert('Could not add offer: '+(e.message||'error')); }
-      finally{ btn.disabled=false; btn.textContent='Add offer'; }
+      }catch(e){ alert(t('offerAddErr', e.message||'')); }
+      finally{ btn.disabled=false; btn.textContent=t('addOffer'); }
     };
     $('view').querySelectorAll('.row').forEach(row => {
       const id = row.dataset.id;
       const o = list.find(x=>x.id===id);
       row.querySelector('.o-toggle').onclick = async () => {
         try{ await updateDoc(doc(db,'salon_offers',id), { active: !o.active }); }
-        catch(e){ alert('Could not update offer: '+(e.message||'error')); }
+        catch(e){ alert(t('offerUpdErr', e.message||'')); }
       };
       row.querySelector('.o-del').onclick = async () => {
-        if(!confirm('Delete this offer?')) return;
+        if(!confirm(t('confirmDelOffer'))) return;
         try{ await deleteDoc(doc(db,'salon_offers',id)); }
-        catch(e){ alert('Could not delete offer: '+(e.message||'error')); }
+        catch(e){ alert(t('offerDelErr', e.message||'')); }
       };
     });
-  }, (e)=>{ $('view').innerHTML = `<div class="empty">Couldn't load offers: ${esc(e.message)}</div>`; });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(unsubFn);
 }
 
@@ -805,8 +1014,7 @@ let pf = null;   // working draft for the profile form
 function hhmm(h,m){ return String(h??0).padStart(2,'0')+':'+String(m??0).padStart(2,'0'); }
 
 function renderProfile(){
-  if(!salon){ $('view').innerHTML = `<div class="empty">Salon not loaded.</div>`; return; }
-  // Build the editable draft from the live salon doc.
+  if(!salon){ $('view').innerHTML = `<div class="empty">${t('salonNotLoaded')}</div>`; return; }
   const hoursByDay = {};
   (salon.workingHours||[]).forEach(w => hoursByDay[w.dayOfWeek] = w);
   pf = {
@@ -828,51 +1036,50 @@ function renderProfile(){
   $('view').innerHTML = `
     <div id="pf-flash"></div>
     <div class="card-pad">
-      <span class="fl">Salon basics</span>
+      <span class="fl">${t('salonBasics')}</span>
       <div class="inline">
-        <div><span class="fl">District</span><input id="pf-district" class="mini" value="${esc(pf.district)}" placeholder="District / area" /></div>
-        <div><span class="fl">Slot length (min)</span>
-          <select id="pf-slot" class="mini">${[15,20,30,45,60,90,120].map(v=>`<option value="${v}" ${v===pf.slot?'selected':''}>${v} min</option>`).join('')}</select>
+        <div><span class="fl">${t('district')}</span><input id="pf-district" class="mini" value="${esc(pf.district)}" placeholder="${esc(t('districtPh'))}" /></div>
+        <div><span class="fl">${t('slotLen')}</span>
+          <select id="pf-slot" class="mini">${[15,20,30,45,60,90,120].map(v=>`<option value="${v}" ${v===pf.slot?'selected':''}>${v}</option>`).join('')}</select>
         </div>
-        <div><span class="fl">HesabPay account</span><input id="pf-hesab" class="mini" value="${esc(pf.hesab)}" placeholder="Payout account number" /></div>
+        <div><span class="fl">${t('hesabAccount')}</span><input id="pf-hesab" class="mini" value="${esc(pf.hesab)}" placeholder="${esc(t('hesabPh'))}" /></div>
       </div>
     </div>
 
     <div class="card-pad">
-      <span class="fl">Services & pricing</span>
-      <div class="svc-row" style="color:var(--muted)"><div class="u">Service</div><div class="u">Price (AFN)</div><div class="u">Duration (min)</div><div></div></div>
+      <span class="fl">${t('servicesPricing')}</span>
+      <div class="svc-row" style="color:var(--muted)"><div class="u">${t('colService')}</div><div class="u">${t('colPrice')}</div><div class="u">${t('colDuration')}</div><div></div></div>
       <div id="pf-services"></div>
       <div class="inline" style="margin-top:6px">
-        <div><input id="pf-newsvc" class="mini" placeholder="Add a service (e.g. Haircut)" /></div>
-        <button id="pf-addsvc" class="btn-sm" style="background:var(--rose)">Add service</button>
+        <div><input id="pf-newsvc" class="mini" placeholder="${esc(t('addServicePh'))}" /></div>
+        <button id="pf-addsvc" class="btn-sm" style="background:var(--rose)">${t('addService')}</button>
       </div>
     </div>
 
     <div class="card-pad">
-      <span class="fl">Working hours</span>
+      <span class="fl">${t('workingHours')}</span>
       <div id="pf-hours"></div>
     </div>
 
     <div class="card-pad">
-      <span class="fl">Last-minute deal</span>
+      <span class="fl">${t('lastMinuteDeal')}</span>
       <label style="display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:11px;cursor:pointer">
-        <input type="checkbox" id="pf-lm" ${pf.lastEnabled?'checked':''} /> Offer an automatic discount to fill last-minute slots
+        <input type="checkbox" id="pf-lm" ${pf.lastEnabled?'checked':''} /> ${t('lastMinuteLabel')}
       </label>
       <div class="inline">
-        <div><span class="fl">Discount %</span><input id="pf-lmpct" class="mini" type="number" min="0" max="100" value="${pf.lastPct}" /></div>
-        <div><span class="fl">Within (hours)</span><input id="pf-lmwin" class="mini" type="number" min="0" max="168" value="${pf.lastWin}" /></div>
+        <div><span class="fl">${t('discountPct')}</span><input id="pf-lmpct" class="mini" type="number" min="0" max="100" value="${pf.lastPct}" /></div>
+        <div><span class="fl">${t('within')}</span><input id="pf-lmwin" class="mini" type="number" min="0" max="168" value="${pf.lastWin}" /></div>
       </div>
     </div>
 
     <div class="savebar">
-      <button id="pf-save" class="btn">Save changes</button>
-      <span class="meta" style="color:var(--muted)">Applies instantly across the customer app.</span>
+      <button id="pf-save" class="btn">${t('saveChanges')}</button>
+      <span class="meta" style="color:var(--muted)">${t('appliesInstantly')}</span>
     </div>`;
 
   paintServices();
   paintHours();
 
-  // Bind top-level inputs into the draft.
   $('pf-district').oninput = e => pf.district = e.target.value;
   $('pf-slot').onchange = e => pf.slot = parseInt(e.target.value,10)||60;
   $('pf-hesab').oninput = e => pf.hesab = e.target.value;
@@ -889,13 +1096,13 @@ function renderProfile(){
 
 function paintServices(){
   const host = $('pf-services');
-  if(!pf.services.length){ host.innerHTML = `<div class="meta" style="color:var(--muted);padding:6px 0">No services yet — add your first below.</div>`; return; }
-  host.innerHTML = pf.services.map((s,i) => `
+  if(!pf.services.length){ host.innerHTML = `<div class="meta" style="color:var(--muted);padding:6px 0">${t('noServices')}</div>`; return; }
+  host.innerHTML = pf.services.map((s) => `
     <div class="svc-row" data-svc="${esc(s)}">
       <div class="svc-name">${esc(s)}</div>
       <input class="mini pf-price" type="number" min="0" placeholder="0" value="${pf.prices[s]!=null?pf.prices[s]:''}" />
       <input class="mini pf-dur" type="number" min="0" placeholder="${pf.slot}" value="${pf.durations[s]!=null?pf.durations[s]:''}" />
-      <button class="icon-btn pf-rm" title="Remove">✕</button>
+      <button class="icon-btn pf-rm" title="${esc(t('del'))}">✕</button>
     </div>`).join('');
   host.querySelectorAll('.svc-row').forEach(row => {
     const s = row.dataset.svc;
@@ -910,9 +1117,9 @@ function paintHours(){
   host.innerHTML = pf.hours.map((w,i) => `
     <div class="day-row ${w.isOpen?'':'closed'}" data-i="${i}">
       <label class="dl" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" class="h-open" ${w.isOpen?'checked':''} /> ${DAYS[i][1]}
+        <input type="checkbox" class="h-open" ${w.isOpen?'checked':''} /> ${t(DAYS[i][1])}
       </label>
-      <span class="u" style="color:var(--muted)">${w.isOpen?'Open':'Closed'}</span>
+      <span class="u" style="color:var(--muted)">${w.isOpen?t('openLbl'):t('closedLbl')}</span>
       <input type="time" class="mini h-o" value="${hhmm(w.openHour,w.openMinute)}" ${w.isOpen?'':'disabled'} />
       <input type="time" class="mini h-c" value="${hhmm(w.closeHour,w.closeMinute)}" ${w.isOpen?'':'disabled'} />
     </div>`).join('');
@@ -925,7 +1132,7 @@ function paintHours(){
 }
 
 async function saveProfile(){
-  const btn = $('pf-save'); btn.disabled=true; btn.textContent='Saving…';
+  const btn = $('pf-save'); btn.disabled=true; btn.textContent=t('saving');
   const flash = $('pf-flash');
   try{
     // Re-read the live doc so we preserve every server-owned field
@@ -949,15 +1156,19 @@ async function saveProfile(){
       await updateDoc(doc(db,'users',provider.uid), { hesabAccountNumber: pf.hesab.trim() });
       hesab = pf.hesab.trim();
     }
-    flash.innerHTML = `<div class="flash">✓ Saved. Your changes are live.</div>`;
+    flash.innerHTML = `<div class="flash">${t('savedLive')}</div>`;
     flash.scrollIntoView({behavior:'smooth', block:'nearest'});
   }catch(e){
-    flash.innerHTML = `<div class="flash bad">Couldn't save: ${esc(e.message||'error')}</div>`;
+    flash.innerHTML = `<div class="flash bad">${t('saveErr', esc(e.message||''))}</div>`;
   }finally{
-    btn.disabled=false; btn.textContent='Save changes';
+    btn.disabled=false; btn.textContent=t('saveChanges');
     setTimeout(()=>{ if(flash) flash.innerHTML=''; }, 4200);
   }
 }
+
+// Paint all static chrome in the resolved language on first load.
+applyLangDir();
+paintStatic();
 </script>
 </body>
 </html>
