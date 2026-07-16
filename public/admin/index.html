@@ -280,7 +280,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, query, where, orderBy, getDocs, getDoc, doc,
+import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc, doc,
          setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
@@ -436,6 +436,7 @@ const TABS = [
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
   { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
+  { id:'audit',    label:'Audit',      icon:'🧾', render:renderAudit },
 ];
 const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
 let activeTab = 'stats';
@@ -1045,6 +1046,48 @@ async function renderSalons(){
     draw();
     $('ssearch').oninput = e => draw(e.target.value);
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Audit log (privileged admin actions) ──────────────────────────────────────
+const AUDIT_META = {
+  GRANT_ADMIN:    { icon:'🛡️', cls:'ok'   },
+  REVOKE_ADMIN:   { icon:'🚫', cls:'bad'  },
+  RESET_PASSWORD: { icon:'🔑', cls:'warn' },
+  UPDATE_USER:    { icon:'✏️', cls:'info' },
+  ADJUST_BALANCE: { icon:'💰', cls:'warn' },
+  GRANT_CREDIT:   { icon:'🎁', cls:'ok'   },
+};
+function describeAudit(a){
+  const d = a.details || {};
+  const who = esc(d.targetName || d.targetUid || d.providerId || d.customerId || '');
+  switch(a.action){
+    case 'GRANT_ADMIN':    return `Made <b>${who}</b> an admin`;
+    case 'REVOKE_ADMIN':   return `Removed admin access from <b>${who}</b>`;
+    case 'RESET_PASSWORD': return `Reset the password for <b>${who}</b>`;
+    case 'UPDATE_USER':    return `Edited <b>${who}</b> — ${esc(Object.keys(d.updates||{}).join(', ') || 'profile')}`;
+    case 'ADJUST_BALANCE': return `Balance ${d.delta>0?'+':''}${esc(String(d.delta))} AFN for <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    case 'GRANT_CREDIT':   return `Credit ${d.amount>0?'+':''}${esc(String(d.amount))} AFN to <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    default:               return esc(a.action || '');
+  }
+}
+async function renderAudit(){
+  try{
+    const snap = await getDocs(query(collection(db,'admin_audit'), orderBy('createdAt','desc'), limit(300)));
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No admin actions recorded yet.</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>When</th><th>By</th><th>Action</th></tr></thead>
+        <tbody>` + rows.map(a => {
+          const m = AUDIT_META[a.action] || { icon:'•', cls:'info' };
+          return `<tr>
+            <td style="white-space:nowrap">${esc(fmtDate(a.createdAt))}</td>
+            <td class="name">${esc(a.adminName||a.adminUid||'—')}</td>
+            <td><span class="pill ${m.cls}" style="margin-inline-end:7px">${m.icon} ${esc((a.action||'').replace(/_/g,' '))}</span>${describeAudit(a)}</td>
+          </tr>`;
+        }).join('') + `</tbody></table></div>`;
+  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load the audit log: ${esc(e.message)}</div>`; }
 }
 
 /** The full salon/owner control panel: edit salon + owner contact, view the
