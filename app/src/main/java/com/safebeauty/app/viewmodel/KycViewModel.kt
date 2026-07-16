@@ -51,6 +51,9 @@ class KycViewModel @Inject constructor(
 
     // ── Form fields ─────────────────────────────────────────────────────────────
     var tazkiraNumber   by mutableStateOf("")
+    var birthYear       by mutableStateOf("")
+    var tazkiraIssueDate  by mutableStateOf("")
+    var tazkiraExpiryDate by mutableStateOf("")
     var addressProvince by mutableStateOf("")
     var addressDetail   by mutableStateOf("")
     var tazkiraBytes    by mutableStateOf<ByteArray?>(null)
@@ -83,11 +86,14 @@ class KycViewModel @Inject constructor(
                 functions.getHttpsCallable("submitKyc")
                     .call(
                         hashMapOf(
-                            "tazkiraNumber"   to tazkiraNumber.trim(),
-                            "addressProvince" to addressProvince.trim(),
-                            "addressDetail"   to addressDetail.trim(),
-                            "tazkiraPhotoUrl" to tazkiraUrl,
-                            "selfiePhotoUrl"  to selfieUrl
+                            "tazkiraNumber"     to tazkiraNumber.trim(),
+                            "birthYear"         to birthYear.trim(),
+                            "tazkiraIssueDate"  to tazkiraIssueDate.trim(),
+                            "tazkiraExpiryDate" to tazkiraExpiryDate.trim(),
+                            "addressProvince"   to addressProvince.trim(),
+                            "addressDetail"     to addressDetail.trim(),
+                            "tazkiraPhotoUrl"   to tazkiraUrl,
+                            "selfiePhotoUrl"    to selfieUrl
                         )
                     )
                     .await()

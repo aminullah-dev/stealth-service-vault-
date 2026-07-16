@@ -1388,6 +1388,10 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
   const addressDetail   = String(d.addressDetail || "").trim();
   const tazkiraPhotoUrl = String(d.tazkiraPhotoUrl || "").trim();
   const selfiePhotoUrl  = String(d.selfiePhotoUrl || "").trim();
+  // Optional identity details (also editable later by the admin). Capped.
+  const birthYear         = String(d.birthYear || "").trim().slice(0, 40);
+  const tazkiraIssueDate  = String(d.tazkiraIssueDate || "").trim().slice(0, 40);
+  const tazkiraExpiryDate = String(d.tazkiraExpiryDate || "").trim().slice(0, 40);
 
   if (!tazkiraNumber || !addressProvince || !addressDetail ||
       !tazkiraPhotoUrl || !selfiePhotoUrl) {
@@ -1410,6 +1414,9 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
     kycStatus:          "PENDING",
     kycRejectionReason: "",
     tazkiraNumber,
+    birthYear,
+    tazkiraIssueDate,
+    tazkiraExpiryDate,
     addressProvince,
     addressDetail,
     tazkiraPhotoUrl,

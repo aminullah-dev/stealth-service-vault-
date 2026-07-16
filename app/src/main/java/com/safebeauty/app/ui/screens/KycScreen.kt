@@ -180,6 +180,33 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
         colors = fieldColors
     )
     OutlinedTextField(
+        value = viewModel.birthYear,
+        onValueChange = { viewModel.birthYear = it },
+        label = { Text(strings.kycBirthYear, fontSize = 13.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = fieldColors
+    )
+    OutlinedTextField(
+        value = viewModel.tazkiraIssueDate,
+        onValueChange = { viewModel.tazkiraIssueDate = it },
+        label = { Text(strings.kycIssueDate, fontSize = 13.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = fieldColors
+    )
+    OutlinedTextField(
+        value = viewModel.tazkiraExpiryDate,
+        onValueChange = { viewModel.tazkiraExpiryDate = it },
+        label = { Text(strings.kycExpiryDate, fontSize = 13.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = fieldColors
+    )
+    OutlinedTextField(
         value = viewModel.addressProvince,
         onValueChange = { viewModel.addressProvince = it },
         label = { Text(strings.kycProvince, fontSize = 13.sp) },
