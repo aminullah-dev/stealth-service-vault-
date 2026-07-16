@@ -21,14 +21,18 @@
     "directories": { "output": "dist" },
     "files": ["main.js", "preload.js", "package.json"],
     "mac": {
-      "target": "dmg",
-      "category": "public.app-category.business"
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "category": "public.app-category.business",
+      "identity": null,
+      "artifactName": "SafeBeauty-Salon-mac-${arch}.${ext}"
     },
     "win": {
-      "target": "nsis"
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "SafeBeauty-Salon-win-${arch}.${ext}"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "artifactName": "SafeBeauty-Salon-linux-${arch}.${ext}"
     }
   }
 }

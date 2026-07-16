@@ -13,8 +13,12 @@ backend for everything.
 - `firestore.rules` / `storage.rules` — security rules.
 - `public/` — Firebase Hosting: `admin/index.html` (self‑contained admin
   console), `provider/index.html` (self‑contained salon‑owner console — same
-  design system/auth as admin, but PROVIDER‑role only), `privacy.html`,
-  `terms.html`, `payment/`. `cleanUrls` serves them at `/admin` and `/provider`.
+  design system/auth as admin, but PROVIDER‑role only), `provider-app/index.html`
+  (trilingual download page for the salon desktop installers), `privacy.html`,
+  `terms.html`, `payment/`. `cleanUrls` serves them at `/admin`, `/provider`,
+  `/provider-app`. The salon installers are built + published to a public GitHub
+  Release (tag `salon-desktop`) by `.github/workflows/salon-desktop.yml`; the
+  download page links to those release assets by stable filename.
 - `desktop/` — Electron wrapper that opens the hosted admin console (`/admin`)
   as a native Mac/Windows app, with macOS Touch ID sign‑in.
 - `desktop-provider/` — the same Electron wrapper for the salon console

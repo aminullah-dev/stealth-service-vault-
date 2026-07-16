@@ -291,6 +291,7 @@
       <input type="checkbox" id="lremc" /> <span id="lremtext">Remember me with Touch ID</span>
     </label>
     <div id="lerr" class="err"></div>
+    <a id="getApp" href="/provider-app" class="hidden" style="display:block;margin-top:16px;color:var(--rose);font-size:12.5px;font-weight:700;text-decoration:none">⬇ Get the desktop app</a>
   </div>
 </div>
 
@@ -356,6 +357,7 @@ const STR = {
   errNotProvider:{en:'This account is not a salon provider.', fa:'این حساب متعلق به یک سالن نیست.', ps:'دا حساب د سالون نه دی.'},
   errSuspended:{en:'This account is suspended. Please contact support.', fa:'این حساب مسدود شده است. با پشتیبانی تماس بگیرید.', ps:'دا حساب بند شوی دی. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
   errFailed:{en:'Sign-in failed.', fa:'ورود ناموفق بود.', ps:'ننوتل ناکام شو.'},
+  getApp:{en:'⬇ Get the desktop app', fa:'⬇ دریافت اپ دسکتاپ (مک/ویندوز)', ps:'⬇ د ډیسکټاپ اپ ترلاسه کول (مک/وینډوز)'},
   // Shell
   signedInAs:{en:(n)=>`Signed in as ${n}`, fa:(n)=>`واردشده به‌عنوان ${n}`, ps:(n)=>`د ${n} په توګه ننوتلی`},
   signOut:{en:'Sign out', fa:'خروج', ps:'وتل'},
@@ -542,6 +544,9 @@ function paintStatic(){
   if(!$('lbtn').disabled) $('lbtn').textContent = t('signIn');
   $('lbio').textContent = t('touchId');
   $('lremtext').textContent = t('rememberTouch');
+  // "Get the desktop app" link — only useful in a plain browser, not the app.
+  const ga = $('getApp');
+  if(ga){ ga.textContent = t('getApp'); ga.classList.toggle('hidden', !!window.electronBiometric); }
   // Shell chrome
   $('logout').textContent = t('signOut');
   $('langToggle').textContent = '🌐 ' + LANG_NAME[lang];

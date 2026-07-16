@@ -1,0 +1,85 @@
+name: Build salon desktop apps
+
+# Builds the SafeBeauty for Salons desktop installers (macOS .dmg for Apple
+# Silicon + Intel, Windows .exe) and publishes them to a single public GitHub
+# Release tagged `salon-desktop`, so the download page's links stay stable.
+#
+# Run it manually from the Actions tab ("Run workflow"), or by pushing a tag
+# that starts with `salon-desktop` (e.g. `salon-desktop-v1.0.1`).
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "salon-desktop*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+          - os: windows-latest
+            script: dist:win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: desktop-provider
+        run: npm install
+
+      - name: Build installers
+        working-directory: desktop-provider
+        run: npm run ${{ matrix.script }}
+        env:
+          # Unsigned build — don't let electron-builder try to auto-sign on CI.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            desktop-provider/dist/*.dmg
+            desktop-provider/dist/*.exe
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all installers
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish to the salon-desktop release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: salon-desktop
+          name: SafeBeauty for Salons — Desktop
+          body: |
+            Native desktop installers for the SafeBeauty salon console.
+
+            - **macOS (Apple Silicon):** SafeBeauty-Salon-mac-arm64.dmg
+            - **macOS (Intel):** SafeBeauty-Salon-mac-x64.dmg
+            - **Windows:** SafeBeauty-Salon-win-x64.exe
+
+            The apps are unsigned; see the download page for the one-time
+            "open anyway" step on each OS.
+          files: |
+            artifacts/**/*.dmg
+            artifacts/**/*.exe
+          fail_on_unmatched_files: true

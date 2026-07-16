@@ -69,6 +69,20 @@ Admin console (`desktop/`):
 
 Salon console (`desktop-provider/`) — same commands, own folder:
 - Run without installing: `cd desktop-provider && npm start`
-- Mac installer: `npm run dist:mac` → `desktop-provider/dist/*.dmg`
+- Mac installer: `npm run dist:mac` → `desktop-provider/dist/*.dmg` (arm64 + Intel)
 - Windows installer: `npm run dist:win` (must run on Windows)
 - Loads `/provider`; only PROVIDER-role accounts can sign in.
+
+## Distribute the salon desktop app (for salon owners)
+Salon owners get the installers from a **public download page** — they never
+build anything:
+1. Build + publish the installers: GitHub → **Actions** → **Build salon desktop
+   apps** → **Run workflow** (or push a tag `salon-desktop*`). It builds macOS
+   (arm64 + Intel) + Windows on GitHub's runners and uploads them to a public
+   Release tagged `salon-desktop` with stable filenames.
+2. `firebase deploy --only hosting` (once) so the page is live.
+3. Share the link: **https://safebeauty.web.app/provider-app** — it auto-detects
+   the visitor's OS, offers the right installer, and shows the one-time
+   unsigned-app "open anyway" steps in Dari/Pashto/English. The console login
+   page (`/provider`) also links to it. Re-run the workflow to ship an update;
+   the download URLs stay the same.
