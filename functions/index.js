@@ -2803,6 +2803,14 @@ exports.adminUpdateUser = onCall({ region: "us-central1" }, async (request) => {
     }
     updates.phone = phone;
   }
+  // Identity / address fields the admin curates on behalf of a provider. These
+  // are frozen against client self-edits in firestore.rules; the Admin SDK
+  // bypasses those rules. An empty string is allowed (clearing a value).
+  const CURATED = ["addressProvince","addressDetail","tazkiraNumber",
+                   "birthYear","tazkiraIssueDate","tazkiraExpiryDate"];
+  for (const f of CURATED) {
+    if (d[f] != null) updates[f] = String(d[f]).trim().slice(0, 200);
+  }
   if (Object.keys(updates).length === 0) {
     throw new HttpsError("invalid-argument", "Nothing to update.");
   }

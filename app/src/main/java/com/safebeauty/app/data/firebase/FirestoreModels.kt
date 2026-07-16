@@ -40,6 +40,12 @@ data class UserDocument(
     val selfiePhotoUrl: String = "",
     val addressProvince: String = "",
     val addressDetail: String = "",
+    // Admin-curated identity details (filled in by the platform admin from the
+    // uploaded tazkira). Written only by the adminUpdateUser Cloud Function;
+    // frozen against client self-edits in firestore.rules.
+    val birthYear: String = "",
+    val tazkiraIssueDate: String = "",
+    val tazkiraExpiryDate: String = "",
     // ── Referral program ───────────────────────────────────────────────────────
     // referralCode is this user's own shareable code (derived from their uid at
     // registration). referredBy is the code they signed up with (blank if none).

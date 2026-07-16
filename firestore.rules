@@ -144,6 +144,14 @@ service cloud.firestore {
                           == resource.data.get('addressProvince', '')
                      && request.resource.data.get('addressDetail', '')
                           == resource.data.get('addressDetail', '')
+                     // Admin-curated identity fields (birth year, tazkira
+                     // issue/expiry) — written only by adminUpdateUser (Admin SDK).
+                     && request.resource.data.get('birthYear', '')
+                          == resource.data.get('birthYear', '')
+                     && request.resource.data.get('tazkiraIssueDate', '')
+                          == resource.data.get('tazkiraIssueDate', '')
+                     && request.resource.data.get('tazkiraExpiryDate', '')
+                          == resource.data.get('tazkiraExpiryDate', '')
                      // Referral balance/flags are server-controlled (reviewKyc /
                      // createPaymentSession) — frozen against self-edits. The code
                      // and who-referred-me are set once at registration and fixed.

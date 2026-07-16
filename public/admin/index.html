@@ -997,33 +997,171 @@ async function renderAdmins(){
 // ── Salons ─────────────────────────────────────────────────────────────────────
 async function renderSalons(){
   try{
-    const snap = await getDocs(collection(db,'salons'));
-    const salons = []; snap.forEach(d => salons.push({ id:d.id, ...d.data() }));
+    const [salonSnap, userSnap] = await Promise.all([
+      getDocs(collection(db,'salons')),
+      getDocs(collection(db,'users')),
+    ]);
+    const salons = []; salonSnap.forEach(d => salons.push({ id:d.id, ...d.data() }));
+    const owners = {}; userSnap.forEach(d => owners[d.id] = { id:d.id, ...d.data() });
     if(!salons.length){ $('view').innerHTML = `<div class="empty">No salons yet</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Salons (${salons.length})</div><div id="slist"></div>`;
+    salons.sort((a,b)=>(a.salonName||'').localeCompare(b.salonName||''));
+    $('view').innerHTML = `<div class="section-title">Salons (${salons.length})</div>
+      <input id="ssearch" class="field" placeholder="Search salon, district or phone…" style="max-width:340px;margin-bottom:16px" />
+      <div id="slist"></div>`;
     const verify = async (id, v) => {
       try{ await updateDoc(doc(db,'salons',id), { isVerified:v });
-        const s = salons.find(x=>x.id===id); if(s) s.isVerified = v; draw(); }
+        const s = salons.find(x=>x.id===id); if(s) s.isVerified = v; draw($('ssearch').value); }
       catch(e){ alert(e.message); }
     };
-    const draw = () => {
-      $('slist').innerHTML = `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Salon</th><th>District</th><th>Rating</th><th>Services</th><th>Verified</th><th></th></tr></thead>
-        <tbody>` + salons.map(s => `<tr>
+    const draw = (term='') => {
+      const t = term.trim().toLowerCase();
+      const rows = salons.filter(s => {
+        const o = owners[s.providerId] || {};
+        return !t || (s.salonName||'').toLowerCase().includes(t) || (s.district||'').toLowerCase().includes(t) || (o.phone||'').includes(t);
+      });
+      $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Salon</th><th>District</th><th>Owner phone</th><th>Rating</th><th>KYC</th><th>Verified</th><th></th></tr></thead>
+        <tbody>` + rows.map(s => { const o = owners[s.providerId] || {}; return `<tr>
           <td class="name">${esc(s.salonName||s.id)}</td>
           <td>${esc(s.district||'—')}</td>
+          <td>${esc(o.phone||'—')}</td>
           <td>★ ${Number(s.rating||0).toFixed(1)}</td>
-          <td>${(s.services||[]).length}</td>
+          <td>${kycPill(o.kycStatus)}</td>
           <td>${s.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">No</span>'}</td>
-          <td style="text-align:right">${s.isVerified
-            ? `<button class="btn-sm" style="background:var(--muted)" data-unv="${s.id}">Unverify</button>`
-            : `<button class="btn-sm" style="background:var(--green)" data-ver="${s.id}">Verify</button>`}</td>
-        </tr>`).join('') + `</tbody></table></div>`;
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">Manage</button>
+            ${s.isVerified
+              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">Unverify</button>`
+              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">Verify</button>`}
+          </td>
+        </tr>`; }).join('') + `</tbody></table></div>`
+        : `<div class="empty">No matching salons</div>`;
       $('slist').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>verify(b.dataset.ver,true));
       $('slist').querySelectorAll('[data-unv]').forEach(b=>b.onclick=()=>verify(b.dataset.unv,false));
+      $('slist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
+        const s = salons.find(x=>x.id===b.dataset.manage); if(s) openSalonModal(s, ()=>renderSalons());
+      });
     };
     draw();
+    $('ssearch').oninput = e => draw(e.target.value);
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/** The full salon/owner control panel: edit salon + owner contact, view the
+ *  uploaded tazkira/selfie, curate identity details (tazkira no., birth year,
+ *  issue/expiry, address), approve/reject KYC, verify, reset password, adjust
+ *  balance. Owner writes go through adminUpdateUser; salon writes are direct. */
+async function openSalonModal(salon, onChanged){
+  showModal(`<h2>${esc(salon.salonName||salon.id)}</h2><div class="msub">Loading owner…</div>`);
+  let owner = {};
+  try{ const s = await getDoc(doc(db,'users', salon.providerId)); if(s.exists()) owner = { id:s.id, ...s.data() }; }catch(_){}
+
+  const photo = (url,label) => url
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${label}" style="width:92px;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--line)"/></a>`
+    : `<div style="width:92px;height:92px;border-radius:11px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">not<br>uploaded</div>`;
+
+  showModal(`
+    <h2>${esc(salon.salonName||salon.id)}</h2>
+    <div class="msub">${esc(owner.name||'—')} · ${salon.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">Unverified</span>'} · ${kycPill(owner.kycStatus)}</div>
+    <div id="s-flash" class="mflash"></div>
+
+    <div class="mgroup">
+      <div class="mglabel">Salon</div>
+      <input id="s-district" class="field" value="${esc(salon.district||'')}" placeholder="District / area" />
+      <div class="meta" style="color:var(--muted)">★ ${Number(salon.rating||0).toFixed(1)} · ${(salon.services||[]).length} services · ${(salon.staff||[]).length} staff · ${salon.confirmedCount||0} confirmed</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Owner contact</div>
+      <input id="s-name" class="field" value="${esc(owner.name||'')}" placeholder="Owner name" />
+      <input id="s-phone" class="field" value="${esc(owner.phone||'')}" placeholder="Phone (+93…)" />
+      <div class="meta" style="color:var(--muted)">HesabPay: ${esc(owner.hesabAccountNumber||'—')}${owner.email?' · '+esc(owner.email):''}</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Identity documents</div>
+      <div style="display:flex;gap:18px;margin-bottom:13px">
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Tazkira</div>${photo(owner.tazkiraPhotoUrl,'Tazkira')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Selfie</div>${photo(owner.selfiePhotoUrl,'Selfie')}</div>
+      </div>
+      <input id="s-tazkira" class="field" value="${esc(owner.tazkiraNumber||'')}" placeholder="Tazkira number" />
+      <div class="mrow">
+        <input id="s-birth" class="field" value="${esc(owner.birthYear||'')}" placeholder="Birth year" />
+        <input id="s-issue" class="field" value="${esc(owner.tazkiraIssueDate||'')}" placeholder="Issue date" />
+        <input id="s-expiry" class="field" value="${esc(owner.tazkiraExpiryDate||'')}" placeholder="Expiry date" />
+      </div>
+      <input id="s-prov" class="field" value="${esc(owner.addressProvince||'')}" placeholder="Province" />
+      <input id="s-addr" class="field" value="${esc(owner.addressDetail||'')}" placeholder="Address detail" />
+      <div class="mrow" style="margin-top:2px">
+        <button class="btn-sm" id="s-kyc-ok" style="background:var(--green)">Approve KYC</button>
+        <button class="btn-sm" id="s-kyc-no" style="background:var(--red)">Reject KYC</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Actions</div>
+      <div class="mrow" style="flex-wrap:wrap">
+        <button class="btn-sm" id="s-verify" style="background:${salon.isVerified?'var(--muted)':'var(--green)'}">${salon.isVerified?'Unverify salon':'Verify salon'}</button>
+        <button class="btn-sm" id="s-pw" style="background:var(--rose)">Reset password</button>
+      </div>
+      <div class="mrow" style="margin-top:8px">
+        <input id="s-baldelta" class="field" type="number" placeholder="Balance ± AFN" />
+        <button class="btn-sm" id="s-balbtn" style="background:var(--rose)">Apply</button>
+      </div>
+    </div>
+
+    <button class="btn" id="s-save" style="width:100%;margin-top:4px">Save details</button>
+    <button class="btn-sm mclose" id="s-close">Close</button>
+  `);
+
+  const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
+  $('s-close').onclick = hideModal;
+
+  $('s-save').onclick = async (e) => {
+    const dist = $('s-district').value.trim();
+    if(dist !== (salon.district||'')){
+      try{ await updateDoc(doc(db,'salons',salon.id), { district: dist }); }
+      catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; return; }
+    }
+    const ok = await callFn('adminUpdateUser', {
+      targetUid: salon.providerId,
+      name: $('s-name').value.trim(),
+      phone: $('s-phone').value.trim(),
+      tazkiraNumber: $('s-tazkira').value.trim(),
+      birthYear: $('s-birth').value.trim(),
+      tazkiraIssueDate: $('s-issue').value.trim(),
+      tazkiraExpiryDate: $('s-expiry').value.trim(),
+      addressProvince: $('s-prov').value.trim(),
+      addressDetail: $('s-addr').value.trim(),
+    }, e.target, 's-flash', 'Saved ✓');
+    if(ok) refresh();
+  };
+  $('s-verify').onclick = async (e) => {
+    const next = !salon.isVerified;
+    e.target.disabled = true;
+    try{ await updateDoc(doc(db,'salons',salon.id), { isVerified: next }); salon.isVerified = next;
+      e.target.textContent = next?'Unverify salon':'Verify salon';
+      $('s-flash').className='mflash ok'; $('s-flash').textContent = next?'Verified ✓':'Unverified ✓'; refresh(); }
+    catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; }
+    finally{ e.target.disabled=false; }
+  };
+  $('s-pw').onclick = async (e) => {
+    const pw = prompt('New temporary password for the owner:'); if(pw===null) return;
+    if(pw.trim().length < 4){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Password must be at least 4 characters.'; return; }
+    await callFn('adminResetPassword', { targetUid: salon.providerId, newPassword: pw.trim() }, e.target, 's-flash', 'Password reset ✓');
+  };
+  $('s-balbtn').onclick = async (e) => {
+    const delta = parseInt($('s-baldelta').value,10);
+    if(!delta){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminAdjustProviderBalance', { providerId: salon.providerId, delta, reason:'admin salon panel' }, e.target, 's-flash', 'Balance updated ✓')) $('s-baldelta').value='';
+  };
+  $('s-kyc-ok').onclick = async (e) => {
+    if(await callFn('reviewKyc', { targetUid: salon.providerId, approve:true, rejectionReason:'' }, e.target, 's-flash', 'KYC approved ✓')) refresh();
+  };
+  $('s-kyc-no').onclick = async (e) => {
+    const reason = prompt('Rejection reason (shown to the owner):',''); if(reason===null) return;
+    if(await callFn('reviewKyc', { targetUid: salon.providerId, approve:false, rejectionReason:reason }, e.target, 's-flash', 'KYC rejected ✓')) refresh();
+  };
 }
 
 // ── Finance ────────────────────────────────────────────────────────────────────
