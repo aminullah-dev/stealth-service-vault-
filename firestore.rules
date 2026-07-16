@@ -424,6 +424,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── support_templates ───────────────────────────────────────────────────────
+    // Canned support replies (welcome / guidance / …) the admin console offers to
+    // copy or drop into a chat. Admin-only, both read and write — they're an
+    // internal staff tool, never shown to customers or providers.
+    match /support_templates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── admin_audit ─────────────────────────────────────────────────────────────
+    // Tamper-evident log of privileged admin actions (password resets, balance
+    // adjustments, admin grants…). Written exclusively by Cloud Functions (Admin
+    // SDK); admins may read the trail but no one can write or alter it directly.
+    match /admin_audit/{entryId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
     // ── provider_balances ───────────────────────────────────────────────────────
     // Ledger of what each provider is owed. Maintained by the webhook Cloud
     // Function; a provider may read only their own balance.

@@ -56,6 +56,15 @@ silently hit "permission denied".
   refunds, KYC review, reports, promo admin, etc. all go through callables — the
   rules leave clients no direct write path for these. Sensitive/reputation
   fields on user docs are frozen against client writes.
+- **Admin control center**: admin‑only callables (all gated via
+  `assertAdmin(request)` → role `ADMIN`, and audited to `admin_audit`) let the
+  platform admin resolve any account issue — `grantAdmin`/`revokeAdmin`
+  (multi‑admin; can't remove the last one), `adminResetPassword` (rewrites salt +
+  pinHash + the derived Firebase Auth password), `adminUpdateUser` (name/phone,
+  phone re‑normalized + uniqueness‑checked), `adminAdjustProviderBalance`,
+  `adminGrantCredit`. The web admin console surfaces these in a per‑user **Manage**
+  modal + an **Admins** tab. `support_templates` holds canned support replies
+  (admin‑only) the Support tab can copy/insert; seeded with trilingual defaults.
 
 ## Conventions
 - **Strings**: every user‑facing string lives in `AppStrings.kt` and MUST be

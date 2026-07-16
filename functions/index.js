@@ -2667,3 +2667,196 @@ exports.awardReviewPoints = onDocumentCreated(
     await batch.commit();
   }
 );
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Admin control center — the platform admin's "solve any problem" toolbox and
+// multi-admin management. Every callable here is gated to role === "ADMIN"
+// (resolved via the uid_map bridge, never the raw auth uid) and writes an
+// audit row to `admin_audit` so privileged actions are traceable.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Resolve the caller and hard-fail unless they are an ADMIN. */
+async function assertAdmin(request) {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "ADMIN") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+  return appUser;
+}
+
+/** Append a tamper-evident record of a privileged admin action. Best-effort. */
+async function logAdminAction(adminUser, action, details) {
+  try {
+    await db.collection("admin_audit").add({
+      adminUid:  adminUser.uid,
+      adminName: adminUser.name || "",
+      action,
+      details:   details || {},
+      createdAt: Date.now(),
+    });
+  } catch (e) {
+    logger.error("logAdminAction failed", e);
+  }
+}
+
+// ── Multi-admin management ────────────────────────────────────────────────────
+
+/** Promote a user to ADMIN (idempotent). The target is also marked APPROVED so
+ *  a pending/suspended account can still administer. */
+exports.grantAdmin = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const targetUid = String((request.data || {}).targetUid || "");
+  if (!isValidDocId(targetUid)) throw new HttpsError("invalid-argument", "Bad targetUid.");
+  const ref  = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+  await ref.update({ role: "ADMIN", status: "APPROVED" });
+  await logAdminAction(me, "GRANT_ADMIN", { targetUid, targetName: snap.data().name || "" });
+  return { ok: true };
+});
+
+/** Demote an admin back to a normal CUSTOMER. Refuses to remove the LAST admin
+ *  (so the platform can never lock itself out). */
+exports.revokeAdmin = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const targetUid = String((request.data || {}).targetUid || "");
+  if (!isValidDocId(targetUid)) throw new HttpsError("invalid-argument", "Bad targetUid.");
+  const ref  = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+  if (snap.data().role !== "ADMIN") throw new HttpsError("failed-precondition", "That user is not an admin.");
+
+  // Never leave the platform with zero admins.
+  const admins = await db.collection("users").where("role", "==", "ADMIN").get();
+  if (admins.size <= 1) {
+    throw new HttpsError("failed-precondition", "Can't remove the last remaining admin.");
+  }
+  await ref.update({ role: "CUSTOMER", status: "APPROVED" });
+  await logAdminAction(me, "REVOKE_ADMIN", { targetUid, targetName: snap.data().name || "" });
+  return { ok: true };
+});
+
+// ── "Solve any problem" toolbox ───────────────────────────────────────────────
+
+/** Reset a user's password. Sets a new salt + pinHash (Firestore) AND the
+ *  derived Firebase Auth password (Admin SDK), so the user can immediately sign
+ *  in with `newPassword`. The admin then tells the user the temporary password. */
+exports.adminResetPassword = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const targetUid   = String(d.targetUid || "");
+  const newPassword = String(d.newPassword || "");
+  if (!isValidDocId(targetUid)) throw new HttpsError("invalid-argument", "Bad targetUid.");
+  if (newPassword.length < 4)   throw new HttpsError("invalid-argument", "Password must be at least 4 characters.");
+
+  const ref  = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+  const u = snap.data();
+  const email = String(u.firebaseEmail || "");
+  if (!email) throw new HttpsError("failed-precondition", "This account has no Firebase Auth email.");
+
+  // Mirror PinHasher exactly: 16-byte base64 salt; pinHash = PBKDF2(pw),
+  // authPassword = PBKDF2("AUTH:"+pw).
+  const salt         = crypto.randomBytes(16).toString("base64");
+  const pinHash      = pbkdf2Hash(newPassword, salt);
+  const authPassword = pbkdf2Hash("AUTH:" + newPassword, salt);
+
+  let authRecord;
+  try {
+    authRecord = await admin.auth().getUserByEmail(email);
+  } catch (e) {
+    throw new HttpsError("not-found", "No Firebase Auth user for this account.");
+  }
+  await admin.auth().updateUser(authRecord.uid, { password: authPassword });
+  await ref.update({ pinHash, salt });
+  await logAdminAction(me, "RESET_PASSWORD", { targetUid, targetName: u.name || "" });
+  return { ok: true };
+});
+
+/** Fix a user's name and/or phone. Phone is normalized and uniqueness-checked
+ *  (it is the login identifier), which is why a client can't self-edit it. */
+exports.adminUpdateUser = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const targetUid = String(d.targetUid || "");
+  if (!isValidDocId(targetUid)) throw new HttpsError("invalid-argument", "Bad targetUid.");
+
+  const ref  = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+
+  const updates = {};
+  if (d.name != null) {
+    const name = String(d.name).trim();
+    if (name) updates.name = name;
+  }
+  if (d.phone != null) {
+    const phone = normalizePhone(String(d.phone));
+    if (!phone || phone.replace(/\D/g, "").length < 7) {
+      throw new HttpsError("invalid-argument", "Invalid phone number.");
+    }
+    const dup = await db.collection("users").where("phone", "==", phone).limit(1).get();
+    if (!dup.empty && dup.docs[0].id !== targetUid) {
+      throw new HttpsError("already-exists", "Another account already uses that phone.");
+    }
+    updates.phone = phone;
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new HttpsError("invalid-argument", "Nothing to update.");
+  }
+  await ref.update(updates);
+  await logAdminAction(me, "UPDATE_USER", { targetUid, updates });
+  return { ok: true, updates };
+});
+
+/** Adjust a provider's balance for dispute resolution / goodwill. `delta` is in
+ *  AFN and may be negative (they owe more) or positive (platform owes more). */
+exports.adminAdjustProviderBalance = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const providerId = String(d.providerId || "");
+  const delta = Math.round(Number(d.delta));
+  const reason = String(d.reason || "").slice(0, 500);
+  if (!isValidDocId(providerId)) throw new HttpsError("invalid-argument", "Bad providerId.");
+  if (!Number.isFinite(delta) || delta === 0) throw new HttpsError("invalid-argument", "delta must be a non-zero number.");
+
+  await db.doc(`provider_balances/${providerId}`).set(
+    { owedAmount: admin.firestore.FieldValue.increment(delta) },
+    { merge: true }
+  );
+  await logAdminAction(me, "ADJUST_BALANCE", { providerId, delta, reason });
+  return { ok: true };
+});
+
+/** Grant (or deduct) referral credit to a customer — real checkout money used
+ *  for goodwill / manual refunds. Notifies the customer when credit is added. */
+exports.adminGrantCredit = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const customerId = String(d.customerId || "");
+  const amount = Math.round(Number(d.amount));
+  const reason = String(d.reason || "").slice(0, 500);
+  if (!isValidDocId(customerId)) throw new HttpsError("invalid-argument", "Bad customerId.");
+  if (!Number.isFinite(amount) || amount === 0) throw new HttpsError("invalid-argument", "amount must be a non-zero number.");
+
+  const ref  = db.doc(`users/${customerId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+  await ref.update({ referralCredit: admin.firestore.FieldValue.increment(amount) });
+
+  if (amount > 0) {
+    await db.collection("notifications").add({
+      recipientId: customerId,
+      type:        "SYSTEM",
+      title:       "Credit added to your account 🎁",
+      body:        `You've received ${amount} AFN in credit${reason ? " — " + reason : ""}.`,
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   "",
+    });
+  }
+  await logAdminAction(me, "GRANT_CREDIT", { customerId, amount, reason });
+  return { ok: true };
+});

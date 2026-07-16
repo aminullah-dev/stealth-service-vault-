@@ -175,6 +175,23 @@
   .composer input{flex:1;margin:0}
   .chat-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-weight:600}
 
+  /* ── Modal (admin actions) ─────────────────────────────────────── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,10,15,.5);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;padding:22px;z-index:50;animation:fade .18s ease}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);
+    width:100%;max-width:440px;max-height:88vh;overflow-y:auto;padding:24px 24px 22px}
+  .modal h2{margin:0 0 3px;font-size:18px;color:var(--deep);font-weight:800}
+  .modal .msub{color:var(--muted);font-size:12.5px;font-weight:600;margin-bottom:16px}
+  .modal .mgroup{border-top:1px solid var(--line);padding:15px 0 4px;margin-top:6px}
+  .modal .mglabel{font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+  .modal .field{margin-bottom:9px}
+  .modal .mrow{display:flex;gap:8px}
+  .modal .mrow .field{flex:1;margin-bottom:0}
+  .mflash{font-size:12.5px;font-weight:700;margin:2px 0 8px;min-height:16px}
+  .mflash.ok{color:#3fa14a}
+  .mflash.bad{color:var(--red)}
+  .modal .mclose{margin-top:16px;width:100%;background:var(--surface);color:var(--deep)}
+
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
@@ -246,6 +263,10 @@
     <main id="view"></main>
   </div>
 </div>
+
+<!-- ── Modal host (admin actions) ─────────────────────────────────────────── -->
+<div id="modal" class="modal-overlay hidden"></div>
+
 <script>
   /* Sync the toggle's label to the theme resolved before paint. */
   (function(){
@@ -260,7 +281,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, query, where, orderBy, getDocs, getDoc, doc,
-         setDoc, updateDoc, addDoc, onSnapshot, getCountFromServer }
+         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -313,6 +334,38 @@ const kycPill = (k) => {
   const c = { APPROVED:'ok', PENDING:'warn', REJECTED:'bad' }[v] || 'info';
   return `<span class="pill ${c}">${esc(v)}</span>`;
 };
+
+// ── Modal + callable helpers (admin actions) ──────────────────────────────────
+function showModal(html){
+  const m = $('modal');
+  m.innerHTML = `<div class="modal">${html}</div>`;
+  m.classList.remove('hidden');
+}
+function hideModal(){ const m=$('modal'); m.classList.add('hidden'); m.innerHTML=''; }
+// Close when clicking the dark backdrop (but not the card).
+$('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('modal').classList.contains('hidden')) hideModal(); });
+
+/** Call an admin Cloud Function, showing a busy/result state on [btn] and a
+ *  message in the [flashId] element. Returns true on success. */
+async function callFn(name, payload, btn, flashId, okMsg){
+  const flash = flashId ? $(flashId) : null;
+  const label = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+  if(flash){ flash.className='mflash'; flash.textContent=''; }
+  try{
+    await httpsCallable(fns, name)(payload);
+    if(flash){ flash.className='mflash ok'; flash.textContent = okMsg || 'Done ✓'; }
+    return true;
+  }catch(e){
+    const msg = (e && e.message) ? e.message : 'Failed.';
+    if(flash){ flash.className='mflash bad'; flash.textContent = msg; }
+    else alert(msg);
+    return false;
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = label; }
+  }
+}
 
 // ── Login ────────────────────────────────────────────────────────────────────
 $('lbtn').addEventListener('click', doLogin);
@@ -382,6 +435,7 @@ const TABS = [
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
+  { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
 ];
 const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
 let activeTab = 'stats';
@@ -529,10 +583,15 @@ let selectedTicket = null;
 let chatUnsub = null;
 
 function renderSupport(){
-  $('view').innerHTML = `<div class="support-wrap">
+  $('view').innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button id="tplmanage" class="btn-sm" style="background:var(--petal);color:var(--deep)">📋 Message templates</button>
+    </div>
+    <div class="support-wrap">
       <div id="tickets"></div>
       <div id="chat" class="chat"><div class="chat-empty">Select a conversation</div></div>
     </div>`;
+  $('tplmanage').onclick = () => openTemplates(null);
   const q = query(collection(db,'support_tickets'), where('status','==','OPEN'));
   unsub.push(onSnapshot(q, snap => {
     const rows = [];
@@ -558,6 +617,7 @@ function openChat(userId, name){
   const chat = $('chat');
   chat.innerHTML = `<div class="msgs" id="msgs"></div>
     <div class="composer">
+      <button id="ctpl" class="btn-sm" style="background:var(--petal);color:var(--deep)" title="Insert a saved reply">📋</button>
       <input id="cin" class="field" placeholder="Reply to ${esc(name)}…" />
       <button id="csend" class="btn-sm" style="background:var(--rose)">Send</button>
       <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">Close</button>
@@ -586,6 +646,7 @@ function openChat(userId, name){
     }catch(e){ alert(e.message); inp.value=text; }
   };
   $('csend').onclick = send;
+  $('ctpl').onclick = () => openTemplates('cin');
   $('cin').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
   $('cclose').onclick = () => {
     if(!confirm('Close this support ticket?')) return;
@@ -593,6 +654,94 @@ function openChat(userId, name){
     selectedTicket = null;
     $('chat').innerHTML = `<div class="chat-empty">Select a conversation</div>`;
   };
+}
+
+// ── Support message templates (canned replies) ────────────────────────────────
+const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Closing'];
+// Seeded once, the first time an admin opens Templates on an empty collection.
+// Trilingual defaults (Dari / Pashto / English) so replies are one click away.
+const DEFAULT_TEMPLATES = [
+  { category:'Welcome', title:'خوش‌آمد (دری)', body:'سلام و وقت بخیر 🌸 به SafeBeauty خوش آمدید. چطور می‌توانم کمک‌تان کنم؟' },
+  { category:'Welcome', title:'ښه راغلاست (پښتو)', body:'سلام او ښه راغلاست 🌸 SafeBeauty ته ښه راغلاست. څنګه مو مرسته کولی شم؟' },
+  { category:'Welcome', title:'Welcome (English)', body:'Hello and welcome to SafeBeauty 🌸 How can I help you today?' },
+  { category:'Guidance', title:'روش رزرو (دری)', body:'برای رزرو نوبت: سالن را انتخاب کنید ← خدمت و زمان را انتخاب کنید ← پرداخت را کامل کنید. بعد از تأیید سالن، نوبت شما قطعی می‌شود.' },
+  { category:'Guidance', title:'د بکینګ لار (پښتو)', body:'د نوبت لپاره: سالون وټاکئ ← خدمت او وخت وټاکئ ← تادیه بشپړه کړئ. د سالون له تایید وروسته ستاسو نوبت پاخه کیږي.' },
+  { category:'Guidance', title:'فراموشی رمز (دری)', body:'اگر رمز خود را فراموش کرده‌اید، از صفحه‌ی ورود گزینه‌ی «فراموشی رمز» را بزنید یا به ما بگویید تا رمز موقت برای‌تان تنظیم کنیم.' },
+  { category:'Payment', title:'پرداخت ناموفق (دری)', body:'اگر مبلغ از حساب شما کم شده ولی رزرو تأیید نشده، نگران نباشید — طی چند دقیقه بررسی و در صورت لزوم بازگردانده می‌شود. شماره‌ی رزرو را بفرستید.' },
+  { category:'Closing', title:'بستن گفتگو (دری)', body:'خوشحال شدیم کمک کردیم 🌷 اگر باز هم سوالی داشتید در خدمت‌تان هستیم. روز خوبی داشته باشید!' },
+];
+
+async function seedTemplatesIfEmpty(){
+  const snap = await getDocs(collection(db,'support_templates'));
+  if(!snap.empty) return;
+  for(let i=0;i<DEFAULT_TEMPLATES.length;i++){
+    await addDoc(collection(db,'support_templates'), { ...DEFAULT_TEMPLATES[i], order:i, createdAt: Date.now() });
+  }
+}
+
+/** Templates panel. When [targetInputId] is set, "Insert" drops the text into
+ *  that composer input; otherwise it copies to the clipboard. */
+async function openTemplates(targetInputId){
+  showModal(`
+    <h2>Message templates</h2>
+    <div class="msub">${targetInputId ? 'Insert into the current reply, or copy.' : 'Copy a reply, or manage your saved messages.'}</div>
+    <div id="tpl-flash" class="mflash"></div>
+    <div id="tpl-list"><div class="meta" style="color:var(--muted)">Loading…</div></div>
+    <div class="mgroup">
+      <div class="mglabel">New template</div>
+      <select id="tpl-cat" class="field">${TEMPLATE_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+      <input id="tpl-title" class="field" placeholder="Title (for your reference)" />
+      <textarea id="tpl-body" class="field" placeholder="Message text (what gets sent)"></textarea>
+      <button class="btn-sm" id="tpl-add" style="background:var(--rose)">Add template</button>
+    </div>
+    <button class="btn-sm mclose" id="tpl-close">Close</button>`);
+  $('tpl-close').onclick = hideModal;
+
+  const load = async () => {
+    const snap = await getDocs(collection(db,'support_templates'));
+    const tpls = []; snap.forEach(d=>tpls.push({ id:d.id, ...d.data() }));
+    tpls.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.order||0)-(b.order||0));
+    const list = $('tpl-list'); if(!list) return;
+    if(!tpls.length){ list.innerHTML = `<div class="meta" style="color:var(--muted)">No templates yet — add one below.</div>`; return; }
+    list.innerHTML = tpls.map(tp => `<div class="row" style="margin-bottom:8px" data-id="${esc(tp.id)}">
+      <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span></h3>
+      <div class="meta" style="white-space:pre-wrap;color:var(--ink);margin-top:4px">${esc(tp.body||'')}</div>
+      <div class="actions" style="margin-top:9px">
+        <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?'Insert':'Copy'}</button>
+        <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">Copy</button>
+        <button class="btn-sm t-del" style="background:var(--red)">Delete</button>
+      </div></div>`).join('');
+    const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Copied ✓'; };
+    list.querySelectorAll('.row').forEach(row => {
+      const tp = tpls.find(x=>x.id===row.dataset.id);
+      row.querySelector('.t-ins').onclick = () => {
+        const inp = targetInputId ? $(targetInputId) : null;
+        if(inp){ inp.value = (inp.value ? inp.value+'\n' : '') + tp.body; inp.focus(); hideModal(); }
+        else copy(tp.body);
+      };
+      row.querySelector('.t-cpy').onclick = () => copy(tp.body);
+      row.querySelector('.t-del').onclick = async () => {
+        if(!confirm('Delete this template?')) return;
+        try{ await deleteDoc(doc(db,'support_templates',tp.id)); load(); }
+        catch(e){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=e.message; }
+      };
+    });
+  };
+
+  $('tpl-add').onclick = async (e) => {
+    const title=$('tpl-title').value.trim(), body=$('tpl-body').value.trim(), category=$('tpl-cat').value;
+    if(!title || !body){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent='Title and message are required.'; return; }
+    e.target.disabled=true;
+    try{
+      await addDoc(collection(db,'support_templates'), { category, title, body, order: Date.now(), createdAt: Date.now() });
+      $('tpl-title').value=''; $('tpl-body').value='';
+      $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Added ✓'; load();
+    }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
+    finally{ e.target.disabled=false; }
+  };
+
+  try{ await seedTemplatesIfEmpty(); }catch(_){}
+  load();
 }
 
 // ── Users ──────────────────────────────────────────────────────────────────────
@@ -620,16 +769,173 @@ async function renderUsers(){
           <td>${esc(u.phone||'—')}</td>
           <td>${statusPill(u.status)}</td>
           <td>${kycPill(u.kycStatus)}</td>
-          <td style="text-align:right">${u.status==='SUSPENDED'
-            ? `<button class="btn-sm" style="background:var(--green)" data-uns="${u.id}">Unsuspend</button>`
-            : `<button class="btn-sm" style="background:var(--red)" data-sus="${u.id}">Suspend</button>`}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">Manage</button>
+            ${u.status==='SUSPENDED'
+              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">Unsuspend</button>`
+              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">Suspend</button>`}
+          </td>
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">No matching users</div>`;
       $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setStatus(b.dataset.sus,'SUSPENDED'));
       $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setStatus(b.dataset.uns,'APPROVED'));
+      $('ulist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
+        const u = users.find(x=>x.id===b.dataset.manage); if(u) openUserModal(u, ()=>renderUsers());
+      });
     };
     draw();
     $('usearch').oninput = e => draw(e.target.value);
+  }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/** The per-user "solve any problem" action panel: reset password, fix
+ *  name/phone, grant/revoke admin, and (by role) adjust balance or grant credit.
+ *  Each action calls its admin Cloud Function; [onChanged] refreshes the list. */
+function openUserModal(u, onChanged){
+  const isProvider = (u.role==='PROVIDER');
+  const isAdminUser = (u.role==='ADMIN');
+  const adminBtn = isAdminUser
+    ? `<button class="btn-sm" id="m-revoke" style="background:var(--red)">Remove admin</button>`
+    : `<button class="btn-sm" id="m-grant" style="background:var(--gold)">Make admin</button>`;
+  showModal(`
+    <h2>${esc(u.name||u.id)}</h2>
+    <div class="msub">${esc(u.role||'—')} · ${esc(u.phone||'—')}</div>
+    <div id="m-flash" class="mflash"></div>
+
+    <div class="mgroup">
+      <div class="mglabel">Reset password</div>
+      <div class="mrow">
+        <input id="m-pw" class="field" placeholder="New temporary password" />
+        <button class="btn-sm" id="m-pwbtn" style="background:var(--rose)">Reset</button>
+      </div>
+      <div class="meta" style="color:var(--muted);font-size:11px">Tell the user this password; they can change it after signing in.</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Edit profile</div>
+      <input id="m-name" class="field" value="${esc(u.name||'')}" placeholder="Name" />
+      <div class="mrow">
+        <input id="m-phone" class="field" value="${esc(u.phone||'')}" placeholder="Phone (+93…)" />
+        <button class="btn-sm" id="m-savebtn" style="background:var(--rose)">Save</button>
+      </div>
+    </div>
+
+    ${isProvider ? `
+    <div class="mgroup">
+      <div class="mglabel">Adjust salon balance (AFN)</div>
+      <input id="m-baldelta" class="field" type="number" placeholder="Amount (+ owed to them, − they owe)" />
+      <div class="mrow">
+        <input id="m-balreason" class="field" placeholder="Reason (optional)" />
+        <button class="btn-sm" id="m-balbtn" style="background:var(--rose)">Apply</button>
+      </div>
+    </div>` : `
+    <div class="mgroup">
+      <div class="mglabel">Grant credit (AFN)</div>
+      <input id="m-credamt" class="field" type="number" placeholder="Amount (+ add, − deduct)" />
+      <div class="mrow">
+        <input id="m-credreason" class="field" placeholder="Reason (optional)" />
+        <button class="btn-sm" id="m-credbtn" style="background:var(--rose)">Grant</button>
+      </div>
+    </div>`}
+
+    <div class="mgroup">
+      <div class="mglabel">Admin access</div>
+      ${adminBtn}
+    </div>
+
+    <button class="btn-sm mclose" id="m-close">Close</button>
+  `);
+
+  const refresh = () => { if(onChanged) setTimeout(onChanged, 700); };
+  $('m-close').onclick = hideModal;
+
+  $('m-pwbtn').onclick = async (e) => {
+    const pw = $('m-pw').value.trim();
+    if(pw.length < 4){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Password must be at least 4 characters.'; return; }
+    if(await callFn('adminResetPassword', { targetUid:u.id, newPassword:pw }, e.target, 'm-flash', 'Password reset ✓')) $('m-pw').value='';
+  };
+  $('m-savebtn').onclick = async (e) => {
+    const payload = { targetUid:u.id };
+    const name = $('m-name').value.trim(); const phone = $('m-phone').value.trim();
+    if(name && name !== (u.name||'')) payload.name = name;
+    if(phone && phone !== (u.phone||'')) payload.phone = phone;
+    if(!payload.name && !payload.phone){ $('m-flash').className='mflash'; $('m-flash').textContent='No changes.'; return; }
+    if(await callFn('adminUpdateUser', payload, e.target, 'm-flash', 'Saved ✓')) refresh();
+  };
+  if($('m-balbtn')) $('m-balbtn').onclick = async (e) => {
+    const delta = parseInt($('m-baldelta').value,10);
+    if(!delta){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminAdjustProviderBalance', { providerId:u.id, delta, reason:$('m-balreason').value.trim() }, e.target, 'm-flash', 'Balance updated ✓')){ $('m-baldelta').value=''; }
+  };
+  if($('m-credbtn')) $('m-credbtn').onclick = async (e) => {
+    const amount = parseInt($('m-credamt').value,10);
+    if(!amount){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminGrantCredit', { customerId:u.id, amount, reason:$('m-credreason').value.trim() }, e.target, 'm-flash', 'Credit granted ✓')){ $('m-credamt').value=''; }
+  };
+  if($('m-grant')) $('m-grant').onclick = async (e) => {
+    if(!confirm('Give this user full admin access?')) return;
+    if(await callFn('grantAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Now an admin ✓')) refresh();
+  };
+  if($('m-revoke')) $('m-revoke').onclick = async (e) => {
+    if(!confirm('Remove admin access from this user?')) return;
+    if(await callFn('revokeAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Admin access removed ✓')) refresh();
+  };
+}
+
+// ── Admins ───────────────────────────────────────────────────────────────────
+async function renderAdmins(){
+  try{
+    const snap = await getDocs(collection(db,'users'));
+    const all = []; snap.forEach(d => all.push({ id:d.id, ...d.data() }));
+    const admins = all.filter(u => u.role==='ADMIN').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    $('view').innerHTML = `
+      <div class="section-title">Add an administrator</div>
+      <div class="card" style="padding:16px;max-width:460px;margin-bottom:22px">
+        <div id="aflash2" class="mflash"></div>
+        <div class="meta" style="color:var(--muted);margin-bottom:8px">Find a user by phone, then grant them admin access.</div>
+        <div class="mrow">
+          <input id="aphone" class="field" placeholder="Phone (+93…)" style="margin:0" />
+          <button id="afind" class="btn-sm" style="background:var(--rose)">Find</button>
+        </div>
+        <div id="afound" style="margin-top:10px"></div>
+      </div>
+      <div class="section-title">Current admins (${admins.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Phone</th><th></th></tr></thead>
+        <tbody>${admins.map(a=>`<tr>
+          <td class="name">${esc(a.name||a.id)}</td>
+          <td>${esc(a.phone||'—')}</td>
+          <td style="text-align:right">${admins.length>1
+            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">Remove</button>`
+            : `<span class="meta" style="color:var(--muted)">last admin</span>`}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+
+    $('view').querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
+      const a = admins.find(x=>x.id===b.dataset.rev);
+      if(!confirm(`Remove admin access from ${a.name||a.id}?`)) return;
+      if(await callFn('revokeAdmin', { targetUid:b.dataset.rev }, b, 'aflash2', 'Removed ✓')) setTimeout(renderAdmins, 700);
+    });
+
+    $('afind').onclick = async () => {
+      const phone = $('aphone').value.trim();
+      const found = $('afound');
+      if(!phone){ found.innerHTML=''; return; }
+      found.innerHTML = `<div class="meta">Searching…</div>`;
+      try{
+        const res = await httpsCallable(fns,'lookupAccountByPhone')({ phone });
+        const m = res.data || {};
+        if(!m.found){ found.innerHTML = `<div class="mflash bad">No account with that phone.</div>`; return; }
+        const u = all.find(x=>x.id===m.uid) || { id:m.uid, name:'', role:'' };
+        if(u.role==='ADMIN'){ found.innerHTML = `<div class="mflash ok">${esc(u.name||u.id)} is already an admin.</div>`; return; }
+        found.innerHTML = `<div class="row" style="margin:0"><h3>${esc(u.name||u.id)}</h3>
+          <div class="meta">${esc(u.role||'—')} · ${esc(u.phone||phone)}</div>
+          <div class="actions" style="margin-top:8px"><button id="agrant" class="btn-sm" style="background:var(--gold)">Make admin</button></div></div>`;
+        $('agrant').onclick = async (e) => {
+          if(await callFn('grantAdmin', { targetUid:m.uid }, e.target, 'aflash2', 'Granted ✓')) setTimeout(renderAdmins, 700);
+        };
+      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(e.message)}</div>`; }
+    };
+    $('aphone').addEventListener('keydown', e => { if(e.key==='Enter') $('afind').click(); });
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
