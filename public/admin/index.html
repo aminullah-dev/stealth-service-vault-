@@ -657,26 +657,70 @@ function openChat(userId, name){
 }
 
 // ── Support message templates (canned replies) ────────────────────────────────
-const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Closing'];
-// Seeded once, the first time an admin opens Templates on an empty collection.
-// Trilingual defaults (Dari / Pashto / English) so replies are one click away.
+const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Provider','Closing'];
+// A ready-made trilingual (Dari / Pashto / English) library covering the real
+// support scenarios. Auto-seeded on first open of an empty collection, and
+// re-addable any time via "Add default replies" (skips ones already present).
 const DEFAULT_TEMPLATES = [
-  { category:'Welcome', title:'خوش‌آمد (دری)', body:'سلام و وقت بخیر 🌸 به SafeBeauty خوش آمدید. چطور می‌توانم کمک‌تان کنم؟' },
-  { category:'Welcome', title:'ښه راغلاست (پښتو)', body:'سلام او ښه راغلاست 🌸 SafeBeauty ته ښه راغلاست. څنګه مو مرسته کولی شم؟' },
-  { category:'Welcome', title:'Welcome (English)', body:'Hello and welcome to SafeBeauty 🌸 How can I help you today?' },
-  { category:'Guidance', title:'روش رزرو (دری)', body:'برای رزرو نوبت: سالن را انتخاب کنید ← خدمت و زمان را انتخاب کنید ← پرداخت را کامل کنید. بعد از تأیید سالن، نوبت شما قطعی می‌شود.' },
-  { category:'Guidance', title:'د بکینګ لار (پښتو)', body:'د نوبت لپاره: سالون وټاکئ ← خدمت او وخت وټاکئ ← تادیه بشپړه کړئ. د سالون له تایید وروسته ستاسو نوبت پاخه کیږي.' },
-  { category:'Guidance', title:'فراموشی رمز (دری)', body:'اگر رمز خود را فراموش کرده‌اید، از صفحه‌ی ورود گزینه‌ی «فراموشی رمز» را بزنید یا به ما بگویید تا رمز موقت برای‌تان تنظیم کنیم.' },
-  { category:'Payment', title:'پرداخت ناموفق (دری)', body:'اگر مبلغ از حساب شما کم شده ولی رزرو تأیید نشده، نگران نباشید — طی چند دقیقه بررسی و در صورت لزوم بازگردانده می‌شود. شماره‌ی رزرو را بفرستید.' },
-  { category:'Closing', title:'بستن گفتگو (دری)', body:'خوشحال شدیم کمک کردیم 🌷 اگر باز هم سوالی داشتید در خدمت‌تان هستیم. روز خوبی داشته باشید!' },
+  // Welcome / greeting
+  { category:'Welcome', title:'خوش‌آمد (دری)', body:'سلام و وقت بخیر 🌸 به پشتیبانی SafeBeauty خوش آمدید. لطفاً مشکل‌تان را بنویسید تا کمک‌تان کنم.' },
+  { category:'Welcome', title:'ښه راغلاست (پښتو)', body:'سلام او ښه راغلاست 🌸 د SafeBeauty ملاتړ ته ښه راغلاست. مهرباني وکړئ خپله ستونزه ولیکئ چې مرسته درسره وکړم.' },
+  { category:'Welcome', title:'Welcome (English)', body:'Hello and welcome to SafeBeauty support 🌸 Please describe your issue and I\'ll be glad to help.' },
+  // How to book
+  { category:'Guidance', title:'روش رزرو (دری)', body:'برای رزرو نوبت:\n۱) سالن مورد نظر را انتخاب کنید\n۲) خدمت و زمان را انتخاب کنید\n۳) پرداخت را کامل کنید.\nپس از تأیید سالن، نوبت شما قطعی می‌شود و پیام تأیید دریافت می‌کنید.' },
+  { category:'Guidance', title:'د بکینګ لار (پښتو)', body:'د نوبت لپاره:\n۱) خپل غوره سالون وټاکئ\n۲) خدمت او وخت وټاکئ\n۳) تادیه بشپړه کړئ.\nد سالون له تایید وروسته ستاسو نوبت پاخه کیږي او د تایید پیغام ترلاسه کوئ.' },
+  // Forgot password
+  { category:'Guidance', title:'فراموشی رمز (دری)', body:'اگر رمز عبور خود را فراموش کرده‌اید، از صفحه‌ی ورود روی «فراموشی رمز» بزنید. اگر باز هم مشکل داشتید، بگویید تا یک رمز موقت برای‌تان تنظیم کنیم و بعد خودتان تغییرش دهید.' },
+  { category:'Guidance', title:'پټ نوم هیرول (پښتو)', body:'که خپل پټ نوم مو هیر کړی، د ننوتلو له پاڼې «پټ نوم هیرول» کلیک کړئ. که بیا هم ستونزه درسره وه، ووایاست چې یو لنډمهاله پټ نوم درته وټاکو او بیا یې پخپله بدل کړئ.' },
+  // Cancel / reschedule
+  { category:'Booking', title:'لغو/تغییر نوبت (دری)', body:'برای لغو یا تغییر زمان نوبت، از بخش «رزروهای من» در اپ اقدام کنید. اگر نوبتِ پرداخت‌شده را لغو کنید، مبلغ طبق قوانین بازگردانده می‌شود. لطفاً شماره‌ی رزرو را بفرستید تا بررسی کنم.' },
+  { category:'Booking', title:'لغوه/بدلون (پښتو)', body:'د نوبت د لغوه یا وخت بدلولو لپاره، په اپ کې د «زما بکینګونه» برخې څخه اقدام وکړئ. که تادیه‌شوی نوبت لغوه کړئ، پیسې د مقرراتو له مخې بیرته درکول کیږي. مهرباني وکړئ د بکینګ شمېره راولېږئ.' },
+  // Booking rejected by salon
+  { category:'Booking', title:'رزرو ردشد (دری)', body:'متأسفانه سالن این نوبت را نپذیرفت (ممکن است تعطیل یا پر بوده باشد). نگران نباشید — مبلغ پرداختی شما به‌طور کامل بازگردانده می‌شود و می‌توانید سالن یا زمان دیگری انتخاب کنید. عذرخواهی می‌کنیم. 🙏' },
+  { category:'Booking', title:'بکینګ رد شو (پښتو)', body:'له بده مرغه سالون دا نوبت ونه مانه (کیدای شي تړلی یا ډک وي). اندېښنه مه کوئ — ستاسو ورکړل‌شوې پیسې په بشپړه توګه بیرته درکول کیږي او بل سالون یا وخت ټاکلی شئ. بښنه غواړو. 🙏' },
+  // Paid but not confirmed
+  { category:'Payment', title:'پرداخت‌شده اما تأییدنشده (دری)', body:'اگر مبلغ از حساب شما کم شده ولی رزرو هنوز تأیید نشده، نگران نباشید. طی چند دقیقه سیستم بررسی می‌کند؛ اگر تأیید نشد مبلغ برمی‌گردد. لطفاً شماره‌ی رزرو یا شماره‌ی تراکنش HesabPay را بفرستید.' },
+  { category:'Payment', title:'تادیه شوې خو تایید نه (پښتو)', body:'که پیسې ستاسو له حسابه کمې شوې خو بکینګ لا تایید شوی نه دی، اندېښنه مه کوئ. په څو دقیقو کې سیسټم یې ګوري؛ که تایید نشو پیسې بیرته راځي. مهرباني وکړئ د بکینګ شمېره یا د HesabPay د تراکنش شمېره راولېږئ.' },
+  // Refund timeline
+  { category:'Payment', title:'زمان بازگشت وجه (دری)', body:'درخواست بازگشت وجه شما ثبت شد. بازگرداندن مبلغ به‌صورت دستی انجام می‌شود و معمولاً طی ۱ تا ۳ روز کاری به حساب شما واریز می‌گردد. از صبر شما سپاسگزاریم. 🌷' },
+  { category:'Payment', title:'د بیرته‌ورکړې وخت (پښتو)', body:'ستاسو د پیسو بیرته‌ورکړې غوښتنه ثبت شوه. پیسې په لاسي توګه بیرته ورکول کیږي او معمولاً د ۱ تر ۳ کاري ورځو په اوږدو کې ستاسو حساب ته سپارل کیږي. ستاسو د صبر مننه. 🌷' },
+  // Become a provider
+  { category:'Provider', title:'ثبت سالن (دری)', body:'برای ثبت سالن خود در SafeBeauty، هنگام ساخت حساب گزینه‌ی «صاحب سالن» را انتخاب کنید و مدارک هویتی (تذکره) را بارگذاری کنید. پس از تأیید تیم ما، سالن شما فعال می‌شود و می‌توانید نوبت بپذیرید.' },
+  { category:'Provider', title:'د سالون ثبت (پښتو)', body:'د خپل سالون ثبتولو لپاره په SafeBeauty کې، د حساب جوړولو پر مهال د «د سالون خاوند» اختیار وټاکئ او د پیژندنې اسناد (تذکره) پورته کړئ. زموږ د ټیم له تایید وروسته ستاسو سالون فعالیږي.' },
+  // Provider approval pending
+  { category:'Provider', title:'در انتظار تأیید سالن (دری)', body:'حساب سالن شما در حال بررسی است. معمولاً بررسی طی ۲۴ تا ۴۸ ساعت انجام می‌شود. به‌محض تأیید، اطلاع‌رسانی می‌کنیم و می‌توانید نوبت بپذیرید. از شکیبایی شما ممنونیم.' },
+  { category:'Provider', title:'د تایید په تمه (پښتو)', body:'ستاسو د سالون حساب د بیاکتنې لاندې دی. معمولاً بیاکتنه د ۲۴ تر ۴۸ ساعتونو په اوږدو کې کیږي. سمدلاسه چې تایید شو، خبر درکوو او نوبتونه منلی شئ. ستاسو د صبر مننه.' },
+  // KYC / verification
+  { category:'Provider', title:'تأیید هویت (دری)', body:'برای تأیید هویت، لطفاً عکس واضح تذکره و یک عکس سلفی خود را از بخش «تأیید هویت» در اپ بارگذاری کنید. مطمئن شوید تصاویر خوانا باشند تا تأیید سریع‌تر انجام شود.' },
+  { category:'Provider', title:'د پیژندنې تایید (پښتو)', body:'د پیژندنې تایید لپاره، مهرباني وکړئ د تذکرې روښانه عکس او خپل یو سیلفي عکس د اپ د «د پیژندنې تایید» برخې څخه پورته کړئ. ډاډ ترلاسه کړئ چې عکسونه لوستل‌کیدونکي وي ترڅو تایید ژر ترسره شي.' },
+  // Report a problem
+  { category:'Guidance', title:'گزارش مشکل (دری)', body:'بابت این تجربه متأسفیم. لطفاً جزئیات (نام سالن، تاریخ نوبت و آنچه پیش آمد) را بنویسید تا بررسی کنیم و در صورت لزوم اقدام مناسب انجام دهیم. بازخورد شما برای ما مهم است.' },
+  { category:'Guidance', title:'د ستونزې راپور (پښتو)', body:'د دې تجربې لپاره بښنه غواړو. مهرباني وکړئ جزئیات (د سالون نوم، د نوبت نېټه او څه چې پېښ شول) ولیکئ چې وګورو او که اړتیا وه مناسب اقدام وکړو. ستاسو نظر زموږ لپاره مهم دی.' },
+  // Closing
+  { category:'Closing', title:'بستن گفتگو (دری)', body:'خوشحال شدیم توانستیم کمک کنیم 🌷 اگر باز هم سوالی داشتید، همیشه در خدمت‌تان هستیم. روز خوبی داشته باشید!' },
+  { category:'Closing', title:'د خبرو پای (پښتو)', body:'خوشحاله یو چې مرسته مو وکړای شوه 🌷 که بیا هم پوښتنه درسره وه، تل ستاسو په خدمت کې یو. ښه ورځ ولرئ!' },
+  { category:'Closing', title:'Closing (English)', body:'Glad we could help 🌷 If you have any more questions, we\'re always here. Have a great day!' },
 ];
+
+/** Add every default reply not already present (matched by title). Returns the
+ *  number added. Used by the auto-seed and the "Add default replies" button. */
+async function addMissingDefaults(){
+  const snap = await getDocs(collection(db,'support_templates'));
+  const have = new Set(); snap.forEach(d => have.add(String(d.data().title||'').trim()));
+  let added = 0;
+  for(let i=0;i<DEFAULT_TEMPLATES.length;i++){
+    const tpl = DEFAULT_TEMPLATES[i];
+    if(have.has(tpl.title.trim())) continue;
+    await addDoc(collection(db,'support_templates'), { ...tpl, order:i, createdAt: Date.now() });
+    added++;
+  }
+  return added;
+}
 
 async function seedTemplatesIfEmpty(){
   const snap = await getDocs(collection(db,'support_templates'));
   if(!snap.empty) return;
-  for(let i=0;i<DEFAULT_TEMPLATES.length;i++){
-    await addDoc(collection(db,'support_templates'), { ...DEFAULT_TEMPLATES[i], order:i, createdAt: Date.now() });
-  }
+  await addMissingDefaults();
 }
 
 /** Templates panel. When [targetInputId] is set, "Insert" drops the text into
@@ -686,6 +730,7 @@ async function openTemplates(targetInputId){
     <h2>Message templates</h2>
     <div class="msub">${targetInputId ? 'Insert into the current reply, or copy.' : 'Copy a reply, or manage your saved messages.'}</div>
     <div id="tpl-flash" class="mflash"></div>
+    <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">＋ Add default replies</button></div>
     <div id="tpl-list"><div class="meta" style="color:var(--muted)">Loading…</div></div>
     <div class="mgroup">
       <div class="mglabel">New template</div>
@@ -696,6 +741,16 @@ async function openTemplates(targetInputId){
     </div>
     <button class="btn-sm mclose" id="tpl-close">Close</button>`);
   $('tpl-close').onclick = hideModal;
+  $('tpl-defaults').onclick = async (e) => {
+    e.target.disabled = true;
+    try{
+      const n = await addMissingDefaults();
+      $('tpl-flash').className='mflash ok';
+      $('tpl-flash').textContent = n ? `Added ${n} default repl${n>1?'ies':'y'} ✓` : 'All defaults already present.';
+      load();
+    }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
+    finally{ e.target.disabled = false; }
+  };
 
   const load = async () => {
     const snap = await getDocs(collection(db,'support_templates'));
