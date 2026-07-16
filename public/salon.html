@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SafeBeauty — View salon</title>
+  <style>
+    :root { --rose:#B76E79; --deep:#8B3A47; --cream:#FFF7FB; --surface:#FDEFF6; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: linear-gradient(160deg, #FFF7FB, #FDEAF3, #F5E7F6); color: var(--deep);
+      padding: 24px;
+    }
+    .card {
+      background: #fff; max-width: 420px; width: 100%; border-radius: 20px; padding: 32px 28px;
+      box-shadow: 0 10px 40px rgba(139,58,71,.12); text-align: center;
+    }
+    .flower { font-size: 46px; }
+    h1 { font-size: 22px; margin: 12px 0 4px; color: var(--deep); }
+    p { font-size: 15px; line-height: 1.6; color: #6b4a52; margin: 8px 0 0; }
+    .btn {
+      display: inline-block; margin-top: 22px; background: var(--rose); color: #fff; text-decoration: none;
+      padding: 14px 28px; border-radius: 14px; font-weight: 700; font-size: 15px;
+    }
+    .muted { font-size: 12px; color: #a98a92; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="flower">❀</div>
+    <h1>SafeBeauty</h1>
+    <p id="lead">You've been invited to view a beauty salon on SafeBeauty — book trusted salons, stylists, and services near you.</p>
+    <a class="btn" id="open" href="#">Open in the app</a>
+    <p class="muted">If the app doesn't open automatically, install SafeBeauty and search for the salon.</p>
+  </div>
+  <script>
+    // The salon id arrives as ?id=… ; App Links open the app directly when it's
+    // installed. This page is the fallback for people who don't have it yet.
+    var id = new URLSearchParams(location.search).get('id') || '';
+    var open = document.getElementById('open');
+    open.href = 'https://safebeauty.firebaseapp.com/salon?id=' + encodeURIComponent(id);
+  </script>
+</body>
+</html>

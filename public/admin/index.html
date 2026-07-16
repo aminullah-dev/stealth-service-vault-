@@ -1,0 +1,1375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeBeauty · Admin Console</title>
+<style>
+  /* ============================================================
+     SafeBeauty Admin — design system (light + dark)
+     Every legacy class name is preserved so the app JS keeps working;
+     this is a visual overhaul, not a structural one.
+     ============================================================ */
+  :root{
+    /* brand accents (shared by both themes) */
+    --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
+    --gold:#D4A853; --green:#3fa14a; --red:#C0392B;
+    --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
+    /* light surfaces */
+    --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
+    --panel:rgba(255,255,255,.66); --panel-solid:#ffffff;
+    --card:#ffffff; --surface:#FDEFF6; --petal:#FCE4EF; --lilac:#E9D5F0; --cream:#FFF7FB;
+    --ink:#3f3237; --muted:#9c8890; --line:#EFD5E1; --hover:#FFF9FC;
+    --shadow:0 4px 20px rgba(139,58,71,.06);
+    --shadow-md:0 8px 26px rgba(139,58,71,.10);
+    --shadow-lg:0 22px 60px rgba(139,58,71,.16);
+    --ring:rgba(183,110,121,.14);
+  }
+  :root[data-theme="dark"]{
+    --deep:#F6D9E1; --plum:#F0C6D2; --blush:#4d2f39;
+    --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
+    --panel:rgba(40,27,33,.62); --panel-solid:#241820;
+    --card:#241820; --surface:#2c1e26; --petal:#38262f; --lilac:#3a2a3f; --cream:#221820;
+    --ink:#F1E6EB; --muted:#B79AA5; --line:#3a2831; --hover:#2a1c24;
+    --shadow:0 4px 20px rgba(0,0,0,.36);
+    --shadow-md:0 10px 30px rgba(0,0,0,.44);
+    --shadow-lg:0 24px 64px rgba(0,0,0,.55);
+    --ring:rgba(235,169,192,.20);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-size:13px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;color:var(--ink);
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{background:
+      radial-gradient(1100px 600px at 100% -10%,rgba(235,169,192,.18),transparent 60%),
+      linear-gradient(160deg,var(--bg1) 0%,var(--bg2) 55%,var(--bg3) 100%);
+    background-attachment:fixed;transition:background .3s ease,color .3s ease}
+  button{font-family:inherit;cursor:pointer;border:none}
+  input,textarea{font-family:inherit}
+  .hidden{display:none !important}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--rose);background-clip:content-box}
+
+  /* ── Login ─────────────────────────────────────────────────────── */
+  #login{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-lg)}
+  #login .card{width:100%;max-width:392px;padding:40px 34px 34px;text-align:center;position:relative;overflow:hidden}
+  #login .card::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--grad)}
+  .logo{width:74px;height:74px;border-radius:24px;margin:2px auto 16px;
+        background:var(--grad);box-shadow:0 12px 30px rgba(183,110,121,.42);
+        display:flex;align-items:center;justify-content:center;font-size:34px;color:#fff}
+  h1{margin:0;font-size:25px;background:var(--grad);
+     -webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:12px;margin:5px 0 24px;text-transform:uppercase;letter-spacing:.14em;font-weight:700}
+  .field{width:100%;padding:12px 15px;border:1.5px solid var(--line);border-radius:13px;font-size:13.5px;
+    margin-bottom:11px;background:var(--panel-solid);color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}
+  .field::placeholder{color:var(--muted);opacity:.8}
+  .field:focus{border-color:var(--rose);box-shadow:0 0 0 4px var(--ring)}
+  .btn{width:100%;padding:13px;border-radius:13px;font-size:14px;font-weight:700;color:#fff;letter-spacing:.01em;
+       background:var(--grad);box-shadow:0 8px 20px rgba(183,110,121,.32);transition:transform .12s,box-shadow .15s,opacity .15s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(183,110,121,.4)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:.55;cursor:default;transform:none;box-shadow:none}
+  .btn-ghost{background:var(--petal);color:var(--deep);font-weight:700;box-shadow:none}
+  .btn-ghost:hover{transform:none;box-shadow:none;opacity:.9}
+  .btn-sm{padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700;color:#fff;transition:transform .12s,opacity .15s;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+  .btn-sm:hover{opacity:.92;transform:translateY(-1px)}
+  .btn-sm:active{transform:none}
+  .btn-sm:disabled{opacity:.55}
+  .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+
+  /* ── Shell ─────────────────────────────────────────────────────── */
+  #app{height:100vh;display:flex;overflow:hidden}
+  .sidebar{width:224px;flex-shrink:0;background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 13px}
+  .sidebar .brand{font-size:19px;font-weight:800;padding:2px 10px 2px;letter-spacing:-.02em;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .who2{font-size:11px;color:var(--muted);padding:2px 10px 16px;font-weight:600}
+  .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;margin:0 -3px;padding:0 3px}
+  .navitem{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;width:100%;
+    color:var(--muted);font-weight:600;font-size:13px;background:transparent;text-align:left;
+    transition:background .14s,color .14s,transform .1s}
+  .navitem:hover{background:var(--petal);color:var(--deep)}
+  .navitem:active{transform:scale(.98)}
+  .navitem.active{background:var(--grad);color:#fff;box-shadow:0 8px 20px rgba(183,110,121,.34);font-weight:700}
+  .navitem .ico{font-size:15px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+    border-radius:8px;background:var(--surface);flex-shrink:0;transition:background .14s}
+  .navitem.active .ico{background:rgba(255,255,255,.22)}
+  .sidebar .foot{padding-top:12px;margin-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .theme-toggle{width:100%;padding:9px;border-radius:11px;background:var(--petal);color:var(--deep);
+    font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s}
+  .theme-toggle:hover{opacity:.88}
+  .main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .topbar{padding:17px 30px;border-bottom:1px solid var(--line);background:var(--panel);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    font-size:18px;font-weight:800;color:var(--deep);letter-spacing:-.02em}
+  main{flex:1;overflow-y:auto;padding:24px 30px 56px;max-width:1120px;width:100%;animation:fade .28s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ── Stat cards ────────────────────────────────────────────────── */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px}
+  .stat{padding:18px 18px 16px;border-radius:18px;background:var(--card);border:1px solid var(--line);
+    box-shadow:var(--shadow);transition:transform .14s,box-shadow .14s;position:relative;overflow:hidden}
+  .stat::after{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;
+    background:radial-gradient(circle,var(--ring),transparent 70%);pointer-events:none}
+  .stat:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+  .stat .ico{font-size:18px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;
+    border-radius:12px;background:var(--surface);margin-bottom:12px}
+  .stat .n{font-size:30px;font-weight:800;color:var(--deep);line-height:1;letter-spacing:-.02em}
+  .stat .l{color:var(--muted);font-size:12px;margin-top:5px;font-weight:600}
+
+  /* ── Rows / tickets ────────────────────────────────────────────── */
+  .row{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:13px 16px;margin-bottom:9px;box-shadow:var(--shadow)}
+  .row h3{margin:0 0 2px;font-size:14px;color:var(--deep);font-weight:700}
+  .row .meta{color:var(--muted);font-size:12px;line-height:1.5}
+  .row .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  @media(min-width:680px){
+    .row:not(.ticket){padding-right:168px}
+    .row:not(.ticket) .actions{position:absolute;top:13px;right:15px;margin-top:0;flex-direction:column;align-items:stretch;width:142px}
+    .row .actions .btn-sm{width:100%}
+  }
+  .row.ticket{padding-right:16px}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
+  .badge.dot{background:rgba(192,57,43,.14);color:var(--red)}
+  .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600}
+  .section-title{font-size:11px;color:var(--rose);font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin:4px 0 13px}
+
+  /* ── Tables ────────────────────────────────────────────────────── */
+  .tbl-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--card)}
+  .tbl{width:100%;border-collapse:collapse;background:transparent;min-width:560px}
+  .tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    font-weight:800;padding:12px 17px;background:var(--surface);border-bottom:1px solid var(--line);white-space:nowrap;
+    position:sticky;top:0;z-index:1}
+  .tbl td{padding:12px 17px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink);vertical-align:middle}
+  .tbl tbody tr:last-child td{border-bottom:none}
+  .tbl tbody tr{transition:background .1s}
+  .tbl tbody tr:hover{background:var(--hover)}
+  .tbl .name{font-weight:700;color:var(--deep)}
+  .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
+  .pill.ok{background:rgba(63,161,74,.16);color:#3fa14a}
+  .pill.warn{background:rgba(212,168,83,.22);color:var(--gold)}
+  .pill.bad{background:rgba(192,57,43,.15);color:#e06c5e}
+  .pill.info{background:var(--surface);color:var(--rose)}
+
+  /* ── Forms / flash ─────────────────────────────────────────────── */
+  textarea.field{min-height:110px;resize:vertical;line-height:1.55}
+  .flash{background:rgba(63,161,74,.14);color:#3fa14a;border-radius:12px;padding:11px 15px;font-size:12.5px;
+    margin-bottom:12px;font-weight:700;border:1px solid rgba(63,161,74,.2)}
+
+  /* ── Support chat ──────────────────────────────────────────────── */
+  .support-wrap{display:grid;grid-template-columns:330px 1fr;gap:16px}
+  @media(max-width:820px){.support-wrap{grid-template-columns:1fr}}
+  .ticket{cursor:pointer;transition:box-shadow .14s,transform .1s}
+  .ticket:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+  .ticket.sel{outline:2px solid var(--rose);outline-offset:-1px}
+  .chat{background:var(--card);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;
+    min-height:452px;box-shadow:var(--shadow);overflow:hidden}
+  .chat .msgs{flex:1;padding:18px;overflow-y:auto;max-height:472px;display:flex;flex-direction:column;gap:10px}
+  .bubble{max-width:74%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .bubble.them{align-self:flex-start;background:var(--surface);color:var(--ink);border-bottom-left-radius:5px}
+  .bubble.me{align-self:flex-end;background:var(--grad);color:#fff;border-bottom-right-radius:5px;box-shadow:0 4px 12px rgba(183,110,121,.28)}
+  .bubble .t{display:block;font-size:10px;opacity:.7;margin-top:3px}
+  .composer{display:flex;gap:9px;padding:13px;border-top:1px solid var(--line);background:var(--panel)}
+  .composer input{flex:1;margin:0}
+  .chat-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-weight:600}
+
+  /* ── Modal (admin actions) ─────────────────────────────────────── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(20,10,15,.5);backdrop-filter:blur(3px);
+    display:flex;align-items:center;justify-content:center;padding:22px;z-index:50;animation:fade .18s ease}
+  .modal{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);
+    width:100%;max-width:440px;max-height:88vh;overflow-y:auto;padding:24px 24px 22px}
+  .modal h2{margin:0 0 3px;font-size:18px;color:var(--deep);font-weight:800}
+  .modal .msub{color:var(--muted);font-size:12.5px;font-weight:600;margin-bottom:16px}
+  .modal .mgroup{border-top:1px solid var(--line);padding:15px 0 4px;margin-top:6px}
+  .modal .mglabel{font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+  .modal .field{margin-bottom:9px}
+  .modal .mrow{display:flex;gap:8px}
+  .modal .mrow .field{flex:1;margin-bottom:0}
+  .mflash{font-size:12.5px;font-weight:700;margin:2px 0 8px;min-height:16px}
+  .mflash.ok{color:#3fa14a}
+  .mflash.bad{color:var(--red)}
+  .modal .mclose{margin-top:16px;width:100%;background:var(--surface);color:var(--deep)}
+
+  /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
+  @media(max-width:720px){
+    #app{flex-direction:column}
+    .sidebar{width:100%;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;
+      border-right:none;border-bottom:1px solid var(--line)}
+    .sidebar .brand{white-space:nowrap}
+    .who2{display:none}
+    .nav{flex-direction:row;flex:1;gap:4px}
+    .navitem{width:auto;white-space:nowrap;padding:8px 11px}
+    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row}
+    .theme-toggle{width:auto;padding:9px 11px}
+    main{padding:18px 16px 44px}
+    .topbar{padding:14px 18px;font-size:16px}
+  }
+</style>
+<script>
+  /* Apply the saved / system theme before first paint (no flash), and expose a
+     global toggle for the sidebar button. Kept outside the Firebase module so
+     it is available immediately and independent of sign-in. */
+  (function(){
+    try{
+      var t = localStorage.getItem('sb-theme') ||
+              (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', t);
+    }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
+  })();
+  function toggleTheme(){
+    var el = document.documentElement;
+    var next = el.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    el.setAttribute('data-theme', next);
+    try{ localStorage.setItem('sb-theme', next); }catch(e){}
+    var b = document.getElementById('themeToggle');
+    if(b) b.innerHTML = next === 'dark' ? '☀︎ Light mode' : '☾ Dark mode';
+  }
+</script>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────────────── -->
+<div id="login">
+  <div class="card">
+    <div class="logo">❀</div>
+    <h1>SafeBeauty</h1>
+    <div class="sub">Admin Console</div>
+    <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
+    <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+    <button id="lbtn" class="btn">Sign in</button>
+    <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
+    <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
+      <input type="checkbox" id="lremc" /> Remember me with Touch ID
+    </label>
+    <div id="lerr" class="err"></div>
+  </div>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="brand">SafeBeauty ❀</div>
+    <div class="who2" id="who"></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot">
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">☾ Dark mode</button>
+      <button class="btn-sm" id="logout" style="width:100%;background:var(--rose)">Sign out</button>
+    </div>
+  </aside>
+  <div class="main-area">
+    <div class="topbar" id="topbar">Statistics</div>
+    <main id="view"></main>
+  </div>
+</div>
+
+<!-- ── Modal host (admin actions) ─────────────────────────────────────────── -->
+<div id="modal" class="modal-overlay hidden"></div>
+
+<script>
+  /* Sync the toggle's label to the theme resolved before paint. */
+  (function(){
+    var el = document.getElementById('themeToggle');
+    if(el) el.innerHTML =
+      document.documentElement.getAttribute('data-theme') === 'dark' ? '☀︎ Light mode' : '☾ Dark mode';
+  })();
+</script>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, signInWithEmailAndPassword, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc, doc,
+         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { getFunctions, httpsCallable }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
+  authDomain: "safebeauty.firebaseapp.com",
+  projectId: "safebeauty",
+  storageBucket: "safebeauty.firebasestorage.app",
+  messagingSenderId: "238802374530",
+  appId: "1:238802374530:android:f2617130bc9a9644b3c99b"
+};
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+const fns  = getFunctions(app, 'us-central1');
+
+// ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
+function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
+function normalizeAfghan(raw){
+  let c=clean(raw);
+  if(c.startsWith('+93')) return c;
+  if(c.startsWith('0093')) return '+93'+c.slice(4);
+  if(c.startsWith('93')&&c.length>=11) return '+'+c;
+  c=c.replace(/^\+/,''); if(c.startsWith('0')) c=c.slice(1);
+  return '+93'+c;
+}
+function normalizeForLogin(raw){ const c=clean(raw); return c.startsWith('+')?c:normalizeAfghan(raw); }
+
+// ── PBKDF2 auth-password derivation (mirrors PinHasher.deriveAuthPassword) ───
+function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i); return u; }
+function bytesToB64(b){ let s=''; for(const x of b) s+=String.fromCharCode(x); return btoa(s); }
+async function deriveAuthPassword(pin, saltB64){
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('AUTH:'+pin), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:b64ToBytes(saltB64), iterations:65536, hash:'SHA-256' }, key, 256);
+  return bytesToB64(new Uint8Array(bits));
+}
+
+// ── State ───────────────────────────────────────────────────────────────────
+let admin = null; // { uid, name }
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtDate = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
+const statusPill = (s) => {
+  const c = { APPROVED:'ok', PENDING:'warn', SUSPENDED:'bad', REJECTED:'bad' }[s] || 'info';
+  return `<span class="pill ${c}">${esc(s||'—')}</span>`;
+};
+const kycPill = (k) => {
+  const v = k || 'NONE';
+  const c = { APPROVED:'ok', PENDING:'warn', REJECTED:'bad' }[v] || 'info';
+  return `<span class="pill ${c}">${esc(v)}</span>`;
+};
+
+// ── Modal + callable helpers (admin actions) ──────────────────────────────────
+function showModal(html){
+  const m = $('modal');
+  m.innerHTML = `<div class="modal">${html}</div>`;
+  m.classList.remove('hidden');
+}
+function hideModal(){ const m=$('modal'); m.classList.add('hidden'); m.innerHTML=''; }
+// Close when clicking the dark backdrop (but not the card).
+$('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('modal').classList.contains('hidden')) hideModal(); });
+
+/** Call an admin Cloud Function, showing a busy/result state on [btn] and a
+ *  message in the [flashId] element. Returns true on success. */
+async function callFn(name, payload, btn, flashId, okMsg){
+  const flash = flashId ? $(flashId) : null;
+  const label = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+  if(flash){ flash.className='mflash'; flash.textContent=''; }
+  try{
+    await httpsCallable(fns, name)(payload);
+    if(flash){ flash.className='mflash ok'; flash.textContent = okMsg || 'Done ✓'; }
+    return true;
+  }catch(e){
+    const msg = (e && e.message) ? e.message : 'Failed.';
+    if(flash){ flash.className='mflash bad'; flash.textContent = msg; }
+    else alert(msg);
+    return false;
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+// ── Login ────────────────────────────────────────────────────────────────────
+$('lbtn').addEventListener('click', doLogin);
+$('lw').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+
+async function doLogin(){
+  const phone = normalizeForLogin($('lp').value);
+  const pw = $('lw').value;
+  $('lerr').textContent = '';
+  if(!phone || !pw){ $('lerr').textContent='Enter phone and password.'; return; }
+  $('lbtn').disabled = true; $('lbtn').textContent = 'Signing in…';
+  try{
+    const res = await httpsCallable(fns,'authenticateWithPassword')({ phone, password: pw });
+    const m = res.data || {};
+    if(m.mode !== 'REAL'){ throw new Error('Invalid phone or password.'); }
+    if((m.role||'') !== 'ADMIN'){ throw new Error('This account is not an administrator.'); }
+    const authPw = await deriveAuthPassword(pw, m.salt || '');
+    await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
+    await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
+    // Save the credential for Touch ID if opted in (desktop app only).
+    if (window.electronBiometric && $('lremc') && $('lremc').checked) {
+      try { await window.electronBiometric.save(phone, pw); } catch(_){}
+    }
+    admin = { uid: m.uid, name: m.name || 'Admin' };
+    enterApp();
+  }catch(e){
+    $('lerr').textContent = (e && e.message) ? e.message : 'Sign-in failed.';
+  }finally{
+    $('lbtn').disabled = false; $('lbtn').textContent = 'Sign in';
+  }
+}
+
+$('logout').addEventListener('click', async () => {
+  await signOut(auth); location.reload();
+});
+
+// ── Touch ID (desktop app only) ────────────────────────────────────────────────
+(async function setupBiometric(){
+  const bio = window.electronBiometric;
+  if(!bio) return;                                   // plain browser → skip
+  let avail = false; try{ avail = await bio.available(); }catch(_){}
+  if(!avail) return;                                 // no Touch ID hardware/enrollment
+  $('lrem').classList.remove('hidden');              // offer "remember me"
+  let has = false; try{ has = await bio.has(); }catch(_){}
+  if(has){
+    const b = $('lbio');
+    b.classList.remove('hidden');
+    b.onclick = async () => {
+      const cred = await bio.get();                  // triggers the Touch ID prompt
+      if(cred && cred.phone && cred.password){
+        $('lp').value = cred.phone; $('lw').value = cred.password;
+        doLogin();
+      }
+    };
+  }
+})();
+
+// ── App shell ────────────────────────────────────────────────────────────────
+const TABS = [
+  { id:'stats',    label:'Statistics', icon:'📊', render:renderStats },
+  { id:'support',  label:'Support',    icon:'💬', render:renderSupport },
+  { id:'announce', label:'Announce',   icon:'📢', render:renderAnnounce },
+  { id:'approvals',label:'Approvals',  icon:'✅', render:renderApprovals },
+  { id:'kyc',      label:'KYC',        icon:'🪪', render:renderKyc },
+  { id:'users',    label:'Users',      icon:'👥', render:renderUsers },
+  { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
+  { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
+  { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
+  { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
+  { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
+  { id:'audit',    label:'Audit',      icon:'🧾', render:renderAudit },
+];
+const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
+let activeTab = 'stats';
+let unsub = [];   // active onSnapshot cleanups per view
+
+function enterApp(){
+  $('login').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent = 'Signed in as ' + admin.name;
+  const nav = $('nav');
+  nav.innerHTML = '';
+  TABS.forEach(t => {
+    const b = document.createElement('button');
+    b.className = 'navitem' + (t.id===activeTab?' active':'');
+    b.innerHTML = `<span class="ico">${t.icon}</span><span>${t.label}</span>`;
+    b.onclick = () => selectTab(t.id);
+    nav.appendChild(b);
+  });
+  selectTab(activeTab);
+}
+function selectTab(id){
+  activeTab = id;
+  unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
+  const tab = TABS.find(t=>t.id===id);
+  [...$('nav').children].forEach((b,i) => b.classList.toggle('active', TABS[i].id===id));
+  $('topbar').textContent = tab.label;
+  $('view').innerHTML = '<div class="empty">Loading…</div>';
+  tab.render();
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+async function renderStats(){
+  try{
+    const [usersSnap, salonsSnap, apptCount] = await Promise.all([
+      getDocs(collection(db,'users')),
+      getDocs(collection(db,'salons')),
+      getCountFromServer(collection(db,'appointments')).catch(()=>null),
+    ]);
+    let providers=0, customers=0, pending=0, suspended=0, kycPending=0;
+    usersSnap.forEach(d => { const u=d.data();
+      if(u.role==='PROVIDER') providers++;
+      if(u.role==='CUSTOMER') customers++;
+      if(u.status==='PENDING') pending++;
+      if(u.status==='SUSPENDED') suspended++;
+      if(u.kycStatus==='PENDING') kycPending++;
+    });
+    const appts = apptCount ? apptCount.data().count : '—';
+    const cards = [
+      ['👥','Total users', usersSnap.size], ['💇','Providers', providers], ['🧑','Customers', customers],
+      ['🏠','Salons', salonsSnap.size], ['📅','Appointments', appts],
+      ['⏳','Pending approvals', pending], ['🪪','KYC pending', kycPending], ['🚫','Suspended', suspended],
+    ];
+    $('view').innerHTML =
+      `<div class="section-title">Platform overview</div><div class="grid">` +
+      cards.map(([ic,l,n]) => `<div class="stat"><div class="ico">${ic}</div><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
+      `</div>`;
+  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load stats: ${esc(e.message)}</div>`; }
+}
+
+// ── Announcements ──────────────────────────────────────────────────────────────
+function renderAnnounce(){
+  $('view').innerHTML = `
+    <div class="section-title">Send an announcement</div>
+    <div class="card" style="padding:18px;max-width:560px">
+      <div id="aflash"></div>
+      <textarea id="amsg" class="field" placeholder="Your message to all users…"></textarea>
+      <button id="asend" class="btn">Send to everyone</button>
+      <div class="meta" style="margin-top:10px">Delivered as a push notification and shown in-app.</div>
+    </div>`;
+  $('asend').onclick = async () => {
+    const msg = $('amsg').value.trim();
+    if(!msg) return;
+    $('asend').disabled = true; $('asend').textContent = 'Sending…';
+    try{
+      await addDoc(collection(db,'broadcasts'), { message: msg, sentBy:'admin', createdAt: Date.now() });
+      $('amsg').value = '';
+      $('aflash').innerHTML = `<div class="flash">Announcement sent ✓</div>`;
+    }catch(e){ $('aflash').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    finally{ $('asend').disabled=false; $('asend').textContent='Send to everyone'; }
+  };
+}
+
+// ── Approvals ──────────────────────────────────────────────────────────────────
+function renderApprovals(){
+  const q = query(collection(db,'users'), where('status','==','PENDING'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Joined</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td>${fmtDate(u.createdAt)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () =>
+      updateDoc(doc(db,'users',b.dataset.ok), { status:'APPROVED' }).catch(e=>alert(e.message)));
+    $('view').querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
+      const reason = prompt('Rejection reason (shown to the user):','');
+      if(reason===null) return;
+      updateDoc(doc(db,'users',b.dataset.no), { status:'REJECTED', rejectionReason: reason }).catch(e=>alert(e.message));
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── KYC ────────────────────────────────────────────────────────────────────────
+function renderKyc(){
+  const q = query(collection(db,'users'), where('kycStatus','==','PENDING'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    const review = (uid, approve, reason='') =>
+      httpsCallable(fns,'reviewKyc')({ targetUid: uid, approve, rejectionReason: reason })
+        .catch(e => alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () => review(b.dataset.ok, true));
+    $('view').querySelectorAll('[data-no]').forEach(b => b.onclick = () => {
+      const reason = prompt('Rejection reason:',''); if(reason===null) return;
+      review(b.dataset.no, false, reason);
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Support ────────────────────────────────────────────────────────────────────
+let selectedTicket = null;
+let chatUnsub = null;
+
+function renderSupport(){
+  $('view').innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button id="tplmanage" class="btn-sm" style="background:var(--petal);color:var(--deep)">📋 Message templates</button>
+    </div>
+    <div class="support-wrap">
+      <div id="tickets"></div>
+      <div id="chat" class="chat"><div class="chat-empty">Select a conversation</div></div>
+    </div>`;
+  $('tplmanage').onclick = () => openTemplates(null);
+  const q = query(collection(db,'support_tickets'), where('status','==','OPEN'));
+  unsub.push(onSnapshot(q, snap => {
+    const rows = [];
+    snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    rows.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+    const el = $('tickets');
+    if(!el) return;
+    if(!rows.length){ el.innerHTML = `<div class="empty">No open support requests</div>`; return; }
+    el.innerHTML = rows.map(t => `
+      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
+        <h3>${t.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(t.userName||t.userId)}</h3>
+        <div class="meta">${esc(t.userRole||'')}${t.relatedInfo?' · '+esc(t.relatedInfo):''}</div>
+        <div class="meta">${fmtDate(t.updatedAt)}</div>
+      </div>`).join('');
+    el.querySelectorAll('.ticket').forEach(r => r.onclick = () => openChat(r.dataset.uid, r.dataset.name));
+  }, err => { const el=$('tickets'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+function openChat(userId, name){
+  selectedTicket = userId;
+  document.querySelectorAll('.ticket').forEach(r => r.classList.toggle('sel', r.dataset.uid===userId));
+  updateDoc(doc(db,'support_tickets',userId), { unreadForAdmin:false }).catch(()=>{});
+  const chat = $('chat');
+  chat.innerHTML = `<div class="msgs" id="msgs"></div>
+    <div class="composer">
+      <button id="ctpl" class="btn-sm" style="background:var(--petal);color:var(--deep)" title="Insert a saved reply">📋</button>
+      <input id="cin" class="field" placeholder="Reply to ${esc(name)}…" />
+      <button id="csend" class="btn-sm" style="background:var(--rose)">Send</button>
+      <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">Close</button>
+    </div>`;
+  const convId = 'support_'+userId;
+  if(chatUnsub){ try{chatUnsub();}catch(_){} }
+  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
+  chatUnsub = onSnapshot(q, snap => {
+    const msgs = [];
+    snap.forEach(d => msgs.push(d.data()));
+    msgs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+    const box = $('msgs'); if(!box) return;
+    box.innerHTML = msgs.map(m => {
+      const mine = m.senderId === admin.uid;
+      return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+    }).join('');
+    box.scrollTop = box.scrollHeight;
+  });
+  const send = async () => {
+    const inp = $('cin'); const text = inp.value.trim(); if(!text) return;
+    inp.value='';
+    try{
+      await addDoc(collection(db,'chat_messages'), {
+        conversationId: convId, senderId: admin.uid, senderName:'Support', content:text, timestamp: Date.now()
+      });
+    }catch(e){ alert(e.message); inp.value=text; }
+  };
+  $('csend').onclick = send;
+  $('ctpl').onclick = () => openTemplates('cin');
+  $('cin').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
+  $('cclose').onclick = () => {
+    if(!confirm('Close this support ticket?')) return;
+    updateDoc(doc(db,'support_tickets',userId), { status:'CLOSED' }).catch(e=>alert(e.message));
+    selectedTicket = null;
+    $('chat').innerHTML = `<div class="chat-empty">Select a conversation</div>`;
+  };
+}
+
+// ── Support message templates (canned replies) ────────────────────────────────
+const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Provider','Closing'];
+// A ready-made trilingual (Dari / Pashto / English) library covering the real
+// support scenarios. Auto-seeded on first open of an empty collection, and
+// re-addable any time via "Add default replies" (skips ones already present).
+const DEFAULT_TEMPLATES = [
+  // Welcome / greeting
+  { category:'Welcome', title:'خوش‌آمد (دری)', body:'سلام و وقت بخیر 🌸 به پشتیبانی SafeBeauty خوش آمدید. لطفاً مشکل‌تان را بنویسید تا کمک‌تان کنم.' },
+  { category:'Welcome', title:'ښه راغلاست (پښتو)', body:'سلام او ښه راغلاست 🌸 د SafeBeauty ملاتړ ته ښه راغلاست. مهرباني وکړئ خپله ستونزه ولیکئ چې مرسته درسره وکړم.' },
+  { category:'Welcome', title:'Welcome (English)', body:'Hello and welcome to SafeBeauty support 🌸 Please describe your issue and I\'ll be glad to help.' },
+  // How to book
+  { category:'Guidance', title:'روش رزرو (دری)', body:'برای رزرو نوبت:\n۱) سالن مورد نظر را انتخاب کنید\n۲) خدمت و زمان را انتخاب کنید\n۳) پرداخت را کامل کنید.\nپس از تأیید سالن، نوبت شما قطعی می‌شود و پیام تأیید دریافت می‌کنید.' },
+  { category:'Guidance', title:'د بکینګ لار (پښتو)', body:'د نوبت لپاره:\n۱) خپل غوره سالون وټاکئ\n۲) خدمت او وخت وټاکئ\n۳) تادیه بشپړه کړئ.\nد سالون له تایید وروسته ستاسو نوبت پاخه کیږي او د تایید پیغام ترلاسه کوئ.' },
+  // Forgot password
+  { category:'Guidance', title:'فراموشی رمز (دری)', body:'اگر رمز عبور خود را فراموش کرده‌اید، از صفحه‌ی ورود روی «فراموشی رمز» بزنید. اگر باز هم مشکل داشتید، بگویید تا یک رمز موقت برای‌تان تنظیم کنیم و بعد خودتان تغییرش دهید.' },
+  { category:'Guidance', title:'پټ نوم هیرول (پښتو)', body:'که خپل پټ نوم مو هیر کړی، د ننوتلو له پاڼې «پټ نوم هیرول» کلیک کړئ. که بیا هم ستونزه درسره وه، ووایاست چې یو لنډمهاله پټ نوم درته وټاکو او بیا یې پخپله بدل کړئ.' },
+  // Cancel / reschedule
+  { category:'Booking', title:'لغو/تغییر نوبت (دری)', body:'برای لغو یا تغییر زمان نوبت، از بخش «رزروهای من» در اپ اقدام کنید. اگر نوبتِ پرداخت‌شده را لغو کنید، مبلغ طبق قوانین بازگردانده می‌شود. لطفاً شماره‌ی رزرو را بفرستید تا بررسی کنم.' },
+  { category:'Booking', title:'لغوه/بدلون (پښتو)', body:'د نوبت د لغوه یا وخت بدلولو لپاره، په اپ کې د «زما بکینګونه» برخې څخه اقدام وکړئ. که تادیه‌شوی نوبت لغوه کړئ، پیسې د مقرراتو له مخې بیرته درکول کیږي. مهرباني وکړئ د بکینګ شمېره راولېږئ.' },
+  // Booking rejected by salon
+  { category:'Booking', title:'رزرو ردشد (دری)', body:'متأسفانه سالن این نوبت را نپذیرفت (ممکن است تعطیل یا پر بوده باشد). نگران نباشید — مبلغ پرداختی شما به‌طور کامل بازگردانده می‌شود و می‌توانید سالن یا زمان دیگری انتخاب کنید. عذرخواهی می‌کنیم. 🙏' },
+  { category:'Booking', title:'بکینګ رد شو (پښتو)', body:'له بده مرغه سالون دا نوبت ونه مانه (کیدای شي تړلی یا ډک وي). اندېښنه مه کوئ — ستاسو ورکړل‌شوې پیسې په بشپړه توګه بیرته درکول کیږي او بل سالون یا وخت ټاکلی شئ. بښنه غواړو. 🙏' },
+  // Paid but not confirmed
+  { category:'Payment', title:'پرداخت‌شده اما تأییدنشده (دری)', body:'اگر مبلغ از حساب شما کم شده ولی رزرو هنوز تأیید نشده، نگران نباشید. طی چند دقیقه سیستم بررسی می‌کند؛ اگر تأیید نشد مبلغ برمی‌گردد. لطفاً شماره‌ی رزرو یا شماره‌ی تراکنش HesabPay را بفرستید.' },
+  { category:'Payment', title:'تادیه شوې خو تایید نه (پښتو)', body:'که پیسې ستاسو له حسابه کمې شوې خو بکینګ لا تایید شوی نه دی، اندېښنه مه کوئ. په څو دقیقو کې سیسټم یې ګوري؛ که تایید نشو پیسې بیرته راځي. مهرباني وکړئ د بکینګ شمېره یا د HesabPay د تراکنش شمېره راولېږئ.' },
+  // Refund timeline
+  { category:'Payment', title:'زمان بازگشت وجه (دری)', body:'درخواست بازگشت وجه شما ثبت شد. بازگرداندن مبلغ به‌صورت دستی انجام می‌شود و معمولاً طی ۱ تا ۳ روز کاری به حساب شما واریز می‌گردد. از صبر شما سپاسگزاریم. 🌷' },
+  { category:'Payment', title:'د بیرته‌ورکړې وخت (پښتو)', body:'ستاسو د پیسو بیرته‌ورکړې غوښتنه ثبت شوه. پیسې په لاسي توګه بیرته ورکول کیږي او معمولاً د ۱ تر ۳ کاري ورځو په اوږدو کې ستاسو حساب ته سپارل کیږي. ستاسو د صبر مننه. 🌷' },
+  // Become a provider
+  { category:'Provider', title:'ثبت سالن (دری)', body:'برای ثبت سالن خود در SafeBeauty، هنگام ساخت حساب گزینه‌ی «صاحب سالن» را انتخاب کنید و مدارک هویتی (تذکره) را بارگذاری کنید. پس از تأیید تیم ما، سالن شما فعال می‌شود و می‌توانید نوبت بپذیرید.' },
+  { category:'Provider', title:'د سالون ثبت (پښتو)', body:'د خپل سالون ثبتولو لپاره په SafeBeauty کې، د حساب جوړولو پر مهال د «د سالون خاوند» اختیار وټاکئ او د پیژندنې اسناد (تذکره) پورته کړئ. زموږ د ټیم له تایید وروسته ستاسو سالون فعالیږي.' },
+  // Provider approval pending
+  { category:'Provider', title:'در انتظار تأیید سالن (دری)', body:'حساب سالن شما در حال بررسی است. معمولاً بررسی طی ۲۴ تا ۴۸ ساعت انجام می‌شود. به‌محض تأیید، اطلاع‌رسانی می‌کنیم و می‌توانید نوبت بپذیرید. از شکیبایی شما ممنونیم.' },
+  { category:'Provider', title:'د تایید په تمه (پښتو)', body:'ستاسو د سالون حساب د بیاکتنې لاندې دی. معمولاً بیاکتنه د ۲۴ تر ۴۸ ساعتونو په اوږدو کې کیږي. سمدلاسه چې تایید شو، خبر درکوو او نوبتونه منلی شئ. ستاسو د صبر مننه.' },
+  // KYC / verification
+  { category:'Provider', title:'تأیید هویت (دری)', body:'برای تأیید هویت، لطفاً عکس واضح تذکره و یک عکس سلفی خود را از بخش «تأیید هویت» در اپ بارگذاری کنید. مطمئن شوید تصاویر خوانا باشند تا تأیید سریع‌تر انجام شود.' },
+  { category:'Provider', title:'د پیژندنې تایید (پښتو)', body:'د پیژندنې تایید لپاره، مهرباني وکړئ د تذکرې روښانه عکس او خپل یو سیلفي عکس د اپ د «د پیژندنې تایید» برخې څخه پورته کړئ. ډاډ ترلاسه کړئ چې عکسونه لوستل‌کیدونکي وي ترڅو تایید ژر ترسره شي.' },
+  // Report a problem
+  { category:'Guidance', title:'گزارش مشکل (دری)', body:'بابت این تجربه متأسفیم. لطفاً جزئیات (نام سالن، تاریخ نوبت و آنچه پیش آمد) را بنویسید تا بررسی کنیم و در صورت لزوم اقدام مناسب انجام دهیم. بازخورد شما برای ما مهم است.' },
+  { category:'Guidance', title:'د ستونزې راپور (پښتو)', body:'د دې تجربې لپاره بښنه غواړو. مهرباني وکړئ جزئیات (د سالون نوم، د نوبت نېټه او څه چې پېښ شول) ولیکئ چې وګورو او که اړتیا وه مناسب اقدام وکړو. ستاسو نظر زموږ لپاره مهم دی.' },
+  // Closing
+  { category:'Closing', title:'بستن گفتگو (دری)', body:'خوشحال شدیم توانستیم کمک کنیم 🌷 اگر باز هم سوالی داشتید، همیشه در خدمت‌تان هستیم. روز خوبی داشته باشید!' },
+  { category:'Closing', title:'د خبرو پای (پښتو)', body:'خوشحاله یو چې مرسته مو وکړای شوه 🌷 که بیا هم پوښتنه درسره وه، تل ستاسو په خدمت کې یو. ښه ورځ ولرئ!' },
+  { category:'Closing', title:'Closing (English)', body:'Glad we could help 🌷 If you have any more questions, we\'re always here. Have a great day!' },
+];
+
+/** Add every default reply not already present (matched by title). Returns the
+ *  number added. Used by the auto-seed and the "Add default replies" button. */
+async function addMissingDefaults(){
+  const snap = await getDocs(collection(db,'support_templates'));
+  const have = new Set(); snap.forEach(d => have.add(String(d.data().title||'').trim()));
+  let added = 0;
+  for(let i=0;i<DEFAULT_TEMPLATES.length;i++){
+    const tpl = DEFAULT_TEMPLATES[i];
+    if(have.has(tpl.title.trim())) continue;
+    await addDoc(collection(db,'support_templates'), { ...tpl, order:i, createdAt: Date.now() });
+    added++;
+  }
+  return added;
+}
+
+async function seedTemplatesIfEmpty(){
+  const snap = await getDocs(collection(db,'support_templates'));
+  if(!snap.empty) return;
+  await addMissingDefaults();
+}
+
+/** Templates panel. When [targetInputId] is set, "Insert" drops the text into
+ *  that composer input; otherwise it copies to the clipboard. */
+async function openTemplates(targetInputId){
+  showModal(`
+    <h2>Message templates</h2>
+    <div class="msub">${targetInputId ? 'Insert into the current reply, or copy.' : 'Copy a reply, or manage your saved messages.'}</div>
+    <div id="tpl-flash" class="mflash"></div>
+    <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">＋ Add default replies</button></div>
+    <div id="tpl-list"><div class="meta" style="color:var(--muted)">Loading…</div></div>
+    <div class="mgroup">
+      <div class="mglabel">New template</div>
+      <select id="tpl-cat" class="field">${TEMPLATE_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+      <input id="tpl-title" class="field" placeholder="Title (for your reference)" />
+      <textarea id="tpl-body" class="field" placeholder="Message text (what gets sent)"></textarea>
+      <button class="btn-sm" id="tpl-add" style="background:var(--rose)">Add template</button>
+    </div>
+    <button class="btn-sm mclose" id="tpl-close">Close</button>`);
+  $('tpl-close').onclick = hideModal;
+  $('tpl-defaults').onclick = async (e) => {
+    e.target.disabled = true;
+    try{
+      const n = await addMissingDefaults();
+      $('tpl-flash').className='mflash ok';
+      $('tpl-flash').textContent = n ? `Added ${n} default repl${n>1?'ies':'y'} ✓` : 'All defaults already present.';
+      load();
+    }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
+    finally{ e.target.disabled = false; }
+  };
+
+  const load = async () => {
+    const snap = await getDocs(collection(db,'support_templates'));
+    const tpls = []; snap.forEach(d=>tpls.push({ id:d.id, ...d.data() }));
+    tpls.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.order||0)-(b.order||0));
+    const list = $('tpl-list'); if(!list) return;
+    if(!tpls.length){ list.innerHTML = `<div class="meta" style="color:var(--muted)">No templates yet — add one below.</div>`; return; }
+    list.innerHTML = tpls.map(tp => `<div class="row" style="margin-bottom:8px" data-id="${esc(tp.id)}">
+      <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span></h3>
+      <div class="meta" style="white-space:pre-wrap;color:var(--ink);margin-top:4px">${esc(tp.body||'')}</div>
+      <div class="actions" style="margin-top:9px">
+        <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?'Insert':'Copy'}</button>
+        <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">Copy</button>
+        <button class="btn-sm t-del" style="background:var(--red)">Delete</button>
+      </div></div>`).join('');
+    const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Copied ✓'; };
+    list.querySelectorAll('.row').forEach(row => {
+      const tp = tpls.find(x=>x.id===row.dataset.id);
+      row.querySelector('.t-ins').onclick = () => {
+        const inp = targetInputId ? $(targetInputId) : null;
+        if(inp){ inp.value = (inp.value ? inp.value+'\n' : '') + tp.body; inp.focus(); hideModal(); }
+        else copy(tp.body);
+      };
+      row.querySelector('.t-cpy').onclick = () => copy(tp.body);
+      row.querySelector('.t-del').onclick = async () => {
+        if(!confirm('Delete this template?')) return;
+        try{ await deleteDoc(doc(db,'support_templates',tp.id)); load(); }
+        catch(e){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=e.message; }
+      };
+    });
+  };
+
+  $('tpl-add').onclick = async (e) => {
+    const title=$('tpl-title').value.trim(), body=$('tpl-body').value.trim(), category=$('tpl-cat').value;
+    if(!title || !body){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent='Title and message are required.'; return; }
+    e.target.disabled=true;
+    try{
+      await addDoc(collection(db,'support_templates'), { category, title, body, order: Date.now(), createdAt: Date.now() });
+      $('tpl-title').value=''; $('tpl-body').value='';
+      $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Added ✓'; load();
+    }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
+    finally{ e.target.disabled=false; }
+  };
+
+  try{ await seedTemplatesIfEmpty(); }catch(_){}
+  load();
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────────
+async function renderUsers(){
+  try{
+    const snap = await getDocs(collection(db,'users'));
+    const users = []; snap.forEach(d => users.push({ id:d.id, ...d.data() }));
+    users.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    $('view').innerHTML = `<div class="section-title">All users (${users.length})</div>
+      <input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
+      <div id="ulist"></div>`;
+    const setStatus = async (uid, status) => {
+      try{ await updateDoc(doc(db,'users',uid), { status });
+        const u = users.find(x=>x.id===uid); if(u) u.status = status; draw($('usearch').value); }
+      catch(e){ alert(e.message); }
+    };
+    const draw = (term='') => {
+      const t = term.trim().toLowerCase();
+      const rows = users.filter(u => !t || (u.name||'').toLowerCase().includes(t) || (u.phone||'').includes(t));
+      $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Status</th><th>KYC</th><th></th></tr></thead>
+        <tbody>` + rows.map(u => `<tr>
+          <td class="name">${esc(u.name||u.id)}</td>
+          <td><span class="pill info">${esc(u.role||'—')}</span></td>
+          <td>${esc(u.phone||'—')}</td>
+          <td>${statusPill(u.status)}</td>
+          <td>${kycPill(u.kycStatus)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">Manage</button>
+            ${u.status==='SUSPENDED'
+              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">Unsuspend</button>`
+              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">Suspend</button>`}
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">No matching users</div>`;
+      $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setStatus(b.dataset.sus,'SUSPENDED'));
+      $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setStatus(b.dataset.uns,'APPROVED'));
+      $('ulist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
+        const u = users.find(x=>x.id===b.dataset.manage); if(u) openUserModal(u, ()=>renderUsers());
+      });
+    };
+    draw();
+    $('usearch').oninput = e => draw(e.target.value);
+  }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+/** The per-user "solve any problem" action panel: reset password, fix
+ *  name/phone, grant/revoke admin, and (by role) adjust balance or grant credit.
+ *  Each action calls its admin Cloud Function; [onChanged] refreshes the list. */
+function openUserModal(u, onChanged){
+  const isProvider = (u.role==='PROVIDER');
+  const isAdminUser = (u.role==='ADMIN');
+  const adminBtn = isAdminUser
+    ? `<button class="btn-sm" id="m-revoke" style="background:var(--red)">Remove admin</button>`
+    : `<button class="btn-sm" id="m-grant" style="background:var(--gold)">Make admin</button>`;
+  showModal(`
+    <h2>${esc(u.name||u.id)}</h2>
+    <div class="msub">${esc(u.role||'—')} · ${esc(u.phone||'—')}</div>
+    <div id="m-flash" class="mflash"></div>
+
+    <div class="mgroup">
+      <div class="mglabel">Reset password</div>
+      <div class="mrow">
+        <input id="m-pw" class="field" placeholder="New temporary password" />
+        <button class="btn-sm" id="m-pwbtn" style="background:var(--rose)">Reset</button>
+      </div>
+      <div class="meta" style="color:var(--muted);font-size:11px">Tell the user this password; they can change it after signing in.</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Edit profile</div>
+      <input id="m-name" class="field" value="${esc(u.name||'')}" placeholder="Name" />
+      <div class="mrow">
+        <input id="m-phone" class="field" value="${esc(u.phone||'')}" placeholder="Phone (+93…)" />
+        <button class="btn-sm" id="m-savebtn" style="background:var(--rose)">Save</button>
+      </div>
+    </div>
+
+    ${isProvider ? `
+    <div class="mgroup">
+      <div class="mglabel">Adjust salon balance (AFN)</div>
+      <input id="m-baldelta" class="field" type="number" placeholder="Amount (+ owed to them, − they owe)" />
+      <div class="mrow">
+        <input id="m-balreason" class="field" placeholder="Reason (optional)" />
+        <button class="btn-sm" id="m-balbtn" style="background:var(--rose)">Apply</button>
+      </div>
+    </div>` : `
+    <div class="mgroup">
+      <div class="mglabel">Grant credit (AFN)</div>
+      <input id="m-credamt" class="field" type="number" placeholder="Amount (+ add, − deduct)" />
+      <div class="mrow">
+        <input id="m-credreason" class="field" placeholder="Reason (optional)" />
+        <button class="btn-sm" id="m-credbtn" style="background:var(--rose)">Grant</button>
+      </div>
+    </div>`}
+
+    <div class="mgroup">
+      <div class="mglabel">Admin access</div>
+      ${adminBtn}
+    </div>
+
+    <button class="btn-sm mclose" id="m-close">Close</button>
+  `);
+
+  const refresh = () => { if(onChanged) setTimeout(onChanged, 700); };
+  $('m-close').onclick = hideModal;
+
+  $('m-pwbtn').onclick = async (e) => {
+    const pw = $('m-pw').value.trim();
+    if(pw.length < 4){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Password must be at least 4 characters.'; return; }
+    if(await callFn('adminResetPassword', { targetUid:u.id, newPassword:pw }, e.target, 'm-flash', 'Password reset ✓')) $('m-pw').value='';
+  };
+  $('m-savebtn').onclick = async (e) => {
+    const payload = { targetUid:u.id };
+    const name = $('m-name').value.trim(); const phone = $('m-phone').value.trim();
+    if(name && name !== (u.name||'')) payload.name = name;
+    if(phone && phone !== (u.phone||'')) payload.phone = phone;
+    if(!payload.name && !payload.phone){ $('m-flash').className='mflash'; $('m-flash').textContent='No changes.'; return; }
+    if(await callFn('adminUpdateUser', payload, e.target, 'm-flash', 'Saved ✓')) refresh();
+  };
+  if($('m-balbtn')) $('m-balbtn').onclick = async (e) => {
+    const delta = parseInt($('m-baldelta').value,10);
+    if(!delta){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminAdjustProviderBalance', { providerId:u.id, delta, reason:$('m-balreason').value.trim() }, e.target, 'm-flash', 'Balance updated ✓')){ $('m-baldelta').value=''; }
+  };
+  if($('m-credbtn')) $('m-credbtn').onclick = async (e) => {
+    const amount = parseInt($('m-credamt').value,10);
+    if(!amount){ $('m-flash').className='mflash bad'; $('m-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminGrantCredit', { customerId:u.id, amount, reason:$('m-credreason').value.trim() }, e.target, 'm-flash', 'Credit granted ✓')){ $('m-credamt').value=''; }
+  };
+  if($('m-grant')) $('m-grant').onclick = async (e) => {
+    if(!confirm('Give this user full admin access?')) return;
+    if(await callFn('grantAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Now an admin ✓')) refresh();
+  };
+  if($('m-revoke')) $('m-revoke').onclick = async (e) => {
+    if(!confirm('Remove admin access from this user?')) return;
+    if(await callFn('revokeAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Admin access removed ✓')) refresh();
+  };
+}
+
+// ── Admins ───────────────────────────────────────────────────────────────────
+async function renderAdmins(){
+  try{
+    const snap = await getDocs(collection(db,'users'));
+    const all = []; snap.forEach(d => all.push({ id:d.id, ...d.data() }));
+    const admins = all.filter(u => u.role==='ADMIN').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    $('view').innerHTML = `
+      <div class="section-title">Add an administrator</div>
+      <div class="card" style="padding:16px;max-width:460px;margin-bottom:22px">
+        <div id="aflash2" class="mflash"></div>
+        <div class="meta" style="color:var(--muted);margin-bottom:8px">Find a user by phone, then grant them admin access.</div>
+        <div class="mrow">
+          <input id="aphone" class="field" placeholder="Phone (+93…)" style="margin:0" />
+          <button id="afind" class="btn-sm" style="background:var(--rose)">Find</button>
+        </div>
+        <div id="afound" style="margin-top:10px"></div>
+      </div>
+      <div class="section-title">Current admins (${admins.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Name</th><th>Phone</th><th></th></tr></thead>
+        <tbody>${admins.map(a=>`<tr>
+          <td class="name">${esc(a.name||a.id)}</td>
+          <td>${esc(a.phone||'—')}</td>
+          <td style="text-align:right">${admins.length>1
+            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">Remove</button>`
+            : `<span class="meta" style="color:var(--muted)">last admin</span>`}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+
+    $('view').querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
+      const a = admins.find(x=>x.id===b.dataset.rev);
+      if(!confirm(`Remove admin access from ${a.name||a.id}?`)) return;
+      if(await callFn('revokeAdmin', { targetUid:b.dataset.rev }, b, 'aflash2', 'Removed ✓')) setTimeout(renderAdmins, 700);
+    });
+
+    $('afind').onclick = async () => {
+      const phone = $('aphone').value.trim();
+      const found = $('afound');
+      if(!phone){ found.innerHTML=''; return; }
+      found.innerHTML = `<div class="meta">Searching…</div>`;
+      try{
+        const res = await httpsCallable(fns,'lookupAccountByPhone')({ phone });
+        const m = res.data || {};
+        if(!m.found){ found.innerHTML = `<div class="mflash bad">No account with that phone.</div>`; return; }
+        const u = all.find(x=>x.id===m.uid) || { id:m.uid, name:'', role:'' };
+        if(u.role==='ADMIN'){ found.innerHTML = `<div class="mflash ok">${esc(u.name||u.id)} is already an admin.</div>`; return; }
+        found.innerHTML = `<div class="row" style="margin:0"><h3>${esc(u.name||u.id)}</h3>
+          <div class="meta">${esc(u.role||'—')} · ${esc(u.phone||phone)}</div>
+          <div class="actions" style="margin-top:8px"><button id="agrant" class="btn-sm" style="background:var(--gold)">Make admin</button></div></div>`;
+        $('agrant').onclick = async (e) => {
+          if(await callFn('grantAdmin', { targetUid:m.uid }, e.target, 'aflash2', 'Granted ✓')) setTimeout(renderAdmins, 700);
+        };
+      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(e.message)}</div>`; }
+    };
+    $('aphone').addEventListener('keydown', e => { if(e.key==='Enter') $('afind').click(); });
+  }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Salons ─────────────────────────────────────────────────────────────────────
+async function renderSalons(){
+  try{
+    const [salonSnap, userSnap] = await Promise.all([
+      getDocs(collection(db,'salons')),
+      getDocs(collection(db,'users')),
+    ]);
+    const salons = []; salonSnap.forEach(d => salons.push({ id:d.id, ...d.data() }));
+    const owners = {}; userSnap.forEach(d => owners[d.id] = { id:d.id, ...d.data() });
+    if(!salons.length){ $('view').innerHTML = `<div class="empty">No salons yet</div>`; return; }
+    salons.sort((a,b)=>(a.salonName||'').localeCompare(b.salonName||''));
+    $('view').innerHTML = `<div class="section-title">Salons (${salons.length})</div>
+      <input id="ssearch" class="field" placeholder="Search salon, district or phone…" style="max-width:340px;margin-bottom:16px" />
+      <div id="slist"></div>`;
+    const verify = async (id, v) => {
+      try{ await updateDoc(doc(db,'salons',id), { isVerified:v });
+        const s = salons.find(x=>x.id===id); if(s) s.isVerified = v; draw($('ssearch').value); }
+      catch(e){ alert(e.message); }
+    };
+    const draw = (term='') => {
+      const t = term.trim().toLowerCase();
+      const rows = salons.filter(s => {
+        const o = owners[s.providerId] || {};
+        return !t || (s.salonName||'').toLowerCase().includes(t) || (s.district||'').toLowerCase().includes(t) || (o.phone||'').includes(t);
+      });
+      $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Salon</th><th>District</th><th>Owner phone</th><th>Rating</th><th>KYC</th><th>Verified</th><th></th></tr></thead>
+        <tbody>` + rows.map(s => { const o = owners[s.providerId] || {}; return `<tr>
+          <td class="name">${esc(s.salonName||s.id)}</td>
+          <td>${esc(s.district||'—')}</td>
+          <td>${esc(o.phone||'—')}</td>
+          <td>★ ${Number(s.rating||0).toFixed(1)}</td>
+          <td>${kycPill(o.kycStatus)}</td>
+          <td>${s.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">No</span>'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">Manage</button>
+            ${s.isVerified
+              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">Unverify</button>`
+              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">Verify</button>`}
+          </td>
+        </tr>`; }).join('') + `</tbody></table></div>`
+        : `<div class="empty">No matching salons</div>`;
+      $('slist').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>verify(b.dataset.ver,true));
+      $('slist').querySelectorAll('[data-unv]').forEach(b=>b.onclick=()=>verify(b.dataset.unv,false));
+      $('slist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
+        const s = salons.find(x=>x.id===b.dataset.manage); if(s) openSalonModal(s, ()=>renderSalons());
+      });
+    };
+    draw();
+    $('ssearch').oninput = e => draw(e.target.value);
+  }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Audit log (privileged admin actions) ──────────────────────────────────────
+const AUDIT_META = {
+  GRANT_ADMIN:    { icon:'🛡️', cls:'ok'   },
+  REVOKE_ADMIN:   { icon:'🚫', cls:'bad'  },
+  RESET_PASSWORD: { icon:'🔑', cls:'warn' },
+  UPDATE_USER:    { icon:'✏️', cls:'info' },
+  ADJUST_BALANCE: { icon:'💰', cls:'warn' },
+  GRANT_CREDIT:   { icon:'🎁', cls:'ok'   },
+};
+function describeAudit(a){
+  const d = a.details || {};
+  const who = esc(d.targetName || d.targetUid || d.providerId || d.customerId || '');
+  switch(a.action){
+    case 'GRANT_ADMIN':    return `Made <b>${who}</b> an admin`;
+    case 'REVOKE_ADMIN':   return `Removed admin access from <b>${who}</b>`;
+    case 'RESET_PASSWORD': return `Reset the password for <b>${who}</b>`;
+    case 'UPDATE_USER':    return `Edited <b>${who}</b> — ${esc(Object.keys(d.updates||{}).join(', ') || 'profile')}`;
+    case 'ADJUST_BALANCE': return `Balance ${d.delta>0?'+':''}${esc(String(d.delta))} AFN for <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    case 'GRANT_CREDIT':   return `Credit ${d.amount>0?'+':''}${esc(String(d.amount))} AFN to <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    default:               return esc(a.action || '');
+  }
+}
+async function renderAudit(){
+  try{
+    const snap = await getDocs(query(collection(db,'admin_audit'), orderBy('createdAt','desc'), limit(300)));
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No admin actions recorded yet.</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>When</th><th>By</th><th>Action</th></tr></thead>
+        <tbody>` + rows.map(a => {
+          const m = AUDIT_META[a.action] || { icon:'•', cls:'info' };
+          return `<tr>
+            <td style="white-space:nowrap">${esc(fmtDate(a.createdAt))}</td>
+            <td class="name">${esc(a.adminName||a.adminUid||'—')}</td>
+            <td><span class="pill ${m.cls}" style="margin-inline-end:7px">${m.icon} ${esc((a.action||'').replace(/_/g,' '))}</span>${describeAudit(a)}</td>
+          </tr>`;
+        }).join('') + `</tbody></table></div>`;
+  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load the audit log: ${esc(e.message)}</div>`; }
+}
+
+/** The full salon/owner control panel: edit salon + owner contact, view the
+ *  uploaded tazkira/selfie, curate identity details (tazkira no., birth year,
+ *  issue/expiry, address), approve/reject KYC, verify, reset password, adjust
+ *  balance. Owner writes go through adminUpdateUser; salon writes are direct. */
+async function openSalonModal(salon, onChanged){
+  showModal(`<h2>${esc(salon.salonName||salon.id)}</h2><div class="msub">Loading owner…</div>`);
+  let owner = {};
+  try{ const s = await getDoc(doc(db,'users', salon.providerId)); if(s.exists()) owner = { id:s.id, ...s.data() }; }catch(_){}
+
+  const photo = (url,label) => url
+    ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${label}" style="width:92px;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--line)"/></a>`
+    : `<div style="width:92px;height:92px;border-radius:11px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">not<br>uploaded</div>`;
+
+  showModal(`
+    <h2>${esc(salon.salonName||salon.id)}</h2>
+    <div class="msub">${esc(owner.name||'—')} · ${salon.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">Unverified</span>'} · ${kycPill(owner.kycStatus)}</div>
+    <div id="s-flash" class="mflash"></div>
+
+    <div class="mgroup">
+      <div class="mglabel">Salon</div>
+      <input id="s-district" class="field" value="${esc(salon.district||'')}" placeholder="District / area" />
+      <div class="meta" style="color:var(--muted)">★ ${Number(salon.rating||0).toFixed(1)} · ${(salon.services||[]).length} services · ${(salon.staff||[]).length} staff · ${salon.confirmedCount||0} confirmed</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Owner contact</div>
+      <input id="s-name" class="field" value="${esc(owner.name||'')}" placeholder="Owner name" />
+      <input id="s-phone" class="field" value="${esc(owner.phone||'')}" placeholder="Phone (+93…)" />
+      <div class="meta" style="color:var(--muted)">HesabPay: ${esc(owner.hesabAccountNumber||'—')}${owner.email?' · '+esc(owner.email):''}</div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Identity documents</div>
+      <div style="display:flex;gap:18px;margin-bottom:13px">
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Tazkira</div>${photo(owner.tazkiraPhotoUrl,'Tazkira')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Selfie</div>${photo(owner.selfiePhotoUrl,'Selfie')}</div>
+      </div>
+      <input id="s-tazkira" class="field" value="${esc(owner.tazkiraNumber||'')}" placeholder="Tazkira number" />
+      <div class="mrow">
+        <input id="s-birth" class="field" value="${esc(owner.birthYear||'')}" placeholder="Birth year" />
+        <input id="s-issue" class="field" value="${esc(owner.tazkiraIssueDate||'')}" placeholder="Issue date" />
+        <input id="s-expiry" class="field" value="${esc(owner.tazkiraExpiryDate||'')}" placeholder="Expiry date" />
+      </div>
+      <input id="s-prov" class="field" value="${esc(owner.addressProvince||'')}" placeholder="Province" />
+      <input id="s-addr" class="field" value="${esc(owner.addressDetail||'')}" placeholder="Address detail" />
+      <div class="mrow" style="margin-top:2px">
+        <button class="btn-sm" id="s-kyc-ok" style="background:var(--green)">Approve KYC</button>
+        <button class="btn-sm" id="s-kyc-no" style="background:var(--red)">Reject KYC</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Actions</div>
+      <div class="mrow" style="flex-wrap:wrap">
+        <button class="btn-sm" id="s-verify" style="background:${salon.isVerified?'var(--muted)':'var(--green)'}">${salon.isVerified?'Unverify salon':'Verify salon'}</button>
+        <button class="btn-sm" id="s-pw" style="background:var(--rose)">Reset password</button>
+      </div>
+      <div class="mrow" style="margin-top:8px">
+        <input id="s-baldelta" class="field" type="number" placeholder="Balance ± AFN" />
+        <button class="btn-sm" id="s-balbtn" style="background:var(--rose)">Apply</button>
+      </div>
+    </div>
+
+    <button class="btn" id="s-save" style="width:100%;margin-top:4px">Save details</button>
+    <button class="btn-sm mclose" id="s-close">Close</button>
+  `);
+
+  const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
+  $('s-close').onclick = hideModal;
+
+  $('s-save').onclick = async (e) => {
+    const dist = $('s-district').value.trim();
+    if(dist !== (salon.district||'')){
+      try{ await updateDoc(doc(db,'salons',salon.id), { district: dist }); }
+      catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; return; }
+    }
+    const ok = await callFn('adminUpdateUser', {
+      targetUid: salon.providerId,
+      name: $('s-name').value.trim(),
+      phone: $('s-phone').value.trim(),
+      tazkiraNumber: $('s-tazkira').value.trim(),
+      birthYear: $('s-birth').value.trim(),
+      tazkiraIssueDate: $('s-issue').value.trim(),
+      tazkiraExpiryDate: $('s-expiry').value.trim(),
+      addressProvince: $('s-prov').value.trim(),
+      addressDetail: $('s-addr').value.trim(),
+    }, e.target, 's-flash', 'Saved ✓');
+    if(ok) refresh();
+  };
+  $('s-verify').onclick = async (e) => {
+    const next = !salon.isVerified;
+    e.target.disabled = true;
+    try{ await updateDoc(doc(db,'salons',salon.id), { isVerified: next }); salon.isVerified = next;
+      e.target.textContent = next?'Unverify salon':'Verify salon';
+      $('s-flash').className='mflash ok'; $('s-flash').textContent = next?'Verified ✓':'Unverified ✓'; refresh(); }
+    catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; }
+    finally{ e.target.disabled=false; }
+  };
+  $('s-pw').onclick = async (e) => {
+    const pw = prompt('New temporary password for the owner:'); if(pw===null) return;
+    if(pw.trim().length < 4){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Password must be at least 4 characters.'; return; }
+    await callFn('adminResetPassword', { targetUid: salon.providerId, newPassword: pw.trim() }, e.target, 's-flash', 'Password reset ✓');
+  };
+  $('s-balbtn').onclick = async (e) => {
+    const delta = parseInt($('s-baldelta').value,10);
+    if(!delta){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Enter a non-zero amount.'; return; }
+    if(await callFn('adminAdjustProviderBalance', { providerId: salon.providerId, delta, reason:'admin salon panel' }, e.target, 's-flash', 'Balance updated ✓')) $('s-baldelta').value='';
+  };
+  $('s-kyc-ok').onclick = async (e) => {
+    if(await callFn('reviewKyc', { targetUid: salon.providerId, approve:true, rejectionReason:'' }, e.target, 's-flash', 'KYC approved ✓')) refresh();
+  };
+  $('s-kyc-no').onclick = async (e) => {
+    const reason = prompt('Rejection reason (shown to the owner):',''); if(reason===null) return;
+    if(await callFn('reviewKyc', { targetUid: salon.providerId, approve:false, rejectionReason:reason }, e.target, 's-flash', 'KYC rejected ✓')) refresh();
+  };
+}
+
+// ── Finance ────────────────────────────────────────────────────────────────────
+async function renderFinance(){
+  $('view').innerHTML = `
+    <div class="section-title">Commission</div>
+    <div class="card" style="padding:16px;max-width:420px;margin-bottom:22px">
+      <div id="cflash"></div>
+      <div class="meta" id="ccur">Current: …</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="cinput" class="field" type="number" min="0" max="100" placeholder="%" style="margin:0" />
+        <button id="csave" class="btn-sm" style="background:var(--rose)">Save</button>
+      </div>
+    </div>
+    <div class="section-title">Provider payouts owed</div>
+    <div id="balances"><div class="empty">Loading…</div></div>
+    <div class="section-title" style="margin-top:22px">Refund requests</div>
+    <div id="refunds"><div class="empty">Loading…</div></div>`;
+
+  // Commission
+  const cref = doc(db,'platform_config','general');
+  getDoc(cref).then(s => {
+    const p = s.exists() ? (s.data().commissionPercent ?? 10) : 10;
+    $('ccur').textContent = 'Current commission: ' + p + '%'; $('cinput').value = p;
+  }).catch(()=>{ $('ccur').textContent = 'Current commission: 10%'; });
+  $('csave').onclick = async () => {
+    const v = parseFloat($('cinput').value);
+    if(isNaN(v)||v<0||v>100){ alert('Enter 0–100'); return; }
+    try{ await setDoc(cref, { commissionPercent:v }, { merge:true });
+      $('cflash').innerHTML = `<div class="flash">Saved ✓</div>`; $('ccur').textContent = 'Current commission: '+v+'%'; }
+    catch(e){ alert(e.message); }
+  };
+
+  // Balances + names
+  try{
+    const [balSnap, uSnap] = await Promise.all([
+      getDocs(collection(db,'provider_balances')), getDocs(collection(db,'users'))
+    ]);
+    const names = {}; uSnap.forEach(d => names[d.id] = d.data().name || d.id);
+    const bals = [];
+    balSnap.forEach(d => { const b=d.data(); if((b.owedAmount||0) > 0) bals.push({ ...b, name: names[b.providerId]||b.providerId }); });
+    bals.sort((a,b)=>(b.owedAmount||0)-(a.owedAmount||0));
+    const bel = $('balances');
+    const drawBal = () => {
+      bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Provider</th><th>Owed</th><th></th></tr></thead><tbody>` +
+        bals.map((b,i)=>`<tr>
+          <td class="name">${esc(b.name)}</td>
+          <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">Nothing owed 🎉</div>`;
+      bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
+        const b = bals[+btn.dataset.pay];
+        if(!confirm(`Mark ${AFN(b.owedAmount)} paid to ${b.name}?`)) return;
+        btn.disabled = true; btn.textContent='…';
+        try{ await httpsCallable(fns,'recordProviderPayout')({ providerId:b.providerId });
+          bals.splice(bals.indexOf(b),1); drawBal(); }
+        catch(e){ alert(e.message); btn.disabled=false; btn.textContent='Mark paid'; }
+      });
+    };
+    drawBal();
+
+    // Refunds
+    const rSnap = await getDocs(collection(db,'refund_requests'));
+    const refunds = [];
+    rSnap.forEach(d => { const r=d.data(); if(r.status==='PENDING') refunds.push({ id:d.id, ...r,
+      cust: names[r.customerId]||r.customerId }); });
+    const rel = $('refunds');
+    const drawRef = () => {
+      rel.innerHTML = refunds.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Amount</th><th>To</th><th>Date</th><th></th></tr></thead><tbody>` +
+        refunds.map((r,i)=>`<tr>
+          <td class="name">${AFN(r.amount)}</td>
+          <td>${esc(r.cust)}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">Mark refunded</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No pending refunds</div>`;
+      rel.querySelectorAll('[data-ref]').forEach(btn => btn.onclick = async () => {
+        const r = refunds[+btn.dataset.ref];
+        if(!confirm(`Mark ${AFN(r.amount)} as refunded?`)) return;
+        btn.disabled = true; btn.textContent='…';
+        try{ await httpsCallable(fns,'recordRefundProcessed')({ refundRequestId:r.id });
+          refunds.splice(refunds.indexOf(r),1); drawRef(); }
+        catch(e){ alert(e.message); btn.disabled=false; btn.textContent='Mark refunded'; }
+      });
+    };
+    drawRef();
+  }catch(e){ $('balances').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Promo codes ────────────────────────────────────────────────────────────────
+function renderPromo(){
+  $('view').innerHTML = `
+    <div class="section-title">Create / update a promo code</div>
+    <div class="card" style="padding:16px;max-width:520px;margin-bottom:22px">
+      <div id="pflash"></div>
+      <input id="pcode" class="field" placeholder="CODE (e.g. WELCOME10)" />
+      <div style="display:flex;gap:8px">
+        <input id="ppct" class="field" type="number" placeholder="% off" />
+        <input id="pamt" class="field" type="number" placeholder="or AFN off" />
+      </div>
+      <input id="pmax" class="field" type="number" placeholder="Max uses (0 = unlimited)" />
+      <button id="psave" class="btn">Save code</button>
+    </div>
+    <div class="section-title">Existing codes</div>
+    <div id="plist"><div class="empty">Loading…</div></div>`;
+  $('psave').onclick = async () => {
+    const code = $('pcode').value.trim().toUpperCase();
+    if(code.length < 3){ alert('Code must be at least 3 characters'); return; }
+    const pct = parseInt($('ppct').value)||0, amt = parseInt($('pamt').value)||0, max = parseInt($('pmax').value)||0;
+    if(pct<=0 && amt<=0){ alert('Set a percentage or a fixed amount'); return; }
+    $('psave').disabled = true; $('psave').textContent='Saving…';
+    try{
+      await httpsCallable(fns,'upsertPromoCode')({ code, discountPercent:pct, discountAmount:amt, maxUses:max, expiresAt:0, active:true });
+      $('pflash').innerHTML = `<div class="flash">Saved ✓</div>`;
+      $('pcode').value=$('ppct').value=$('pamt').value=$('pmax').value='';
+    }catch(e){ $('pflash').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+    finally{ $('psave').disabled=false; $('psave').textContent='Save code'; }
+  };
+  unsub.push(onSnapshot(collection(db,'promo_codes'), snap => {
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    const el = $('plist'); if(!el) return;
+    el.innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody>` +
+      rows.map(p => `<tr>
+        <td class="name">${esc(p.code||p.id)}</td>
+        <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
+        <td>${p.usedCount||0}${p.maxUses>0?'/'+p.maxUses:''}</td>
+        <td>${p.active?'<span class="pill ok">active</span>':'<span class="pill info">off</span>'}</td>
+        <td style="text-align:right"><button class="btn-sm" style="background:${p.active?'var(--muted)':'var(--green)'}"
+          data-tog="${esc(p.code||p.id)}" data-act="${p.active?'0':'1'}">${p.active?'Disable':'Enable'}</button></td>
+      </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No promo codes yet</div>`;
+    el.querySelectorAll('[data-tog]').forEach(b => b.onclick = () =>
+      httpsCallable(fns,'setPromoActive')({ code:b.dataset.tog, active:b.dataset.act==='1' }).catch(e=>alert(e.message)));
+  }, err => { const el=$('plist'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Reports (flagged customers) ─────────────────────────────────────────────────
+function renderReports(){
+  unsub.push(onSnapshot(query(collection(db,'customer_reports'), where('flagged','==',true)), snap => {
+    const rows = []; snap.forEach(d => { const r=d.data(); if(r.status==='OPEN') rows.push({ id:d.id, ...r }); });
+    rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">No flagged reports 🎉</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Customer</th><th>Salon</th><th>Rating</th><th>Flag</th><th>Date</th><th></th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
+          <td>${esc(r.salonName||'—')}</td>
+          <td>${r.rating>0?'★ '+r.rating:'—'}</td>
+          <td>${r.noShow?'<span class="pill warn">no-show</span>':'<span class="pill bad">flagged</span>'}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">Dismiss</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${r.id}">Suspend</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    const resolve = (id, suspend) =>
+      httpsCallable(fns,'resolveCustomerReport')({ reportId:id, suspend }).catch(e=>alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-dis]').forEach(b => b.onclick = () => resolve(b.dataset.dis, false));
+    $('view').querySelectorAll('[data-sus]').forEach(b => b.onclick = () => {
+      if(confirm('Suspend this customer?')) resolve(b.dataset.sus, true);
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+</script>
+</body>
+</html>

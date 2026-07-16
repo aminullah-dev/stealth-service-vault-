@@ -1,0 +1,97 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The app keys documents by its own uid (a client-generated UUID), NOT the
+    // Firebase Auth uid that request.auth.uid carries. uid_map bridges the two
+    // (written by the Cloud Functions at login). Every ownership/role check
+    // below must resolve through this or it compares the wrong two ids and
+    // silently denies every legitimate upload.
+    function appUid() {
+      return firestore.get(
+               /databases/(default)/documents/uid_map/$(request.auth.uid)
+             ).data.appUid;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+          && firestore.get(
+               /databases/(default)/documents/users/$(appUid())
+             ).data.role == 'ADMIN';
+    }
+
+    function salonOwner(salonId) {
+      return isSignedIn()
+          && firestore.get(
+               /databases/(default)/documents/salons/$(salonId)
+             ).data.providerId == appUid();
+    }
+
+    function isValidImage() {
+      return request.resource.size  < 2 * 1024 * 1024    // max 2 MB
+          // Raster formats only — 'image/.*' would also accept image/svg+xml,
+          // which is XML and can carry scripts (stored-XSS if ever rendered).
+          && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // ── Profile photos ─────────────────────────────────────────────────────────
+    // Path: profile_photos/{uid}.jpg  (uid = the app-level uid, via appUid())
+    // Storage Rules path segments can't mix a wildcard capture with a literal
+    // suffix (e.g. "{uid}.jpg" is invalid syntax) — so the whole segment is
+    // captured as fileName and checked against "<uid>.jpg" in the rule body.
+    match /profile_photos/{fileName} {
+      allow read:   if isSignedIn();
+      allow write:  if isSignedIn()
+                  && fileName == appUid() + '.jpg'
+                  && isValidImage();
+    }
+
+    // ── Salon gallery ──────────────────────────────────────────────────────────
+    // Path: salon_gallery/{salonId}/{imageId}.jpg
+    match /salon_gallery/{salonId}/{imageId} {
+      allow read:   if isSignedIn();
+      allow create: if salonOwner(salonId) && isValidImage();
+      allow update: if false;                    // replace by delete + re-upload
+      allow delete: if salonOwner(salonId) || isAdmin();
+    }
+
+    // ── Staff portfolio photos ───────────────────────────────────────────────────
+    // Path: staff_portfolio/{salonId}/{fileName}. Same ownership model as the salon
+    // gallery — only the salon owner uploads; publicly readable so customers see a
+    // stylist's sample work on the salon sheet.
+    match /staff_portfolio/{salonId}/{fileName} {
+      allow read:   if isSignedIn();
+      allow create: if salonOwner(salonId) && isValidImage();
+      allow update: if false;
+      allow delete: if salonOwner(salonId) || isAdmin();
+    }
+
+    // ── Review photos ──────────────────────────────────────────────────────────
+    // Path: reviews/{uid}/{reviewId}/{fileName} — scoped to the uploader's app
+    // uid so a signed-in user can only write under their OWN prefix (previously
+    // any signed-in user could spam-upload under any reviewId). World-readable
+    // like the gallery so thumbnails render on the salon sheet (download URLs
+    // work regardless of path).
+    match /reviews/{uid}/{reviewId}/{fileName} {
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn() && uid == appUid() && isValidImage();
+      allow update: if false;
+      allow delete: if uid == appUid() || isAdmin();
+    }
+
+    // ── KYC documents (private) ──────────────────────────────────────────────────
+    // Path: kyc/{uid}/{fileName}  — tazkira.jpg, selfie.jpg. Sensitive PII, so
+    // unlike profile photos these are NOT world-readable to signed-in users:
+    // only the owner and admins can read, and only the owner can upload.
+    match /kyc/{uid}/{fileName} {
+      allow read:   if isSignedIn() && (uid == appUid() || isAdmin());
+      allow create: if isSignedIn() && uid == appUid() && isValidImage();
+      allow update: if false;                    // replace by delete + re-upload
+      allow delete: if uid == appUid() || isAdmin();
+    }
+  }
+}

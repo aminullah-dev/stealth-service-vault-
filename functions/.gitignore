@@ -1,0 +1,8 @@
+node_modules/
+# Secrets: ignore every .env variant (e.g. .env.safebeauty) but keep the template.
+.env
+.env.*
+!.env.example
+*.log
+.firebase/
+package-lock.json

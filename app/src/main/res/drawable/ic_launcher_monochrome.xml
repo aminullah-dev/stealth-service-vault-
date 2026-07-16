@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome launcher icon for Android 13+ themed icons. A single-colour rose
+  silhouette; the system recolours it to match the user's wallpaper theme.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#000000">
+
+    <!-- Stem + leaves -->
+    <path android:fillColor="#000000" android:pathData="M53,66 h2 v16 h-2 z" />
+    <path android:fillColor="#000000"
+        android:pathData="M51.00,78.00 Q44.94,68.34 34.09,71.84 Q40.15,81.50 51.00,78.00 Z" />
+    <path android:fillColor="#000000"
+        android:pathData="M57.00,78.00 Q67.85,81.50 73.91,71.84 Q63.06,68.34 57.00,78.00 Z" />
+
+    <!-- Bloom (outer petals as the silhouette) -->
+    <path android:fillColor="#000000"
+        android:pathData="M70.00,50.00 C80.73,53.80 75.59,66.21 65.31,61.31 C70.21,71.59 57.80,76.73 54.00,66.00 C50.20,76.73 37.79,71.59 42.69,61.31 C32.41,66.21 27.27,53.80 38.00,50.00 C27.27,46.20 32.41,33.79 42.69,38.69 C37.79,28.41 50.20,23.27 54.00,34.00 C57.80,23.27 70.21,28.41 65.31,38.69 C75.59,33.79 80.73,46.20 70.00,50.00 Z" />
+
+    <!-- Inner swirl cut hint -->
+    <path android:fillColor="#FFFFFF"
+        android:pathData="M60.89,51.22 C67.09,54.97 61.17,62.03 56.39,56.58 C56.24,63.82 47.17,62.22 49.50,55.36 C43.15,58.85 40.00,50.20 47.11,48.78 C40.91,45.03 46.83,37.97 51.61,43.42 C51.76,36.18 60.83,37.78 58.50,44.64 C64.85,41.15 68.00,49.80 60.89,51.22 Z" />
+    <path android:fillColor="#000000"
+        android:pathData="M57.50,50.00 C61.80,51.79 58.12,56.86 55.08,53.33 C54.70,57.97 48.75,56.03 51.17,52.06 C46.64,53.13 46.64,46.87 51.17,47.94 C48.75,43.97 54.70,42.03 55.08,46.67 C58.12,43.14 61.80,48.21 57.50,50.00 Z" />
+</vector>

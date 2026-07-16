@@ -1,0 +1,501 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // The app's own uid scheme (the client-generated UUID that is the actual
+    // users/{uid} document ID — see RegisterViewModel) is NOT the same value
+    // as request.auth.uid (Firebase Auth's own, separately-generated uid).
+    // uid_map/{request.auth.uid} bridges the two (written by syncUidMap /
+    // resolveAppUser in Cloud Functions right after sign-in) so every rule
+    // below that compares against a stored customerId/providerId/etc. — all
+    // of which are the app-level uid — resolves correctly.
+    function me() {
+      return get(/databases/$(database)/documents/uid_map/$(request.auth.uid)).data.appUid;
+    }
+
+    function myData() {
+      return get(/databases/$(database)/documents/users/$(me())).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myData().role == 'ADMIN';
+    }
+
+    function isProvider() {
+      return isSignedIn() && myData().role == 'PROVIDER';
+    }
+
+    function isCustomer() {
+      return isSignedIn() && myData().role == 'CUSTOMER';
+    }
+
+    function isApproved() {
+      return isSignedIn() && myData().status == 'APPROVED';
+    }
+
+    function ownsDoc(uid) {
+      return isSignedIn() && me() == uid;
+    }
+
+    // Returns true if the current user is the provider who owns [salonId].
+    function ownsThisSalon(salonId) {
+      return isProvider()
+          && get(/databases/$(database)/documents/salons/$(salonId)).data.providerId == me();
+    }
+
+    // conversationId format: "{customerId}_{salonId}"
+    // Returns true if the current user is the customer OR the salon's provider.
+    function isParticipantInConversation(conversationId) {
+      let parts = conversationId.split('_');
+      return parts.size() >= 2
+          && (parts[0] == me()
+              || get(/databases/$(database)/documents/salons/$(parts[1])).data.providerId == me());
+    }
+
+    // A support thread ("support_{userId}") between one user and the platform
+    // admin. Kept separate from isParticipantInConversation so it never runs the
+    // salon lookup that function does (parts[1] here is a user id, not a salon).
+    function isSupportConversation(conversationId) {
+      return conversationId.split('_')[0] == 'support';
+    }
+    function isSupportParticipant(conversationId) {
+      let parts = conversationId.split('_');
+      return parts.size() == 2 && (isAdmin() || parts[1] == me());
+    }
+
+    // ── users ──────────────────────────────────────────────────────────────────
+    //
+    // Login and the pre-auth phone lookup are now Cloud Functions
+    // (authenticateWithPin / lookupAccountByPhone) that run with the Admin SDK
+    // and bypass these rules. Clients therefore never need to read the users
+    // collection pre-auth, so reads are locked down: a user may read only their
+    // OWN document, and only an admin may list users. This closes the previous
+    // hole where the entire credential table (every pinHash/salt) was readable.
+    //
+    match /users/{uid} {
+      allow get:  if isSignedIn() && (ownsDoc(uid) || isAdmin());
+      allow list: if isAdmin();
+
+      // {uid} is a UUID the CLIENT generates at registration (see
+      // RegisterViewModel) — independent of Firebase Auth's own uid, and
+      // uid_map (which backs me()) can't be populated yet at this point
+      // anyway, since it's only ever written by looking up an EXISTING
+      // users/{uid} doc. So this can't check "me() == uid"; what actually
+      // prevents hijacking someone else's profile is Firestore's own
+      // create-vs-update semantics (this rule only ever fires for a document
+      // that doesn't exist yet — a colliding UUID is cryptographically
+      // negligible) plus the role/status constraints below. A self-registration
+      // may ONLY be a CUSTOMER (auto-approved) or a PROVIDER (starts PENDING,
+      // awaiting admin approval) — never an ADMIN, and a provider may not
+      // self-approve. The first ADMIN is bootstrapped out-of-band (console /
+      // setup), not through this path.
+      allow create: if isSignedIn()
+                 && (
+                      (request.resource.data.role == 'CUSTOMER'
+                       && request.resource.data.status == 'APPROVED')
+                   || (request.resource.data.role == 'PROVIDER'
+                       && request.resource.data.status == 'PENDING')
+                    )
+                 // Referral credit is server-granted only — a self-registration
+                 // may not seed itself any balance or pre-mark itself rewarded.
+                 && request.resource.data.get('referralCredit', 0) == 0
+                 && request.resource.data.get('referralRewarded', false) == false
+                 // A fresh account may not seed itself server-authoritative balances
+                 // or reputation: no loyalty points (redeemable for real credit), no
+                 // customer rating / no-show history, no self-asserted KYC, no
+                 // pre-claimed profile bonus. All written only by Cloud Functions.
+                 && request.resource.data.get('loyaltyPoints', 0) == 0
+                 && request.resource.data.get('customerRatingSum', 0) == 0
+                 && request.resource.data.get('customerRatingCount', 0) == 0
+                 && request.resource.data.get('noShowCount', 0) == 0
+                 && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
+                 && request.resource.data.get('profileRewardClaimed', false) == false;
+
+      // Users can update their own profile; admins can change status / verify.
+      // A self-update may NOT change privileged fields — role and status are
+      // admin-controlled, and every KYC field is written only by the submitKyc /
+      // reviewKyc Cloud Functions (Admin SDK), so a user can't self-approve their
+      // own identity verification. Without these freezes any user could set
+      // role='ADMIN', un-suspend themselves, or set kycStatus='APPROVED' by
+      // writing their own doc. name/photo/loyaltyPoints/fcmToken stay editable.
+      // .get(...) with a default keeps this working for older docs that predate
+      // these fields (a bare access to a missing field would error and deny).
+      allow update: if isAdmin()
+                 || (ownsDoc(uid)
+                     && request.resource.data.role   == resource.data.role
+                     && request.resource.data.status == resource.data.status
+                     && request.resource.data.get('kycStatus', 'NONE')
+                          == resource.data.get('kycStatus', 'NONE')
+                     && request.resource.data.get('kycRejectionReason', '')
+                          == resource.data.get('kycRejectionReason', '')
+                     && request.resource.data.get('tazkiraNumber', '')
+                          == resource.data.get('tazkiraNumber', '')
+                     && request.resource.data.get('tazkiraPhotoUrl', '')
+                          == resource.data.get('tazkiraPhotoUrl', '')
+                     && request.resource.data.get('selfiePhotoUrl', '')
+                          == resource.data.get('selfiePhotoUrl', '')
+                     && request.resource.data.get('addressProvince', '')
+                          == resource.data.get('addressProvince', '')
+                     && request.resource.data.get('addressDetail', '')
+                          == resource.data.get('addressDetail', '')
+                     // Admin-curated identity fields (birth year, tazkira
+                     // issue/expiry) — written only by adminUpdateUser (Admin SDK).
+                     && request.resource.data.get('birthYear', '')
+                          == resource.data.get('birthYear', '')
+                     && request.resource.data.get('tazkiraIssueDate', '')
+                          == resource.data.get('tazkiraIssueDate', '')
+                     && request.resource.data.get('tazkiraExpiryDate', '')
+                          == resource.data.get('tazkiraExpiryDate', '')
+                     // Referral balance/flags are server-controlled (reviewKyc /
+                     // createPaymentSession) — frozen against self-edits. The code
+                     // and who-referred-me are set once at registration and fixed.
+                     && request.resource.data.get('referralCredit', 0)
+                          == resource.data.get('referralCredit', 0)
+                     && request.resource.data.get('referralRewarded', false)
+                          == resource.data.get('referralRewarded', false)
+                     && request.resource.data.get('referralCode', '')
+                          == resource.data.get('referralCode', '')
+                     && request.resource.data.get('referredBy', '')
+                          == resource.data.get('referredBy', '')
+                     // Customer-reputation aggregates are written only by the
+                     // reportCustomer Cloud Function — frozen so a customer can't
+                     // erase a bad rating or no-show off their own record.
+                     && request.resource.data.get('customerRatingSum', 0)
+                          == resource.data.get('customerRatingSum', 0)
+                     && request.resource.data.get('customerRatingCount', 0)
+                          == resource.data.get('customerRatingCount', 0)
+                     && request.resource.data.get('noShowCount', 0)
+                          == resource.data.get('noShowCount', 0)
+                     // Written only by scheduled functions (completePastAppointments
+                     // stamps lastVisitAt; sendReengagementNudges stamps lastNudgedAt).
+                     && request.resource.data.get('lastVisitAt', 0)
+                          == resource.data.get('lastVisitAt', 0)
+                     && request.resource.data.get('lastNudgedAt', 0)
+                          == resource.data.get('lastNudgedAt', 0)
+                     // Set once by claimProfileReward when the profile-completion
+                     // bonus is granted; frozen so it can't be reset to re-claim.
+                     && request.resource.data.get('profileRewardClaimed', false)
+                          == resource.data.get('profileRewardClaimed', false)
+                     // loyaltyPoints is server-authoritative: confirmAppointment
+                     // awards it and redeemLoyaltyPoints spends it into
+                     // referralCredit (real checkout money). Frozen so a client
+                     // can't mint points on its own doc and redeem them.
+                     && request.resource.data.get('loyaltyPoints', 0)
+                          == resource.data.get('loyaltyPoints', 0)
+                     // phone is the login identifier; uniqueness is enforced only
+                     // server-side at registration, so a self-edit could shadow
+                     // another account's login resolution. Frozen post-signup.
+                     && request.resource.data.get('phone', '')
+                          == resource.data.get('phone', ''));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── salons ─────────────────────────────────────────────────────────────────
+    match /salons/{salonId} {
+      allow read: if isSignedIn();
+
+      // Salons are created exclusively by the createProviderSalon Cloud Function
+      // (Admin SDK bypasses these rules). It runs at registration — before the
+      // uid_map bridge exists — so me() can't resolve here, and the providerId
+      // must be set authoritatively server-side (to the app-level uid) rather
+      // than trusted from the client.
+      allow create: if false;
+
+      // Provider can edit their own salon; admin can edit any.
+      // A provider may NOT flip isVerified — the VERIFIED badge is a trust signal
+      // granted only by an admin (setSalonVerified). Without this guard a provider
+      // could self-award the badge to look legitimate.
+      allow update: if isAdmin()
+                 || (isProvider() && isApproved()
+                     && resource.data.providerId == me()
+                     && request.resource.data.providerId == resource.data.providerId
+                     && request.resource.data.isVerified  == resource.data.isVerified
+                     // Server-maintained reputation fields, frozen so a provider
+                     // can't self-award a GOLD/SILVER badge (badge() thresholds on
+                     // both) or a top rating: confirmedCount by confirmAppointment,
+                     // and rating by the awardReviewPoints review trigger.
+                     && request.resource.data.get('confirmedCount', 0)
+                          == resource.data.get('confirmedCount', 0)
+                     && request.resource.data.get('rating', 0)
+                          == resource.data.get('rating', 0));
+
+      allow delete: if isAdmin()
+                 || (isProvider() && resource.data.providerId == me());
+    }
+
+    // ── appointments ───────────────────────────────────────────────────────────
+    match /appointments/{apptId} {
+      // Readable only by the customer who booked, the salon's provider, or admin.
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+
+      // Appointments are created exclusively by the createPaymentSession Cloud
+      // Function (Admin SDK bypasses these rules). This enforces pay-first: a
+      // client cannot create a booking without going through HesabPay payment.
+      allow create: if false;
+
+      // Every appointment mutation goes through a Cloud Function now —
+      // confirmAppointment (provider), rescheduleAppointment (customer),
+      // cancelAppointment / providerDeclineAppointment (paid-booking
+      // cancellation with refund trail), and the payment webhook. The Admin
+      // SDK bypasses these rules; clients have no direct write path left.
+      allow update: if isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // ── chat_messages ──────────────────────────────────────────────────────────
+    // conversationId = "{customerId}_{salonId}"
+    // Messages are immutable once sent.
+    match /chat_messages/{msgId} {
+      allow read: if isSignedIn()
+               && (isSupportConversation(resource.data.conversationId)
+                     ? isSupportParticipant(resource.data.conversationId)
+                     : isParticipantInConversation(resource.data.conversationId));
+
+      allow create: if isSignedIn()
+                 && request.resource.data.senderId == me()
+                 && (isSupportConversation(request.resource.data.conversationId)
+                       ? isSupportParticipant(request.resource.data.conversationId)
+                       : isParticipantInConversation(request.resource.data.conversationId));
+
+      allow update, delete: if false;
+    }
+
+    // ── support_tickets ─────────────────────────────────────────────────────────
+    // One ticket per user (doc id = the user's app uid). The user upserts their
+    // own ticket when they contact support; the admin reads all, clears the
+    // unread flag, and closes resolved tickets.
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn() && (ticketId == me() || isAdmin());
+      allow create, update: if isSignedIn()
+                 && ((ticketId == me() && request.resource.data.userId == me())
+                     || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ── reviews ────────────────────────────────────────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn();
+
+      // Customers submit reviews for themselves.
+      allow create: if isCustomer() && isApproved()
+                 && request.resource.data.customerId == me();
+
+      // Provider may only add/edit their reply (no other fields may change).
+      allow update: if (ownsThisSalon(resource.data.salonId)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['providerReply', 'repliedAt']))
+                 || isAdmin();
+
+      allow delete: if isAdmin();
+    }
+
+    // ── salon_gallery ──────────────────────────────────────────────────────────
+    match /salon_gallery/{imageId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      // Images are replaced by delete + re-upload; no in-place edits.
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── salon_offers ─────────────────────────────────────────────────────────
+    // Provider-posted promotions, shown to customers. Informational only — they
+    // never change the checkout price (the server recomputes amounts from
+    // pricePerService), so a provider can freely edit the text/badge. Same
+    // ownership model as salon_gallery; salonId is frozen on update.
+    match /salon_offers/{offerId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if isProvider() && isApproved()
+                 && ownsThisSalon(resource.data.salonId)
+                 && request.resource.data.salonId == resource.data.salonId;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── favorites ────────────────────────────────────────────────────────────────
+    // A customer's favorited salons, mirrored from the on-device list so the
+    // server can notify favoriters when their salon posts an offer (see
+    // pushOfferToFavoriters). Doc id is "{customerId}_{salonId}". A customer only
+    // ever reads/writes their own rows; the offer fan-out runs server-side.
+    match /favorites/{favId} {
+      allow read:   if isSignedIn() && (resource.data.customerId == me() || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.customerId == me();
+      allow delete: if isSignedIn() && resource.data.customerId == me();
+      allow update: if false;
+    }
+
+    // ── gift_cards ─────────────────────────────────────────────────────────────
+    // Bought via createGiftCardSession, settled by the HesabPay webhook (Admin
+    // SDK). Buyer and recipient can read their own; nobody writes from a client.
+    match /gift_cards/{giftId} {
+      allow read: if isSignedIn()
+               && (resource.data.buyerUid == me()
+                   || resource.data.recipientUid == me()
+                   || isAdmin());
+      allow write: if false;
+    }
+
+    // ── broadcasts ─────────────────────────────────────────────────────────────
+    match /broadcasts/{docId} {
+      allow read:                    if isSignedIn();
+      allow create, update, delete:  if isAdmin();
+    }
+
+    // ── waitlist ───────────────────────────────────────────────────────────────
+    match /waitlist/{entryId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+
+      allow create: if isCustomer() && isApproved()
+                 && request.resource.data.customerId == me();
+
+      // Provider marks slot as available; admin can do anything.
+      allow update: if ownsThisSalon(resource.data.salonId) || isAdmin();
+
+      allow delete: if resource.data.customerId == me() || isAdmin();
+    }
+
+    // ── notifications ──────────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      // Each user sees only their own notifications.
+      allow read: if isSignedIn()
+               && (resource.data.recipientId == me() || isAdmin());
+
+      // Created exclusively by the Cloud Functions (Admin SDK bypasses these
+      // rules). Every notification doc becomes a real FCM push
+      // (pushOnNotificationCreated), so an open client create path would let
+      // any signed-in user push arbitrary text to any user's phone.
+      allow create: if false;
+
+      // Only the recipient marks as read / deletes.
+      allow update: if resource.data.recipientId == me() || isAdmin();
+      allow delete: if resource.data.recipientId == me() || isAdmin();
+    }
+
+    // ── payments ─────────────────────────────────────────────────────────────
+    // Written exclusively by the payment Cloud Functions (Admin SDK bypasses
+    // these rules). Clients may only READ their own payment to observe status.
+    match /payments/{paymentId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || resource.data.providerId == me()
+                   || isAdmin());
+      allow write: if false;
+    }
+
+    // ── processed_webhooks ───────────────────────────────────────────────────────
+    // Replay-guard ledger keyed by HesabPay transaction_id. Written exclusively
+    // by the hesabPayWebhook Cloud Function (Admin SDK). No client access.
+    match /processed_webhooks/{transactionId} {
+      allow read, write: if false;
+    }
+
+    // ── refund_requests ─────────────────────────────────────────────────────────
+    // Created exclusively by the cancelAppointment Cloud Function (Admin SDK)
+    // when a customer cancels a PAID booking. The customer/provider involved can
+    // see their own request; only admin can read all / will process it manually
+    // (no automated HesabPay refund API is wired yet).
+    match /refund_requests/{requestId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || resource.data.providerId == me()
+                   || isAdmin());
+      allow write: if false;
+    }
+
+    // ── platform_config ────────────────────────────────────────────────────────
+    // Global settings (e.g. commissionPercent). Readable by signed-in users;
+    // writable only by admins. The payment function reads it server-side.
+    match /platform_config/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ── support_templates ───────────────────────────────────────────────────────
+    // Canned support replies (welcome / guidance / …) the admin console offers to
+    // copy or drop into a chat. Admin-only, both read and write — they're an
+    // internal staff tool, never shown to customers or providers.
+    match /support_templates/{templateId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── admin_audit ─────────────────────────────────────────────────────────────
+    // Tamper-evident log of privileged admin actions (password resets, balance
+    // adjustments, admin grants…). Written exclusively by Cloud Functions (Admin
+    // SDK); admins may read the trail but no one can write or alter it directly.
+    match /admin_audit/{entryId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ── provider_balances ───────────────────────────────────────────────────────
+    // Ledger of what each provider is owed. Maintained by the webhook Cloud
+    // Function; a provider may read only their own balance.
+    match /provider_balances/{providerId} {
+      allow read:  if ownsDoc(providerId) || isAdmin();
+      allow write: if false;
+    }
+
+    // ── payouts ─────────────────────────────────────────────────────────────────
+    // History of platform→provider payments. Written exclusively by the
+    // recordProviderPayout Cloud Function (Admin SDK). A provider reads only
+    // their own payouts; admins read all.
+    match /payouts/{payoutId} {
+      allow read:  if isSignedIn()
+               && (resource.data.providerId == me() || isAdmin());
+      allow write: if false;
+    }
+
+    // ── uid_map ─────────────────────────────────────────────────────────────────
+    // Bridges request.auth.uid to the app's own uid scheme (see me()). Written
+    // exclusively by syncUidMap / resolveAppUser (Admin SDK, Cloud Functions).
+    // No client access — it's read only via the internal get() inside me(),
+    // which is not subject to this (or any) document's own rules.
+    match /uid_map/{authUid} {
+      allow read, write: if false;
+    }
+
+    // ── promo_codes ──────────────────────────────────────────────────────────────
+    // Discount codes. Only admins may read the list (the admin management screen);
+    // customers never read them — they validate a code via the previewPromo /
+    // createPaymentSession Cloud Functions, so codes can't be enumerated or
+    // brute-forced from the client. All writes go through admin Cloud Functions.
+    match /promo_codes/{code} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ── customer_reports ─────────────────────────────────────────────────────────
+    // A provider's post-appointment feedback about a customer (rating / no-show /
+    // misconduct). Written exclusively by the reportCustomer Cloud Function. The
+    // reporting provider may read their own reports; admins read all (to review
+    // flagged misconduct). Customers can't read reports about themselves here —
+    // their rating shows only as an aggregate on their user doc.
+    match /customer_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.providerId == me() || isAdmin());
+      allow write: if false;
+    }
+  }
+}

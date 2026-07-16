@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fa">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeBeauty · Salon Desktop App</title>
+<style>
+  :root{
+    --rose:#B76E79; --deep:#8B3A47; --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
+    --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
+    --card:#ffffff; --surface:#FDEFF6; --petal:#FCE4EF;
+    --ink:#3f3237; --muted:#9c8890; --line:#EFD5E1;
+    --shadow-lg:0 22px 60px rgba(139,58,71,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --deep:#F6D9E1; --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
+      --card:#241820; --surface:#2c1e26; --petal:#38262f;
+      --ink:#F1E6EB; --muted:#B79AA5; --line:#3a2831;
+      --shadow-lg:0 24px 64px rgba(0,0,0,.55);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(1100px 600px at 100% -10%,rgba(235,169,192,.18),transparent 60%),
+      linear-gradient(160deg,var(--bg1),var(--bg2) 55%,var(--bg3));background-attachment:fixed}
+  button,a{font-family:inherit}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow-lg);
+    width:100%;max-width:480px;padding:38px 32px 30px;text-align:center;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--grad)}
+  .logo{width:72px;height:72px;border-radius:23px;margin:2px auto 14px;background:var(--grad);
+    box-shadow:0 12px 30px rgba(183,110,121,.42);display:flex;align-items:center;justify-content:center;font-size:33px;color:#fff}
+  h1{margin:0;font-size:24px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  .sub{color:var(--rose);font-size:12px;margin:5px 0 4px;text-transform:uppercase;letter-spacing:.14em;font-weight:800}
+  .tag{color:var(--muted);font-size:13.5px;line-height:1.6;margin:10px 4px 22px}
+  .langpick{display:flex;gap:6px;justify-content:center;margin:0 0 22px}
+  .langpick button{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:700;background:var(--petal);color:var(--deep);border:none;cursor:pointer;transition:opacity .15s}
+  .langpick button:hover{opacity:.85}
+  .langpick button.on{background:var(--grad);color:#fff}
+  .dl{display:flex;align-items:center;gap:12px;width:100%;padding:15px 18px;border-radius:15px;margin-bottom:11px;
+    text-decoration:none;color:#fff;background:var(--grad);box-shadow:0 8px 20px rgba(183,110,121,.3);
+    font-weight:700;font-size:14.5px;transition:transform .12s,box-shadow .15s;text-align:start}
+  .dl:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(183,110,121,.4)}
+  .dl .ic{font-size:22px;flex-shrink:0}
+  .dl .lbl{flex:1}
+  .dl .lbl small{display:block;font-size:11px;font-weight:600;opacity:.85;margin-top:2px}
+  .dl.ghost{background:var(--petal);color:var(--deep);box-shadow:none}
+  .dl.ghost:hover{box-shadow:none;opacity:.9;transform:none}
+  .dl.secondary{background:var(--surface);color:var(--deep);box-shadow:none}
+  .dl.demoted{opacity:.7}
+  .browser{display:block;margin:16px 0 2px;color:var(--rose);font-size:13px;font-weight:700;text-decoration:none}
+  .browser:hover{text-decoration:underline}
+  details{margin-top:20px;text-align:start;background:var(--surface);border-radius:14px;padding:2px 16px;border:1px solid var(--line)}
+  summary{cursor:pointer;font-weight:800;font-size:12.5px;color:var(--deep);padding:13px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--rose)}
+  details[open] summary::before{content:"▾ "}
+  .note{font-size:12.5px;line-height:1.7;color:var(--ink);padding:0 0 14px}
+  .note b{color:var(--deep)}
+  code{background:var(--petal);padding:2px 7px;border-radius:6px;font-size:12px;direction:ltr;display:inline-block;unicode-bidi:embed}
+  .fine{color:var(--muted);font-size:11px;margin-top:18px;line-height:1.6}
+  input[type="tel"]{direction:ltr}
+</style>
+<script>
+  (function(){
+    try{
+      var l = localStorage.getItem('sb-lang') || 'fa';
+      if(['fa','ps','en'].indexOf(l) < 0) l = 'fa';
+      document.documentElement.lang = l;
+      document.documentElement.dir = (l === 'en') ? 'ltr' : 'rtl';
+    }catch(e){ document.documentElement.dir = 'rtl'; }
+  })();
+</script>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">❀</div>
+    <h1>SafeBeauty</h1>
+    <div class="sub" id="sub">Salon Desktop App</div>
+    <div class="langpick" id="langpick">
+      <button data-lang="fa">دری</button>
+      <button data-lang="ps">پښتو</button>
+      <button data-lang="en">English</button>
+    </div>
+    <div class="tag" id="tag"></div>
+
+    <div id="downloads"></div>
+
+    <a class="browser" id="browserLink" href="/provider"></a>
+
+    <details id="notesMac">
+      <summary id="macSummary"></summary>
+      <div class="note" id="macNote"></div>
+    </details>
+    <details id="notesWin">
+      <summary id="winSummary"></summary>
+      <div class="note" id="winNote"></div>
+    </details>
+
+    <div class="fine" id="fine"></div>
+  </div>
+
+<script>
+  const REPO = 'https://github.com/aminullah-dev/stealth-service-vault-/releases/download/salon-desktop';
+  const FILES = {
+    macArm: REPO + '/SafeBeauty-Salon-mac-arm64.dmg',
+    macX64: REPO + '/SafeBeauty-Salon-mac-x64.dmg',
+    win:    REPO + '/SafeBeauty-Salon-win-x64.exe',
+  };
+
+  const T = {
+    sub:{fa:'اپ دسکتاپ سالن', ps:'د سالون ډیسکټاپ اپ', en:'Salon Desktop App'},
+    tag:{fa:'کنسول سالن خود را مثل یک برنامه‌ی واقعی روی مک یا ویندوز نصب کنید — با ورود امن و Touch ID.',
+         ps:'د خپل سالون کنسول د یوه اصلي پروګرام په څیر په مک یا وینډوز نصب کړئ — د خوندي ننوتلو او Touch ID سره.',
+         en:'Install your salon console as a real app on Mac or Windows — with secure sign-in and Touch ID.'},
+    macArm:{fa:['دانلود برای مک','Apple Silicon (M1/M2/M3…)'], ps:['د مک لپاره ډاونلوډ','Apple Silicon (M1/M2/M3…)'], en:['Download for Mac','Apple Silicon (M1/M2/M3…)']},
+    macX64:{fa:['مک با پردازنده‌ی Intel','نسخه‌ی Intel'], ps:['د Intel مک','د Intel نسخه'], en:['Mac with Intel chip','Intel build']},
+    win:{fa:['دانلود برای ویندوز','Windows 10/11 · 64-bit'], ps:['د وینډوز لپاره ډاونلوډ','Windows 10/11 · 64-bit'], en:['Download for Windows','Windows 10/11 · 64-bit']},
+    browser:{fa:'یا بدون نصب، در مرورگر باز کنید ↗', ps:'یا پرته له نصب، په براوزر کې پرانیزئ ↗', en:'Or open in your browser, no install ↗'},
+    macSummary:{fa:'راهنمای نصب روی مک', ps:'په مک نصب لارښود', en:'How to install on Mac'},
+    winSummary:{fa:'راهنمای نصب روی ویندوز', ps:'په وینډوز نصب لارښود', en:'How to install on Windows'},
+    macNote:{
+      fa:'۱) فایل <b>.dmg</b> را باز کنید و اپ را به پوشه‌ی <b>Applications</b> بکشید.<br>۲) بار اول چون اپ امضای اپل ندارد، مک هشدار می‌دهد. روی آیکون اپ <b>راست‌کلیک → Open → Open</b> کنید (فقط یک‌بار لازم است).',
+      ps:'۱) د <b>.dmg</b> فایل پرانیزئ او اپ <b>Applications</b> ته کش کړئ.<br>۲) لومړی ځل چې اپ د اپل لاسلیک نلري، مک خبرداری ورکوي. د اپ په آیکون <b>ښۍ کلیک → Open → Open</b> وکړئ (یوازې یو ځل).',
+      en:'1) Open the <b>.dmg</b> and drag the app into <b>Applications</b>.<br>2) On first launch, because the app is unsigned, macOS warns you. <b>Right-click the app → Open → Open</b> (needed once).'},
+    winNote:{
+      fa:'۱) فایل <b>.exe</b> را اجرا کنید.<br>۲) اگر ویندوز «Windows protected your PC» نشان داد، روی <b>More info → Run anyway</b> بزنید (چون اپ امضای تجاری ندارد).',
+      ps:'۱) د <b>.exe</b> فایل چلوئ.<br>۲) که وینډوز «Windows protected your PC» وښیي، په <b>More info → Run anyway</b> کلیک وکړئ (ځکه اپ سوداګریز لاسلیک نلري).',
+      en:'1) Run the <b>.exe</b>.<br>2) If Windows shows "Windows protected your PC", click <b>More info → Run anyway</b> (the app is not commercially signed).'},
+    fine:{fa:'همان شماره و رمزی که در اپ اندروید استفاده می‌کنید. فقط حساب‌های نقش «سالن‌دار» می‌توانند وارد شوند.',
+          ps:'هماغه شمېره او پټ نوم چې په اندروید اپ کې یې کاروئ. یوازې د «سالون‌دار» حسابونه ننوتلی شي.',
+          en:'Use the same phone and password as the Android app. Only salon-provider accounts can sign in.'},
+  };
+
+  let lang = 'fa';
+  try{ const s = localStorage.getItem('sb-lang'); if(['fa','ps','en'].includes(s)) lang = s; }catch(_){}
+  const $ = (id) => document.getElementById(id);
+  const tr = (k, i) => { const v = T[k][lang] || T[k].en; return (i!=null && Array.isArray(v)) ? v[i] : v; };
+
+  // Which platform is this visitor on? Put its button(s) first & bright.
+  function detectOS(){
+    const p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+    if(/mac/i.test(p)) return 'mac';
+    if(/win/i.test(p)) return 'win';
+    return 'other';
+  }
+
+  function dlButton(key, href, cls){
+    return `<a class="dl ${cls||''}" href="${href}">
+      <span class="ic">${key==='win'?'🪟':'🍎'}</span>
+      <span class="lbl">${tr(key,0)}<small>${tr(key,1)}</small></span>
+      <span>⬇</span></a>`;
+  }
+
+  function paint(){
+    document.documentElement.lang = lang;
+    document.documentElement.dir = (lang==='en') ? 'ltr' : 'rtl';
+    $('sub').textContent = tr('sub');
+    $('tag').textContent = tr('tag');
+    $('browserLink').textContent = tr('browser');
+    $('macSummary').textContent = tr('macSummary');
+    $('winSummary').textContent = tr('winSummary');
+    $('macNote').innerHTML = tr('macNote');
+    $('winNote').innerHTML = tr('winNote');
+    $('fine').textContent = tr('fine');
+    document.querySelectorAll('#langpick button').forEach(b => b.classList.toggle('on', b.dataset.lang===lang));
+
+    const os = detectOS();
+    const mac = dlButton('macArm', FILES.macArm) + dlButton('macX64', FILES.macX64, 'secondary');
+    const win = dlButton('win', FILES.win, os==='win' ? '' : 'secondary');
+    // Lead with the visitor's own platform.
+    $('downloads').innerHTML = (os==='win') ? (win + mac) : (mac + win);
+  }
+
+  document.querySelectorAll('#langpick button').forEach(b =>
+    b.addEventListener('click', () => { lang = b.dataset.lang; try{localStorage.setItem('sb-lang',lang);}catch(_){} paint(); }));
+
+  paint();
+</script>
+</body>
+</html>

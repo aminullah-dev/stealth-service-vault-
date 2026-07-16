@@ -1,0 +1,124 @@
+package com.safebeauty.app.viewmodel
+
+import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.google.firebase.functions.FirebaseFunctions
+import com.safebeauty.app.data.firebase.FirebaseAuthManager
+import com.safebeauty.app.data.firebase.FirestoreRepository
+import com.safebeauty.app.data.model.LoggedInUser
+import com.safebeauty.app.data.model.UserRole
+import com.safebeauty.app.data.repository.VaultRepository
+import com.safebeauty.app.security.PinHasher
+import com.safebeauty.app.util.PhoneUtils
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class AuthViewModel @Inject constructor(
+    private val firestoreRepository: FirestoreRepository,
+    private val firebaseAuth: FirebaseAuthManager,
+    private val pinHasher: PinHasher,
+    private val vaultRepository: VaultRepository,
+    @ApplicationContext private val context: Context
+) : ViewModel() {
+
+    private val functions = FirebaseFunctions.getInstance()
+
+    sealed class AuthState {
+        object Idle           : AuthState()
+        object Authenticating : AuthState()
+        data class Success(val user: LoggedInUser) : AuthState()
+        object Failure        : AuthState()
+    }
+
+    var authState: AuthState by mutableStateOf(AuthState.Idle)
+        private set
+
+    fun authenticate(phoneRaw: String, password: String) {
+        if (authState is AuthState.Authenticating) return
+
+        viewModelScope.launch {
+            authState = AuthState.Authenticating
+
+            runCatching {
+                // Password verification happens server-side (authenticateWithPassword)
+                // keyed by phone, so the credential table is never downloaded to the
+                // device. We send only the phone + password.
+                val phone = PhoneUtils.normalizeForLogin(phoneRaw)
+                val result = functions
+                    .getHttpsCallable("authenticateWithPassword")
+                    .call(hashMapOf("phone" to phone, "password" to password))
+                    .await()
+
+                @Suppress("UNCHECKED_CAST")
+                val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+
+                when (map["mode"] as? String) {
+                    "REAL" -> {
+                        val uid     = map["uid"]           as? String ?: ""
+                        val name    = map["name"]          as? String ?: ""
+                        val email   = map["firebaseEmail"] as? String ?: ""
+                        val salt    = map["salt"]          as? String ?: ""
+                        val roleStr = map["role"]          as? String ?: "CUSTOMER"
+                        val status  = map["status"]        as? String ?: "APPROVED"
+                        val rejectionReason = map["rejectionReason"] as? String ?: ""
+                        val kycStatus = map["kycStatus"]   as? String ?: "NONE"
+
+                        // Derive the Firebase Auth password from the password + salt
+                        // and sign in (unchanged auth mechanism — only the lookup moved).
+                        val authPassword = pinHasher.deriveAuthPassword(password, salt)
+                        firebaseAuth.signIn(email, authPassword).getOrThrow()
+
+                        // Bridge Firebase Auth's uid to this account's app-level uid so
+                        // firestore.rules' me() can resolve identity correctly (the two
+                        // schemes are different — see resolveAppUser in Cloud Functions).
+                        runCatching {
+                            functions.getHttpsCallable("syncUidMap")
+                                .call(hashMapOf("appUid" to uid))
+                                .await()
+                        }
+
+                        val role = when (roleStr) {
+                            "PROVIDER" -> UserRole.PROVIDER
+                            "ADMIN"    -> UserRole.ADMIN
+                            else       -> UserRole.CUSTOMER
+                        }
+                        vaultRepository.log("AUTH_SUCCESS", "uid=$uid role=$roleStr")
+
+                        val fcmToken = context
+                            .getSharedPreferences("fcm_prefs", Context.MODE_PRIVATE)
+                            .getString("fcm_token", null)
+                        if (!fcmToken.isNullOrBlank()) {
+                            runCatching { firestoreRepository.updateFcmToken(uid, fcmToken) }
+                        }
+
+                        authState = AuthState.Success(
+                            LoggedInUser(
+                                uid = uid, name = name, role = role,
+                                status = status, rejectionReason = rejectionReason,
+                                kycStatus = kycStatus
+                            )
+                        )
+                    }
+
+                    // Wrong phone/password — show an explicit error on the form.
+                    else -> authState = AuthState.Failure
+                }
+            }.onFailure {
+                // Network error, or the derived password didn't match Firebase Auth.
+                authState = AuthState.Failure
+            }
+        }
+    }
+
+    fun resetState() {
+        authState = AuthState.Idle
+    }
+}

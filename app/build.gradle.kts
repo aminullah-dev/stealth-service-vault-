@@ -1,21 +1,59 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.cert.X509Certificate
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("com.google.gms.google-services")
+    id("com.google.firebase.crashlytics")
+}
+
+// Load signing credentials from keystore.properties (never committed to git)
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) load(keystorePropsFile.inputStream())
+}
+
+// The official Google Play upload key. The release build is verified against this
+// fingerprint (see the verifyReleaseSigningKey task at the bottom of this file) so a
+// stray or wrong keystore can never produce a bundle that Play would reject — we
+// once shipped a build signed with the wrong key and only found out at upload time.
+// A certificate fingerprint is public info (it's in every published bundle), so it's
+// safe to commit. If you ever legitimately rotate the upload key, update this value.
+val expectedReleaseSha1 = "A0:04:BE:C3:6A:A0:D8:BF:A6:C8:8B:7F:DB:09:36:E5:1C:68:A6:F5"
+
+// Reads the SHA-1 fingerprint of the signing certificate for [alias] in [file],
+// or null if the keystore can't be opened (missing file / wrong password / alias).
+// Tries JKS then PKCS12 so it works regardless of how the keystore was created.
+fun releaseCertSha1(file: java.io.File, storePass: String, alias: String): String? {
+    if (!file.exists() || storePass.isBlank()) return null
+    for (type in listOf("JKS", "PKCS12")) {
+        val fp = runCatching {
+            val ks = KeyStore.getInstance(type)
+            file.inputStream().use { ks.load(it, storePass.toCharArray()) }
+            val cert = ks.getCertificate(alias) as? X509Certificate ?: return@runCatching null
+            MessageDigest.getInstance("SHA-1").digest(cert.encoded)
+                .joinToString(":") { "%02X".format(it) }
+        }.getOrNull()
+        if (fp != null) return fp
+    }
+    return null
 }
 
 android {
-    namespace = "com.security.stealthapp"
-    compileSdk = 34
+    namespace = "com.safebeauty.app"
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.security.stealthapp"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 35
+        versionCode = 10
+        versionName = "1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -23,10 +61,22 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // Resolve the keystore path relative to the repo root so a value like
+            // "app/safebeauty-release.jks" doesn't double up to "app/app/...".
+            storeFile     = rootProject.file(keystoreProps["storeFile"] ?: "app/safebeauty-release.jks")
+            storePassword = keystoreProps["storePassword"]      as String? ?: ""
+            keyAlias      = keystoreProps["keyAlias"]           as String? ?: "safebeauty"
+            keyPassword   = keystoreProps["keyPassword"]        as String? ?: ""
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled   = true
             isShrinkResources = true
+            signingConfig     = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -48,6 +98,8 @@ android {
 
     buildFeatures {
         compose = true
+        // Generates BuildConfig.DEBUG, used to disable crash collection in debug builds.
+        buildConfig = true
     }
 
     composeOptions {
@@ -60,13 +112,27 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
+    // Reads EXIF orientation so portfolio photos aren't stored sideways
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
+
+    // Biometric fast-unlock (BiometricPrompt + CryptoObject). Pulls in
+    // androidx.fragment, which MainActivity needs as its base class.
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
 
     // Compose BOM — aligns all Compose library versions
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
@@ -83,6 +149,8 @@ dependencies {
     // Lifecycle / ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
+    // ProcessLifecycleOwner lives in lifecycle-process (separate from lifecycle-runtime-ktx)
+    implementation("androidx.lifecycle:lifecycle-process:2.8.4")
 
     // Room
     implementation("androidx.room:room-runtime:2.6.1")
@@ -107,11 +175,18 @@ dependencies {
     implementation("androidx.security:security-crypto:1.0.0")
 
     // Firebase BOM — aligns all Firebase library versions.
-    // 33.1.0 is the last line compatible with compileSdk 34 AND still ships
-    // the -ktx artifacts. (BOM 34.x dropped firebase-*-ktx and needs sdk 35.)
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    // 33.x line ships -ktx artifacts; 34.x+ drops them and requires sdk 35.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-crashlytics-ktx")
+    implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-storage-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
+
+    // Coil — URL-based image loading in Compose (replaces in-memory Base64 bitmaps)
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Coroutines — play-services provides the Task.await() extension used by
     // FirebaseAuthManager / FirestoreRepository (NOT transitive; must be explicit)
@@ -120,10 +195,49 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.10")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("org.robolectric:robolectric:4.12.2")
+    testImplementation("androidx.test:core:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// ── Signing-key guardrail ───────────────────────────────────────────────────
+// Fail the release build immediately if it isn't signed with the official upload
+// key, instead of discovering it only when Google Play rejects the upload. Skips
+// cleanly when no release keystore is present (debug builds / CI without secrets).
+tasks.register("verifyReleaseSigningKey") {
+    doLast {
+        val f     = rootProject.file(keystoreProps["storeFile"] as String? ?: "app/safebeauty-release.jks")
+        val pass  = keystoreProps["storePassword"] as String? ?: ""
+        val alias = keystoreProps["keyAlias"]      as String? ?: "safebeauty"
+        if (!f.exists() || pass.isBlank()) {
+            logger.warn("verifyReleaseSigningKey: no release keystore present — skipping fingerprint check.")
+            return@doLast
+        }
+        val actual = releaseCertSha1(f, pass, alias) ?: throw GradleException(
+            "verifyReleaseSigningKey: couldn't read certificate for alias '$alias' in ${f.path} " +
+            "(wrong alias or store password?)."
+        )
+        if (!actual.equals(expectedReleaseSha1, ignoreCase = true)) {
+            throw GradleException(
+                "\n❌ Wrong signing key — Google Play will reject this bundle.\n" +
+                "     expected SHA1: $expectedReleaseSha1\n" +
+                "     actual   SHA1: $actual\n" +
+                "     keystore:      ${f.path} (alias '$alias')\n" +
+                "  Restore the official upload keystore before building the release.\n"
+            )
+        }
+        logger.lifecycle("✅ Release signing key verified ($actual)")
+    }
+}
+
+tasks.matching { it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+    dependsOn("verifyReleaseSigningKey")
 }

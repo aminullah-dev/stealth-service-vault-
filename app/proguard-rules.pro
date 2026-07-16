@@ -28,9 +28,9 @@
 -keep class androidx.security.crypto.** { *; }
 
 # Keep our app entities from being renamed/removed by R8
--keep class com.security.stealthapp.data.db.entities.** { *; }
--keep class com.security.stealthapp.data.db.dao.** { *; }
--keep class com.security.stealthapp.data.db.AppDatabase { *; }
+-keep class com.safebeauty.app.data.db.entities.** { *; }
+-keep class com.safebeauty.app.data.db.dao.** { *; }
+-keep class com.safebeauty.app.data.db.AppDatabase { *; }
 
 # Firebase
 -keep class com.google.firebase.** { *; }
@@ -38,6 +38,11 @@
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 
+# Crashlytics — keep file names and line numbers so deobfuscated crash
+# reports remain readable, and preserve custom exception classes.
+-keepattributes SourceFile,LineNumberTable
+-keep public class * extends java.lang.Exception
+
 # Firestore data models (no-arg constructors needed for deserialization)
--keep class com.security.stealthapp.data.firebase.** { *; }
--keep class com.security.stealthapp.data.model.** { *; }
+-keep class com.safebeauty.app.data.firebase.** { *; }
+-keep class com.safebeauty.app.data.model.** { *; }
