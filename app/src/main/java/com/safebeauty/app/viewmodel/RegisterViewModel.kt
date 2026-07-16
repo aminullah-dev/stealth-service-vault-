@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
@@ -31,7 +30,6 @@ class RegisterViewModel @Inject constructor(
     sealed class RegisterState {
         object Idle       : RegisterState()
         object Loading    : RegisterState()
-        object AwaitingOtp : RegisterState()       // phone free; waiting for SMS code
         data class CustomerSuccess(val name: String) : RegisterState()
         object ProviderPending : RegisterState()   // needs admin approval
         data class Error(val message: String) : RegisterState()
@@ -91,9 +89,10 @@ class RegisterViewModel @Inject constructor(
     // ── Registration ──────────────────────────────────────────────────────────
 
     /**
-     * Step 1 of registration: validate the form and confirm the phone number is
-     * not already taken, then hand off to the UI to send an SMS OTP. We verify the
-     * number BEFORE creating anything, so we never text a code for a duplicate.
+     * Registers the account: validate the form, confirm the phone number isn't
+     * already taken (server-side, since the phone is the login identifier), then
+     * create the account. Registration is phone + password — there is no SMS OTP
+     * step (phone ownership isn't verified via SMS).
      */
     fun startRegistration() {
         val error = validate()
@@ -118,24 +117,8 @@ class RegisterViewModel @Inject constructor(
                 state = RegisterState.Error("An account with this phone number already exists.")
                 return@launch
             }
-            // Phone is free — the UI now sends the SMS code and collects it.
-            state = RegisterState.AwaitingOtp
-        }
-    }
-
-    /**
-     * Step 2: called once the SMS OTP has been entered and turned into a verified
-     * [phoneCredential]. Creates the account and *links* the credential to it to
-     * prove the user owns the number; if linking fails (wrong/expired code), the
-     * half-created account is rolled back so nothing partial is left behind.
-     */
-    fun completeRegistration(phoneCredential: PhoneAuthCredential) {
-        viewModelScope.launch {
-            state = RegisterState.Loading
 
             runCatching {
-                val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
-
                 val uid           = UUID.randomUUID().toString()
                 val salt          = pinHasher.generateSalt()
                 // pinHash/salt now hash the chosen PASSWORD (same PBKDF2 machinery
@@ -157,14 +140,6 @@ class RegisterViewModel @Inject constructor(
                     .orEmpty()
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
-                // Prove the user owns the phone by linking the SMS-verified
-                // credential to the fresh account. A wrong/expired code throws here,
-                // so we delete the just-created account and surface the error rather
-                // than leaving a half-registered, unverified user behind.
-                firebaseAuth.linkPhoneCredential(phoneCredential).getOrElse { e ->
-                    firebaseAuth.deleteCurrentUser()
-                    throw e
-                }
 
                 firestoreRepository.createUser(
                     UserDocument(
