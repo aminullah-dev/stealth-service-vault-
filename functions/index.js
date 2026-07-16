@@ -2875,3 +2875,53 @@ exports.adminGrantCredit = onCall({ region: "us-central1" }, async (request) => 
   await logAdminAction(me, "GRANT_CREDIT", { customerId, amount, reason });
   return { ok: true };
 });
+
+// ── Social feed: notify a salon's followers when it shares a new post ──────────
+// Followers are the customers who favorited the salon (same list the offer
+// fan-out uses). Mirrors pushOfferToFavoriters.
+exports.pushPostToFollowers = onDocumentCreated(
+  "salon_posts/{postId}",
+  async (event) => {
+    const post = event.data && event.data.data();
+    if (!post || !post.salonId) return;
+
+    const favs = await db
+      .collection("favorites")
+      .where("salonId", "==", post.salonId)
+      .limit(500)
+      .get();
+    if (favs.empty) return;
+
+    const salon = post.salonName || "A salon you follow";
+    const title = "New photos 📸";
+    const body  = post.caption
+      ? `${salon}: ${post.caption}`
+      : `${salon} shared new work.`;
+
+    let batch = db.batch();
+    let pending = 0;
+    let total = 0;
+    for (const fav of favs.docs) {
+      const customerId = fav.data().customerId;
+      if (!customerId) continue;
+      batch.set(db.collection("notifications").doc(), {
+        recipientId: customerId,
+        type:        "POST",
+        title,
+        body:        body.slice(0, 180),
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   post.salonId,
+      });
+      pending++;
+      total++;
+      if (pending >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        pending = 0;
+      }
+    }
+    if (pending > 0) await batch.commit();
+    logger.log(`pushPostToFollowers: notified ${total} follower(s) of salon ${post.salonId}`);
+  }
+);

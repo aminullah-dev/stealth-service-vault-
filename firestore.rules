@@ -331,6 +331,23 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── salon_posts ──────────────────────────────────────────────────────────────
+    // The social discovery feed: before/after & sample-work photos a salon shares.
+    // Publicly readable to signed-in users (the feed); only the owning provider
+    // posts, and only the owner or an admin can delete. Followers (favoriters) are
+    // notified via the pushPostToFollowers trigger. Same ownership model as the
+    // gallery; posts are immutable once created.
+    match /salon_posts/{postId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
     // ── favorites ────────────────────────────────────────────────────────────────
     // A customer's favorited salons, mirrored from the on-device list so the
     // server can notify favoriters when their salon posts an offer (see

@@ -523,6 +523,16 @@ const STR = {
   staffActive:{en:'Active', fa:'فعال', ps:'فعال'},
   staffInactive:{en:'Hidden', fa:'غیرفعال', ps:'پټ'},
   noStaff:{en:'No staff yet. Solo salon? You can skip this.', fa:'هنوز کارمندی نیست. سالن تک‌نفره؟ می‌توانید رد کنید.', ps:'تر اوسه کارمند نشته. یوازیني سالون؟ تیریدلی شئ.'},
+  // Feed (social posts)
+  feed:{en:'Feed', fa:'فید', ps:'فیډ'},
+  feedTitle:{en:'Share a post', fa:'انتشار پست', ps:'پوسټ خپرول'},
+  feedHint:{en:'Photos you share appear in the discovery feed and notify your followers.', fa:'عکس‌هایی که منتشر می‌کنید در فید کشف نمایش داده می‌شوند و به دنبال‌کنندگان اعلان می‌رود.', ps:'هغه عکسونه چې خپروئ د کشف په فیډ کې ښکاري او ستاسو پیروانو ته خبرتیا ورکوي.'},
+  captionPh:{en:'Caption (optional)', fa:'کپشن (اختیاری)', ps:'سرلیک (اختیاري)'},
+  sharePost:{en:'Share', fa:'انتشار', ps:'خپرول'},
+  yourPosts:{en:'Your posts', fa:'پست‌های شما', ps:'ستاسو پوسټونه'},
+  noPosts:{en:'No posts yet — share your first.', fa:'هنوز پستی نیست — اولی را منتشر کنید.', ps:'تر اوسه پوسټ نشته — لومړی یې خپور کړئ.'},
+  deletePostConfirm:{en:'Delete this post?', fa:'این پست حذف شود؟', ps:'دا پوسټ ړنګ شي؟'},
+  pickImageFirst:{en:'Choose a photo first.', fa:'ابتدا یک عکس انتخاب کنید.', ps:'لومړی یو عکس وټاکئ.'},
   // Days
   Saturday:{en:'Saturday', fa:'شنبه', ps:'شنبه'},
   Sunday:{en:'Sunday', fa:'یکشنبه', ps:'یکشنبه'},
@@ -706,6 +716,7 @@ const TABS = [
   { id:'reviews',  icon:'⭐', render:renderReviews },
   { id:'income',   icon:'💰', render:renderIncome },
   { id:'offers',   icon:'🏷️', render:renderOffers },
+  { id:'feed',     icon:'📸', render:renderFeed },
   { id:'gallery',  icon:'🖼️', render:renderGallery },
   { id:'staff',    icon:'💇', render:renderStaff },
   { id:'profile',  icon:'✂️', render:renderProfile },
@@ -1080,6 +1091,78 @@ function pickImage(onFile){
   inp.click();
 }
 function validImage(f){ return /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 2*1024*1024; }
+
+// ── Feed (social posts → discovery feed + follower notifications) ───────────────
+let feedDraftFile = null;   // the image chosen for the next post
+function renderFeed(){
+  if(!salonId){ $('view').innerHTML = `<div class="empty">${t('noSalon')}</div>`; return; }
+  feedDraftFile = null;
+  const unsubFn = onSnapshot(query(collection(db,'salon_posts'), where('salonId','==',salonId)), (snap)=>{
+    const posts = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    $('view').innerHTML =
+      `<div class="card-pad">
+         <span class="fl">${t('feedTitle')}</span>
+         <div class="meta" style="color:var(--muted);margin-bottom:11px">${t('feedHint')}</div>
+         <div id="pf-preview"></div>
+         <div class="inline" style="margin-bottom:10px">
+           <div><button id="post-pick" class="btn-sm" style="background:var(--surface);color:var(--deep)">🖼️ ${t('addPhoto')}</button></div>
+         </div>
+         <input id="post-caption" class="mini" placeholder="${esc(t('captionPh'))}" style="margin-bottom:11px" />
+         <button id="post-share" class="btn" style="width:auto;padding:11px 26px">${t('sharePost')}</button>
+       </div>
+       <div class="section-title">${t('yourPosts')} (${posts.length})</div>` +
+      (posts.length ? posts.map(p => `
+        <div class="row wide" data-id="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">
+          <img src="${esc(p.imageUrl||'')}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px" />
+          ${p.caption?`<div style="margin-top:8px;font-size:13px;color:var(--ink)">${esc(p.caption)}</div>`:''}
+          <div class="meta" style="margin-top:5px">${esc(fmtD(p.createdAt))}</div>
+          <div class="actions" style="margin-top:9px"><button class="btn-sm post-del" style="background:var(--red)">${t('del')}</button></div>
+        </div>`).join('') : `<div class="empty">${t('noPosts')}</div>`);
+
+    const paintPreview = () => {
+      const host = $('pf-preview'); if(!host) return;
+      if(feedDraftFile){
+        const url = URL.createObjectURL(feedDraftFile);
+        host.innerHTML = `<img src="${url}" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:10px" />`;
+      } else host.innerHTML = '';
+    };
+    $('post-pick').onclick = () => pickImage(f => {
+      if(!validImage(f)){ alert(t('imageTooBig')); return; }
+      feedDraftFile = f; paintPreview();
+    });
+    $('post-share').onclick = async (e) => {
+      if(!feedDraftFile){ alert(t('pickImageFirst')); return; }
+      const btn = e.target, lbl = btn.textContent; btn.disabled = true; btn.textContent = t('uploading');
+      try{
+        const pRef = doc(collection(db,'salon_posts'));
+        const path = `salon_posts/${salonId}/${pRef.id}.jpg`;
+        await uploadBytes(sref(storage, path), feedDraftFile, { contentType: feedDraftFile.type });
+        const url = await getDownloadURL(sref(storage, path));
+        await setDoc(pRef, {
+          id: pRef.id, salonId, providerId: provider.uid,
+          salonName: (salon&&salon.salonName)||'',
+          imageUrl: url, storagePath: path,
+          caption: ($('post-caption').value||'').trim().slice(0,300),
+          createdAt: Date.now()
+        });
+        feedDraftFile = null;
+      }catch(err){ alert(t('uploadErr', err.message||'')); }
+      finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+    paintPreview();
+
+    $('view').querySelectorAll('.row').forEach(row => {
+      row.querySelector('.post-del').onclick = async () => {
+        if(!confirm(t('deletePostConfirm'))) return;
+        try{
+          await deleteDoc(doc(db,'salon_posts', row.dataset.id));
+          if(row.dataset.path){ try{ await deleteObject(sref(storage, row.dataset.path)); }catch(_){} }
+        }catch(e){ alert(e.message); }
+      };
+    });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
+  unsub.push(unsubFn);
+}
 
 // ── Gallery (portfolio photos) ──────────────────────────────────────────────────
 async function addGalleryPhoto(file, btn){
