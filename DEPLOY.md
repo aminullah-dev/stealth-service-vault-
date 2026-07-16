@@ -10,8 +10,9 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 | Cloud Functions (`functions/index.js`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
 | Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
-| Web admin console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
+| Web admin / salon console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
 | Desktop admin app (`desktop/main.js`, `desktop/preload.js`, `desktop/package.json`) | `cd desktop && npm run dist:mac` | Reinstall the `.dmg` from `desktop/dist/` |
+| Desktop salon app (`desktop-provider/main.js`, `desktop-provider/preload.js`, `desktop-provider/package.json`) | `cd desktop-provider && npm run dist:mac` | Reinstall the `.dmg` from `desktop-provider/dist/` |
 
 Deploy several at once: `firebase deploy --only functions,firestore:rules,storage,hosting`
 
@@ -19,10 +20,12 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,storag
 - **App-only change?** No Firebase deploy needed — just rebuild the app.
 - **Rules changed but not deployed** → the app silently gets "permission denied"
   (errors are swallowed, so nothing shows). Always deploy rules after editing them.
-- **Desktop app**: it loads the *hosted* console, so console/web changes need
-  only `firebase deploy --only hosting` — rebuild the `.dmg` **only** when files
-  under `desktop/` change.
-- **Unsigned Mac app** first launch: `xattr -cr "/Applications/SafeBeauty Admin.app"` then open.
+- **Desktop apps** (`desktop/` admin, `desktop-provider/` salon): each loads its
+  *hosted* console (`/admin`, `/provider`), so console/web changes need only
+  `firebase deploy --only hosting` — rebuild a `.dmg` **only** when files under
+  that app's folder change. Both consoles ship from the single `public/` deploy.
+- **Unsigned Mac app** first launch: `xattr -cr "/Applications/SafeBeauty Admin.app"`
+  (or `"/Applications/SafeBeauty for Salons.app"`) then open.
 - **Firebase asks "delete these indexes?"** → answer `n`.
 - **Firebase asks "delete function `authenticateWithPin`?"** → answer `y`. It was
   removed on purpose (a security fix — it was a pre-auth account-takeover oracle);
@@ -58,7 +61,14 @@ Google Play only accepts uploads signed with the **official upload key**:
 - **"native code … debug symbols not uploaded"** → cosmetic; only affects crash
   readability. Optional to fix later with a symbols upload.
 
-## Build the admin app
+## Build the desktop apps
+Admin console (`desktop/`):
 - Run without installing: `cd desktop && npm start`
 - Mac installer: `npm run dist:mac` → `desktop/dist/*.dmg`
 - Windows installer: `npm run dist:win` (must run on Windows)
+
+Salon console (`desktop-provider/`) — same commands, own folder:
+- Run without installing: `cd desktop-provider && npm start`
+- Mac installer: `npm run dist:mac` → `desktop-provider/dist/*.dmg`
+- Windows installer: `npm run dist:win` (must run on Windows)
+- Loads `/provider`; only PROVIDER-role accounts can sign in.

@@ -12,9 +12,13 @@ backend for everything.
   Single file `index.js`. Project id `safebeauty`, Blaze plan.
 - `firestore.rules` / `storage.rules` — security rules.
 - `public/` — Firebase Hosting: `admin/index.html` (self‑contained admin
-  console), `privacy.html`, `terms.html`, `payment/`.
-- `desktop/` — Electron wrapper that opens the hosted admin console as a native
-  Mac/Windows app, with macOS Touch ID sign‑in.
+  console), `provider/index.html` (self‑contained salon‑owner console — same
+  design system/auth as admin, but PROVIDER‑role only), `privacy.html`,
+  `terms.html`, `payment/`. `cleanUrls` serves them at `/admin` and `/provider`.
+- `desktop/` — Electron wrapper that opens the hosted admin console (`/admin`)
+  as a native Mac/Windows app, with macOS Touch ID sign‑in.
+- `desktop-provider/` — the same Electron wrapper for the salon console
+  (`/provider`); separate appId + Touch ID keychain entry so both can coexist.
 - `play-store/` — Play Store listing assets.
 
 ## How to run / deploy
