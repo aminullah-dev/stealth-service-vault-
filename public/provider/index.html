@@ -219,6 +219,22 @@
     .day-row .dl{grid-column:1 / -1}
   }
 
+  /* ── Gallery + staff photos ────────────────────────────────────── */
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+  .g-cell{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);aspect-ratio:1/1;background:var(--surface)}
+  .g-cell img{width:100%;height:100%;object-fit:cover;display:block}
+  .g-cover{position:absolute;top:6px;inset-inline-start:6px;background:var(--grad);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:12px}
+  .g-actions{position:absolute;top:6px;inset-inline-end:6px;display:flex;gap:5px}
+  .g-actions button{width:28px;height:28px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;transition:opacity .14s}
+  .g-actions button:hover{opacity:.8}
+  .g-actions .g-del{background:rgba(192,57,43,.92)}
+  .staff-photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+  .staff-photos .sp{position:relative;width:58px;height:58px;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .staff-photos .sp img{width:100%;height:100%;object-fit:cover;display:block}
+  .staff-photos .sp-del{position:absolute;top:2px;inset-inline-end:2px;width:19px;height:19px;border-radius:50%;background:rgba(192,57,43,.92);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+  .staff-photos .sp-add{width:58px;height:58px;border-radius:10px;border:1.5px dashed var(--line);background:var(--surface);color:var(--rose);font-size:22px;font-weight:700}
+  .staff-photos .sp-add:hover{border-color:var(--rose)}
+
   /* Latin/numeric inputs stay LTR even in an RTL layout. */
   input[type="tel"],input[type="password"],input[type="number"],input[type="time"]{direction:ltr}
 
@@ -322,6 +338,8 @@ import { getFirestore, collection, query, where, getDocs, getDoc, doc,
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
@@ -331,10 +349,11 @@ const firebaseConfig = {
   messagingSenderId: "238802374530",
   appId: "1:238802374530:android:f2617130bc9a9644b3c99b"
 };
-const app  = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db   = getFirestore(app);
-const fns  = getFunctions(app, 'us-central1');
+const app     = initializeApp(firebaseConfig);
+const auth    = getAuth(app);
+const db      = getFirestore(app);
+const fns     = getFunctions(app, 'us-central1');
+const storage = getStorage(app);
 
 // ── i18n ──────────────────────────────────────────────────────────────────────
 // English / Dari (fa) / Pashto (ps). Values are strings or (…args)=>string.
@@ -482,6 +501,28 @@ const STR = {
   savedLive:{en:'✓ Saved. Your changes are live.', fa:'✓ ذخیره شد. تغییرات شما فعال شد.', ps:'✓ خوندي شو. ستاسو بدلونونه ژوندي دي.'},
   saveErr:{en:(m)=>`Couldn't save: ${m}`, fa:(m)=>`ذخیره ممکن نشد: ${m}`, ps:(m)=>`خوندي کول ونشول: ${m}`},
   salonNotLoaded:{en:'Salon not loaded.', fa:'سالن بارگذاری نشد.', ps:'سالون نه دی پورته شوی.'},
+  // Gallery
+  gallery:{en:'Gallery', fa:'گالری', ps:'ګالري'},
+  galleryTitle:{en:'Portfolio photos', fa:'عکس‌های نمونه‌کار', ps:'د نمونه‌کار عکسونه'},
+  galleryHint:{en:'Sample work shown to customers on your salon card.', fa:'عکس‌های نمونه‌کار سالن که مشتریان روی کارت شما می‌بینند.', ps:'د سالون د نمونه‌کار عکسونه چې پیرودونکي ستاسو کارت باندې ویني.'},
+  addPhoto:{en:'Add photo', fa:'افزودن عکس', ps:'عکس زیاتول'},
+  uploading:{en:'Uploading…', fa:'در حال آپلود…', ps:'پورته کیږي…'},
+  setCover:{en:'Set as cover', fa:'انتخاب به‌عنوان کاور', ps:'د کوور په توګه وټاکئ'},
+  coverLabel:{en:'Cover', fa:'کاور', ps:'کوور'},
+  noPhotos:{en:'No photos yet — add your first.', fa:'هنوز عکسی نیست — اولی را اضافه کنید.', ps:'تر اوسه عکس نشته — لومړی یې زیات کړئ.'},
+  deletePhotoConfirm:{en:'Delete this photo?', fa:'این عکس حذف شود؟', ps:'دا عکس ړنګ شي؟'},
+  imageTooBig:{en:'Image must be JPG/PNG/WebP and under 2 MB.', fa:'عکس باید JPG/PNG/WebP و کمتر از ۲ مگابایت باشد.', ps:'عکس باید JPG/PNG/WebP او له ۲ MB لږ وي.'},
+  uploadErr:{en:(m)=>`Upload failed: ${m}`, fa:(m)=>`آپلود ناموفق بود: ${m}`, ps:(m)=>`پورته کول ناکام شو: ${m}`},
+  // Staff
+  staff:{en:'Staff', fa:'کارکنان', ps:'کارمندان'},
+  addStaffTitle:{en:'Add a staff member', fa:'افزودن کارمند', ps:'کارمند زیاتول'},
+  teamTitle:{en:'Your team', fa:'تیم شما', ps:'ستاسو ټیم'},
+  staffNamePh:{en:'Staff name', fa:'نام کارمند', ps:'د کارمند نوم'},
+  staffSpecialtyPh:{en:'Specialty (e.g. Hair, Makeup)', fa:'تخصص (مثلاً مو، آرایش)', ps:'تخصص (لکه ویښتان، آرایش)'},
+  addStaff:{en:'Add', fa:'افزودن', ps:'زیاتول'},
+  staffActive:{en:'Active', fa:'فعال', ps:'فعال'},
+  staffInactive:{en:'Hidden', fa:'غیرفعال', ps:'پټ'},
+  noStaff:{en:'No staff yet. Solo salon? You can skip this.', fa:'هنوز کارمندی نیست. سالن تک‌نفره؟ می‌توانید رد کنید.', ps:'تر اوسه کارمند نشته. یوازیني سالون؟ تیریدلی شئ.'},
   // Days
   Saturday:{en:'Saturday', fa:'شنبه', ps:'شنبه'},
   Sunday:{en:'Sunday', fa:'یکشنبه', ps:'یکشنبه'},
@@ -665,6 +706,8 @@ const TABS = [
   { id:'reviews',  icon:'⭐', render:renderReviews },
   { id:'income',   icon:'💰', render:renderIncome },
   { id:'offers',   icon:'🏷️', render:renderOffers },
+  { id:'gallery',  icon:'🖼️', render:renderGallery },
+  { id:'staff',    icon:'💇', render:renderStaff },
   { id:'profile',  icon:'✂️', render:renderProfile },
 ];
 let activeTab = 'today';
@@ -1027,6 +1070,136 @@ function renderOffers(){
     });
   }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
   unsub.push(unsubFn);
+}
+
+// ── Shared image helpers ────────────────────────────────────────────────────────
+function pickImage(onFile){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp';
+  inp.onchange = () => { const f = inp.files && inp.files[0]; if(f) onFile(f); };
+  inp.click();
+}
+function validImage(f){ return /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 2*1024*1024; }
+
+// ── Gallery (portfolio photos) ──────────────────────────────────────────────────
+async function addGalleryPhoto(file, btn){
+  if(!validImage(file)){ alert(t('imageTooBig')); return; }
+  const lbl = btn.textContent; btn.disabled = true; btn.textContent = t('uploading');
+  try{
+    const gRef = doc(collection(db,'salon_gallery'));
+    const path = `salon_gallery/${salonId}/${gRef.id}.jpg`;
+    await uploadBytes(sref(storage, path), file, { contentType: file.type });
+    const url = await getDownloadURL(sref(storage, path));
+    await setDoc(gRef, { id:gRef.id, salonId, imageUrl:url, imageBase64:'', storagePath:path, createdAt: Date.now() });
+  }catch(e){ alert(t('uploadErr', e.message||'')); }
+  finally{ btn.disabled = false; btn.textContent = lbl; }
+}
+function renderGallery(){
+  if(!salonId){ $('view').innerHTML = `<div class="empty">${t('noSalon')}</div>`; return; }
+  const unsubFn = onSnapshot(query(collection(db,'salon_gallery'), where('salonId','==',salonId)), (snap)=>{
+    const imgs = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    const cover = (salon && salon.coverImageUrl) || '';
+    $('view').innerHTML =
+      `<div class="card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+         <div><span class="fl">${t('galleryTitle')}</span><div class="meta" style="color:var(--muted)">${t('galleryHint')}</div></div>
+         <button id="g-add" class="btn" style="width:auto;padding:11px 22px">${t('addPhoto')}</button>
+       </div>` +
+      (imgs.length ? `<div class="gallery-grid">` + imgs.map(im => {
+        const isCover = im.imageUrl && im.imageUrl === cover;
+        return `<div class="g-cell" data-id="${esc(im.id)}" data-url="${esc(im.imageUrl||'')}" data-path="${esc(im.storagePath||'')}">
+          <img src="${esc(im.imageUrl||'')}" alt="" />
+          ${isCover ? `<span class="g-cover">${t('coverLabel')}</span>` : ''}
+          <div class="g-actions">
+            ${isCover ? '' : `<button class="g-cover-btn" title="${esc(t('setCover'))}">★</button>`}
+            <button class="g-del" title="${esc(t('del'))}">✕</button>
+          </div>
+        </div>`;
+      }).join('') + `</div>` : `<div class="empty">${t('noPhotos')}</div>`);
+    $('g-add').onclick = (e) => pickImage(f => addGalleryPhoto(f, e.target));
+    $('view').querySelectorAll('.g-cell').forEach(cell => {
+      const cb = cell.querySelector('.g-cover-btn');
+      if(cb) cb.onclick = async () => {
+        try{ await updateDoc(doc(db,'salons',salonId), { coverImageUrl: cell.dataset.url }); }
+        catch(e){ alert(e.message); }
+      };
+      cell.querySelector('.g-del').onclick = async () => {
+        if(!confirm(t('deletePhotoConfirm'))) return;
+        try{
+          await deleteDoc(doc(db,'salon_gallery', cell.dataset.id));
+          if(cell.dataset.path){ try{ await deleteObject(sref(storage, cell.dataset.path)); }catch(_){} }
+          if(cell.dataset.url && salon && salon.coverImageUrl === cell.dataset.url){
+            await updateDoc(doc(db,'salons',salonId), { coverImageUrl: '' });
+          }
+        }catch(e){ alert(e.message); }
+      };
+    });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
+  unsub.push(unsubFn);
+}
+
+// ── Staff roster (embedded on the salon doc) ────────────────────────────────────
+async function saveStaff(next){
+  try{ await updateDoc(doc(db,'salons',salonId), { staff: next }); salon.staff = next; renderStaff(); }
+  catch(e){ alert(t('saveErr', e.message||'')); }
+}
+async function addStaffPhoto(member, file){
+  if(!validImage(file)){ alert(t('imageTooBig')); return; }
+  if((member.photoUrls||[]).length >= 4) return;
+  try{
+    const idx  = Date.now() & 0x7fffffff;
+    const path = `staff_portfolio/${salonId}/${member.id}_${idx}.jpg`;
+    await uploadBytes(sref(storage, path), file, { contentType: file.type });
+    const url = await getDownloadURL(sref(storage, path));
+    const next = (salon.staff||[]).map(x => x.id===member.id ? { ...x, photoUrls:[...(x.photoUrls||[]), url] } : x);
+    await saveStaff(next);
+  }catch(e){ alert(t('uploadErr', e.message||'')); }
+}
+function renderStaff(){
+  if(!salon){ $('view').innerHTML = `<div class="empty">${t('salonNotLoaded')}</div>`; return; }
+  const staff = salon.staff || [];
+  $('view').innerHTML =
+    `<div class="card-pad">
+       <span class="fl">${t('addStaffTitle')}</span>
+       <input id="st-name" class="mini" placeholder="${esc(t('staffNamePh'))}" style="margin-bottom:9px" />
+       <div class="inline">
+         <div><input id="st-spec" class="mini" placeholder="${esc(t('staffSpecialtyPh'))}" /></div>
+         <button id="st-add" class="btn-sm" style="background:var(--rose)">${t('addStaff')}</button>
+       </div>
+     </div>
+     <div class="section-title">${t('teamTitle')} (${staff.length})</div>` +
+    (staff.length ? staff.map(m => `
+      <div class="row wide" data-id="${esc(m.id)}">
+        <h3>${esc(m.name||'')} ${m.active ? `<span class="pill ok">${t('staffActive')}</span>` : `<span class="pill bad">${t('staffInactive')}</span>`}</h3>
+        ${m.specialty ? `<div class="meta">${esc(m.specialty)}</div>` : ''}
+        <div class="staff-photos">
+          ${(m.photoUrls||[]).map(u => `<span class="sp" data-url="${esc(u)}"><img src="${esc(u)}" alt="" /><button class="sp-del" title="${esc(t('del'))}">✕</button></span>`).join('')}
+          ${(m.photoUrls||[]).length < 4 ? `<button class="sp-add" title="${esc(t('addPhoto'))}">＋</button>` : ''}
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn-sm st-toggle" style="background:${m.active?'var(--gold)':'var(--green)'}">${m.active?t('turnOff'):t('turnOn')}</button>
+          <button class="btn-sm st-remove" style="background:var(--red)">${t('del')}</button>
+        </div>
+      </div>`).join('') : `<div class="empty">${t('noStaff')}</div>`);
+
+  $('st-add').onclick = () => {
+    const name = ($('st-name').value||'').trim();
+    if(!name) { $('st-name').focus(); return; }
+    saveStaff([...(salon.staff||[]), { id: crypto.randomUUID(), name, specialty:($('st-spec').value||'').trim(), photoUrls:[], active:true }]);
+  };
+  $('st-name').addEventListener('keydown', e => { if(e.key==='Enter') $('st-add').click(); });
+  $('view').querySelectorAll('.row').forEach(row => {
+    const id = row.dataset.id;
+    const m  = (salon.staff||[]).find(x => x.id === id);
+    if(!m) return;
+    row.querySelector('.st-toggle').onclick = () => saveStaff((salon.staff||[]).map(x => x.id===id ? { ...x, active: !x.active } : x));
+    row.querySelector('.st-remove').onclick = () => { if(confirm(t('del')+'؟')) saveStaff((salon.staff||[]).filter(x => x.id !== id)); };
+    const spAdd = row.querySelector('.sp-add');
+    if(spAdd) spAdd.onclick = () => pickImage(f => addStaffPhoto(m, f));
+    row.querySelectorAll('.sp-del').forEach(btn => btn.onclick = () => {
+      const url = btn.parentElement.dataset.url;
+      saveStaff((salon.staff||[]).map(x => x.id===id ? { ...x, photoUrls:(x.photoUrls||[]).filter(u => u !== url) } : x));
+    });
+  });
 }
 
 // ── Profile (services, prices, hours, deals, payout account) ────────────────────
