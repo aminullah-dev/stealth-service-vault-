@@ -775,6 +775,74 @@ exports.createGiftCardSession = onCall(
   }
 );
 
+// ── createWalletTopUp (callable) ──────────────────────────────────────────────
+// Top up your OWN wallet (referralCredit) with HesabPay. On payment success (see
+// hesabPayWebhook) the amount is added to the caller's referralCredit, which
+// auto-applies at their next checkout — no redemption step. referralCredit is
+// client-frozen, so this Admin-SDK callable + webhook is the only credit path.
+// Online (HesabPay) only; the amount is validated/recomputed server-side so the
+// client can't spoof it. Rides the same payments collection tagged
+// type:"WALLET_TOPUP".
+exports.createWalletTopUp = onCall(
+  { secrets: [HESAB_API_KEY], region: "us-central1" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const buyer = await resolveAppUser(request);
+
+    const { amount } = request.data || {};
+    const top = validateGiftAmount(amount);
+    if (!top.ok) {
+      throw new HttpsError("invalid-argument", "Enter a valid top-up amount (50–50,000 AFN).");
+    }
+
+    const apiKey = HESAB_API_KEY.value();
+    if (!apiKey) throw new HttpsError("failed-precondition", "Payment is not configured.");
+
+    const paymentRef = db.collection("payments").doc();
+    await paymentRef.set({
+      type:           "WALLET_TOPUP",
+      buyerUid:       buyer.uid,
+      amount:         top.value,
+      currency:       "AFN",
+      status:         "PENDING",
+      method:         "ONLINE",
+      hesabSessionId: "",
+      createdAt:      Date.now(),
+    });
+
+    let sessionUrl = "";
+    let sessionId  = "";
+    try {
+      const redirectBase = HESAB_REDIRECT_BASE.value();
+      const res = await fetch(`${HESAB_BASE_URL.value()}/payment/create-session`, {
+        method:  "POST",
+        headers: hesabHeaders(apiKey),
+        body: JSON.stringify({
+          email: buyer.email || `user_${buyer.uid}@safebeauty.af`,
+          items: [{ id: paymentRef.id, name: `SafeBeauty wallet top-up — AFN ${top.value}`, price: top.value }],
+          redirect_success_url: `${redirectBase}/payment/success?paymentId=${paymentRef.id}`,
+          redirect_failure_url: `${redirectBase}/payment/failure?paymentId=${paymentRef.id}`,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) {
+        throw new Error(`HesabPay error ${res.status}: ${body.message || JSON.stringify(body)}`);
+      }
+      sessionUrl = body.url || body.payment_url || "";
+      sessionId  = body.session_id || "";
+      if (!sessionUrl) throw new Error("HesabPay returned no checkout url.");
+    } catch (err) {
+      // Roll back so a failed create-session leaves no dangling PENDING top-up.
+      await paymentRef.update({ status: "FAILED" });
+      logger.error("createWalletTopUp failed", err);
+      throw new HttpsError("internal", String(err.message || err));
+    }
+
+    await paymentRef.update({ hesabSessionId: sessionId });
+    return { paymentId: paymentRef.id, checkoutUrl: sessionUrl, amount: top.value };
+  }
+);
+
 // ── createTipSession (callable) ───────────────────────────────────────────────
 // Tip the provider for a completed visit. The whole amount goes to the provider
 // (no commission) — it's added to provider_balances.owedAmount on payment success
@@ -1118,6 +1186,31 @@ exports.hesabPayWebhook = onRequest(
               isRead:      false,
               createdAt:   Date.now(),
               relatedId:   fresh.giftCardId || "",
+            });
+            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+            return "paid";
+          }
+
+          // Wallet top-up: credit the buyer's own wallet (referralCredit) so it
+          // auto-applies at their next checkout. No appointment to release. The
+          // status/replay guards above make this run exactly once.
+          if (fresh.type === "WALLET_TOPUP") {
+            tx.update(paymentRef, {
+              status: "PAID",
+              paidAt: Date.now(),
+              transactionId: transactionId || null,
+            });
+            tx.update(db.doc(`users/${fresh.buyerUid}`), {
+              referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+            });
+            tx.set(db.collection("notifications").doc(), {
+              recipientId: fresh.buyerUid,
+              type:        "WALLET_TOPUP",
+              title:       "Wallet topped up 👛",
+              body:        `AFN ${fresh.amount} was added to your wallet.`,
+              isRead:      false,
+              createdAt:   Date.now(),
+              relatedId:   paymentId || "",
             });
             if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
             return "paid";

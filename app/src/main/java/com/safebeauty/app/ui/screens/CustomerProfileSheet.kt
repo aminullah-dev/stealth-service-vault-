@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -404,6 +405,38 @@ private fun ProfileInitialsAvatar(name: String, size: Int) {
 
 
 // ── Waitlist card ──────────────────────────────────────────────────────────────
+
+// ── Wallet card (own AFN credit + top-up) ─────────────────────────────────────
+
+@Composable
+internal fun WalletCard(credit: Long, modifier: Modifier = Modifier, onTopUp: () -> Unit = {}) {
+    val strings = LocalStrings.current
+    Card(
+        shape    = RoundedCornerShape(18.dp),
+        colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AccountBalanceWallet, null, tint = RoseGold, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(strings.walletTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+                    Text(strings.referralCreditBadge(credit), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = AvailableGreen)
+                }
+                Button(
+                    onClick = onTopUp,
+                    shape   = RoundedCornerShape(10.dp),
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(strings.walletTopUpAction, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Text(strings.walletBody, fontSize = 12.sp, color = TextMuted, lineHeight = 18.sp)
+        }
+    }
+}
 
 @Composable
 internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modifier) {

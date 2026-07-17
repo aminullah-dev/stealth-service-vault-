@@ -176,6 +176,7 @@ import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
 import com.safebeauty.app.viewmodel.GiftUiState
 import com.safebeauty.app.viewmodel.TipUiState
+import com.safebeauty.app.viewmodel.WalletUiState
 import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
@@ -383,6 +384,8 @@ fun CustomerDashboardScreen(
     var giftAmount     by remember { mutableStateOf("") }
     var giftMessage    by remember { mutableStateOf("") }
     // Loyalty redeem dialog.
+    var showWalletDialog by remember { mutableStateOf(false) }
+    var walletAmount     by remember { mutableStateOf("") }
     var showRedeemDialog by remember { mutableStateOf(false) }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
@@ -838,6 +841,11 @@ fun CustomerDashboardScreen(
                         isUploadingPhoto = viewModel.isUploadingPhoto,
                         appointments    = myAppointments
                     )
+                    WalletCard(
+                        credit   = referralCredit,
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp),
+                        onTopUp  = { showWalletDialog = true }
+                    )
                     LoyaltyCard(
                         points   = loyaltyPoints,
                         tier     = loyaltyTier,
@@ -1243,6 +1251,76 @@ fun CustomerDashboardScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showGiftDialog = false; viewModel.resetGift() }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Wallet top-up dialog ──────────────────────────────────────────────
+        if (showWalletDialog) {
+            val walletState = viewModel.walletState
+            val walletCtx   = LocalContext.current
+            // Open the HesabPay page as soon as the session is created.
+            LaunchedEffect(walletState) {
+                if (walletState is WalletUiState.OpenCheckout) {
+                    runCatching {
+                        walletCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(walletState.url)))
+                    }
+                }
+            }
+            AlertDialog(
+                onDismissRequest = { showWalletDialog = false; viewModel.resetWallet() },
+                title = { Text(strings.walletTopUpTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(strings.walletTopUpHint, fontSize = 13.sp, color = TextStrong)
+                        // Quick-pick amounts.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(200L, 500L, 1000L).forEach { preset ->
+                                OutlinedButton(
+                                    onClick = { walletAmount = preset.toString() },
+                                    shape   = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    border  = androidx.compose.foundation.BorderStroke(1.dp, RoseGold),
+                                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                                ) { Text("%,d".format(preset), fontSize = 13.sp) }
+                            }
+                        }
+                        OutlinedTextField(
+                            value = walletAmount,
+                            onValueChange = { v -> if (v.length <= 6 && v.all(Char::isDigit)) walletAmount = v },
+                            label = { Text(strings.walletTopUpAmount, fontSize = 13.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        when (walletState) {
+                            is WalletUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            is WalletUiState.Done     -> Text(strings.walletTopUpDone, fontSize = 12.sp, color = AvailableGreen)
+                            is WalletUiState.Failed   -> Text(strings.walletTopUpFailed, fontSize = 12.sp, color = DangerRed)
+                            else                      -> {}
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (walletState is WalletUiState.Done) {
+                        Button(
+                            onClick = { showWalletDialog = false; viewModel.resetWallet(); walletAmount = "" },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.goToApp, color = Color.White) }
+                    } else {
+                        val amt = walletAmount.toLongOrNull() ?: 0L
+                        Button(
+                            enabled = amt > 0 && walletState !is WalletUiState.Creating,
+                            onClick = { viewModel.topUpWallet(amt) },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.walletTopUpAction, color = Color.White) }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWalletDialog = false; viewModel.resetWallet() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },

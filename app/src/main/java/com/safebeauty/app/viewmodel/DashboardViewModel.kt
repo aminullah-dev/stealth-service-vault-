@@ -101,6 +101,15 @@ sealed interface TipUiState {
     data class Failed(val message: String) : TipUiState
 }
 
+/** Wallet top-up flow (add AFN credit to your own wallet via HesabPay). */
+sealed interface WalletUiState {
+    data object Idle : WalletUiState
+    data object Creating : WalletUiState
+    data class OpenCheckout(val url: String) : WalletUiState
+    data object Done : WalletUiState                        // own wallet credited
+    data class Failed(val message: String) : WalletUiState
+}
+
 /** How the customer's salon list is ordered. */
 enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
 
@@ -437,6 +446,37 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun resetTip() { tipState = TipUiState.Idle }
+
+    // ── Wallet top-up flow ──────────────────────────────────────────────────────
+    var walletState by mutableStateOf<WalletUiState>(WalletUiState.Idle)
+        private set
+
+    /**
+     * Tops up the caller's own wallet by [amount] AFN. On success the UI opens the
+     * returned HesabPay URL; we then poll the payment until the webhook flips it to
+     * PAID (which credits referralCredit server-side) and report [WalletUiState.Done].
+     */
+    fun topUpWallet(amount: Long) {
+        walletState = WalletUiState.Creating
+        viewModelScope.launch {
+            paymentRepository.topUpWallet(amount)
+                .onSuccess { session ->
+                    if (session.checkoutUrl.isBlank()) {
+                        walletState = WalletUiState.Failed("no_url"); return@onSuccess
+                    }
+                    walletState = WalletUiState.OpenCheckout(session.checkoutUrl)
+                    paymentRepository.observePaymentStatus(session.paymentId).collect { st ->
+                        when (st) {
+                            "PAID"   -> walletState = WalletUiState.Done
+                            "FAILED" -> walletState = WalletUiState.Failed("payment_failed")
+                        }
+                    }
+                }
+                .onFailure { e -> walletState = WalletUiState.Failed(e.message ?: "topup_failed") }
+        }
+    }
+
+    fun resetWallet() { walletState = WalletUiState.Idle }
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
 

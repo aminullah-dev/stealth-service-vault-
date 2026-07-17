@@ -162,6 +162,29 @@ class PaymentRepository @Inject constructor() {
         }.onFailure { CrashReporter.recordNonFatal(it, "payment:createGiftCard") }
 
     /**
+     * Tops up the caller's OWN wallet credit (referralCredit) by [amount] AFN. On
+     * payment the caller's wallet increases (server-side, via the webhook).
+     * Returns a CheckoutSession whose checkoutUrl the caller opens.
+     */
+    suspend fun topUpWallet(amount: Long): Result<CheckoutSession> =
+        runCatching {
+            val result = functions
+                .getHttpsCallable("createWalletTopUp")
+                .call(hashMapOf(
+                    "amount" to amount
+                ))
+                .await()
+            @Suppress("UNCHECKED_CAST")
+            val map = result.getData() as? Map<String, Any?> ?: emptyMap()
+            CheckoutSession(
+                paymentId   = map["paymentId"] as? String ?: "",
+                checkoutUrl = map["checkoutUrl"] as? String ?: "",
+                method      = "ONLINE",
+                amount      = (map["amount"] as? Number)?.toLong() ?: amount
+            )
+        }.onFailure { CrashReporter.recordNonFatal(it, "payment:topUpWallet") }
+
+    /**
      * Sends an [amount] AFN tip for the caller's own booking [appointmentId]. The
      * whole amount goes to the provider (server credits their balance on the
      * webhook). Returns a CheckoutSession whose checkoutUrl the caller opens.
