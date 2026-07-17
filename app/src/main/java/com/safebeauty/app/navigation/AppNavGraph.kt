@@ -27,6 +27,7 @@ import com.safebeauty.app.ui.screens.OnboardingScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
 import com.safebeauty.app.ui.screens.RegisterScreen
 import com.safebeauty.app.ui.screens.SetNewPinScreen
+import com.safebeauty.app.ui.screens.FeedScreen
 import com.safebeauty.app.ui.screens.SupportScreen
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.StringResources
@@ -82,6 +83,7 @@ sealed class Screen(val route: String) {
         fun build(userId: String) = "kyc/$userId"
     }
     object Support : Screen("support")
+    object Feed : Screen("feed")
 }
 
 // ── Nav graph ─────────────────────────────────────────────────────────────────
@@ -304,6 +306,10 @@ fun AppNavGraph(
 
             composable(Screen.Support.route) {
                 SupportScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.Feed.route) {
+                FeedScreen(onBack = { navController.popBackStack() })
             }
         }
     }

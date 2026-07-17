@@ -193,6 +193,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoLibrary
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -427,6 +428,9 @@ fun CustomerDashboardScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { onNavigate(Screen.Feed.route) }) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = strings.feedTitle, tint = RoseGold)
+                        }
                         val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
                         IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.customerId)) }) {
                             BadgedBox(badge = {

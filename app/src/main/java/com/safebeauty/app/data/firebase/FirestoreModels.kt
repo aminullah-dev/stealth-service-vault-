@@ -296,6 +296,22 @@ data class GalleryImageDocument(
     val createdAt: Long = 0L
 )
 
+/**
+ * One post in the social discovery feed — a before/after or sample-work photo a
+ * salon shares. Followers (favoriters) are notified server-side when it's created
+ * (pushPostToFollowers). Stored in its own `salon_posts` collection.
+ */
+data class SalonPostDocument(
+    val id: String = "",
+    val salonId: String = "",
+    val providerId: String = "",
+    val salonName: String = "",
+    val imageUrl: String = "",
+    val storagePath: String = "",
+    val caption: String = "",
+    val createdAt: Long = 0L
+)
+
 data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",

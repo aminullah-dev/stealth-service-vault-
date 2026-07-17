@@ -42,6 +42,7 @@ class FirestoreRepository @Inject constructor(
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
+    private val postsCol        = db.collection("salon_posts")
     private val offersCol       = db.collection("salon_offers")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
@@ -430,6 +431,22 @@ class FirestoreRepository @Inject constructor(
 
     /** Reserves a new Firestore document ID so the Storage path can be pre-computed. */
     fun newGalleryDocId(): String = galleryCol.document().id
+
+    // ── Social discovery feed (salon_posts) ─────────────────────────────────────
+
+    /** The global feed of the most recent salon posts (newest first, capped). */
+    fun observeFeed(): Flow<List<SalonPostDocument>> = callbackFlow {
+        val listener = postsCol.addSnapshotListener { snap, err ->
+            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+            val list = snap?.documents
+                ?.mapNotNull { it.toObject(SalonPostDocument::class.java)?.copy(id = it.id) }
+                ?.sortedByDescending { it.createdAt }
+                ?.take(100)
+                ?: emptyList()
+            trySend(list)
+        }
+        awaitClose { listener.remove() }
+    }
 
     suspend fun addGalleryImage(image: GalleryImageDocument) {
         val id = image.id.ifBlank { galleryCol.document().id }
