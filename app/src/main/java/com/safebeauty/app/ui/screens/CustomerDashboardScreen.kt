@@ -322,6 +322,12 @@ fun CustomerDashboardScreen(
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
     val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
     val offerSalonIds             by viewModel.offerSalonIds.collectAsStateWithLifecycle()
+    // Identity gate: deals & special offers are a verified-customer perk, shown
+    // only once KYC is APPROVED. While the status is still loading (null) we lock
+    // nothing yet, so a verified customer never sees the lock flash.
+    val kycStatusValue            by viewModel.kycStatus.collectAsStateWithLifecycle()
+    val dealsUnlocked = kycStatusValue == "APPROVED"
+    val dealsLocked   = kycStatusValue != null && kycStatusValue != "APPROVED"
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -713,15 +719,24 @@ fun CustomerDashboardScreen(
                         }
                         if (activeOffers.isNotEmpty() && searchQuery.isBlank()) {
                             item(key = "deals") {
-                                DealsStrip(
-                                    offers  = activeOffers,
-                                    onOpen  = { salonId ->
-                                        viewModel.findSalon(salonId)?.let { salon ->
-                                            showSalonDetail = salon
-                                            viewModel.setActiveSalon(salon.id)
+                                if (dealsUnlocked) {
+                                    DealsStrip(
+                                        offers  = activeOffers,
+                                        onOpen  = { salonId ->
+                                            viewModel.findSalon(salonId)?.let { salon ->
+                                                showSalonDetail = salon
+                                                viewModel.setActiveSalon(salon.id)
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                } else if (dealsLocked) {
+                                    // Unverified customers see the deals exist but must
+                                    // verify their identity to unlock them — the nudge.
+                                    LockedDealsTeaser(
+                                        count    = activeOffers.size,
+                                        onUnlock = { onNavigate(Screen.Kyc.build(viewModel.customerId)) }
+                                    )
+                                }
                             }
                         }
                         if (filteredSalons.isEmpty()) {
@@ -776,7 +791,7 @@ fun CustomerDashboardScreen(
                                     modifier         = Modifier.padding(horizontal = 16.dp),
                                     isFavorite       = favoriteIds.contains(salon.id),
                                     distanceKm       = distanceKm,
-                                    hasOffer         = offerSalonIds.contains(salon.id),
+                                    hasOffer         = dealsUnlocked && offerSalonIds.contains(salon.id),
                                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                                     onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
                                 )
@@ -2120,7 +2135,8 @@ fun CustomerDashboardScreen(
                     salon            = salon,
                     reviews          = reviewsForSalon,
                     gallery          = galleryForSalon,
-                    offers           = offersForSalon,
+                    // Special offers are a verified-customer perk (see deals gate).
+                    offers           = if (dealsUnlocked) offersForSalon else emptyList(),
                     isFavorite       = favoriteIds.contains(salon.id),
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
@@ -3080,6 +3096,72 @@ private fun DealsStrip(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Shown in place of [DealsStrip] for customers who haven't verified their identity.
+ * It reveals that live deals exist (the count) but keeps them locked behind KYC —
+ * the whole card taps through to the verification screen. Purely a UI nudge; the
+ * server already gates booking on verification regardless.
+ */
+@Composable
+private fun LockedDealsTeaser(count: Int, onUnlock: () -> Unit) {
+    val strings = LocalStrings.current
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Icon(Icons.Default.LocalOffer, null, tint = DeepRose, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(strings.dealsTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+        }
+        ElevatedCard(
+            shape     = RoundedCornerShape(16.dp),
+            colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            modifier  = Modifier
+                .fillMaxWidth()
+                .clickable { onUnlock() }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(DeepRose.copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Lock, null, tint = DeepRose, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        strings.dealsLockedTitle(count),
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 14.sp,
+                        color      = DeepRose
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        strings.dealsLockedBody,
+                        fontSize   = 12.sp,
+                        color      = TextMuted,
+                        lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RoseGold)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(strings.dealsLockedCta, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

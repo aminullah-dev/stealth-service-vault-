@@ -93,6 +93,9 @@ class AppStrings {
     var offerActive: String = ""
     var dealsTitle: String = ""
     var offerBadge: String = ""
+    var dealsLockedTitle: (Int) -> String = { "" }
+    var dealsLockedBody: String = ""
+    var dealsLockedCta: String = ""
     var giftCard: String = ""
     var giftCardTitle: String = ""
     var giftRecipientPhone: String = ""
@@ -724,6 +727,9 @@ object StringResources {
         offerActive                = "Active"
         dealsTitle                 = "Deals & offers"
         offerBadge                 = "Offer"
+        dealsLockedTitle           = { n -> "$n special deals waiting for you" }
+        dealsLockedBody            = "Verify your identity to unlock exclusive deals and discounts."
+        dealsLockedCta             = "Verify"
         giftCard                   = "Gift card"
         giftCardTitle              = "Send a gift card"
         giftRecipientPhone         = "Recipient's phone"
@@ -1295,6 +1301,9 @@ object StringResources {
         offerActive                = "فعال"
         dealsTitle                 = "تخفیف‌ها و پیشنهادها"
         offerBadge                 = "آفر"
+        dealsLockedTitle           = { n -> "$n پیشنهاد ویژه در انتظار شماست" }
+        dealsLockedBody            = "برای باز کردن تخفیف‌ها و پیشنهادهای ویژه، هویت خود را احراز کنید."
+        dealsLockedCta             = "احراز هویت"
         giftCard                   = "کارت هدیه"
         giftCardTitle              = "ارسال کارت هدیه"
         giftRecipientPhone         = "شمارهٔ گیرنده"
@@ -1866,6 +1875,9 @@ object StringResources {
         offerActive                = "فعال"
         dealsTitle                 = "تخفیف‌ها او پیشکشونه"
         offerBadge                 = "پیشکش"
+        dealsLockedTitle           = { n -> "$n ځانګړي پیشکشونه ستاسو په تمه دي" }
+        dealsLockedBody            = "د ځانګړو تخفیفونو او پیشکشونو د خلاصولو لپاره خپل هویت تایید کړئ."
+        dealsLockedCta             = "هویت تایید"
         giftCard                   = "د ډالۍ کارت"
         giftCardTitle              = "د ډالۍ کارت ولېږئ"
         giftRecipientPhone         = "د اخیستونکي شمېره"
