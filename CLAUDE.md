@@ -14,9 +14,12 @@ backend for everything.
 - `public/` — Firebase Hosting: `admin/index.html` (self‑contained admin
   console), `provider/index.html` (self‑contained salon‑owner console — same
   design system/auth as admin, but PROVIDER‑role only), `provider-app/index.html`
-  (trilingual download page for the salon desktop installers), `privacy.html`,
+  (trilingual download page for the salon desktop installers), `reset/index.html`
+  (trilingual password-reset page — the custom Firebase Auth action URL; it does
+  the PBKDF2 derivation and syncs pinHash/salt via `updatePinHash`, see
+  DEPLOY.md), `privacy.html`,
   `terms.html`, `payment/`. `cleanUrls` serves them at `/admin`, `/provider`,
-  `/provider-app`. The salon installers are built + published to a public GitHub
+  `/provider-app`, `/reset`. The salon installers are built + published to a public GitHub
   Release (tag `salon-desktop`) by `.github/workflows/salon-desktop.yml`; the
   download page links to those release assets by stable filename.
 - `desktop/` — Electron wrapper that opens the hosted admin console (`/admin`)

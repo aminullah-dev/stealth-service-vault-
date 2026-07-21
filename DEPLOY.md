@@ -86,3 +86,20 @@ build anything:
    unsigned-app "open anyway" steps in Dari/Pashto/English. The console login
    page (`/provider`) also links to it. Re-run the workflow to ship an update;
    the download URLs stay the same.
+
+## Password-reset web page (`/reset`) — one-time Firebase Console step
+The app's real Firebase Auth password is **derived** (`PBKDF2("AUTH:"+password,
+salt)`), so Firebase's default hosted reset page would store the raw password
+and permanently lock the account out of the app. `public/reset/index.html` is a
+trilingual reset page that does the correct derivation and then syncs
+`pinHash`/`salt` via the `updatePinHash` callable.
+
+To activate it (once):
+1. `firebase deploy --only hosting` (ships the page at
+   **https://safebeauty.web.app/reset**).
+2. Firebase Console → **Authentication → Templates → Password reset** → pencil
+   icon → **Customize action URL** → set it to `https://safebeauty.web.app/reset`
+   → Save.
+
+After that, every reset email (from the app's Forgot-password flow) opens this
+page on any device/browser, and the account keeps working in the app afterwards.

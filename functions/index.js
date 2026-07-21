@@ -240,6 +240,13 @@ exports.createPaymentSession = onCall(
     if (!Number.isFinite(Number(appointmentDate)) || Number(appointmentDate) <= 0) {
       throw new HttpsError("invalid-argument", "A valid appointment time is required.");
     }
+    // A booking must be in the future. The normal UI can't produce a past slot,
+    // so this only stops a modified client from planting bookings at past
+    // timestamps (which would corrupt history/analytics and dodge reminders).
+    // 5-minute grace covers clock skew and a slot picked right at its boundary.
+    if (Number(appointmentDate) < Date.now() - 5 * 60 * 1000) {
+      throw new HttpsError("invalid-argument", "That time is already in the past.");
+    }
     // Cap free-text notes so a client can't store an oversized document.
     const safeNotes = String(notes || "").slice(0, 500);
 
@@ -1264,15 +1271,20 @@ exports.hesabPayWebhook = onRequest(
           // Release the appointment to the provider's pending queue.
           tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
           // Track what the provider is owed (platform pays out separately).
-          tx.set(
-            db.doc(`provider_balances/${fresh.providerId}`),
-            {
-              providerId: fresh.providerId,
-              owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
-              updatedAt:  Date.now(),
-            },
-            { merge: true }
-          );
+          // Guarded: an empty providerId would make db.doc("provider_balances/")
+          // throw synchronously, 500-ing every webhook retry and stranding the
+          // customer's PAID booking in AWAITING_PAYMENT forever.
+          if (fresh.providerId) {
+            tx.set(
+              db.doc(`provider_balances/${fresh.providerId}`),
+              {
+                providerId: fresh.providerId,
+                owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
+                updatedAt:  Date.now(),
+              },
+              { merge: true }
+            );
+          }
           // Count the promo use and spend any referral credit. Reserved payments
           // (reserved:true) already did this atomically at checkout, so settlement
           // must NOT spend again — only legacy pre-reservation payments fall here,
@@ -1291,15 +1303,17 @@ exports.hesabPayWebhook = onRequest(
             }
           }
           // Notify the provider of the new (paid) booking.
-          tx.set(db.collection("notifications").doc(), {
-            recipientId: fresh.providerId,
-            type:        "NEW_BOOKING",
-            title:       "New Paid Booking",
-            body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
-            isRead:      false,
-            createdAt:   Date.now(),
-            relatedId:   fresh.appointmentId,
-          });
+          if (fresh.providerId) {
+            tx.set(db.collection("notifications").doc(), {
+              recipientId: fresh.providerId,
+              type:        "NEW_BOOKING",
+              title:       "New Paid Booking",
+              body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
+              isRead:      false,
+              createdAt:   Date.now(),
+              relatedId:   fresh.appointmentId,
+            });
+          }
           if (webhookRef) {
             tx.set(webhookRef, { paymentId, settledAt: Date.now() });
           }
@@ -1316,6 +1330,11 @@ exports.hesabPayWebhook = onRequest(
           // FAILED write); the reservation refund runs just after the transaction.
           if (fresh.appointmentId && !fresh.type) {
             tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "CANCELLED" });
+          }
+          // Keep the linked gift-card doc in sync — otherwise it sits PENDING
+          // forever (the create-session rollback only covers pre-checkout errors).
+          if (fresh.type === "GIFT_CARD" && fresh.giftCardId) {
+            tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "FAILED" });
           }
           return "failed";
         }
@@ -1615,10 +1634,14 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
             db.collection("users").where("referralCode", "==", referredBy).limit(1)
           );
           // Mark rewarded regardless so a bad/self code can't be retried forever.
+          // The welcome credit is granted only when the matched referrer is a
+          // DIFFERENT user — a user whose referredBy equals their own code must
+          // not self-grant AFN at approval.
+          const referrerIsOther = !refQ.empty && refQ.docs[0].id !== targetUid;
           tx.update(targetRef, {
             referralRewarded: true,
             referralCredit: admin.firestore.FieldValue.increment(
-              refQ.empty ? 0 : REFERRAL_WELCOME_CREDIT
+              referrerIsOther ? REFERRAL_WELCOME_CREDIT : 0
             ),
           });
           if (!refQ.empty && refQ.docs[0].id !== targetUid) {
@@ -1824,16 +1847,20 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
       refundRequestId = refundRef.id;
 
       // Reverse the provider's owed balance if it was already credited
-      // (it is, as soon as the webhook marked this payment PAID).
-      tx.set(
-        db.doc(`provider_balances/${providerId}`),
-        {
-          providerId,
-          owedAmount: admin.firestore.FieldValue.increment(-payment.providerNet),
-          updatedAt:  Date.now(),
-        },
-        { merge: true }
-      );
+      // (it is, as soon as the webhook marked this payment PAID). Guarded:
+      // an empty providerId would make db.doc() throw and every cancel of
+      // such a booking fail outright.
+      if (providerId) {
+        tx.set(
+          db.doc(`provider_balances/${providerId}`),
+          {
+            providerId,
+            owedAmount: admin.firestore.FieldValue.increment(-payment.providerNet),
+            updatedAt:  Date.now(),
+          },
+          { merge: true }
+        );
+      }
     }
 
     // Notify whichever party didn't initiate the cancellation.
@@ -1880,19 +1907,38 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
   // Mirrors FirestoreRepository.notifyFirstWaiting's single-field query +
   // in-memory filter so no new composite index is required.
   try {
-    const dayStart = new Date(result.appt.appointmentDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const startOfDay = dayStart.getTime();
+    // Match by KABUL-local day, not exact millis: the client writes requestedDate
+    // as device-local (Kabul, UTC+4:30) midnight while this code runs in UTC —
+    // comparing UTC midnight to Kabul midnight never matched, so the promotion
+    // silently never fired. Afghanistan has no DST, so a fixed offset is exact.
+    const KABUL_OFFSET_MS = 4.5 * 3600 * 1000;
+    const kabulDay = (ts) => Math.floor((Number(ts) + KABUL_OFFSET_MS) / 86400000);
+    const wantedDay = kabulDay(result.appt.appointmentDate);
 
     const entries = await db.collection("waitlist")
       .where("salonId", "==", result.appt.salonId)
       .get();
     const first = entries.docs
       .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((w) => w.requestedDate === startOfDay && w.status === "WAITING")
+      .filter((w) => w.status === "WAITING" && kabulDay(w.requestedDate) === wantedDay)
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0];
     if (first) {
       await db.doc(`waitlist/${first.id}`).update({ status: "SLOT_AVAILABLE" });
+      // Also tell the customer directly — the doc flip alone was invisible until
+      // they happened to open the bookings sheet. The notifications trigger turns
+      // this into an FCM push, and the Notification Center's Waitlist filter
+      // (type "WAITLIST") finally has a producer.
+      if (first.customerId) {
+        await db.collection("notifications").add({
+          recipientId: first.customerId,
+          type:        "WAITLIST",
+          title:       "A slot opened up 🎉",
+          body:        `${first.salonName || "A salon"} has a free slot on your waitlisted day — book it before it's gone!`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   first.salonId || "",
+        });
+      }
     }
   } catch (err) {
     logger.error("cancelPaidAppointment: waitlist notify failed (non-fatal)", err);
