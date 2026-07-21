@@ -1147,6 +1147,14 @@ exports.hesabPayWebhook = onRequest(
         // Idempotency — already settled.
         if (fresh.status === "PAID") return "already_paid";
 
+        // A settleable payment is always still "PENDING". If it has already been
+        // moved to a terminal non-paid state (EXPIRED by the abandoned-payment
+        // sweep, FAILED, CANCELLED, REFUND_PENDING) a late webhook must NOT
+        // revive it — otherwise an expired booking whose slot was re-sold gets
+        // re-opened and the provider double-credited while the customer already
+        // had their reserved credit refunded. Ignore it (200, no-op).
+        if (fresh.status !== "PENDING") return "stale";
+
         // Replay guard — a webhook settles exactly one payment, ever. Prefer the
         // transaction_id; when the payload omits it (or it isn't path-safe), fall
         // back to a hash of the signature so a captured (signature, timestamp)
@@ -1300,6 +1308,15 @@ exports.hesabPayWebhook = onRequest(
 
         if (failSignal) {
           tx.update(paymentRef, { status: "FAILED" });
+          // A reserved booking spent the customer's referral credit + a promo use
+          // up front and parked the appointment in AWAITING_PAYMENT. On an explicit
+          // payment failure we must release both, or the customer loses that money
+          // forever and the chair stays occupied by a dead booking (hasSlotConflict
+          // only skips CANCELLED). Cancel the appointment here (atomic with the
+          // FAILED write); the reservation refund runs just after the transaction.
+          if (fresh.appointmentId && !fresh.type) {
+            tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "CANCELLED" });
+          }
           return "failed";
         }
 
@@ -1309,6 +1326,18 @@ exports.hesabPayWebhook = onRequest(
 
       if (result === "not_found") return res.status(404).send("Payment not found");
       if (result === "replay")    return res.status(409).send("Duplicate transaction");
+
+      // On an explicit failure of a reserved booking, hand back the referral
+      // credit + promo use that were spent atomically at checkout (best-effort,
+      // outside the transaction — mirrors expireAbandonedPayments). Uses the
+      // pre-transaction snapshot; the FAILED transition already ran exactly once.
+      if (result === "failed" && payment.reserved && !payment.type) {
+        await refundReservation({
+          customerId:   payment.customerId,
+          referralUsed: payment.referralUsed,
+          promoId:      payment.promoCode,
+        });
+      }
       return res.status(200).send("OK");
     } catch (err) {
       logger.error("Webhook processing error", err);
@@ -1830,8 +1859,21 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
       });
     }
 
-    return { refundRequestId, appt };
+    return { refundRequestId, appt, payment };
   });
+
+  // Refund the referral credit + promo use that were reserved atomically at
+  // checkout (both online and cash bookings are written reserved:true). The
+  // refund_requests row above only covers the online-paid `amount`; the wallet
+  // credit portion lives on the user doc and must be handed back separately, or
+  // a customer loses it on every cancel/decline of a credit-assisted booking.
+  if (result.payment && result.payment.reserved && !result.payment.type) {
+    await refundReservation({
+      customerId:   result.appt.customerId,
+      referralUsed: result.payment.referralUsed,
+      promoId:      result.payment.promoCode,
+    });
+  }
 
   // Release the freed slot to the next waitlisted customer (best-effort,
   // outside the transaction since it's a separate, non-critical write).
@@ -2134,7 +2176,11 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
       throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
     }
     // Feedback only makes sense once a booking was actually accepted/served.
-    if (appt.status !== "CONFIRMED" && appt.status !== "PENDING") {
+    // COMPLETED is included because completePastAppointments auto-flips
+    // CONFIRMED → COMPLETED ~2h after the start time — which is exactly when a
+    // provider sits down to report a no-show, so excluding it would kill the
+    // primary post-visit reporting window.
+    if (appt.status !== "CONFIRMED" && appt.status !== "PENDING" && appt.status !== "COMPLETED") {
       throw new HttpsError("failed-precondition", "This booking can't be reviewed.");
     }
 
@@ -2197,21 +2243,33 @@ exports.expireAbandonedPayments = onSchedule(
 
     let count = 0;
     for (const doc of stale.docs) {
-      const payment = doc.data();
-      const batch = db.batch();
-      batch.update(doc.ref, { status: "EXPIRED" });
-      if (payment.appointmentId) {
-        batch.update(db.doc(`appointments/${payment.appointmentId}`), { status: "CANCELLED" });
-      }
-      await batch.commit();
+      // Transaction with a status re-check so we never clobber a payment the
+      // webhook just settled (PAID) in the same window — a blind batch.update
+      // could overwrite it with EXPIRED and cancel an appointment the provider
+      // was already credited for.
+      const outcome = await db.runTransaction(async (tx) => {
+        const fresh = await tx.get(doc.ref);
+        if (!fresh.exists) return null;
+        const payment = fresh.data();
+        if (payment.status !== "PENDING") return null; // already settled/handled
+        tx.update(doc.ref, { status: "EXPIRED" });
+        // Only a booking payment owns the appointment. TIP payments also carry an
+        // appointmentId (of a real, already-paid booking) — cancelling it here
+        // would wrongly kill a live booking, so skip anything with a `type`.
+        if (payment.appointmentId && !payment.type) {
+          tx.update(db.doc(`appointments/${payment.appointmentId}`), { status: "CANCELLED" });
+        }
+        return payment;
+      });
+      if (!outcome) continue;
       // A reserved online checkout spent the referral credit + promo use up front;
       // since it was abandoned, hand them back (legacy payments never spent them
       // until settlement, so they have nothing to refund).
-      if (payment.reserved) {
+      if (outcome.reserved && !outcome.type) {
         await refundReservation({
-          customerId:   payment.customerId,
-          referralUsed: payment.referralUsed,
-          promoId:      payment.promoCode,
+          customerId:   outcome.customerId,
+          referralUsed: outcome.referralUsed,
+          promoId:      outcome.promoCode,
         });
       }
       count++;
