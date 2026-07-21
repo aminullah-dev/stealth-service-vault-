@@ -1161,23 +1161,34 @@ async function openSalonModal(salon, onChanged){
   $('s-close').onclick = hideModal;
 
   $('s-save').onclick = async (e) => {
+    // Only send fields that actually changed and aren't blank — sending an empty
+    // phone made adminUpdateUser normalize "" → "+93" and throw, wiping the other
+    // edits. And do the salon-doc (district) write only AFTER the owner callable
+    // succeeds, so a rejected save doesn't leave a half-applied change.
+    const payload = { targetUid: salon.providerId };
+    const setIf = (id, key, orig) => { const v = $(id).value.trim(); if(v && v !== (orig||'')) payload[key] = v; };
+    setIf('s-name','name',owner.name);
+    setIf('s-phone','phone',owner.phone);
+    setIf('s-tazkira','tazkiraNumber',owner.tazkiraNumber);
+    setIf('s-birth','birthYear',owner.birthYear);
+    setIf('s-issue','tazkiraIssueDate',owner.tazkiraIssueDate);
+    setIf('s-expiry','tazkiraExpiryDate',owner.tazkiraExpiryDate);
+    setIf('s-prov','addressProvince',owner.addressProvince);
+    setIf('s-addr','addressDetail',owner.addressDetail);
     const dist = $('s-district').value.trim();
-    if(dist !== (salon.district||'')){
+    const distChanged = dist !== (salon.district||'');
+    const hasUserChanges = Object.keys(payload).length > 1;
+    if(!hasUserChanges && !distChanged){ $('s-flash').className='mflash'; $('s-flash').textContent='No changes.'; return; }
+    if(hasUserChanges){
+      const ok = await callFn('adminUpdateUser', payload, e.target, 's-flash', 'Saved ✓');
+      if(!ok) return;
+    }
+    if(distChanged){
       try{ await updateDoc(doc(db,'salons',salon.id), { district: dist }); }
       catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; return; }
+      $('s-flash').className='mflash ok'; $('s-flash').textContent='Saved ✓';
     }
-    const ok = await callFn('adminUpdateUser', {
-      targetUid: salon.providerId,
-      name: $('s-name').value.trim(),
-      phone: $('s-phone').value.trim(),
-      tazkiraNumber: $('s-tazkira').value.trim(),
-      birthYear: $('s-birth').value.trim(),
-      tazkiraIssueDate: $('s-issue').value.trim(),
-      tazkiraExpiryDate: $('s-expiry').value.trim(),
-      addressProvince: $('s-prov').value.trim(),
-      addressDetail: $('s-addr').value.trim(),
-    }, e.target, 's-flash', 'Saved ✓');
-    if(ok) refresh();
+    refresh();
   };
   $('s-verify').onclick = async (e) => {
     const next = !salon.isVerified;
@@ -1245,16 +1256,23 @@ async function renderFinance(){
     ]);
     const names = {}; uSnap.forEach(d => names[d.id] = d.data().name || d.id);
     const bals = [];
-    balSnap.forEach(d => { const b=d.data(); if((b.owedAmount||0) > 0) bals.push({ ...b, name: names[b.providerId]||b.providerId }); });
+    // Keep every non-zero balance. Positive = platform owes the provider (payout);
+    // negative = the provider owes the platform (cash-booking commission debt) —
+    // previously dropped, so cash commission receivables were invisible here.
+    balSnap.forEach(d => { const b=d.data(); if((b.owedAmount||0) !== 0) bals.push({ ...b, name: names[b.providerId]||b.providerId }); });
     bals.sort((a,b)=>(b.owedAmount||0)-(a.owedAmount||0));
     const bel = $('balances');
     const drawBal = () => {
       bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Provider</th><th>Owed</th><th></th></tr></thead><tbody>` +
-        bals.map((b,i)=>`<tr>
+        <thead><tr><th>Provider</th><th>Balance</th><th></th></tr></thead><tbody>` +
+        bals.map((b,i)=> (b.owedAmount||0) > 0 ? `<tr>
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></td>
+        </tr>` : `<tr>
+          <td class="name">${esc(b.name)}</td>
+          <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">owes platform</span></td>
+          <td></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">Nothing owed 🎉</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
         const b = bals[+btn.dataset.pay];

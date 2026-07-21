@@ -375,6 +375,8 @@ const STR = {
   errInvalid:{en:'Invalid phone or password.', fa:'شماره تلفن یا رمز نادرست است.', ps:'د تلیفون شمېره یا پټ نوم ناسم دی.'},
   errNotProvider:{en:'This account is not a salon provider.', fa:'این حساب متعلق به یک سالن نیست.', ps:'دا حساب د سالون نه دی.'},
   errSuspended:{en:'This account is suspended. Please contact support.', fa:'این حساب مسدود شده است. با پشتیبانی تماس بگیرید.', ps:'دا حساب بند شوی دی. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
+  errPending:{en:'Your salon is awaiting admin approval. You can sign in once approved.', fa:'سالن شما در انتظار تأیید ادمین است. پس از تأیید می‌توانید وارد شوید.', ps:'ستاسو سالون د اډمین د تصویب په تمه دی. له تصویب وروسته کولی شئ ننوځئ.'},
+  errRejected:{en:'Your salon application was declined. Please contact support.', fa:'درخواست سالن شما رد شده است. با پشتیبانی تماس بگیرید.', ps:'ستاسو د سالون غوښتنه رد شوه. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
   errFailed:{en:'Sign-in failed.', fa:'ورود ناموفق بود.', ps:'ننوتل ناکام شو.'},
   getApp:{en:'⬇ Get the desktop app', fa:'⬇ دریافت اپ دسکتاپ (مک/ویندوز)', ps:'⬇ د ډیسکټاپ اپ ترلاسه کول (مک/وینډوز)'},
   // Shell
@@ -666,7 +668,13 @@ async function doLogin(){
     const m = res.data || {};
     if(m.mode !== 'REAL'){ throw new Error(t('errInvalid')); }
     if((m.role||'') !== 'PROVIDER'){ throw new Error(t('errNotProvider')); }
-    if((m.status||'') === 'SUSPENDED'){ throw new Error(t('errSuspended')); }
+    // Only APPROVED salons may operate the console — the salon doc exists at
+    // registration so sign-in would otherwise succeed, then every write fails
+    // with a raw "Missing or insufficient permissions" (rules require isApproved).
+    const st = (m.status||'');
+    if(st === 'SUSPENDED'){ throw new Error(t('errSuspended')); }
+    if(st === 'REJECTED'){ throw new Error(t('errRejected')); }
+    if(st !== 'APPROVED'){ throw new Error(t('errPending')); }
     const authPw = await deriveAuthPassword(pw, m.salt || '');
     await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
     await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
