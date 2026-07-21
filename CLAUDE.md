@@ -82,6 +82,12 @@ silently hit "permission denied".
   brace/paren balance and 4× string counts for Kotlin/AppStrings. There's no
   Android SDK in the Claude environment, so the app can't be compiled here —
   check imports and balance carefully; the user builds on their Mac.
+- **Marketing/social images** (Instagram posts, stories, banners): deliver
+  exactly ONE image per language — Dari gets the LIGHT (cream) variant, Pashto
+  gets the DARK (deep-rose) variant. Don't produce both color variants per
+  language. Build them as HTML (Vazirmatn font, brand rose/gold palette) and
+  render with the pre-installed headless Chromium; post 1080×1350, story
+  1080×1920.
 
 ## Git
 - Work on branch `claude/stealth-android-vault-4zr1d3`. Commit + push each
