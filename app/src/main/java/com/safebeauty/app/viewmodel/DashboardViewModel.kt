@@ -389,6 +389,13 @@ class DashboardViewModel @Inject constructor(
     var giftState by mutableStateOf<GiftUiState>(GiftUiState.Idle)
         private set
 
+    // One shared poller for the gift/tip/wallet checkouts. observePaymentStatus is
+    // a never-completing callbackFlow, so without cancelling it a dismissed dialog
+    // leaves a live Firestore listener that later flips the (already reset) dialog
+    // state — e.g. the server EXPIRES the abandoned payment → the stale collector
+    // shows "failed" over a fresh, successful attempt. Reset cancels it.
+    private var moneyOutPollJob: kotlinx.coroutines.Job? = null
+
     /**
      * Buys a gift card for [phone]. On success the UI opens the returned HesabPay
      * URL; we then poll the payment until the webhook flips it to PAID (which
@@ -397,7 +404,8 @@ class DashboardViewModel @Inject constructor(
      */
     fun sendGiftCard(phone: String, amount: Long, message: String) {
         giftState = GiftUiState.Creating
-        viewModelScope.launch {
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
             paymentRepository.createGiftCard(phone, amount, message)
                 .onSuccess { session ->
                     if (session.checkoutUrl.isBlank()) {
@@ -415,7 +423,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun resetGift() { giftState = GiftUiState.Idle }
+    fun resetGift() { moneyOutPollJob?.cancel(); giftState = GiftUiState.Idle }
 
     var tipState by mutableStateOf<TipUiState>(TipUiState.Idle)
         private set
@@ -427,7 +435,8 @@ class DashboardViewModel @Inject constructor(
      */
     fun sendTip(appointmentId: String, amount: Long) {
         tipState = TipUiState.Creating
-        viewModelScope.launch {
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
             paymentRepository.sendTip(appointmentId, amount)
                 .onSuccess { session ->
                     if (session.checkoutUrl.isBlank()) {
@@ -445,7 +454,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun resetTip() { tipState = TipUiState.Idle }
+    fun resetTip() { moneyOutPollJob?.cancel(); tipState = TipUiState.Idle }
 
     // ── Wallet top-up flow ──────────────────────────────────────────────────────
     var walletState by mutableStateOf<WalletUiState>(WalletUiState.Idle)
@@ -458,7 +467,8 @@ class DashboardViewModel @Inject constructor(
      */
     fun topUpWallet(amount: Long) {
         walletState = WalletUiState.Creating
-        viewModelScope.launch {
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
             paymentRepository.topUpWallet(amount)
                 .onSuccess { session ->
                     if (session.checkoutUrl.isBlank()) {
@@ -476,7 +486,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun resetWallet() { walletState = WalletUiState.Idle }
+    fun resetWallet() { moneyOutPollJob?.cancel(); walletState = WalletUiState.Idle }
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
 
@@ -532,8 +542,14 @@ class DashboardViewModel @Inject constructor(
     // apart from a genuine "NONE".
     val kycStatus: StateFlow<String?> =
         firestoreRepository.observeUser(customerId)
-            // Widened to String? so the catch below can emit null ("unknown").
-            .map { it?.kycStatus ?: ("NONE" as String?) }
+            // Map to the doc's kycStatus (a loaded UserDocument always has one —
+            // it defaults to "NONE"). Crucially we do NOT coerce a null DOC into
+            // "NONE": observeUser emits null on a snapshot error (e.g. a transient
+            // permission-denied right after login, before the uid_map bridge
+            // resolves), and treating that as a definitive "NONE" would wrongly
+            // lock deals for — and bounce to KYC — an already-verified customer.
+            // null therefore means "unknown", which the gates fail open on.
+            .map { it?.kycStatus }
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -776,6 +792,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun submitReview(
+        appointmentId: String,
         salonId: String,
         rating: Int,
         comment: String,
@@ -784,25 +801,22 @@ class DashboardViewModel @Inject constructor(
         if (rating < 1) return
         viewModelScope.launch {
             runCatching {
-                // Reserve the review id first so photos can be stored under
-                // reviews/{uid}/{id}/ before the review doc is written.
+                // Reserve an id purely for the photo storage path (reviews/{uid}/{id}/);
+                // the review doc itself is created server-side by submitReview.
                 val reviewId = firestoreRepository.newReviewId()
                 val imageUrls = photos.take(3).mapIndexedNotNull { index, bytes ->
                     runCatching {
                         storageRepository.uploadReviewImage(customerId, reviewId, index, bytes)
                     }.getOrNull()
                 }
-                firestoreRepository.addReview(
-                    ReviewDocument(
-                        id           = reviewId,
-                        salonId      = salonId,
-                        customerId   = customerId,
-                        customerName = _currentUserName.value,
-                        rating       = rating,
-                        comment      = comment.trim(),
-                        createdAt    = System.currentTimeMillis(),
-                        imageUrls    = imageUrls
-                    )
+                // Server-side create: binds the review to this served appointment
+                // and blocks a second review of the same booking.
+                firestoreRepository.submitReview(
+                    appointmentId = appointmentId,
+                    salonId       = salonId,
+                    rating        = rating,
+                    comment       = comment.trim(),
+                    imageUrls     = imageUrls
                 )
                 vaultRepository.log(
                     "REVIEW_SUBMITTED",

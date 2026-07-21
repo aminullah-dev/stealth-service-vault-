@@ -133,6 +133,9 @@ fun AdminDashboardScreen(
         }
     }
 
+    // Prompt for notification permission (Android 13+) so admins get pushes too.
+    com.safebeauty.app.ui.components.RequestNotificationPermission()
+
     val strings          = LocalStrings.current
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()

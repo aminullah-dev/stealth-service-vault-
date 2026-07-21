@@ -316,7 +316,10 @@ internal fun CustomerProfileSheetContent(
         // ── Booking history ───────────────────────────────────────────
         val historyItems = remember(appointments) {
             appointments
-                .filter { it.status == "CONFIRMED" || it.status == "CANCELLED" }
+                // COMPLETED included: completePastAppointments auto-flips a past
+                // CONFIRMED booking to COMPLETED, so without it every finished
+                // visit silently disappears from the history a day later.
+                .filter { it.status == "CONFIRMED" || it.status == "CANCELLED" || it.status == "COMPLETED" }
                 .sortedByDescending { it.appointmentDate }
                 .take(10)
         }
@@ -356,7 +359,7 @@ internal fun CustomerProfileSheetContent(
                         )
                     }
                     Spacer(Modifier.width(8.dp))
-                    val (chipBg, chipFg) = if (appt.status == "CONFIRMED")
+                    val (chipBg, chipFg) = if (appt.status == "CONFIRMED" || appt.status == "COMPLETED")
                         Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
                     else
                         Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
@@ -367,7 +370,11 @@ internal fun CustomerProfileSheetContent(
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text       = if (appt.status == "CONFIRMED") strings.analyticsConfirmed else strings.analyticsCancelled,
+                            text       = when (appt.status) {
+                                "CONFIRMED" -> strings.analyticsConfirmed
+                                "COMPLETED" -> strings.timelineCompleted
+                                else        -> strings.analyticsCancelled
+                            },
                             fontSize   = 10.sp,
                             color      = chipFg,
                             fontWeight = FontWeight.SemiBold

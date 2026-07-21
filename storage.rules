@@ -100,8 +100,11 @@ service firebase.storage {
     // only the owner and admins can read, and only the owner can upload.
     match /kyc/{uid}/{fileName} {
       allow read:   if isSignedIn() && (uid == appUid() || isAdmin());
-      allow create: if isSignedIn() && uid == appUid() && isValidImage();
-      allow update: if false;                    // replace by delete + re-upload
+      // Create AND update by the owner: KYC uses fixed names (tazkira.jpg /
+      // selfie.jpg), so a rejected provider re-submitting overwrites the same
+      // path — that's an `update`, and blocking it left them unable to ever
+      // resubmit. Still owner-only and still image-validated.
+      allow write:  if isSignedIn() && uid == appUid() && isValidImage();
       allow delete: if uid == appUid() || isAdmin();
     }
   }

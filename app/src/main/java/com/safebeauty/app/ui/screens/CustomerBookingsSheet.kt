@@ -561,13 +561,14 @@ private fun BookingStatusTimeline(appt: AppointmentDocument) {
 private fun StatusChip(status: String) {
     val strings = LocalStrings.current
     val (bg, fg) = when (status) {
-        "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
-        "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
-        else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
+        "CONFIRMED", "COMPLETED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+        "CANCELLED", "DECLINED"  -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
+        else                     -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     val label = when (status) {
-        "CONFIRMED" -> strings.accept
-        "CANCELLED" -> strings.decline
+        "CONFIRMED" -> strings.analyticsConfirmed
+        "COMPLETED" -> strings.timelineCompleted
+        "CANCELLED", "DECLINED" -> strings.analyticsCancelled
         else        -> strings.pending
     }
     Box(

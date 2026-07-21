@@ -287,9 +287,12 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
 
-      // Customers submit reviews for themselves.
-      allow create: if isCustomer() && isApproved()
-                 && request.resource.data.customerId == me();
+      // Reviews are created ONLY server-side via the submitReview callable, which
+      // binds each review to a real, served appointment the caller owns (one per
+      // booking). A direct client create is refused — otherwise a customer could
+      // script unlimited reviews to farm loyalty points into wallet credit (real
+      // money) and forge salon ratings.
+      allow create: if false;
 
       // Provider may only add/edit their reply (no other fields may change).
       allow update: if (ownsThisSalon(resource.data.salonId)

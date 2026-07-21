@@ -398,19 +398,31 @@ class FirestoreRepository @Inject constructor(
     fun newReviewId(): String = reviewsCol.document().id
 
     /**
-     * Adds a review. Writing the review doc is the only client write now — the
-     * salon's average rating is recomputed server-side (awardReviewPoints trigger)
-     * so a provider can't forge it; `rating` is frozen against client writes in
-     * firestore.rules. When [review.id] is set (photo reviews reserve it via
-     * [newReviewId]) the doc is written at that ID; otherwise Firestore
-     * auto-generates one.
+     * Submits a review through the server-side submitReview callable — the only
+     * path that can create a review now. The callable binds the review to a real,
+     * served appointment the caller owns (one review per booking) and writes the
+     * doc with the Admin SDK; direct client creates are refused in firestore.rules
+     * to stop review-farming (points → wallet credit) and rating forgery. Photos
+     * are uploaded first (client-side, under reviews/{uid}/…) and their URLs
+     * passed in. Throws if the backend rejects (not your booking / already
+     * reviewed / not yet served).
      */
-    suspend fun addReview(review: ReviewDocument) {
-        if (review.id.isNotBlank()) {
-            reviewsCol.document(review.id).set(review).await()
-        } else {
-            reviewsCol.add(review).await()
-        }
+    suspend fun submitReview(
+        appointmentId: String,
+        salonId: String,
+        rating: Int,
+        comment: String,
+        imageUrls: List<String>
+    ) {
+        functions.getHttpsCallable("submitReview").call(
+            hashMapOf(
+                "appointmentId" to appointmentId,
+                "salonId"       to salonId,
+                "rating"        to rating,
+                "comment"       to comment,
+                "imageUrls"     to imageUrls
+            )
+        ).await()
     }
 
     // ── Salon gallery (portfolio photos) ─────────────────────────────────────

@@ -2782,6 +2782,74 @@ exports.pushOfferToFavoriters = onDocumentCreated(
 // server-side trigger is the only path that can grant them.
 const REVIEW_POINTS       = 5;
 const REVIEW_PHOTO_BONUS  = 5;
+// ── submitReview (callable) ───────────────────────────────────────────────────
+// The ONLY path that creates a review. Client review creates are blocked in
+// firestore.rules; without this gate any approved customer could script
+// unlimited review docs to farm loyalty points → wallet credit (real money) and
+// forge salon ratings. Here the review is bound to a real, served appointment
+// the caller owns, one review per appointment.
+exports.submitReview = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const user = await resolveAppUser(request);
+
+    const { appointmentId, salonId, rating, comment, imageUrls } = request.data || {};
+    if (!appointmentId) throw new HttpsError("invalid-argument", "A valid appointmentId is required.");
+    assertDocId(appointmentId, "appointmentId");
+    const stars = Math.round(Number(rating));
+    if (!(stars >= 1 && stars <= 5)) {
+      throw new HttpsError("invalid-argument", "Rating must be 1–5.");
+    }
+
+    const apptRef  = db.doc(`appointments/${appointmentId}`);
+    const reviewRef = db.collection("reviews").doc();
+
+    // Only accept photo URLs that live under THIS user's own reviews/ storage
+    // path (the download URL embeds the path, url-encoded), so a client can't
+    // pass arbitrary strings to trigger the photo bonus. Max 3.
+    const ownPathFragment = `/reviews%2F${user.uid}%2F`;
+    const urls = Array.isArray(imageUrls)
+      ? imageUrls
+          .filter((u) => typeof u === "string" && u.includes(ownPathFragment))
+          .slice(0, 3)
+      : [];
+
+    await db.runTransaction(async (tx) => {
+      const apptSnap = await tx.get(apptRef);
+      if (!apptSnap.exists) throw new HttpsError("not-found", "Booking not found.");
+      const appt = apptSnap.data();
+      if (appt.customerId !== user.uid) {
+        throw new HttpsError("permission-denied", "That isn't your booking.");
+      }
+      if (String(appt.salonId || "") !== String(salonId || "")) {
+        throw new HttpsError("invalid-argument", "Salon mismatch.");
+      }
+      // A review only makes sense once the salon accepted/served the visit, and
+      // exactly once per booking.
+      if (appt.status !== "CONFIRMED" && appt.status !== "COMPLETED") {
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+      }
+      if (appt.reviewed === true) {
+        throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
+      }
+      tx.update(apptRef, { reviewed: true });
+      tx.set(reviewRef, {
+        salonId:      String(salonId),
+        customerId:   user.uid,
+        customerName: user.name || "",
+        rating:       stars,
+        comment:      String(comment || "").slice(0, 1000),
+        imageUrls:    urls,
+        appointmentId,
+        createdAt:    Date.now(),
+      });
+    });
+
+    return { ok: true, reviewId: reviewRef.id };
+  }
+);
+
 exports.awardReviewPoints = onDocumentCreated(
   "reviews/{reviewId}",
   async (event) => {

@@ -74,7 +74,15 @@ sealed class Screen(val route: String) {
             myName: String,
             otherName: String,
             active: Boolean = true
-        ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}?active=$active"
+        ): String {
+            // Names ride in path segments; Uri.encode("") yields an empty segment
+            // that matches no destination → navigate() throws. Display names can be
+            // blank while the user/salon doc is still loading, so coerce to a
+            // non-empty placeholder to keep navigation crash-safe.
+            val safeMyName    = myName.ifBlank { "—" }
+            val safeOtherName = otherName.ifBlank { "—" }
+            return "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(safeMyName)}/${Uri.encode(safeOtherName)}?active=$active"
+        }
     }
     object Notifications : Screen("notifications/{userId}") {
         fun build(userId: String) = "notifications/$userId"

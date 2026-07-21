@@ -141,39 +141,48 @@ class RegisterViewModel @Inject constructor(
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
 
-                firestoreRepository.createUser(
-                    UserDocument(
-                        uid           = uid,
-                        name          = name.trim(),
-                        phone         = normalizedPhone,
-                        email         = email.trim(),
-                        role          = role,
-                        pinHash       = pinHash,
-                        salt          = salt,
-                        status        = status,
-                        firebaseEmail = firebaseEmail,
-                        createdAt     = System.currentTimeMillis(),
-                        referralCode  = referralCode,
-                        referredBy    = referredBy
+                // Once the Auth account exists, any failure of the following steps
+                // must roll it back — otherwise an orphaned Auth account (no user
+                // doc) permanently bricks the person: every retry hits "email
+                // already in use" and login-by-phone finds nothing.
+                try {
+                    firestoreRepository.createUser(
+                        UserDocument(
+                            uid           = uid,
+                            name          = name.trim(),
+                            phone         = normalizedPhone,
+                            email         = email.trim(),
+                            role          = role,
+                            pinHash       = pinHash,
+                            salt          = salt,
+                            status        = status,
+                            firebaseEmail = firebaseEmail,
+                            createdAt     = System.currentTimeMillis(),
+                            referralCode  = referralCode,
+                            referredBy    = referredBy
+                        )
                     )
-                )
 
-                if (isProvider) {
-                    // Salon creation is server-side (createProviderSalon): the
-                    // providerId must be the authoritative app-level uid, and at
-                    // registration the uid_map bridge isn't populated yet, so a
-                    // direct client write can't pass the security rules.
-                    functions
-                        .getHttpsCallable("createProviderSalon")
-                        .call(hashMapOf(
-                            "salonName" to salonName.trim(),
-                            "district"  to district.trim(),
-                            "services"  to services
-                        ))
-                        .await()
-                    state = RegisterState.ProviderPending
-                } else {
-                    state = RegisterState.CustomerSuccess(name.trim())
+                    if (isProvider) {
+                        // Salon creation is server-side (createProviderSalon): the
+                        // providerId must be the authoritative app-level uid, and at
+                        // registration the uid_map bridge isn't populated yet, so a
+                        // direct client write can't pass the security rules.
+                        functions
+                            .getHttpsCallable("createProviderSalon")
+                            .call(hashMapOf(
+                                "salonName" to salonName.trim(),
+                                "district"  to district.trim(),
+                                "services"  to services
+                            ))
+                            .await()
+                        state = RegisterState.ProviderPending
+                    } else {
+                        state = RegisterState.CustomerSuccess(name.trim())
+                    }
+                } catch (e: Exception) {
+                    firebaseAuth.deleteCurrentUser()
+                    throw e
                 }
             }.onFailure { e ->
                 state = RegisterState.Error(e.message ?: "Registration failed. Try again.")

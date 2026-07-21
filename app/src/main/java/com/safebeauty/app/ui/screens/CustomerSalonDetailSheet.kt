@@ -274,7 +274,7 @@ internal fun SalonDetailSheetContent(
                         .background(Brush.linearGradient(listOf(gradient.first, gradient.second)))
                 ) {
                     Text(
-                        text       = salon.salonName.first().toString(),
+                        text       = salon.salonName.firstOrNull()?.toString() ?: "?",
                         fontSize   = 32.sp,
                         fontWeight = FontWeight.Bold,
                         color      = Color.White

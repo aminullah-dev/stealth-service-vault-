@@ -210,7 +210,9 @@ internal val avatarGradients = listOf(
 )
 
 internal fun avatarGradient(name: String): Pair<Color, Color> =
-    avatarGradients[name.first().lowercaseChar().code % avatarGradients.size]
+    // firstOrNull guards a blank salon/user name — .first() would crash the whole
+    // browse list on one empty-named doc.
+    avatarGradients[(name.firstOrNull() ?: '?').lowercaseChar().code % avatarGradients.size]
 
 // One guest in a group / event booking (bride + companions). Each guest gets
 // their own services; the whole party is booked as a single appointment and the
@@ -1687,6 +1689,13 @@ fun CustomerDashboardScreen(
                             if (viewModel.needsKycBeforeBooking()) {
                                 showNotesDialog = false
                                 bookingIntent   = null
+                                // Clear the whole booking draft, incl. the group
+                                // party list — otherwise the old guest list leaks
+                                // into the next, unrelated booking's notes.
+                                bookingNotes    = ""
+                                partyNote       = ""
+                                partyGuests.clear()
+                                guestNameInput  = ""
                                 viewModel.clearPromo()
                                 viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
@@ -1711,6 +1720,9 @@ fun CustomerDashboardScreen(
                         showNotesDialog = false
                         pendingSlotMs   = 0L
                         bookingNotes    = ""
+                        partyNote       = ""
+                        partyGuests.clear()
+                        guestNameInput  = ""
                         paymentMethod   = "ONLINE"
                         bookingIntent   = null
                         viewModel.clearPromo()
@@ -2103,7 +2115,7 @@ fun CustomerDashboardScreen(
             ReviewDialog(
                 salonName = appt.salonName,
                 onSubmit  = { rating, comment, photos ->
-                    viewModel.submitReview(appt.salonId, rating, comment, photos)
+                    viewModel.submitReview(appt.id, appt.salonId, rating, comment, photos)
                     reviewTarget = null
                 },
                 onDismiss = { reviewTarget = null }
@@ -2531,7 +2543,7 @@ private fun SalonCard(
                             )
                     ) {
                         Text(
-                            text       = salon.salonName.first().toString(),
+                            text       = salon.salonName.firstOrNull()?.toString() ?: "?",
                             fontSize   = 26.sp,
                             fontWeight = FontWeight.Bold,
                             color      = Color.White

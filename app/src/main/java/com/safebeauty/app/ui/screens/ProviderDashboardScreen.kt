@@ -178,6 +178,9 @@ fun ProviderDashboardScreen(
         }
     }
 
+    // Providers rely on new-booking pushes most — prompt for notifications too.
+    com.safebeauty.app.ui.components.RequestNotificationPermission()
+
     val strings             = LocalStrings.current
     val currentLanguage     by langVm.language.collectAsStateWithLifecycle()
     val salon               by viewModel.salon.collectAsStateWithLifecycle()
