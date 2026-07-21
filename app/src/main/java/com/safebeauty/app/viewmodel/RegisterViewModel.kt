@@ -95,6 +95,11 @@ class RegisterViewModel @Inject constructor(
      * step (phone ownership isn't verified via SMS).
      */
     fun startRegistration() {
+        // In-flight guard: a fast double-tap would otherwise launch two coroutines
+        // that both pass the phone-uniqueness check before either user doc exists,
+        // creating two accounts sharing one phone (login then resolves an arbitrary
+        // one).
+        if (state is RegisterState.Loading) return
         val error = validate()
         if (error != null) { state = RegisterState.Error(error); return }
 

@@ -67,7 +67,12 @@ class AuthViewModel @Inject constructor(
                         val email   = map["firebaseEmail"] as? String ?: ""
                         val salt    = map["salt"]          as? String ?: ""
                         val roleStr = map["role"]          as? String ?: "CUSTOMER"
-                        val status  = map["status"]        as? String ?: "APPROVED"
+                        // Blank (not just null) also defaults to APPROVED: the
+                        // server returns status as `u.status || ""`, so a legacy /
+                        // manually-created account with no status field arrives as
+                        // "" and would otherwise be routed to the "under review"
+                        // screen instead of its dashboard.
+                        val status  = (map["status"] as? String)?.takeIf { it.isNotBlank() } ?: "APPROVED"
                         val rejectionReason = map["rejectionReason"] as? String ?: ""
                         val kycStatus = map["kycStatus"]   as? String ?: "NONE"
 
