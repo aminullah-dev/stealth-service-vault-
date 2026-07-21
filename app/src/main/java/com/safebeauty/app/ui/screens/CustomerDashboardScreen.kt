@@ -1244,7 +1244,7 @@ fun CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                         when (giftState) {
-                            is GiftUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            is GiftUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
                             is GiftUiState.Sent     -> Text(strings.giftSent, fontSize = 12.sp, color = AvailableGreen)
                             is GiftUiState.Failed   -> Text(strings.giftFailed, fontSize = 12.sp, color = DangerRed)
                             else                    -> {}
@@ -1314,7 +1314,7 @@ fun CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                         when (walletState) {
-                            is WalletUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            is WalletUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
                             is WalletUiState.Done     -> Text(strings.walletTopUpDone, fontSize = 12.sp, color = AvailableGreen)
                             is WalletUiState.Failed   -> Text(strings.walletTopUpFailed, fontSize = 12.sp, color = DangerRed)
                             else                      -> {}
@@ -2391,7 +2391,7 @@ private fun TipDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 when (tipState) {
-                    is TipUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                    is TipUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
                     is TipUiState.Sent     -> Text(strings.tipSent, fontSize = 12.sp, color = AvailableGreen)
                     is TipUiState.Failed   -> Text(strings.tipFailed, fontSize = 12.sp, color = DangerRed)
                     else -> {}
