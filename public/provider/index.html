@@ -255,14 +255,19 @@
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
-    .sidebar{width:100%;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;
+    /* Brand + footer buttons share the top line; the nav drops to its own
+       full-width line below and scrolls horizontally, so all 10 tabs stay
+       reachable instead of being crushed into a sliver beside Sign out.
+       margin-inline-end keeps it correct in both RTL (Dari/Pashto) and LTR. */
+    .sidebar{width:100%;flex-flow:row wrap;align-items:center;gap:8px;padding:10px 12px;
       border-right:none;border-bottom:1px solid var(--line)}
     [dir="rtl"] .sidebar{border-left:none;border-bottom:1px solid var(--line)}
-    .sidebar .brand{white-space:nowrap}
+    .sidebar .brand{white-space:nowrap;margin-inline-end:auto}
     .who2{display:none}
-    .nav{flex-direction:row;flex:1;gap:4px}
-    .navitem{width:auto;white-space:nowrap;padding:8px 11px}
-    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row}
+    .nav{order:3;flex:1 0 100%;flex-direction:row;gap:4px;overflow-x:auto;
+      -webkit-overflow-scrolling:touch;padding-bottom:2px}
+    .navitem{width:auto;white-space:nowrap;padding:8px 11px;flex:0 0 auto}
+    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row;gap:8px}
     .theme-toggle{width:auto;padding:9px 11px}
     main{padding:18px 16px 44px}
     .topbar{padding:14px 18px;font-size:16px}
