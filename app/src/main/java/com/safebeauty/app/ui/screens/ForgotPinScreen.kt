@@ -144,9 +144,14 @@ fun ForgotPinScreen(
                                 colors          = fieldColors
                             )
 
-                            if (viewModel.state is ForgotPinViewModel.State.Error) {
+                            (viewModel.state as? ForgotPinViewModel.State.Error)?.let { err ->
+                                val message = when (err.reason) {
+                                    ForgotPinViewModel.ErrorReason.PHONE_REQUIRED -> strings.forgotPinPhoneRequired
+                                    ForgotPinViewModel.ErrorReason.NOT_FOUND      -> strings.forgotPinNotFound
+                                    ForgotPinViewModel.ErrorReason.SEND_FAILED    -> strings.forgotPinSendFailed
+                                }
                                 Text(
-                                    (viewModel.state as ForgotPinViewModel.State.Error).message,
+                                    message,
                                     fontSize = 12.sp,
                                     color    = DangerRed
                                 )
