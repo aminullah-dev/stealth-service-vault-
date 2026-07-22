@@ -373,6 +373,21 @@ function hideModal(){ const m=$('modal'); m.classList.add('hidden'); m.innerHTML
 $('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('modal').classList.contains('hidden')) hideModal(); });
 
+/** Firebase surfaces unhandled/transport failures as bare code strings
+ *  ("internal", "unavailable", …). Map those to human messages; real typed
+ *  HttpsError messages from our own functions pass through untouched. */
+function fnError(e){
+  const raw = String((e && e.message) || 'Failed.');
+  const map = {
+    'internal':          'Server error — please try again in a moment. If it keeps happening, tell the developer (the function may need redeploying).',
+    'unavailable':       'Network problem — check your connection and try again.',
+    'deadline-exceeded': 'The server took too long to respond — try again.',
+    'unauthenticated':   'Your session has expired — sign out and back in.',
+    'not-found':         'That server function was not found — the backend may need redeploying.',
+  };
+  return map[raw.toLowerCase()] || raw;
+}
+
 /** Call an admin Cloud Function, showing a busy/result state on [btn] and a
  *  message in the [flashId] element. Returns true on success. */
 async function callFn(name, payload, btn, flashId, okMsg){
@@ -385,7 +400,7 @@ async function callFn(name, payload, btn, flashId, okMsg){
     if(flash){ flash.className='mflash ok'; flash.textContent = okMsg || 'Done ✓'; }
     return true;
   }catch(e){
-    const msg = (e && e.message) ? e.message : 'Failed.';
+    const msg = fnError(e);
     if(flash){ flash.className='mflash bad'; flash.textContent = msg; }
     else alert(msg);
     return false;
@@ -1024,7 +1039,7 @@ async function renderAdmins(){
         $('agrant').onclick = async (e) => {
           if(await callFn('grantAdmin', { targetUid:m.uid }, e.target, 'aflash2', 'Granted ✓')) setTimeout(renderAdmins, 700);
         };
-      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(e.message)}</div>`; }
+      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(fnError(e))}</div>`; }
     };
     $('aphone').addEventListener('keydown', e => { if(e.key==='Enter') $('afind').click(); });
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
