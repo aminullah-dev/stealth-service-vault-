@@ -14,6 +14,9 @@
   :root{
     --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
     --gold:#D4A853; --green:#3fa14a; --red:#C0392B;
+    /* status TEXT inks — tuned to pass WCAG 4.5:1 on their tinted pill/flash
+       backgrounds in each theme (the raw accent colors above fail as text) */
+    --ok-ink:#256b2e; --warn-ink:#77571a; --bad-ink:#a93226;
     --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
     --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
     --panel:rgba(255,255,255,.66); --panel-solid:#ffffff;
@@ -26,6 +29,7 @@
   }
   :root[data-theme="dark"]{
     --deep:#F6D9E1; --plum:#F0C6D2; --blush:#4d2f39;
+    --ok-ink:#7dd087; --warn-ink:#e6c47a; --bad-ink:#f0958a;
     --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
     --panel:rgba(40,27,33,.62); --panel-solid:#241820;
     --card:#241820; --surface:#2c1e26; --petal:#38262f; --lilac:#3a2a3f; --cream:#221820;
@@ -76,7 +80,7 @@
   .btn-sm:hover{opacity:.92;transform:translateY(-1px)}
   .btn-sm:active{transform:none}
   .btn-sm:disabled{opacity:.55;cursor:default}
-  .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+  .err{color:var(--bad-ink);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
   .langpick{display:flex;gap:6px;justify-content:center;margin:-6px 0 20px}
   .langpick button{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:700;
     background:var(--petal);color:var(--deep);transition:opacity .15s,transform .1s}
@@ -170,9 +174,9 @@
   .tbl tbody tr:hover{background:var(--hover)}
   .tbl .name{font-weight:700;color:var(--deep)}
   .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
-  .pill.ok{background:rgba(63,161,74,.16);color:#3fa14a}
-  .pill.warn{background:rgba(212,168,83,.22);color:var(--gold)}
-  .pill.bad{background:rgba(192,57,43,.15);color:#e06c5e}
+  .pill.ok{background:rgba(63,161,74,.16);color:var(--ok-ink)}
+  .pill.warn{background:rgba(212,168,83,.22);color:var(--warn-ink)}
+  .pill.bad{background:rgba(192,57,43,.15);color:var(--bad-ink)}
   .pill.info{background:var(--surface);color:var(--rose)}
 
   /* ── Filter chips ──────────────────────────────────────────────── */
@@ -191,9 +195,9 @@
 
   /* ── Forms ─────────────────────────────────────────────────────── */
   textarea.field{min-height:90px;resize:vertical;line-height:1.55}
-  .flash{background:rgba(63,161,74,.14);color:#3fa14a;border-radius:12px;padding:11px 15px;font-size:12.5px;
+  .flash{background:rgba(63,161,74,.14);color:var(--ok-ink);border-radius:12px;padding:11px 15px;font-size:12.5px;
     margin-bottom:12px;font-weight:700;border:1px solid rgba(63,161,74,.2)}
-  .flash.bad{background:rgba(192,57,43,.14);color:#e06c5e;border-color:rgba(192,57,43,.2)}
+  .flash.bad{background:rgba(192,57,43,.14);color:var(--bad-ink);border-color:rgba(192,57,43,.2)}
   .fl{display:block;font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px}
   .mini{padding:10px 12px;border:1.5px solid var(--line);border-radius:11px;background:var(--panel-solid);color:var(--ink);
     font-size:13px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -252,6 +256,25 @@
     [dir="rtl"] .row:not(.wide) .actions{right:auto;left:15px}
   }
 
+  /* ── Accessibility ─────────────────────────────────────────────── */
+  .navitem:focus-visible,.btn:focus-visible,.btn-sm:focus-visible,
+  .theme-toggle:focus-visible,.pw-toggle:focus-visible,.icon-btn:focus-visible{
+    outline:2px solid var(--rose);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+
+  /* ── Password show/hide (login) ────────────────────────────────── */
+  /* Physical right side on purpose: password inputs are forced direction:ltr
+     (see the input[type=…] rule above), so the eye pins to the input's own
+     trailing edge in ALL languages — logical inline-end would resolve against
+     the RTL page and land on the opposite side from the reserved padding. */
+  .pw-wrap{position:relative;margin-bottom:11px}
+  .pw-wrap .field{margin-bottom:0;padding-right:44px}
+  .pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    background:transparent;color:var(--muted);font-size:15px;padding:5px 7px;border-radius:9px;line-height:1}
+  .pw-toggle:hover{background:var(--petal)}
+
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
@@ -305,7 +328,11 @@
       <button data-lang="en">English</button>
     </div>
     <input id="lp" class="field" type="tel" autocomplete="username" />
-    <input id="lw" class="field" type="password" autocomplete="current-password" />
+    <div class="pw-wrap">
+      <input id="lw" class="field" type="password" autocomplete="current-password" />
+      <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false"
+        onclick="var i=document.getElementById('lw'),s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';this.setAttribute('aria-pressed',s);i.focus()">👁</button>
+    </div>
     <button id="lbtn" class="btn">Sign in</button>
     <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
@@ -773,6 +800,7 @@ function buildNav(){
   TABS.forEach(tab => {
     const b = document.createElement('button');
     b.className = 'navitem' + (tab.id===activeTab?' active':'');
+    if(tab.id===activeTab) b.setAttribute('aria-current','page');
     b.dataset.id = tab.id;
     b.innerHTML = `<span class="ico">${tab.icon}</span><span>${esc(t(tab.id))}</span>` +
       (tab.id==='requests' ? `<span class="tag hidden" id="reqTag"></span>` : '');
@@ -786,7 +814,11 @@ function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
   const tab = TABS.find(x=>x.id===id);
-  [...$('nav').children].forEach(b => b.classList.toggle('active', b.dataset.id===id));
+  [...$('nav').children].forEach(b => {
+    const on = b.dataset.id===id;
+    b.classList.toggle('active', on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   $('topbar').textContent = t(tab.id);
   $('view').innerHTML = `<div class="empty">${t('loading')}</div>`;
   if(!salonId && id!=='today'){
@@ -948,7 +980,7 @@ function paintCalendar(all){
   $('view').innerHTML =
     `<div class="chips">${chips}</div>
      <div class="tbl-wrap"><table class="tbl">
-       <thead><tr><th>${t('colService')}</th><th>${t('colCustomer')}</th><th>${t('colStaff')}</th><th>${t('colWhen')}</th><th>${t('colPayment')}</th><th>${t('colStatus')}</th></tr></thead>
+       <thead><tr><th scope="col">${t('colService')}</th><th scope="col">${t('colCustomer')}</th><th scope="col">${t('colStaff')}</th><th scope="col">${t('colWhen')}</th><th scope="col">${t('colPayment')}</th><th scope="col">${t('colStatus')}</th></tr></thead>
        <tbody>${body}</tbody></table></div>`;
   $('view').querySelectorAll('.chip').forEach(c => c.onclick = () => { calFilter = c.dataset.f; paintCalendar(all); });
 }
@@ -1027,7 +1059,7 @@ function renderIncome(){
        </div>
        <div class="section-title">${t('payoutHistory')}</div>
        <div class="tbl-wrap"><table class="tbl">
-         <thead><tr><th>${t('colAmount')}</th><th>${t('colMethod')}</th><th>${t('colDate')}</th></tr></thead>
+         <thead><tr><th scope="col">${t('colAmount')}</th><th scope="col">${t('colMethod')}</th><th scope="col">${t('colDate')}</th></tr></thead>
          <tbody>${rows}</tbody></table></div>
        <div class="meta" style="color:var(--muted);margin-top:12px;font-size:12px">${t('incomeNote')}</div>`;
   }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });

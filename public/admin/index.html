@@ -14,6 +14,9 @@
     /* brand accents (shared by both themes) */
     --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
     --gold:#D4A853; --green:#3fa14a; --red:#C0392B;
+    /* status TEXT inks — tuned to pass WCAG 4.5:1 on their tinted pill/flash
+       backgrounds in each theme (the raw accent colors above fail as text) */
+    --ok-ink:#256b2e; --warn-ink:#77571a; --bad-ink:#a93226;
     --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
     /* light surfaces */
     --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
@@ -27,6 +30,7 @@
   }
   :root[data-theme="dark"]{
     --deep:#F6D9E1; --plum:#F0C6D2; --blush:#4d2f39;
+    --ok-ink:#7dd087; --warn-ink:#e6c47a; --bad-ink:#f0958a;
     --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
     --panel:rgba(40,27,33,.62); --panel-solid:#241820;
     --card:#241820; --surface:#2c1e26; --petal:#38262f; --lilac:#3a2a3f; --cream:#221820;
@@ -77,7 +81,7 @@
   .btn-sm:hover{opacity:.92;transform:translateY(-1px)}
   .btn-sm:active{transform:none}
   .btn-sm:disabled{opacity:.55}
-  .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+  .err{color:var(--bad-ink);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
 
   /* ── Shell ─────────────────────────────────────────────────────── */
   #app{height:100vh;display:flex;overflow:hidden}
@@ -132,7 +136,7 @@
   }
   .row.ticket{padding-right:16px}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
-  .badge.dot{background:rgba(192,57,43,.14);color:var(--red)}
+  .badge.dot{background:rgba(192,57,43,.14);color:var(--bad-ink)}
   .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600}
   .section-title{font-size:11px;color:var(--rose);font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin:4px 0 13px}
 
@@ -148,14 +152,14 @@
   .tbl tbody tr:hover{background:var(--hover)}
   .tbl .name{font-weight:700;color:var(--deep)}
   .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
-  .pill.ok{background:rgba(63,161,74,.16);color:#3fa14a}
-  .pill.warn{background:rgba(212,168,83,.22);color:var(--gold)}
-  .pill.bad{background:rgba(192,57,43,.15);color:#e06c5e}
+  .pill.ok{background:rgba(63,161,74,.16);color:var(--ok-ink)}
+  .pill.warn{background:rgba(212,168,83,.22);color:var(--warn-ink)}
+  .pill.bad{background:rgba(192,57,43,.15);color:var(--bad-ink)}
   .pill.info{background:var(--surface);color:var(--rose)}
 
   /* ── Forms / flash ─────────────────────────────────────────────── */
   textarea.field{min-height:110px;resize:vertical;line-height:1.55}
-  .flash{background:rgba(63,161,74,.14);color:#3fa14a;border-radius:12px;padding:11px 15px;font-size:12.5px;
+  .flash{background:rgba(63,161,74,.14);color:var(--ok-ink);border-radius:12px;padding:11px 15px;font-size:12.5px;
     margin-bottom:12px;font-weight:700;border:1px solid rgba(63,161,74,.2)}
 
   /* ── Support chat ──────────────────────────────────────────────── */
@@ -188,9 +192,24 @@
   .modal .mrow{display:flex;gap:8px}
   .modal .mrow .field{flex:1;margin-bottom:0}
   .mflash{font-size:12.5px;font-weight:700;margin:2px 0 8px;min-height:16px}
-  .mflash.ok{color:#3fa14a}
-  .mflash.bad{color:var(--red)}
+  .mflash.ok{color:var(--ok-ink)}
+  .mflash.bad{color:var(--bad-ink)}
   .modal .mclose{margin-top:16px;width:100%;background:var(--surface);color:var(--deep)}
+
+  /* ── Accessibility ─────────────────────────────────────────────── */
+  .navitem:focus-visible,.btn:focus-visible,.btn-sm:focus-visible,
+  .theme-toggle:focus-visible,.pw-toggle:focus-visible,.ticket:focus-visible{
+    outline:2px solid var(--rose);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+
+  /* ── Password show/hide (login) ────────────────────────────────── */
+  .pw-wrap{position:relative;margin-bottom:11px}
+  .pw-wrap .field{margin-bottom:0;padding-inline-end:44px}
+  .pw-toggle{position:absolute;inset-inline-end:8px;top:50%;transform:translateY(-50%);
+    background:transparent;color:var(--muted);font-size:15px;padding:5px 7px;border-radius:9px;line-height:1}
+  .pw-toggle:hover{background:var(--petal)}
 
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
@@ -241,7 +260,11 @@
     <h1>SafeBeauty</h1>
     <div class="sub">Admin Console</div>
     <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
-    <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="pw-wrap">
+      <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+      <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false"
+        onclick="var i=document.getElementById('lw'),s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';this.setAttribute('aria-pressed',s);i.focus()">👁</button>
+    </div>
     <button id="lbtn" class="btn">Sign in</button>
     <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
@@ -455,6 +478,7 @@ function enterApp(){
   TABS.forEach(t => {
     const b = document.createElement('button');
     b.className = 'navitem' + (t.id===activeTab?' active':'');
+    if(t.id===activeTab) b.setAttribute('aria-current','page');
     b.innerHTML = `<span class="ico">${t.icon}</span><span>${t.label}</span>`;
     b.onclick = () => selectTab(t.id);
     nav.appendChild(b);
@@ -465,7 +489,11 @@ function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
   const tab = TABS.find(t=>t.id===id);
-  [...$('nav').children].forEach((b,i) => b.classList.toggle('active', TABS[i].id===id));
+  [...$('nav').children].forEach((b,i) => {
+    const on = TABS[i].id===id;
+    b.classList.toggle('active', on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   $('topbar').textContent = tab.label;
   $('view').innerHTML = '<div class="empty">Loading…</div>';
   tab.render();
@@ -532,7 +560,7 @@ function renderApprovals(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Joined</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Joined</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -562,7 +590,7 @@ function renderKyc(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -606,12 +634,15 @@ function renderSupport(){
     if(!el) return;
     if(!rows.length){ el.innerHTML = `<div class="empty">No open support requests</div>`; return; }
     el.innerHTML = rows.map(t => `
-      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
+      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" role="button" tabindex="0" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
         <h3>${t.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(t.userName||t.userId)}</h3>
         <div class="meta">${esc(t.userRole||'')}${t.relatedInfo?' · '+esc(t.relatedInfo):''}</div>
         <div class="meta">${fmtDate(t.updatedAt)}</div>
       </div>`).join('');
-    el.querySelectorAll('.ticket').forEach(r => r.onclick = () => openChat(r.dataset.uid, r.dataset.name));
+    el.querySelectorAll('.ticket').forEach(r => {
+      r.onclick = () => openChat(r.dataset.uid, r.dataset.name);
+      r.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); r.click(); } };
+    });
   }, err => { const el=$('tickets'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
 }
 
@@ -822,7 +853,7 @@ async function renderUsers(){
       const t = term.trim().toLowerCase();
       const rows = users.filter(u => !t || (u.name||'').toLowerCase().includes(t) || (u.phone||'').includes(t));
       $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Status</th><th>KYC</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">KYC</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -961,7 +992,7 @@ async function renderAdmins(){
       </div>
       <div class="section-title">Current admins (${admins.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
         <tbody>${admins.map(a=>`<tr>
           <td class="name">${esc(a.name||a.id)}</td>
           <td>${esc(a.phone||'—')}</td>
@@ -1025,7 +1056,7 @@ async function renderSalons(){
         return !t || (s.salonName||'').toLowerCase().includes(t) || (s.district||'').toLowerCase().includes(t) || (o.phone||'').includes(t);
       });
       $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Salon</th><th>District</th><th>Owner phone</th><th>Rating</th><th>KYC</th><th>Verified</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Salon</th><th scope="col">District</th><th scope="col">Owner phone</th><th scope="col">Rating</th><th scope="col">KYC</th><th scope="col">Verified</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(s => { const o = owners[s.providerId] || {}; return `<tr>
           <td class="name">${esc(s.salonName||s.id)}</td>
           <td>${esc(s.district||'—')}</td>
@@ -1082,7 +1113,7 @@ async function renderAudit(){
     $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>When</th><th>By</th><th>Action</th></tr></thead>
+        <thead><tr><th scope="col">When</th><th scope="col">By</th><th scope="col">Action</th></tr></thead>
         <tbody>` + rows.map(a => {
           const m = AUDIT_META[a.action] || { icon:'•', cls:'info' };
           return `<tr>
@@ -1268,7 +1299,7 @@ async function renderFinance(){
     const bel = $('balances');
     const drawBal = () => {
       bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Provider</th><th>Balance</th><th></th></tr></thead><tbody>` +
+        <thead><tr><th scope="col">Provider</th><th scope="col">Balance</th><th scope="col"></th></tr></thead><tbody>` +
         bals.map((b,i)=> (b.owedAmount||0) > 0 ? `<tr>
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
@@ -1297,7 +1328,7 @@ async function renderFinance(){
     const rel = $('refunds');
     const drawRef = () => {
       rel.innerHTML = refunds.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Amount</th><th>To</th><th>Date</th><th></th></tr></thead><tbody>` +
+        <thead><tr><th scope="col">Amount</th><th scope="col">To</th><th scope="col">Date</th><th scope="col"></th></tr></thead><tbody>` +
         refunds.map((r,i)=>`<tr>
           <td class="name">${AFN(r.amount)}</td>
           <td>${esc(r.cust)}</td>
@@ -1350,7 +1381,7 @@ function renderPromo(){
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     const el = $('plist'); if(!el) return;
     el.innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody>` +
+      <thead><tr><th scope="col">Code</th><th scope="col">Discount</th><th scope="col">Used</th><th scope="col">Status</th><th scope="col"></th></tr></thead><tbody>` +
       rows.map(p => `<tr>
         <td class="name">${esc(p.code||p.id)}</td>
         <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
@@ -1372,7 +1403,7 @@ function renderReports(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No flagged reports 🎉</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Customer</th><th>Salon</th><th>Rating</th><th>Flag</th><th>Date</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Customer</th><th scope="col">Salon</th><th scope="col">Rating</th><th scope="col">Flag</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(r => `<tr>
           <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
           <td>${esc(r.salonName||'—')}</td>
