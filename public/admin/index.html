@@ -544,15 +544,44 @@ async function renderStats(){
 }
 
 // ── Announcements ──────────────────────────────────────────────────────────────
+// Ready-made announcement templates (Dari + Pashto — one message reaches every
+// user, so each is bilingual). Picking one fills the box; the admin can still
+// edit before sending.
+const ANNOUNCE_TEMPLATES = [
+  { label: 'Welcome',
+    text: 'به سیف‌بیوتی خوش آمدید! نزدیک‌ترین سالن‌های زیباییِ معتبر را ببینید و به‌آسانی نوبت بگیرید. 🌸\nسیف‌بیوتي ته ښه راغلاست! نږدې معتبر د ښکلا سالونونه وګورئ او په اسانۍ نوبت واخلئ. 🌸' },
+  { label: 'New offers & deals',
+    text: 'پیشنهادهای ویژه‌ی این هفته رسید! برای دیدن تخفیف‌های سالن‌ها اپ را باز کنید.\nد دې اونۍ ځانګړي وړاندیزونه راغلل! د سالونونو تخفیفونه لیدو لپاره اپ پرانیزئ.' },
+  { label: 'Verify identity reminder',
+    text: 'هویت خود را تأیید کنید تا به تخفیف‌ها و پیشنهادهای ویژه دسترسی پیدا کنید.\nخپله پیژندنه تصدیق کړئ ترڅو تخفیفونو او ځانګړو وړاندیزونو ته لاسرسی ومومئ.' },
+  { label: 'New salons added',
+    text: 'سالن‌های جدید در منطقه‌ی شما اضافه شدند — همین حالا ببینید و نوبت بگیرید!\nستاسو په سیمه کې نوي سالونونه اضافه شول — همدا اوس یې وګورئ او نوبت واخلئ!' },
+  { label: 'Eid greeting',
+    text: 'عید شما مبارک! از طرف تیم سیف‌بیوتی برایتان روزهای زیبا و شاد آرزومندیم. 🌙\nستاسو اختر مبارک! د سیف‌بیوتي ټیم د ښکلو او خوښیو ورځو هیله کوي. 🌙' },
+  { label: 'App update available',
+    text: 'نسخه‌ی جدید اپ آماده است. برای تجربه‌ی بهتر، از گوگل‌پلی به‌روزرسانی کنید.\nد اپ نوې نسخه چمتو ده. د ښه تجربې لپاره، له ګوګل پلی نه یې تازه کړئ.' },
+];
+
 function renderAnnounce(){
   $('view').innerHTML = `
     <div class="section-title">Send an announcement</div>
     <div class="card" style="padding:18px;max-width:560px">
       <div id="aflash"></div>
-      <textarea id="amsg" class="field" placeholder="Your message to all users…"></textarea>
+      <select id="atmpl" class="field" style="margin-bottom:10px">
+        <option value="">Insert a template…</option>
+        ${ANNOUNCE_TEMPLATES.map((t,i)=>`<option value="${i}">${esc(t.label)}</option>`).join('')}
+      </select>
+      <textarea id="amsg" class="field" dir="auto" placeholder="Your message to all users…"></textarea>
       <button id="asend" class="btn">Send to everyone</button>
       <div class="meta" style="margin-top:10px">Delivered as a push notification and shown in-app.</div>
     </div>`;
+  $('atmpl').onchange = () => {
+    const i = $('atmpl').value;
+    if(i === '') return;
+    $('amsg').value = ANNOUNCE_TEMPLATES[i].text;
+    $('atmpl').value = '';   // reset so the same template can be re-picked
+    $('amsg').focus();
+  };
   $('asend').onclick = async () => {
     const msg = $('amsg').value.trim();
     if(!msg) return;
