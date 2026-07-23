@@ -27,8 +27,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.Gradients
+import com.safebeauty.app.ui.theme.TextFaint
 
 /**
  * A reusable full-screen brand background — a soft cream→blush vertical wash.
@@ -59,6 +61,10 @@ fun GradientButton(
     loading: Boolean = false
 ) {
     val clickable = enabled && !loading
+    // Disabled state must come from the theme: a hardcoded light beige reads as
+    // a glowing ENABLED button on the dark palette. ChipInactive/TextFaint are
+    // muted in both themes.
+    val contentColor = if (enabled) Color.White else TextFaint
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
@@ -66,7 +72,7 @@ fun GradientButton(
             .height(52.dp)
             .shadow(if (enabled) 6.dp else 0.dp, RoundedCornerShape(16.dp), clip = false)
             .clip(RoundedCornerShape(16.dp))
-            .background(if (enabled) Gradients.BrandRose else SolidColor(Color(0xFFD9C2C7)))
+            .background(if (enabled) Gradients.BrandRose else SolidColor(ChipInactive))
             .clickable(enabled = clickable, onClick = onClick)
     ) {
         if (loading) {
@@ -74,10 +80,10 @@ fun GradientButton(
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 if (icon != null) {
-                    Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Icon(icon, null, tint = contentColor, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(text, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(text, color = contentColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
             }
         }
     }
