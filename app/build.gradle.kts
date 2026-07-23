@@ -46,14 +46,14 @@ fun releaseCertSha1(file: java.io.File, storePass: String, alias: String): Strin
 
 android {
     namespace = "com.safebeauty.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.security.stealthapp"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 12
-        versionName = "1.7"
+        targetSdk = 36
+        versionCode = 13
+        versionName = "1.8"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -157,8 +157,11 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // SQLCipher — physical disk encryption for Room
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+    // SQLCipher — physical disk encryption for Room. The `sqlcipher-android`
+    // artifact (4.6.0+) ships 16 KB-page-aligned native libs, required by Google
+    // Play for apps targeting SDK 35+. Same `net.sqlcipher.*` API as the old
+    // `android-database-sqlcipher`, so no code change beyond the coordinate.
+    implementation("net.zetetic:sqlcipher-android:4.6.1")
     implementation("androidx.sqlite:sqlite:2.4.0")
 
     // Hilt
