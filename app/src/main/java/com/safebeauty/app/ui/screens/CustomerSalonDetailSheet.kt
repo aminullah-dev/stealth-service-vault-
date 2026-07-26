@@ -336,7 +336,7 @@ internal fun SalonDetailSheetContent(
                     modifier           = Modifier.size(20.dp)
                 )
             }
-            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                 Icon(
                     imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = strings.favorites,

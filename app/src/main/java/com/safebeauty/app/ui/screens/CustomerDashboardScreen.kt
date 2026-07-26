@@ -2623,7 +2623,7 @@ private fun SalonCard(
                     Spacer(Modifier.width(3.dp))
                     Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = strings.favorites,
@@ -2876,7 +2876,7 @@ private fun RecommendedSalonCard(
                     overflow   = TextOverflow.Ellipsis,
                     modifier   = Modifier.weight(1f)
                 )
-                IconButton(onClick = onToggleFav, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = onToggleFav, modifier = Modifier.size(48.dp)) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = strings.favorites,
