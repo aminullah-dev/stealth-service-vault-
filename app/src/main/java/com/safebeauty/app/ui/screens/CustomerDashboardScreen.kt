@@ -576,8 +576,8 @@ fun CustomerDashboardScreen(
                     },
                     trailingIcon  = if (searchQuery.isNotBlank()) {
                         {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.CheckCircle, null, tint = ChipInactive, modifier = Modifier.size(18.dp))
+                            IconButton(onClick = { viewModel.setSearchQuery("") }, modifier = Modifier.size(44.dp)) {
+                                Icon(Icons.Default.CheckCircle, strings.clearSearch, tint = ChipInactive, modifier = Modifier.size(18.dp))
                             }
                         }
                     } else null,
@@ -1109,7 +1109,7 @@ fun CustomerDashboardScreen(
                                 }
                                 Text("%,d AFN".format(subtotal), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
                                 IconButton(onClick = { partyGuests.removeAt(index) }) {
-                                    Icon(Icons.Default.Close, contentDescription = null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Close, contentDescription = strings.remove, tint = RoseGold, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -2870,7 +2870,7 @@ private fun RecommendedSalonCard(
                 IconButton(onClick = onToggleFav, modifier = Modifier.size(24.dp)) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        null,
+                        contentDescription = strings.favorites,
                         tint     = if (isFavorite) DeepRose else ChipInactive,
                         modifier = Modifier.size(14.dp)
                     )

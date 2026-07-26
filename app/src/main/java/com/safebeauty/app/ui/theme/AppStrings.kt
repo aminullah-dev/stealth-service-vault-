@@ -148,6 +148,7 @@ class AppStrings {
     var cashBookingConfirmText: (String, Long) -> String = { _, _ -> "" }
     var ok: String = ""
     var remove: String = ""
+    var clearSearch: String = ""
     var timeOffTitle: String = ""
     var timeOffHint: String = ""
     var timeOffNone: String = ""
@@ -786,6 +787,7 @@ object StringResources {
         cashBookingConfirmText     = { name, amount -> "Request sent to $name. Please bring AFN $amount in cash to pay at the salon." }
         ok                         = "OK"
         remove                     = "Remove"
+        clearSearch                = "Clear search"
         timeOffTitle               = "Time off"
         timeOffHint                = "Block days you are closed — customers can't book them."
         timeOffNone                = "No days blocked."
@@ -1364,6 +1366,7 @@ object StringResources {
         cashBookingConfirmText     = { name, amount -> "درخواست به $name ارسال شد. لطفاً $amount افغانی نقد برای پرداخت در سالن همراه داشته باشید." }
         ok                         = "تایید"
         remove                     = "حذف"
+        clearSearch                = "پاک کردن جست‌وجو"
         timeOffTitle               = "روزهای تعطیل"
         timeOffHint                = "روزهایی که بسته‌اید را ببندید — مشتری نمی‌تواند آن روز رزرو کند."
         timeOffNone                = "هیچ روزی بسته نشده."
@@ -1942,6 +1945,7 @@ object StringResources {
         cashBookingConfirmText     = { name, amount -> "غوښتنه $name ته واستول شوه. مهرباني وکړئ $amount افغانۍ نغدې د سالون په تادیه لپاره ورسره ولرئ." }
         ok                         = "سمه ده"
         remove                     = "لرې کول"
+        clearSearch                = "لټون پاکول"
         timeOffTitle               = "د رخصتۍ ورځې"
         timeOffHint                = "هغه ورځې چې بند یاست بند کړئ — پیرودونکی نشي بوکینګ کولی."
         timeOffNone                = "هیڅ ورځ نه ده بنده شوې."
