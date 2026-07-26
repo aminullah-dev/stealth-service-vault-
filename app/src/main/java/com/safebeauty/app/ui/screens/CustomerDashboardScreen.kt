@@ -8,6 +8,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -160,6 +164,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.motionTween
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -544,7 +549,11 @@ fun CustomerDashboardScreen(
             ) {
 
                 // ── Offline banner ────────────────────────────────────────────
-                AnimatedVisibility(visible = isOffline) {
+                AnimatedVisibility(
+                    visible = isOffline,
+                    enter   = fadeIn(motionTween()) + expandVertically(motionTween()),
+                    exit    = fadeOut(motionTween()) + shrinkVertically(motionTween()),
+                ) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier         = Modifier

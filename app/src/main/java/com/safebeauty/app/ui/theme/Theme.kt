@@ -48,7 +48,10 @@ fun DashboardTheme(
 ) {
     val palette     = if (darkTheme) DarkPalette else LightPalette
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    CompositionLocalProvider(LocalPalette provides palette) {
+    CompositionLocalProvider(
+        LocalPalette provides palette,
+        LocalReducedMotion provides rememberReducedMotion(),
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography  = DashboardTypography,

@@ -1,6 +1,7 @@
 package com.safebeauty.app.ui.screens
 
 import androidx.compose.animation.Crossfade
+import com.safebeauty.app.ui.theme.motionTween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,7 +87,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Crossfade(targetState = page, label = "onboarding_slide") { i ->
+                Crossfade(targetState = page, animationSpec = motionTween(), label = "onboarding_slide") { i ->
                     val slide = slides[i]
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
