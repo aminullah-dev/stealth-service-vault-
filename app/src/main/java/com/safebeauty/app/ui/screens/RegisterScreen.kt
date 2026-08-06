@@ -433,10 +433,24 @@ fun RegisterScreen(
                 )
             }
             is RegisterViewModel.RegisterState.Error -> {
+                val message = when (s.reason) {
+                    RegisterViewModel.ErrorReason.NAME_REQUIRED       -> strings.regNameRequired
+                    RegisterViewModel.ErrorReason.PHONE_REQUIRED      -> strings.forgotPinPhoneRequired
+                    RegisterViewModel.ErrorReason.PHONE_INVALID       -> strings.regPhoneInvalid
+                    RegisterViewModel.ErrorReason.EMAIL_INVALID       -> strings.regEmailInvalid
+                    RegisterViewModel.ErrorReason.PIN_TOO_SHORT       -> strings.pinTooShort
+                    RegisterViewModel.ErrorReason.PIN_MISMATCH        -> strings.setNewPinMismatch
+                    RegisterViewModel.ErrorReason.SALON_NAME_REQUIRED -> strings.regSalonNameRequired
+                    RegisterViewModel.ErrorReason.DISTRICT_REQUIRED   -> strings.regDistrictRequired
+                    RegisterViewModel.ErrorReason.SERVICES_REQUIRED   -> strings.regServicesRequired
+                    RegisterViewModel.ErrorReason.PHONE_CHECK_FAILED  -> strings.regPhoneCheckFailed
+                    RegisterViewModel.ErrorReason.PHONE_EXISTS        -> strings.regPhoneExists
+                    RegisterViewModel.ErrorReason.REGISTRATION_FAILED -> strings.regFailed
+                }
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState() },
                     title = { Text(strings.pleaseCheckTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text(s.message, fontSize = 14.sp, color = TextStrong) },
+                    text  = { Text(message, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
                         TextButton(onClick = { viewModel.dismissState() }) {
                             Text(strings.ok, color = RoseGold)

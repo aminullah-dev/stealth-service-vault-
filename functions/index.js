@@ -3190,3 +3190,139 @@ exports.pushPostToFollowers = onDocumentCreated(
     logger.log(`pushPostToFollowers: notified ${total} follower(s) of salon ${post.salonId}`);
   }
 );
+
+// ── Account deletion (Google Play User Data policy) ───────────────────────────
+//
+// Play requires any app that creates accounts in-app to offer BOTH an in-app
+// deletion path and a public web URL (public/delete-account). This is the
+// server half: the client can never delete a user document directly — the rules
+// leave no such path — so deletion goes through this callable.
+//
+// What we delete vs. keep, and why:
+//   DELETE  the person — users/{uid}, uid_map, KYC images, profile photo, the
+//           Firebase Auth account, plus their favorites/waitlist/notifications.
+//   KEEP    the money — appointments and payments are the salon's business
+//           records (and ours, for commission reconciliation), so they survive
+//           with every personal field stripped. A deleted customer's booking
+//           history becomes an anonymous row, not a dangling reference.
+// Live bookings are cancelled first so neither side is left holding a slot for
+// an account that no longer exists.
+
+/** Appointment statuses that still hold a real slot on someone's calendar. */
+const LIVE_APPOINTMENT_STATUSES = ["AWAITING_PAYMENT", "PENDING", "CONFIRMED"];
+
+/** Commit a batch every 400 writes (Firestore's hard limit is 500). */
+async function flushIfFull(batch, count) {
+  if (count >= 400) { await batch.commit(); return { batch: db.batch(), count: 0 }; }
+  return { batch, count };
+}
+
+exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+
+  const user    = await resolveAppUser(request);
+  const uid     = user.uid;              // app-level id (users/{uid})
+  const authUid = request.auth.uid;      // Firebase Auth uid
+
+  // An admin deleting themselves could orphan the platform. Refuse — another
+  // admin must revoke the role first (revokeAdmin already blocks the last one).
+  if (user.role === "ADMIN") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Admin accounts can't be self-deleted. Have another admin revoke your admin role first."
+    );
+  }
+
+  const now = Date.now();
+  let batch = db.batch();
+  let count = 0;
+  const add = async (fn) => { fn(batch); count++; ({ batch, count } = await flushIfFull(batch, count)); };
+
+  // 1. Cancel every live appointment on both sides of the marketplace.
+  let cancelled = 0;
+  for (const field of ["customerId", "providerId"]) {
+    const snap = await db.collection("appointments")
+      .where(field, "==", uid)
+      .where("status", "in", LIVE_APPOINTMENT_STATUSES)
+      .get();
+    for (const d of snap.docs) {
+      await add((b) => b.update(d.ref, {
+        status: "CANCELLED",
+        cancelledAt: now,
+        cancelReason: "ACCOUNT_DELETED",
+      }));
+      cancelled++;
+    }
+  }
+
+  // 2. Strip personal fields from the financial records we keep.
+  const asCustomer = await db.collection("appointments").where("customerId", "==", uid).get();
+  for (const d of asCustomer.docs) {
+    await add((b) => b.update(d.ref, { customerName: "", customerPhone: "", notes: "" }));
+  }
+
+  // 3. Reviews stay (they inform other customers) but lose their author.
+  const reviews = await db.collection("reviews").where("customerId", "==", uid).get();
+  for (const d of reviews.docs) {
+    await add((b) => b.update(d.ref, { customerName: "" }));
+  }
+
+  // 4. Purely personal rows are deleted outright.
+  for (const [coll, field] of [
+    ["favorites",     "customerId"],
+    ["waitlist",      "customerId"],
+    ["notifications", "uid"],
+  ]) {
+    try {
+      const snap = await db.collection(coll).where(field, "==", uid).get();
+      for (const d of snap.docs) await add((b) => b.delete(d.ref));
+    } catch (e) {
+      logger.warn(`requestAccountDeletion: skipping ${coll}`, e);
+    }
+  }
+
+  // 5. A departing provider's salon must stop taking bookings.
+  const salons = await db.collection("salons").where("providerId", "==", uid).get();
+  for (const d of salons.docs) {
+    await add((b) => b.update(d.ref, { hidden: true, isVerified: false, deletedAt: now }));
+  }
+
+  // 6. The uid_map bridge (there may be several, one per Auth account used).
+  const maps = await db.collection("uid_map").where("appUid", "==", uid).get();
+  for (const d of maps.docs) await add((b) => b.delete(d.ref));
+  await add((b) => b.delete(db.doc(`uid_map/${authUid}`)));
+
+  // 7. The user document itself — the home of every remaining PII field
+  //    (name, phone, email, tazkira number, KYC photo URLs, fcmToken).
+  await add((b) => b.delete(db.doc(`users/${uid}`)));
+
+  if (count > 0) await batch.commit();
+
+  // 8. Private images. Best-effort: a Storage hiccup must not resurrect an
+  //    account whose Firestore identity is already gone.
+  for (const prefix of [`kyc/${uid}/`, `profile/${uid}/`, `reviews/${uid}/`]) {
+    try {
+      await admin.storage().bucket().deleteFiles({ prefix });
+    } catch (e) {
+      logger.warn(`requestAccountDeletion: storage cleanup failed for ${prefix}`, e);
+    }
+  }
+
+  // 9. Finally the credential itself. Last, so a failure above leaves the user
+  //    able to sign in and retry rather than locked out mid-deletion.
+  try {
+    await admin.auth().deleteUser(authUid);
+  } catch (e) {
+    logger.error("requestAccountDeletion: auth delete failed", e);
+    throw new HttpsError("internal", "Your data was removed but the sign-in could not be closed. Contact support.");
+  }
+
+  await db.collection("admin_audit").add({
+    adminUid: uid, adminName: "(self)", action: "DELETE_ACCOUNT",
+    details: { role: user.role || "", cancelledAppointments: cancelled, salonsHidden: salons.size },
+    createdAt: now,
+  });
+
+  logger.log(`requestAccountDeletion: deleted ${uid} (cancelled ${cancelled} appointment(s))`);
+  return { ok: true, cancelledAppointments: cancelled };
+});

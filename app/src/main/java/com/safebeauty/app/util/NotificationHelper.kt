@@ -62,7 +62,7 @@ object NotificationHelper {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_BOOKINGS)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(com.safebeauty.app.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

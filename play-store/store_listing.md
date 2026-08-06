@@ -171,15 +171,17 @@ Declare accurately — misdeclaring data collection can get the app suspended.
 | Question | Answer |
 |----------|--------|
 | Does your app collect or share user data? | Yes |
-| Personal info | Name, Phone number |
-| Location | Approximate location (used to show salon distance & directions) |
+| Personal info | Name, Phone number, Email address (optional — also shared with HesabPay at online checkout), Address and Date of birth (year, via KYC) |
+| Location | **Approximate AND precise.** Approximate when a customer sorts salons by distance; precise only when a salon owner pins their own salon on the map (`ACCESS_FINE_LOCATION` is in the manifest for that flow). Optional either way. |
 | Photos | Profile, salon gallery, and review photos |
-| Identity / sensitive (providers only) | Tazkira (national ID) number + tazkira & selfie photos, for salon verification (KYC) |
+| Identity / sensitive (**all users**) | Tazkira (national ID) number, tazkira photo, selfie, province, address, year of birth, tazkira issue/expiry dates. Required for **every** user: customers before their first booking, providers before the salon goes live — not providers only. |
+| App info & performance | Crash logs and diagnostics, collected via Firebase Crashlytics (enabled in release builds). Collected, not shared; used only for app functionality. |
 | App activity | Bookings, reviews, in-app messages |
 | Financial | Payments are handled by HesabPay; the app does not store card/bank details |
-| Advertising ID | NOT used (the AD_ID permission is removed from the manifest) |
+| Advertising ID | NOT used. `com.google.android.gms.permission.AD_ID` is stripped in the manifest. Note that `firebase-analytics` still contributes `android.permission.ACCESS_ADSERVICES_AD_ID` (from `play-services-measurement-api`); the app never reads an advertising ID. |
 | Is data encrypted in transit? | Yes (TLS / HTTPS) |
-| Can users request data deletion? | Yes (in-app / contact developer) |
+| Is data encrypted at rest? | Yes — the on-device database is SQLCipher-encrypted; KYC images live in a private Storage path |
+| Can users request data deletion? | Yes — in-app: **Support → Delete my account**. Public URL: https://safebeauty.web.app/delete-account |
 | Data shared with third parties? | No (processors only: Google Firebase, HesabPay) |
 
 

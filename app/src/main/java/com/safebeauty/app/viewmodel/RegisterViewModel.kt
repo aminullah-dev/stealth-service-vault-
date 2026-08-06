@@ -27,12 +27,22 @@ class RegisterViewModel @Inject constructor(
 
     private val functions = FirebaseFunctions.getInstance()
 
+    // The reason an attempt failed. The screen maps each to a localized string
+    // (LocalStrings) — the ViewModel must never hold a user-facing English
+    // literal, or the error renders in English inside a Dari/Pashto screen.
+    enum class ErrorReason {
+        NAME_REQUIRED, PHONE_REQUIRED, PHONE_INVALID, EMAIL_INVALID,
+        PIN_TOO_SHORT, PIN_MISMATCH,
+        SALON_NAME_REQUIRED, DISTRICT_REQUIRED, SERVICES_REQUIRED,
+        PHONE_CHECK_FAILED, PHONE_EXISTS, REGISTRATION_FAILED
+    }
+
     sealed class RegisterState {
         object Idle       : RegisterState()
         object Loading    : RegisterState()
         data class CustomerSuccess(val name: String) : RegisterState()
         object ProviderPending : RegisterState()   // needs admin approval
-        data class Error(val message: String) : RegisterState()
+        data class Error(val reason: ErrorReason) : RegisterState()
     }
 
     // ── Form fields ───────────────────────────────────────────────────────────
@@ -69,20 +79,20 @@ class RegisterViewModel @Inject constructor(
 
     // ── Validation ────────────────────────────────────────────────────────────
 
-    private fun validate(): String? {
-        if (name.isBlank())            return "Name is required"
-        if (phone.isBlank())           return "Phone number is required"
+    private fun validate(): ErrorReason? {
+        if (name.isBlank())            return ErrorReason.NAME_REQUIRED
+        if (phone.isBlank())           return ErrorReason.PHONE_REQUIRED
         // Self-registration is customer/provider only, and those must be Afghan
         // (+93) numbers. Admin accounts (any country) are created out-of-band.
         if (!PhoneUtils.isValidAfghan(phone))
-            return "Enter a valid Afghan phone number (e.g. 0700123456)"
+            return ErrorReason.PHONE_INVALID
         if (email.isNotBlank() && !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches())
-            return "Please enter a valid email address"
-        if (password.length < 6)       return "Password must be at least 6 characters"
-        if (password != confirmPassword) return "Passwords do not match"
-        if (isProvider && salonName.isBlank()) return "Salon name is required"
-        if (isProvider && district.isBlank())  return "District is required"
-        if (isProvider && services.isEmpty())  return "Add at least one service"
+            return ErrorReason.EMAIL_INVALID
+        if (password.length < 6)       return ErrorReason.PIN_TOO_SHORT
+        if (password != confirmPassword) return ErrorReason.PIN_MISMATCH
+        if (isProvider && salonName.isBlank()) return ErrorReason.SALON_NAME_REQUIRED
+        if (isProvider && district.isBlank())  return ErrorReason.DISTRICT_REQUIRED
+        if (isProvider && services.isEmpty())  return ErrorReason.SERVICES_REQUIRED
         return null
     }
 
@@ -115,11 +125,11 @@ class RegisterViewModel @Inject constructor(
                     .await()
                 (r.getData() as? Map<*, *>)?.get("found") == true
             }.getOrElse {
-                state = RegisterState.Error("Couldn't verify the phone number. Check your connection and try again.")
+                state = RegisterState.Error(ErrorReason.PHONE_CHECK_FAILED)
                 return@launch
             }
             if (exists) {
-                state = RegisterState.Error("An account with this phone number already exists.")
+                state = RegisterState.Error(ErrorReason.PHONE_EXISTS)
                 return@launch
             }
 
@@ -190,7 +200,7 @@ class RegisterViewModel @Inject constructor(
                     throw e
                 }
             }.onFailure { e ->
-                state = RegisterState.Error(e.message ?: "Registration failed. Try again.")
+                state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
             }
         }
     }

@@ -313,7 +313,17 @@ fun AppNavGraph(
             }
 
             composable(Screen.Support.route) {
-                SupportScreen(onBack = { navController.popBackStack() })
+                SupportScreen(
+                    onBack = { navController.popBackStack() },
+                    // The account no longer exists — clear the whole back stack so
+                    // no signed-in screen is reachable behind the login page.
+                    onAccountDeleted = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
 
             composable(Screen.Feed.route) {

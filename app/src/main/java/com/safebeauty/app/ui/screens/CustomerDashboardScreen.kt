@@ -1965,7 +1965,13 @@ fun CustomerDashboardScreen(
                         // Nearest needs a location; request it if we don't have one
                         // yet (the launcher sets NEAREST once granted).
                         if (mode == SalonSort.NEAREST && !viewModel.hasCustomerLocation()) {
-                            locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                            // COARSE is deliberate: this only sorts salons by
+                            // distance, where city-block accuracy is ample. Asking
+                            // a customer for precise location to rank a list would
+                            // take more than the feature needs. (The provider side
+                            // still requests FINE — pinning a salon's own map
+                            // location genuinely requires it.)
+                            locationPermLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
                         } else {
                             viewModel.setSortMode(mode)
                         }
