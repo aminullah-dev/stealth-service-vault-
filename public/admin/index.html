@@ -313,7 +313,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc, doc,
-         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer }
+         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer, documentId }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
@@ -522,23 +522,26 @@ function selectTab(id){
 // ── Stats ────────────────────────────────────────────────────────────────────
 async function renderStats(){
   try{
-    const [usersSnap, salonsSnap, apptCount] = await Promise.all([
-      getDocs(collection(db,'users')),
-      getDocs(collection(db,'salons')),
-      getCountFromServer(collection(db,'appointments')).catch(()=>null),
-    ]);
-    let providers=0, customers=0, pending=0, suspended=0, kycPending=0;
-    usersSnap.forEach(d => { const u=d.data();
-      if(u.role==='PROVIDER') providers++;
-      if(u.role==='CUSTOMER') customers++;
-      if(u.status==='PENDING') pending++;
-      if(u.status==='SUSPENDED') suspended++;
-      if(u.kycStatus==='PENDING') kycPending++;
-    });
-    const appts = apptCount ? apptCount.data().count : '—';
+    // Counted server-side. The old version downloaded every user document just
+    // to tally six numbers, so opening the dashboard cost one read per user —
+    // fine at 20 users, ruinous at 20,000. getCountFromServer bills a fraction
+    // of a read regardless of collection size.
+    const users = collection(db,'users');
+    const countOf = (q) => getCountFromServer(q).then(r => r.data().count).catch(() => '—');
+    const [total, providers, customers, pending, suspended, kycPending, salonCount, appts] =
+      await Promise.all([
+        countOf(users),
+        countOf(query(users, where('role','==','PROVIDER'))),
+        countOf(query(users, where('role','==','CUSTOMER'))),
+        countOf(query(users, where('status','==','PENDING'))),
+        countOf(query(users, where('status','==','SUSPENDED'))),
+        countOf(query(users, where('kycStatus','==','PENDING'))),
+        countOf(collection(db,'salons')),
+        countOf(collection(db,'appointments')),
+      ]);
     const cards = [
-      ['👥','Total users', usersSnap.size], ['💇','Providers', providers], ['🧑','Customers', customers],
-      ['🏠','Salons', salonsSnap.size], ['📅','Appointments', appts],
+      ['👥','Total users', total], ['💇','Providers', providers], ['🧑','Customers', customers],
+      ['🏠','Salons', salonCount], ['📅','Appointments', appts],
       ['⏳','Pending approvals', pending], ['🪪','KYC pending', kycPending], ['🚫','Suspended', suspended],
     ];
     $('view').innerHTML =
@@ -895,11 +898,20 @@ async function openTemplates(targetInputId){
 // ── Users ──────────────────────────────────────────────────────────────────────
 async function renderUsers(){
   try{
-    const snap = await getDocs(collection(db,'users'));
+    // Newest 300 rather than the entire collection. The list is browsed and
+    // searched by eye; an admin who needs an older account uses the phone/name
+    // search, which is what the Manage flow is driven by anyway.
+    const USER_PAGE = 300;
+    const snap = await getDocs(query(collection(db,'users'), orderBy('createdAt','desc'), limit(USER_PAGE)));
     const users = []; snap.forEach(d => users.push({ id:d.id, ...d.data() }));
-    users.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    $('view').innerHTML = `<div class="section-title">All users (${users.length})</div>
-      <input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
+    // Say so when the list is capped. A console that silently shows a subset is
+    // worse than one that shows fewer rows and admits it.
+    const capped = users.length === USER_PAGE;
+    $('view').innerHTML = `<div class="section-title">All users (${users.length}${capped?'+':''})</div>` +
+      (capped ? `<div class="meta" style="color:var(--warn-ink);margin-bottom:10px">
+         Showing the ${USER_PAGE} newest accounts. Older accounts are not listed here —
+         use the Manage flow on the Admins tab to reach one by phone number.</div>` : '') +
+      `<input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
     const setStatus = async (uid, status) => {
       try{ await updateDoc(doc(db,'users',uid), { status });
@@ -1033,9 +1045,10 @@ function openUserModal(u, onChanged){
 // ── Admins ───────────────────────────────────────────────────────────────────
 async function renderAdmins(){
   try{
-    const snap = await getDocs(collection(db,'users'));
+    // Ask for admins, don't download everyone and filter in the browser.
+    const snap = await getDocs(query(collection(db,'users'), where('role','==','ADMIN')));
     const all = []; snap.forEach(d => all.push({ id:d.id, ...d.data() }));
-    const admins = all.filter(u => u.role==='ADMIN').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const admins = all.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     $('view').innerHTML = `
       <div class="section-title">Add an administrator</div>
       <div class="card" style="padding:16px;max-width:460px;margin-bottom:22px">
@@ -1073,7 +1086,13 @@ async function renderAdmins(){
         const res = await httpsCallable(fns,'lookupAccountByPhone')({ phone });
         const m = res.data || {};
         if(!m.found){ found.innerHTML = `<div class="mflash bad">No account with that phone.</div>`; return; }
-        const u = all.find(x=>x.id===m.uid) || { id:m.uid, name:'', role:'' };
+        // Fetch the one user we're about to promote. `all` holds only admins now,
+        // so it can never contain the non-admin we are looking for.
+        let u = { id:m.uid, name:'', role:'' };
+        try{
+          const uSnap = await getDoc(doc(db,'users',m.uid));
+          if(uSnap.exists()) u = { id:uSnap.id, ...uSnap.data() };
+        }catch(_){}
         if(u.role==='ADMIN'){ found.innerHTML = `<div class="mflash ok">${esc(u.name||u.id)} is already an admin.</div>`; return; }
         found.innerHTML = `<div class="row" style="margin:0"><h3>${esc(u.name||u.id)}</h3>
           <div class="meta">${esc(u.role||'—')} · ${esc(u.phone||phone)}</div>
@@ -1087,15 +1106,28 @@ async function renderAdmins(){
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+
+/** Fetch just the user docs whose ids are in [ids], keyed by id. Firestore caps
+ *  an `in` filter at 30 values, so this chunks. Used instead of downloading the
+ *  whole users collection to resolve a handful of owner names. */
+async function fetchUsersByIds(ids){
+  const unique = [...new Set(ids.filter(Boolean))];
+  const out = {};
+  for(let i=0;i<unique.length;i+=30){
+    const chunk = unique.slice(i,i+30);
+    const snap = await getDocs(query(collection(db,'users'), where(documentId(),'in',chunk)));
+    snap.forEach(d => out[d.id] = { id:d.id, ...d.data() });
+  }
+  return out;
+}
+
 // ── Salons ─────────────────────────────────────────────────────────────────────
 async function renderSalons(){
   try{
-    const [salonSnap, userSnap] = await Promise.all([
-      getDocs(collection(db,'salons')),
-      getDocs(collection(db,'users')),
-    ]);
+    const salonSnap = await getDocs(collection(db,'salons'));
     const salons = []; salonSnap.forEach(d => salons.push({ id:d.id, ...d.data() }));
-    const owners = {}; userSnap.forEach(d => owners[d.id] = { id:d.id, ...d.data() });
+    // Only the owners of these salons — not every user on the platform.
+    const owners = await fetchUsersByIds(salons.map(s => s.providerId));
     salons.sort((a,b)=>(a.salonName||'').localeCompare(b.salonName||''));
     // Admin-side salon onboarding. Salon owners in Kabul are signed up in person,
     // so the admin needs to create the owner's account and their salon together;
@@ -1394,10 +1426,11 @@ async function renderFinance(){
 
   // Balances + names
   try{
-    const [balSnap, uSnap] = await Promise.all([
-      getDocs(collection(db,'provider_balances')), getDocs(collection(db,'users'))
-    ]);
-    const names = {}; uSnap.forEach(d => names[d.id] = d.data().name || d.id);
+    const balSnap = await getDocs(collection(db,'provider_balances'));
+    const balIds = []; balSnap.forEach(d => balIds.push(d.id));
+    // Only the providers that actually have a balance row.
+    const balUsers = await fetchUsersByIds(balIds);
+    const names = {}; Object.values(balUsers).forEach(u => names[u.id] = u.name || u.id);
     const bals = [];
     // Keep every non-zero balance. Positive = platform owes the provider (payout);
     // negative = the provider owes the platform (cash-booking commission debt) —

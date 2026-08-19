@@ -1410,6 +1410,13 @@ function hashesEqual(a, b) {
  * the server. No auth required (this IS the pre-auth login step).
  */
 exports.authenticateWithPassword = onCall({ region: "us-central1" }, async (request) => {
+  // Unauthenticated by necessity — this IS the login. Throttle both the caller
+  // and the targeted phone so an attacker can neither grind one account from
+  // many IPs nor sweep many accounts from one.
+  const _ip = callerIp(request);
+  const _phoneKey = normalizePhone(String((request.data || {}).phone || "").trim() || "unknown");
+  await enforceRateLimit(`login-ip:${_ip}`, 30, 15 * 60 * 1000);
+  await enforceRateLimit(`login-phone:${_phoneKey}`, 10, 15 * 60 * 1000);
   const d = request.data || {};
   const phone    = String(d.phone || "").trim();
   const password = String(d.password || "");
@@ -1757,6 +1764,11 @@ function normalizePhone(raw) {
 exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request) => {
   const raw = String((request.data || {}).phone || "").trim();
   if (!raw) return { found: false };
+  // Throttle before touching the database: this endpoint is unauthenticated and
+  // answers "does this phone have an account?", which is exactly what an
+  // enumeration sweep wants. 20 lookups per IP per 10 minutes is far above any
+  // real signup/recovery flow and far below a useful sweep.
+  await enforceRateLimit(`lookup:${callerIp(request)}`, 20, 10 * 60 * 1000);
   const phone = normalizePhone(raw);
 
   let q = await db.collection("users").where("phone", "==", phone).limit(1).get();
@@ -3433,3 +3445,122 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
     throw new HttpsError("internal", "Could not create the salon.");
   }
 });
+
+// ── Abuse protection for the pre-login callables ──────────────────────────────
+//
+// `lookupAccountByPhone` and `authenticateWithPassword` cannot require auth —
+// they run BEFORE the user has a session. That leaves two open doors:
+//
+//   1. Enumeration. Afghan mobile numbers are a small, guessable space, so an
+//      unthrottled lookup reveals which numbers belong to SafeBeauty users. For
+//      an app used by women in Kabul that is a personal-safety problem, not just
+//      a privacy one.
+//   2. Brute force. An unthrottled login endpoint lets an attacker grind
+//      passwords for a phone number they already know.
+//
+// A fixed window in Firestore is enough here: the traffic is low, the counter is
+// cheap, and a transaction keeps concurrent calls honest. Limits are per-caller
+// (IP) and, for login, additionally per-phone so one victim can't be targeted
+// from many IPs.
+
+/**
+ * Fixed-window rate limit. Throws resource-exhausted once [max] calls have been
+ * made under [key] inside [windowMs]. Fails OPEN on infrastructure errors — a
+ * Firestore hiccup must never lock legitimate users out of signing in.
+ */
+async function enforceRateLimit(key, max, windowMs) {
+  const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
+  const now = Date.now();
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const d = snap.exists ? snap.data() : null;
+      if (!d || now - (d.windowStart || 0) >= windowMs) {
+        tx.set(ref, { windowStart: now, count: 1, updatedAt: now });
+        return;
+      }
+      if ((d.count || 0) >= max) {
+        const retryInSec = Math.ceil((d.windowStart + windowMs - now) / 1000);
+        throw new HttpsError(
+          "resource-exhausted",
+          `Too many attempts. Please try again in ${retryInSec} second(s).`
+        );
+      }
+      tx.update(ref, { count: (d.count || 0) + 1, updatedAt: now });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;   // the limit itself — propagate
+    logger.warn("enforceRateLimit failed open", e);
+  }
+}
+
+/** Best-effort caller IP for a v2 callable. */
+function callerIp(request) {
+  const r = request.rawRequest || {};
+  const fwd = (r.headers && (r.headers["x-forwarded-for"] || r.headers["X-Forwarded-For"])) || "";
+  return String(fwd).split(",")[0].trim() || r.ip || "unknown";
+}
+
+/** Purge stale rate-limit counters so the collection can't grow without bound. */
+exports.cleanupRateLimits = onSchedule(
+  { schedule: "every 24 hours", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const snap = await db.collection("rate_limits")
+      .where("updatedAt", "<", cutoff).limit(500).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    logger.log(`cleanupRateLimits: removed ${snap.size} stale counter(s)`);
+  }
+);
+
+// ── Scheduled Firestore backup ────────────────────────────────────────────────
+//
+// Everything the business depends on — salons, appointments, payments, provider
+// balances, KYC decisions — lives in one Firestore database with no history. A
+// bad admin action, a bad deploy, or an accidental bulk delete is unrecoverable
+// without an export. This writes a full daily export to a Cloud Storage bucket,
+// which is the only thing that turns "we lost the bookings" into "we restore
+// yesterday's".
+//
+// Restore (manual, deliberately not automated):
+//   gcloud firestore import gs://safebeauty-backups/<TIMESTAMP>
+//
+// Requires, one time:
+//   gcloud storage buckets create gs://safebeauty-backups --location=us-central1
+//   gcloud projects add-iam-policy-binding safebeauty \
+//     --member=serviceAccount:238802374530-compute@developer.gserviceaccount.com \
+//     --role=roles/datastore.importExportAdmin
+//   gcloud storage buckets add-iam-policy-binding gs://safebeauty-backups \
+//     --member=serviceAccount:238802374530-compute@developer.gserviceaccount.com \
+//     --role=roles/storage.admin
+
+const BACKUP_BUCKET = "gs://safebeauty-backups";
+
+exports.scheduledFirestoreBackup = onSchedule(
+  { schedule: "every day 02:00", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const projectId = process.env.GCLOUD_PROJECT || "safebeauty";
+    const client = new admin.firestore.v1.FirestoreAdminClient();
+    const databaseName = client.databasePath(projectId, "(default)");
+    // Kabul-local date, so a backup folder name matches the day the operator
+    // would ask for ("restore Tuesday's data").
+    const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
+
+    try {
+      const [response] = await client.exportDocuments({
+        name: databaseName,
+        outputUriPrefix: `${BACKUP_BUCKET}/${stamp}`,
+        collectionIds: [],   // empty = every collection
+      });
+      logger.log(`scheduledFirestoreBackup: started ${response.name} -> ${BACKUP_BUCKET}/${stamp}`);
+    } catch (e) {
+      // Loud: a silently failing backup is worse than no backup, because you
+      // only discover it the day you need to restore.
+      logger.error("scheduledFirestoreBackup FAILED", e);
+      throw e;
+    }
+  }
+);

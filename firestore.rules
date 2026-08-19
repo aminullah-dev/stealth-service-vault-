@@ -517,5 +517,15 @@ service cloud.firestore {
                && (resource.data.providerId == me() || isAdmin());
       allow write: if false;
     }
+
+    // ── rate_limits ──────────────────────────────────────────────────────────────
+    // Abuse counters for the two pre-login callables (phone lookup, password
+    // login). Server-only: a client that could read these would learn how close
+    // it is to the limit, and one that could write them could reset its own
+    // counter and defeat the throttle entirely. Unmatched paths are denied by
+    // default, but this is stated explicitly so the intent survives future edits.
+    match /rate_limits/{key} {
+      allow read, write: if false;
+    }
   }
 }
