@@ -175,6 +175,7 @@ import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.safebeauty.app.util.Analytics
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
@@ -345,6 +346,12 @@ fun CustomerDashboardScreen(
     val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
     val searchQuery               by viewModel.searchQuery.collectAsStateWithLifecycle()
 
+    // Funnel step 1. Keyed on the result set so it fires once per distinct view
+    // rather than on every recomposition.
+    LaunchedEffect(filteredSalons.size, filtersActive, searchQuery) {
+        Analytics.salonListViewed(filteredSalons.size, filtersActive || searchQuery.isNotBlank())
+    }
+
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
         strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
@@ -361,6 +368,11 @@ fun CustomerDashboardScreen(
     var showLangPicker       by remember { mutableStateOf(false) }
     var showProfileSheet     by remember { mutableStateOf(false) }
     var showSalonDetail      by remember { mutableStateOf<SalonDocument?>(null) }
+    // Funnel step 2. Watching the state rather than each opener means every path
+    // into the detail sheet is counted, including ones added later.
+    LaunchedEffect(showSalonDetail?.id) {
+        showSalonDetail?.let { Analytics.salonOpened(it.id) }
+    }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Location permission for "sort by nearest" — requested only when the user
@@ -1811,6 +1823,7 @@ fun CustomerDashboardScreen(
                 }
 
                 is CheckoutUiState.Failed -> {
+                    LaunchedEffect(Unit) { Analytics.bookingFailed(state.message) }
                     // The message field now carries the server's reason code, so
                     // we can explain exactly what went wrong AND offer the recovery
                     // that saves the user from re-entering the whole booking.
@@ -1875,12 +1888,14 @@ fun CustomerDashboardScreen(
                 }
 
                 is CheckoutUiState.Paid -> {
+                    LaunchedEffect(Unit) { Analytics.bookingCompleted(cash = false) }
                     // Reset checkout; the booking-confirmation dialog (driven by
                     // bookingConfirmSalonName) shows the success message.
                     LaunchedEffect(Unit) { viewModel.cancelCheckout() }
                 }
 
                 is CheckoutUiState.CashConfirmed -> {
+                    LaunchedEffect(Unit) { Analytics.bookingCompleted(cash = true) }
                     // Same as Paid — the booking-confirmation dialog (driven by
                     // bookingConfirmSalonName / bookingConfirmCashAmount) shows
                     // the "bring cash" success message.

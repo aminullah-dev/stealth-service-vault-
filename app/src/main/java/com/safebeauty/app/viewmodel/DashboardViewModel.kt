@@ -31,6 +31,7 @@ import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.WorkingHours
+import com.safebeauty.app.util.Analytics
 import com.safebeauty.app.util.CrashReporter
 import java.util.Calendar
 import com.safebeauty.app.data.repository.FavoritesRepository
@@ -895,6 +896,13 @@ class DashboardViewModel @Inject constructor(
         staffId: String = "",
         packageId: String = ""
     ) {
+        // Funnel step 3: the moment of intent, logged before the network call so
+        // it counts even when checkout then fails.
+        Analytics.bookingStarted(
+            salonId      = salon.id,
+            serviceCount = serviceNames.size,
+            cash         = paymentMethod == "CASH",
+        )
         checkout = CheckoutUiState.Creating
         // Remember the attempt so a rejection can be retried (see the recovery
         // methods below) instead of forcing the user to start over.
