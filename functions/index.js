@@ -521,7 +521,9 @@ exports.createPaymentSession = onCall(
         batch.set(db.collection("notifications").doc(), {
           recipientId: providerId,
           type:        "NEW_BOOKING",
-          title:       "New Cash Booking",
+          msgKey:      "NEW_BOOKING_CASH",
+        msgParams:   { service: serviceName, price },
+        title:       "New Cash Booking",
           body:        `${serviceName} — AFN ${price} to collect in person`,
           isRead:      false,
           createdAt:   Date.now(),
@@ -958,6 +960,8 @@ exports.redeemLoyaltyPoints = onCall({ region: "us-central1" }, async (request) 
     tx.set(db.collection("notifications").doc(), {
       recipientId: appUser.uid,
       type:        "SYSTEM",
+      msgKey:      "POINTS_REDEEMED",
+      msgParams:   { spend: conv.spend, credit: conv.credit },
       title:       "Points redeemed 🎉",
       body:        `You turned ${conv.spend} points into AFN ${conv.credit} of wallet credit.`,
       isRead:      false,
@@ -1002,6 +1006,8 @@ exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) =
     tx.set(db.collection("notifications").doc(), {
       recipientId: appUser.uid,
       type:        "SYSTEM",
+      msgKey:      "PROFILE_COMPLETE",
+      msgParams:   { points: PROFILE_REWARD_POINTS },
       title:       "Profile complete 🌟",
       body:        `You earned ${PROFILE_REWARD_POINTS} loyalty points for completing your profile.`,
       isRead:      false,
@@ -1196,6 +1202,8 @@ exports.hesabPayWebhook = onRequest(
             tx.set(db.collection("notifications").doc(), {
               recipientId: fresh.recipientUid,
               type:        "GIFT_RECEIVED",
+              msgKey:      "GIFT_RECEIVED",
+              msgParams:   { amount: fresh.amount },
               title:       "You received a gift card 🎁",
               body:        `AFN ${fresh.amount} credit was added to your account.`,
               isRead:      false,
@@ -1221,6 +1229,8 @@ exports.hesabPayWebhook = onRequest(
             tx.set(db.collection("notifications").doc(), {
               recipientId: fresh.buyerUid,
               type:        "WALLET_TOPUP",
+              msgKey:      "WALLET_TOPUP",
+              msgParams:   { amount: fresh.amount },
               title:       "Wallet topped up 👛",
               body:        `AFN ${fresh.amount} was added to your wallet.`,
               isRead:      false,
@@ -1252,6 +1262,8 @@ exports.hesabPayWebhook = onRequest(
               tx.set(db.collection("notifications").doc(), {
                 recipientId: fresh.providerId,
                 type:        "TIP_RECEIVED",
+                msgKey:      "TIP_RECEIVED",
+                msgParams:   { amount: fresh.amount },
                 title:       "You received a tip 💝",
                 body:        `A customer tipped you AFN ${fresh.amount}.`,
                 isRead:      false,
@@ -1307,6 +1319,8 @@ exports.hesabPayWebhook = onRequest(
             tx.set(db.collection("notifications").doc(), {
               recipientId: fresh.providerId,
               type:        "NEW_BOOKING",
+              msgKey:      "NEW_BOOKING_PAID",
+              msgParams:   { service: fresh.serviceName || "", amount: fresh.amount },
               title:       "New Paid Booking",
               body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
               isRead:      false,
@@ -1659,6 +1673,8 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
             tx.set(db.collection("notifications").doc(), {
               recipientId: refQ.docs[0].id,
               type:        "SYSTEM",
+              msgKey:      "REFERRAL_REWARD",
+              msgParams:   { credit: REFERRAL_REFERRER_CREDIT },
               title:       "Referral Reward",
               body:        `A friend you invited just joined — you earned AFN ${REFERRAL_REFERRER_CREDIT} credit!`,
               isRead:      false,
@@ -1880,6 +1896,8 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
       tx.set(db.collection("notifications").doc(), {
         recipientId: providerId,
         type:        "BOOKING_CANCELLED",
+        msgKey:      "BOOKING_CANCELLED_BY_CUSTOMER",
+        msgParams:   { service: appt.serviceName || "A booking" },
         title:       "Booking Cancelled",
         body:        `${appt.serviceName || "A booking"} was cancelled by the customer.`,
         isRead:      false,
@@ -1890,6 +1908,8 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
       tx.set(db.collection("notifications").doc(), {
         recipientId: appt.customerId,
         type:        "BOOKING_CANCELLED",
+        msgKey:      "BOOKING_DECLINED",
+        msgParams:   { service: appt.serviceName || "Your booking", salon: appt.salonName || "the salon" },
         title:       "Booking Declined",
         body:        `${appt.serviceName || "Your booking"} at ${appt.salonName || "the salon"} was declined.`,
         isRead:      false,
@@ -1944,6 +1964,8 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
         await db.collection("notifications").add({
           recipientId: first.customerId,
           type:        "WAITLIST",
+          msgKey:      "WAITLIST_SLOT",
+          msgParams:   { salon: first.salonName || "A salon" },
           title:       "A slot opened up 🎉",
           body:        `${first.salonName || "A salon"} has a free slot on your waitlisted day — book it before it's gone!`,
           isRead:      false,
@@ -2106,6 +2128,8 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
       tx.set(db.collection("notifications").doc(), {
         recipientId: providerId,
         type:        "BOOKING_RESCHEDULED",
+        msgKey:      "BOOKING_RESCHEDULED",
+        msgParams:   { service: appt.serviceName || "A booking" },
         title:       "Booking Rescheduled",
         body:        `${appt.serviceName || "A booking"} was moved to a new time — please re-confirm.`,
         isRead:      false,
@@ -2178,6 +2202,8 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
       tx.set(db.collection("notifications").doc(), {
         recipientId: appt.customerId,
         type:        "BOOKING_CONFIRMED",
+        msgKey:      "BOOKING_CONFIRMED",
+        msgParams:   { service: appt.serviceName || "Your booking", salon: appt.salonName || "the salon" },
         title:       "Booking Confirmed",
         body:        `${appt.serviceName || "Your booking"} at ${appt.salonName || "the salon"}`,
         isRead:      false,
@@ -2375,6 +2401,8 @@ exports.sendBookingReminders = onSchedule(
         batch.set(db.collection("notifications").doc(), {
           recipientId: appt.customerId,
           type:        "BOOKING_REMINDER",
+          msgKey:      "BOOKING_REMINDER",
+          msgParams:   { service: appt.serviceName || "Your appointment", salon: appt.salonName || "the salon" },
           title:       "Upcoming Appointment",
           body:        `${appt.serviceName || "Your appointment"} at ${appt.salonName || "the salon"} is coming up soon.`,
           isRead:      false,
@@ -2449,6 +2477,8 @@ exports.sendReengagementNudges = onSchedule(
       batch.set(db.collection("notifications").doc(), {
         recipientId: doc.id,
         type:        "REENGAGEMENT",
+        msgKey:      "REENGAGEMENT",
+        msgParams:   {},
         title:       "We miss you 💕",
         body:        "It's been a while — book your next beauty appointment on SafeBeauty.",
         isRead:      false,
@@ -2512,7 +2542,9 @@ exports.recordProviderPayout = onCall({ region: "us-central1" }, async (request)
   await db.collection("notifications").doc().set({
     recipientId: providerId,
     type:        "SYSTEM",
-    title:       "Payout Sent",
+    msgKey:      "PAYOUT_SENT",
+      msgParams:   { amount: result.amount },
+      title:       "Payout Sent",
     body:        `You have been paid AFN ${result.amount}.`,
     isRead:      false,
     createdAt:   Date.now(),
@@ -2562,6 +2594,8 @@ exports.recordRefundProcessed = onCall({ region: "us-central1" }, async (request
     tx.set(db.collection("notifications").doc(), {
       recipientId: refund.customerId,
       type:        "SYSTEM",
+      msgKey:      "REFUND_PROCESSED",
+      msgParams:   { amount: refund.amount },
       title:       "Refund Processed",
       body:        `Your refund of AFN ${refund.amount} has been processed.`,
       isRead:      false,
@@ -2707,10 +2741,15 @@ exports.pushOnNotificationCreated = onDocumentCreated(
     const token = userSnap.exists ? String(userSnap.data().fcmToken || "") : "";
     if (!token) return; // user never logged in on a push-capable device
 
+    // The user doc is already loaded for the token, so reading their language
+    // here is free. Falls back to the stored English text for older docs.
+    const lang = userSnap.exists ? String(userSnap.data().lang || "") : "";
+    const { title, body } = localizeNotification(n, lang);
+
     try {
       await admin.messaging().send({
         token,
-        notification: { title: String(n.title), body: String(n.body || "") },
+        notification: { title, body },
         // Duplicated under both key styles: the foreground handler
         // (SafeBeautyMessagingService) reads "type"/"relatedId", while a tap on
         // a background notification delivers data keys as raw intent extras,
@@ -2745,13 +2784,40 @@ exports.pushOnBroadcastCreated = onDocumentCreated(
     const b = event.data ? event.data.data() : null;
     if (!b || !b.message) return;
 
-    const usersSnap = await db.collection("users").get();
+    // Optional audience filters set by the admin console. Absent/blank means
+    // "everyone", so existing broadcasts keep their old platform-wide behaviour.
+    const wantRole = String(b.targetRole || "").toUpperCase();      // CUSTOMER | PROVIDER
+    const wantLang = String(b.targetLang || "").toLowerCase();      // fa | ps | en
+    const wantDistrict = String(b.targetDistrict || "");            // salon district
+
+    // A district filter only makes sense for providers, and their district lives
+    // on the salon rather than the user, so resolve those owners first.
+    let districtOwners = null;
+    if (wantDistrict) {
+      districtOwners = new Set();
+      const sSnap = await db.collection("salons").where("district", "==", wantDistrict).get();
+      sSnap.forEach((d) => { const pid = d.data().providerId; if (pid) districtOwners.add(pid); });
+      if (districtOwners.size === 0) {
+        logger.log(`pushOnBroadcastCreated: no salons in ${wantDistrict}, nothing sent`);
+        return;
+      }
+    }
+
+    let q = db.collection("users");
+    if (wantRole) q = q.where("role", "==", wantRole);
+    if (wantLang) q = q.where("lang", "==", wantLang);
+    const usersSnap = await q.get();
+
     const tokens = [];
     usersSnap.forEach((doc) => {
+      if (districtOwners && !districtOwners.has(doc.id)) return;
       const t = String(doc.data().fcmToken || "");
       if (t) tokens.push(t);
     });
-    if (tokens.length === 0) return;
+    if (tokens.length === 0) {
+      logger.log("pushOnBroadcastCreated: no recipients matched the filters");
+      return;
+    }
 
     const title = "SafeBeauty";
     const body  = String(b.message);
@@ -2777,6 +2843,8 @@ exports.pushOnBroadcastCreated = onDocumentCreated(
         });
       }
     }
+    logger.log(`pushOnBroadcastCreated: sent to ${tokens.length} device(s)` +
+      ` [role=${wantRole || "any"} lang=${wantLang || "any"} district=${wantDistrict || "any"}]`);
   }
 );
 
@@ -2940,6 +3008,8 @@ exports.awardReviewPoints = onDocumentCreated(
     batch.set(db.collection("notifications").doc(), {
       recipientId: review.customerId,
       type:        "SYSTEM",
+      msgKey:      "REVIEW_THANKS",
+      msgParams:   { points },
       title:       "Thanks for your review 💬",
       body:        hasPhoto
         ? `You earned ${points} loyalty points for your review and photo.`
@@ -3142,6 +3212,8 @@ exports.adminGrantCredit = onCall({ region: "us-central1" }, async (request) => 
     await db.collection("notifications").add({
       recipientId: customerId,
       type:        "SYSTEM",
+      msgKey:      "CREDIT_ADDED",
+      msgParams:   { amount, reason: reason || "" },
       title:       "Credit added to your account 🎁",
       body:        `You've received ${amount} AFN in credit${reason ? " — " + reason : ""}.`,
       isRead:      false,
@@ -3564,3 +3636,130 @@ exports.scheduledFirestoreBackup = onSchedule(
     }
   }
 );
+
+// ── Notification localization ─────────────────────────────────────────────────
+//
+// Every push and in-app notification used to be written in English, to an
+// audience that reads Dari and Pashto. The text is composed inside payment and
+// booking transactions, so rather than restructure that money-handling code,
+// each notification carries an additive `msgKey` + `msgParams`. The single push
+// trigger resolves them against the recipient's language — it already reads the
+// user document for the FCM token, so localization costs nothing extra.
+//
+// Docs written before this (or by any path that forgets msgKey) still push their
+// stored English title/body, so nothing regresses.
+//
+// `type` is NOT the key: several distinct messages share type "SYSTEM".
+
+const NOTIF_I18N = {
+  NEW_BOOKING_CASH: {
+    en: { t: "New Cash Booking",  b: (p) => `${p.service} — AFN ${p.price} to collect in person` },
+    fa: { t: "رزرو نقدی جدید",     b: (p) => `${p.service} — ${p.price} افغانی نقدی دریافت کنید` },
+    ps: { t: "نوی نغدي بکینګ",     b: (p) => `${p.service} — ${p.price} افغانۍ په نغدو واخلئ` },
+  },
+  NEW_BOOKING_PAID: {
+    en: { t: "New Paid Booking",  b: (p) => `${p.service} — paid AFN ${p.amount}` },
+    fa: { t: "رزرو پرداخت‌شده جدید", b: (p) => `${p.service} — ${p.amount} افغانی پرداخت شد` },
+    ps: { t: "نوی تادیه شوی بکینګ", b: (p) => `${p.service} — ${p.amount} افغانۍ تادیه شوې` },
+  },
+  BOOKING_CONFIRMED: {
+    en: { t: "Booking Confirmed", b: (p) => `${p.service} at ${p.salon}` },
+    fa: { t: "رزرو تأیید شد",      b: (p) => `${p.service} در ${p.salon}` },
+    ps: { t: "بکینګ تایید شو",     b: (p) => `${p.service} په ${p.salon} کې` },
+  },
+  BOOKING_CANCELLED_BY_CUSTOMER: {
+    en: { t: "Booking Cancelled", b: (p) => `${p.service} was cancelled by the customer.` },
+    fa: { t: "رزرو لغو شد",        b: (p) => `${p.service} توسط مشتری لغو شد.` },
+    ps: { t: "بکینګ لغوه شو",      b: (p) => `${p.service} د پیرودونکي لخوا لغوه شو.` },
+  },
+  BOOKING_DECLINED: {
+    en: { t: "Booking Declined",  b: (p) => `${p.service} at ${p.salon} was declined.` },
+    fa: { t: "رزرو رد شد",         b: (p) => `${p.service} در ${p.salon} رد شد.` },
+    ps: { t: "بکینګ رد شو",        b: (p) => `${p.service} په ${p.salon} کې رد شو.` },
+  },
+  BOOKING_RESCHEDULED: {
+    en: { t: "Booking Rescheduled", b: (p) => `${p.service} was moved to a new time — please re-confirm.` },
+    fa: { t: "رزرو جابه‌جا شد",      b: (p) => `${p.service} به زمان جدیدی منتقل شد — لطفاً دوباره تأیید کنید.` },
+    ps: { t: "بکینګ بدل شو",         b: (p) => `${p.service} نوي وخت ته ولیږدول شو — مهرباني وکړئ بیا یې تایید کړئ.` },
+  },
+  BOOKING_REMINDER: {
+    en: { t: "Upcoming Appointment", b: (p) => `${p.service} at ${p.salon} is coming up soon.` },
+    fa: { t: "نوبت پیشِ‌رو",          b: (p) => `${p.service} در ${p.salon} به‌زودی است.` },
+    ps: { t: "راتلونکی نوبت",         b: (p) => `${p.service} په ${p.salon} کې ډېر ژر دی.` },
+  },
+  WAITLIST_SLOT: {
+    en: { t: "A slot opened up 🎉", b: (p) => `${p.salon} has a free slot on your waitlisted day — book it before it's gone!` },
+    fa: { t: "یک نوبت خالی شد 🎉",   b: (p) => `${p.salon} در روزی که در لیست انتظار بودید جای خالی دارد — قبل از پر شدن رزرو کنید!` },
+    ps: { t: "یو ځای خالي شو 🎉",    b: (p) => `${p.salon} په هغه ورځ کې چې د انتظار لیست کې وئ خالي ځای لري — د ډکېدو دمخه یې ونیسئ!` },
+  },
+  POINTS_REDEEMED: {
+    en: { t: "Points redeemed 🎉", b: (p) => `You turned ${p.spend} points into AFN ${p.credit} of wallet credit.` },
+    fa: { t: "امتیازها تبدیل شد 🎉", b: (p) => `${p.spend} امتیاز را به ${p.credit} افغانی اعتبار تبدیل کردید.` },
+    ps: { t: "ټکي تبادله شول 🎉",   b: (p) => `${p.spend} ټکي مو په ${p.credit} افغانۍ کریډیټ بدل کړل.` },
+  },
+  PROFILE_COMPLETE: {
+    en: { t: "Profile complete 🌟", b: (p) => `You earned ${p.points} loyalty points for completing your profile.` },
+    fa: { t: "پروفایل کامل شد 🌟",   b: (p) => `برای تکمیل پروفایل ${p.points} امتیاز وفاداری گرفتید.` },
+    ps: { t: "پروفایل بشپړ شو 🌟",   b: (p) => `د پروفایل بشپړولو لپاره مو ${p.points} د وفادارۍ ټکي ترلاسه کړل.` },
+  },
+  GIFT_RECEIVED: {
+    en: { t: "You received a gift card 🎁", b: (p) => `AFN ${p.amount} credit was added to your account.` },
+    fa: { t: "کارت هدیه دریافت کردید 🎁",   b: (p) => `${p.amount} افغانی اعتبار به حساب شما اضافه شد.` },
+    ps: { t: "د ډالۍ کارت مو ترلاسه کړ 🎁", b: (p) => `${p.amount} افغانۍ کریډیټ ستاسو حساب ته اضافه شو.` },
+  },
+  WALLET_TOPUP: {
+    en: { t: "Wallet topped up 👛", b: (p) => `AFN ${p.amount} was added to your wallet.` },
+    fa: { t: "کیف پول شارژ شد 👛",   b: (p) => `${p.amount} افغانی به کیف پول شما اضافه شد.` },
+    ps: { t: "بټوه ډکه شوه 👛",      b: (p) => `${p.amount} افغانۍ ستاسو بټوې ته اضافه شوې.` },
+  },
+  TIP_RECEIVED: {
+    en: { t: "You received a tip 💝", b: (p) => `A customer tipped you AFN ${p.amount}.` },
+    fa: { t: "انعام دریافت کردید 💝",  b: (p) => `یک مشتری ${p.amount} افغانی انعام داد.` },
+    ps: { t: "بخشش مو ترلاسه کړ 💝",   b: (p) => `یو پیرودونکي تاسو ته ${p.amount} افغانۍ بخشش درکړ.` },
+  },
+  REFERRAL_REWARD: {
+    en: { t: "Referral Reward", b: (p) => `A friend you invited just joined — you earned AFN ${p.credit} credit!` },
+    fa: { t: "پاداش معرفی",      b: (p) => `دوستی که دعوت کردید عضو شد — ${p.credit} افغانی اعتبار گرفتید!` },
+    ps: { t: "د معرفي انعام",     b: (p) => `هغه ملګری چې بلنه مو ورکړې وه غړی شو — ${p.credit} افغانۍ کریډیټ مو ترلاسه کړ!` },
+  },
+  PAYOUT_SENT: {
+    en: { t: "Payout Sent", b: (p) => `You have been paid AFN ${p.amount}.` },
+    fa: { t: "پرداخت ارسال شد", b: (p) => `${p.amount} افغانی به شما پرداخت شد.` },
+    ps: { t: "تادیه واستول شوه",  b: (p) => `${p.amount} افغانۍ تاسو ته تادیه شوې.` },
+  },
+  REFUND_PROCESSED: {
+    en: { t: "Refund Processed", b: (p) => `Your refund of AFN ${p.amount} has been processed.` },
+    fa: { t: "بازپرداخت انجام شد", b: (p) => `بازپرداخت ${p.amount} افغانی شما انجام شد.` },
+    ps: { t: "بیرته ورکړه ترسره شوه", b: (p) => `ستاسو د ${p.amount} افغانۍ بیرته ورکړه ترسره شوه.` },
+  },
+  CREDIT_ADDED: {
+    en: { t: "Credit added to your account 🎁", b: (p) => `You've received ${p.amount} AFN in credit${p.reason ? " — " + p.reason : ""}.` },
+    fa: { t: "اعتبار به حسابتان اضافه شد 🎁",   b: (p) => `${p.amount} افغانی اعتبار دریافت کردید${p.reason ? " — " + p.reason : ""}.` },
+    ps: { t: "کریډیټ ستاسو حساب ته اضافه شو 🎁", b: (p) => `${p.amount} افغانۍ کریډیټ مو ترلاسه کړ${p.reason ? " — " + p.reason : ""}.` },
+  },
+  REENGAGEMENT: {
+    en: { t: "We miss you 💕", b: () => "It's been a while — book your next beauty appointment on SafeBeauty." },
+    fa: { t: "دلتنگ شما شدیم 💕", b: () => "مدتی گذشته — نوبت بعدی زیبایی‌تان را در سیف‌بیوتی رزرو کنید." },
+    ps: { t: "ستاسو په یاد یو 💕", b: () => "یو څه وخت تېر شو — خپل راتلونکی د ښکلا نوبت په سیف‌بیوتي کې ونیسئ." },
+  },
+  REVIEW_THANKS: {
+    en: { t: "Thanks for your review 💬", b: (p) => `You earned ${p.points} loyalty points.` },
+    fa: { t: "از نظر شما ممنونیم 💬",     b: (p) => `${p.points} امتیاز وفاداری گرفتید.` },
+    ps: { t: "ستاسو د نظر مننه 💬",       b: (p) => `${p.points} د وفادارۍ ټکي مو ترلاسه کړل.` },
+  },
+};
+
+/** Resolve a notification's text for [lang], falling back to the stored English
+ *  title/body when the doc predates msgKey or the key is unknown. */
+function localizeNotification(n, lang) {
+  const entry = NOTIF_I18N[n.msgKey];
+  if (!entry) return { title: String(n.title || ""), body: String(n.body || "") };
+  // Dari is the default: the app's audience is Dari-first, so an unknown or
+  // unset language should land there rather than on English.
+  const L = entry[lang] || entry.fa || entry.en;
+  const params = n.msgParams || {};
+  let body;
+  try { body = typeof L.b === "function" ? L.b(params) : String(L.b || ""); }
+  catch (_) { body = String(n.body || ""); }
+  return { title: L.t, body };
+}

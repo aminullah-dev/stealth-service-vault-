@@ -156,6 +156,16 @@ class FirestoreRepository @Inject constructor(
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }
 
+    /**
+     * Records the language this user reads, so server-sent notifications can be
+     * written in it. Without this the Cloud Functions have no way to know, and
+     * every push falls back to Dari. Best-effort: a failure here must never
+     * block sign-in.
+     */
+    suspend fun updateLanguage(uid: String, lang: String) {
+        runCatching { usersCol.document(uid).update("lang", lang).await() }
+    }
+
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("status", "PENDING")

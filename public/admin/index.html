@@ -588,9 +588,44 @@ function renderAnnounce(){
         ${ANNOUNCE_TEMPLATES.map((t,i)=>`<option value="${i}">${esc(t.label)}</option>`).join('')}
       </select>
       <textarea id="amsg" class="field" dir="auto" placeholder="Your message to all users…"></textarea>
-      <button id="asend" class="btn">Send to everyone</button>
-      <div class="meta" style="margin-top:10px">Delivered as a push notification and shown in-app.</div>
+      <div class="mglabel" style="margin-top:4px">Audience</div>
+      <div class="mrow">
+        <select id="a-role" class="field">
+          <option value="">Everyone</option>
+          <option value="CUSTOMER">Customers only</option>
+          <option value="PROVIDER">Salon owners only</option>
+        </select>
+        <select id="a-lang" class="field">
+          <option value="">Any language</option>
+          <option value="fa">Dari readers</option>
+          <option value="ps">Pashto readers</option>
+          <option value="en">English readers</option>
+        </select>
+      </div>
+      <select id="a-district" class="field">
+        <option value="">Any district (salon owners only)</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
+      </select>
+      <button id="asend" class="btn">Send</button>
+      <div class="meta" style="margin-top:10px">
+        Delivered as a push notification and shown in-app. Leave the filters on
+        their defaults to reach everyone. A district filter matches salon owners
+        by their salon's district, so it has no effect on customers.
+      </div>
     </div>`;
+  // The button says who it will actually reach — a targeted send that still
+  // reads "Send to everyone" is how an admin blasts the wrong audience.
+  const audienceLabel = () => {
+    const r = $('a-role').value, l = $('a-lang').value, d = $('a-district').value;
+    if(!r && !l && !d) return 'Send to everyone';
+    const who = r === 'CUSTOMER' ? 'customers' : r === 'PROVIDER' ? 'salon owners' : 'users';
+    const bits = [];
+    if(l) bits.push({fa:'Dari',ps:'Pashto',en:'English'}[l] + '-reading');
+    if(d) bits.push('in ' + d);
+    return `Send to ${bits.length ? bits.join(' ') + ' ' : ''}${who}`;
+  };
+  ['a-role','a-lang','a-district'].forEach(id =>
+    $(id).addEventListener('change', () => { $('asend').textContent = audienceLabel(); }));
+
   $('atmpl').onchange = () => {
     const i = $('atmpl').value;
     if(i === '') return;
@@ -603,11 +638,16 @@ function renderAnnounce(){
     if(!msg) return;
     $('asend').disabled = true; $('asend').textContent = 'Sending…';
     try{
-      await addDoc(collection(db,'broadcasts'), { message: msg, sentBy:'admin', createdAt: Date.now() });
+      await addDoc(collection(db,'broadcasts'), {
+        message: msg, sentBy:'admin', createdAt: Date.now(),
+        targetRole:     $('a-role').value,
+        targetLang:     $('a-lang').value,
+        targetDistrict: $('a-district').value,
+      });
       $('amsg').value = '';
       $('aflash').innerHTML = `<div class="flash">Announcement sent ✓</div>`;
     }catch(e){ $('aflash').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
-    finally{ $('asend').disabled=false; $('asend').textContent='Send to everyone'; }
+    finally{ $('asend').disabled=false; $('asend').textContent=audienceLabel(); }
   };
 }
 

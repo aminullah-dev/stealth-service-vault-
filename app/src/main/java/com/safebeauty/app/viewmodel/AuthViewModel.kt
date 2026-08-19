@@ -11,6 +11,8 @@ import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.model.LoggedInUser
 import com.safebeauty.app.data.model.UserRole
+import com.safebeauty.app.data.repository.LanguageRepository
+import com.safebeauty.app.ui.theme.AppLanguage
 import com.safebeauty.app.data.repository.VaultRepository
 import com.safebeauty.app.security.PinHasher
 import com.safebeauty.app.util.PhoneUtils
@@ -26,6 +28,7 @@ class AuthViewModel @Inject constructor(
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher,
     private val vaultRepository: VaultRepository,
+    private val languageRepository: LanguageRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -102,6 +105,17 @@ class AuthViewModel @Inject constructor(
                             .getString("fcm_token", null)
                         if (!fcmToken.isNullOrBlank()) {
                             runCatching { firestoreRepository.updateFcmToken(uid, fcmToken) }
+                        }
+                        // Tell the server which language to write notifications in.
+                        // Sent on every login so a language change is picked up
+                        // without needing its own sync path.
+                        runCatching {
+                            val lang = when (languageRepository.language.value) {
+                                AppLanguage.DARI   -> "fa"
+                                AppLanguage.PASHTO -> "ps"
+                                AppLanguage.ENGLISH -> "en"
+                            }
+                            firestoreRepository.updateLanguage(uid, lang)
                         }
 
                         authState = AuthState.Success(
