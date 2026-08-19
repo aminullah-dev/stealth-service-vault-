@@ -189,7 +189,12 @@
   .modal .mgroup{border-top:1px solid var(--line);padding:15px 0 4px;margin-top:6px}
   .modal .mglabel{font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
   .modal .field{margin-bottom:9px}
-  .modal .mrow{display:flex;gap:8px}
+  /* Side-by-side field pair. Defined globally (not only inside .modal) because
+     the Salons and Admins tabs use it on the page too; when it was modal-scoped
+     those fields silently stacked into one column. Wraps on narrow screens. */
+  .mrow{display:flex;gap:8px;flex-wrap:wrap}
+  .mrow .field{flex:1 1 200px;margin-bottom:9px}
+  .modal .mrow{flex-wrap:nowrap}
   .modal .mrow .field{flex:1;margin-bottom:0}
   .mflash{font-size:12.5px;font-weight:700;margin:2px 0 8px;min-height:16px}
   .mflash.ok{color:var(--ok-ink)}
@@ -1091,11 +1096,62 @@ async function renderSalons(){
     ]);
     const salons = []; salonSnap.forEach(d => salons.push({ id:d.id, ...d.data() }));
     const owners = {}; userSnap.forEach(d => owners[d.id] = { id:d.id, ...d.data() });
-    if(!salons.length){ $('view').innerHTML = `<div class="empty">No salons yet</div>`; return; }
     salons.sort((a,b)=>(a.salonName||'').localeCompare(b.salonName||''));
-    $('view').innerHTML = `<div class="section-title">Salons (${salons.length})</div>
+    // Admin-side salon onboarding. Salon owners in Kabul are signed up in person,
+    // so the admin needs to create the owner's account and their salon together;
+    // waiting for self-registration would leave the marketplace empty.
+    $('view').innerHTML = `
+      <div class="section-title">Add a salon</div>
+      <div class="card" style="padding:16px;max-width:560px;margin-bottom:22px">
+        <div id="nsflash" class="mflash"></div>
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Creates the owner's provider account and their salon. Give the owner the
+          phone number and password below so they can sign in.
+        </div>
+        <div class="mrow">
+          <input id="ns-owner" class="field" placeholder="Owner full name" />
+          <input id="ns-phone" class="field" placeholder="Owner phone (+93…)" />
+        </div>
+        <div class="mrow">
+          <input id="ns-pass" class="field" placeholder="Temporary password (min 6)" />
+          <select id="ns-district" class="field">
+            <option value="">District…</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
+          </select>
+        </div>
+        <input id="ns-salon" class="field" placeholder="Salon name" />
+        <input id="ns-services" class="field" placeholder="Services, comma separated (e.g. Hair, Makeup, Nails)" />
+        <button id="ns-create" class="btn" style="margin-top:6px">Create salon</button>
+      </div>
+      <div class="section-title">Salons (${salons.length})</div>
       <input id="ssearch" class="field" placeholder="Search salon, district or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="slist"></div>`;
+
+    $('ns-create').onclick = async (e) => {
+      const services = $('ns-services').value.split(',').map(x=>x.trim()).filter(Boolean);
+      const payload = {
+        ownerName: $('ns-owner').value.trim(),
+        phone:     $('ns-phone').value.trim(),
+        password:  $('ns-pass').value,
+        salonName: $('ns-salon').value.trim(),
+        district:  $('ns-district').value,
+        services,
+      };
+      if(!payload.ownerName || !payload.phone || !payload.salonName || !payload.district || !services.length){
+        $('nsflash').className='mflash bad';
+        $('nsflash').textContent='Fill in owner name, phone, salon name, district and at least one service.';
+        return;
+      }
+      if(payload.password.length < 6){
+        $('nsflash').className='mflash bad';
+        $('nsflash').textContent='Password must be at least 6 characters.';
+        return;
+      }
+      if(await callFn('adminCreateSalon', payload, e.target, 'nsflash', 'Salon created ✓')){
+        ['ns-owner','ns-phone','ns-pass','ns-salon','ns-services'].forEach(id => $(id).value='');
+        $('ns-district').value='';
+        setTimeout(renderSalons, 800);
+      }
+    };
     const verify = async (id, v) => {
       try{ await updateDoc(doc(db,'salons',id), { isVerified:v });
         const s = salons.find(x=>x.id===id); if(s) s.isVerified = v; draw($('ssearch').value); }

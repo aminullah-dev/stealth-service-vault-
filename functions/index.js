@@ -3326,3 +3326,110 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
   logger.log(`requestAccountDeletion: deleted ${uid} (cancelled ${cancelled} appointment(s))`);
   return { ok: true, cancelledAppointments: cancelled };
 });
+
+// ── Admin: onboard a salon directly ───────────────────────────────────────────
+//
+// A marketplace has a cold-start problem: salon owners in Kabul are signed up in
+// person, not by self-registration. This lets the admin create the owner's
+// account AND their salon in one step, so a salon can be live before its owner
+// ever opens the app. The owner signs in afterwards with the phone + password
+// the admin sets here.
+//
+// Ordering is deliberate: Auth account -> user doc -> salon doc, with rollback
+// of the Auth account if either write fails. A stranded Auth account with no
+// user doc permanently bricks that phone number (every retry hits
+// "email-already-exists" while login-by-phone finds nothing).
+
+exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d  = request.data || {};
+
+  const ownerName = String(d.ownerName || "").trim();
+  const rawPhone  = String(d.phone || "").trim();
+  const password  = String(d.password || "");
+  const salonName = String(d.salonName || "").trim();
+  const district  = String(d.district || "").trim();
+  const services  = Array.isArray(d.services)
+    ? d.services.map((s) => String(s).trim()).filter(Boolean)
+    : [];
+  const prices    = (d.pricePerService && typeof d.pricePerService === "object")
+    ? d.pricePerService : {};
+
+  if (!ownerName)        throw new HttpsError("invalid-argument", "Owner name is required.");
+  if (!rawPhone)         throw new HttpsError("invalid-argument", "Phone number is required.");
+  if (password.length < 6) throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  if (!salonName)        throw new HttpsError("invalid-argument", "Salon name is required.");
+  if (!district)         throw new HttpsError("invalid-argument", "District is required.");
+  if (!services.length)  throw new HttpsError("invalid-argument", "At least one service is required.");
+
+  const phone = normalizePhone(rawPhone);
+
+  // The phone is the login identifier, so it must be unique platform-wide.
+  const clash = await db.collection("users").where("phone", "==", phone).limit(1).get();
+  if (!clash.empty) {
+    throw new HttpsError("already-exists", "An account with this phone number already exists.");
+  }
+
+  // Mirror PinHasher / RegisterViewModel exactly so the owner can sign in from
+  // the app with the plain password the admin hands them.
+  const uid           = crypto.randomUUID();
+  const salt          = crypto.randomBytes(16).toString("base64");
+  const pinHash       = pbkdf2Hash(password, salt);
+  const authPassword  = pbkdf2Hash("AUTH:" + password, salt);
+  const firebaseEmail = `${uid.replace(/-/g, "")}@sb.app`;
+  const referralCode  = "SB" + uid.replace(/-/g, "").slice(0, 6).toUpperCase();
+  const now           = Date.now();
+
+  let authUid = null;
+  try {
+    const rec = await admin.auth().createUser({ email: firebaseEmail, password: authPassword });
+    authUid = rec.uid;
+
+    await db.doc(`users/${uid}`).set({
+      uid, name: ownerName, phone, email: "",
+      role: "PROVIDER",
+      // Admin-created salons are live immediately — the admin has met the owner,
+      // which is exactly what the approval queue exists to establish.
+      status: "APPROVED",
+      pinHash, salt, firebaseEmail,
+      createdAt: now,
+      referralCode, referredBy: "",
+      loyaltyPoints: 0,
+      kycStatus: "NONE",
+    });
+
+    const salonRef = db.collection("salons").doc();
+    await salonRef.set({
+      providerId:          uid,
+      providerName:        ownerName,
+      salonName,
+      district,
+      services,
+      pricePerService:     prices,
+      isAvailable:         false,   // owner opens for business by setting hours
+      rating:              0,
+      workingHours:        [],
+      slotDurationMinutes: 60,
+      confirmedCount:      0,
+      isVerified:          true,    // vouched for by the admin who added it
+      createdAt:           now,
+      createdByAdmin:      me.uid,
+    });
+
+    await logAdminAction(me, "CREATE_SALON", {
+      targetUid: uid, targetName: ownerName, salonName, district, salonId: salonRef.id,
+    });
+
+    logger.log(`adminCreateSalon: ${salonName} (${salonRef.id}) for ${phone} by ${me.uid}`);
+    return { ok: true, salonId: salonRef.id, providerUid: uid, phone };
+  } catch (e) {
+    // Roll back the Auth account so the phone number stays usable.
+    if (authUid) {
+      try { await admin.auth().deleteUser(authUid); } catch (_) {}
+      try { await db.doc(`users/${uid}`).delete(); } catch (_) {}
+    }
+    if (e instanceof HttpsError) throw e;
+    logger.error("adminCreateSalon failed", e);
+    throw new HttpsError("internal", "Could not create the salon.");
+  }
+});
