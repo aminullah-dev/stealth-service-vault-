@@ -28,6 +28,7 @@ import com.safebeauty.app.ui.screens.ProviderDashboardScreen
 import com.safebeauty.app.ui.screens.RegisterScreen
 import com.safebeauty.app.ui.screens.SetNewPinScreen
 import com.safebeauty.app.ui.screens.FeedScreen
+import com.safebeauty.app.ui.screens.SalonMapScreen
 import com.safebeauty.app.ui.screens.SupportScreen
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.StringResources
@@ -92,6 +93,9 @@ sealed class Screen(val route: String) {
     }
     object Support : Screen("support")
     object Feed : Screen("feed")
+    object SalonMap : Screen("salonMap/{userId}") {
+        fun build(userId: String) = "salonMap/$userId"
+    }
 }
 
 // ── Nav graph ─────────────────────────────────────────────────────────────────
@@ -328,6 +332,27 @@ fun AppNavGraph(
 
             composable(Screen.Feed.route) {
                 FeedScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(
+                route     = Screen.SalonMap.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) {
+                // DashboardViewModel resolves customerId from the route's userId,
+                // so the map route must carry it too — without the argument the
+                // ViewModel's checkNotNull fails and the screen crashes on open.
+                // Using the same ViewModel means the map shows exactly the salons
+                // the browse list already loaded: same filters, no second fetch.
+                val dashVm: com.safebeauty.app.viewmodel.DashboardViewModel = hiltViewModel()
+                val salons by dashVm.displayedSalons.collectAsStateWithLifecycle()
+                SalonMapScreen(
+                    salons = salons,
+                    onBack = { navController.popBackStack() },
+                    onBook = { salon ->
+                        dashVm.setActiveSalon(salon.id)
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -456,6 +457,9 @@ fun CustomerDashboardScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { onNavigate(Screen.SalonMap.build(viewModel.customerId)) }) {
+                            Icon(Icons.Default.Map, contentDescription = strings.mapTitle, tint = RoseGold)
+                        }
                         IconButton(onClick = { onNavigate(Screen.Feed.route) }) {
                             Icon(Icons.Default.PhotoLibrary, contentDescription = strings.feedTitle, tint = RoseGold)
                         }
