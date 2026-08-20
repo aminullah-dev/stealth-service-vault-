@@ -14,7 +14,19 @@ import androidx.compose.ui.graphics.Color
 // site. Only genuinely non-composable code (there is essentially none) would need
 // to read LightPalette/DarkPalette directly.
 
+/**
+ * The two colour families a user can choose between. The names describe the
+ * feeling, not the hex: ROSE is the original warm rose-and-gold, LAVENDER is a
+ * softer violet for people who find the rose too warm.
+ *
+ * Carried inside [Palette] rather than in its own CompositionLocal so that the
+ * ~27 screens which call `DashboardTheme { }` with no arguments inherit the
+ * brand exactly the way they already inherit light/dark — no call site changes.
+ */
+enum class AppBrand { ROSE, LAVENDER }
+
 data class Palette(
+    val brand: AppBrand,
     val isDark: Boolean,
     val onPrimaryWhite: Color,
     val roseGold: Color,
@@ -58,7 +70,8 @@ data class Palette(
 )
 
 // The original, unchanged brand palette — light mode.
-val LightPalette = Palette(
+val RoseLightPalette = Palette(
+    brand            = AppBrand.ROSE,
     isDark           = false,
     onPrimaryWhite   = Color(0xFFFFFFFF),
     roseGold         = Color(0xFFB76E79),
@@ -97,7 +110,8 @@ val LightPalette = Palette(
 // Dark mode. Colors used as TEXT on light backgrounds (deepRose, roseGold) become
 // light so they stay readable; backgrounds/surfaces become deep warm plums. First
 // pass — we tune specific values by eye once it's on a device.
-val DarkPalette = Palette(
+val RoseDarkPalette = Palette(
+    brand            = AppBrand.ROSE,
     isDark           = true,
     onPrimaryWhite   = Color(0xFFFFFFFF),
     // A medium rose: deep enough that white button text reads (buttonColors use
@@ -136,9 +150,97 @@ val DarkPalette = Palette(
     gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
 )
 
+// ── Lavender ────────────────────────────────────────────────────────────────────
+// The alternative family: the same soft, feminine register as the rose, shifted
+// from warm pink to cool violet. Structurally identical to the rose palettes —
+// every field is filled and every role keeps its meaning — so a screen written
+// against `DeepRose` or `Gradients.ScreenBg` renders correctly in either family
+// without knowing which one is active.
+//
+// The gold accents (warmGold, the Gold gradient) stay gold on purpose: they mark
+// ratings and badges, which read as "valuable" in gold and merely decorative in
+// violet, and keeping them constant ties the two families to one brand.
+
+val LavenderLightPalette = Palette(
+    brand            = AppBrand.LAVENDER,
+    isDark           = false,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFF8E6FB0),   // primary accent
+    deepRose         = Color(0xFF56347A),   // headline ink
+    blushPink        = Color(0xFFE4D7F5),
+    softPurple       = Color(0xFF7C6BA8),
+    elegantCream     = Color(0xFFFBF7FF),   // page background
+    warmGold         = Color(0xFFD4A853),
+    dashboardSurface = Color(0xFFF3EBFC),
+    chipActive       = Color(0xFF8E6FB0),
+    chipInactive     = Color(0xFFE0D2F2),
+    availableGreen   = Color(0xFF4CAF50),
+    unavailableGrey  = Color(0xFF9E9E9E),
+    cardBorder       = Color(0xFFE6DAF5),
+    deeperRose       = Color(0xFF452A63),
+    petalPink        = Color(0xFFF0E6FB),
+    lilacMist        = Color(0xFFE3D6F3),
+    softLavender     = Color(0xFFF2EAFB),
+    rosePetal        = Color(0xFFB79AD8),
+    dangerRed        = Color(0xFFC0392B),
+    warningOrange    = Color(0xFFE67E22),
+    neutralGrey      = Color(0xFF8C86A0),
+    adminPurple      = Color(0xFF6E5EA0),
+    textStrong       = Color(0xFF423951),
+    textMuted        = Color(0xFF7B7290),
+    textFaint        = Color(0xFFA79FB5),
+    brandRose        = listOf(Color(0xFFC4A9E0), Color(0xFF8E6FB0), Color(0xFF56347A)),
+    brandRoseSoft    = listOf(Color(0xFFB18FD0), Color(0xFF6B4A93)),
+    screenBg         = listOf(Color(0xFFFBF7FF), Color(0xFFF5EDFC), Color(0xFFEFE8FA)),
+    softPink         = listOf(Color(0xFFF0E6FB), Color(0xFFE6D8F7)),
+    dreamy           = listOf(Color(0xFFF0E6FB), Color(0xFFE0D2F2)),
+    petal            = listOf(Color(0xFFF7F2FE), Color(0xFFF0E6FB), Color(0xFFE7DAF8)),
+    gold             = listOf(Color(0xFFE6C06A), Color(0xFFC79A3C)),
+)
+
+val LavenderDarkPalette = Palette(
+    brand            = AppBrand.LAVENDER,
+    isDark           = true,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    // Deep enough that white button text reads on it, light enough to stay
+    // legible as accent text on the dark background — the same balance the rose
+    // dark palette strikes.
+    roseGold         = Color(0xFF9B7BC4),
+    deepRose         = Color(0xFFE6DAF5),   // headline ink, inverted for dark
+    blushPink        = Color(0xFF352B4D),
+    softPurple       = Color(0xFFB6A5D6),
+    elegantCream     = Color(0xFF120F1A),
+    warmGold         = Color(0xFFE0B968),
+    dashboardSurface = Color(0xFF1E1830),
+    chipActive       = Color(0xFF9B7BC4),
+    chipInactive     = Color(0xFF2A2340),
+    availableGreen   = Color(0xFF5CC462),
+    unavailableGrey  = Color(0xFF8A8A8A),
+    cardBorder       = Color(0xFF332A4A),
+    deeperRose       = Color(0xFF4A3570),
+    petalPink        = Color(0xFF272038),
+    lilacMist        = Color(0xFF2B2342),
+    softLavender     = Color(0xFF231D36),
+    rosePetal        = Color(0xFFA98BC9),
+    dangerRed        = Color(0xFFE06C5E),
+    warningOrange    = Color(0xFFE9975A),
+    neutralGrey      = Color(0xFFA096B5),
+    adminPurple      = Color(0xFFB6A0D0),
+    textStrong       = Color(0xFFD8CFE6),
+    textMuted        = Color(0xFFAFA4C4),
+    textFaint        = Color(0xFF867C9C),
+    brandRose        = listOf(Color(0xFF6E56A0), Color(0xFF56417E), Color(0xFF3A2A5A)),
+    brandRoseSoft    = listOf(Color(0xFF644E93), Color(0xFF432F6B)),
+    screenBg         = listOf(Color(0xFF120F1A), Color(0xFF171223), Color(0xFF1A1428)),
+    softPink         = listOf(Color(0xFF2A2340), Color(0xFF241E36)),
+    dreamy           = listOf(Color(0xFF272038), Color(0xFF2B2342)),
+    petal            = listOf(Color(0xFF1E1830), Color(0xFF272038), Color(0xFF1C1730)),
+    gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
+)
+
 // Provided by DashboardTheme; defaults to light for any composable rendered
 // outside the theme (e.g. @Preview).
-val LocalPalette = staticCompositionLocalOf { LightPalette }
+val LocalPalette = staticCompositionLocalOf { RoseLightPalette }
 
 // ── Public colour names (theme-aware) ────────────────────────────────────────────
 // Same names the whole codebase already imports and uses. Each reads the current

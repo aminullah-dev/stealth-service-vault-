@@ -154,6 +154,9 @@ import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.badge
 import com.safebeauty.app.navigation.Screen
+import com.safebeauty.app.ui.theme.AppBrand
+import com.safebeauty.app.ui.theme.LocalPalette
+import com.safebeauty.app.ui.theme.paletteFor
 import com.safebeauty.app.ui.theme.AppLanguage
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
@@ -189,6 +192,8 @@ import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -250,6 +255,7 @@ fun CustomerDashboardScreen(
     langVm: LanguageViewModel              = hiltViewModel(),
     exportVm: ExportViewModel              = hiltViewModel(),
     changePinVm: ChangePinViewModel        = hiltViewModel(),
+    themeVm: ThemeViewModel                = hiltViewModel(),
     notifVm: NotificationCenterViewModel   = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
@@ -374,6 +380,7 @@ fun CustomerDashboardScreen(
     // Asking at the end — after services, slot, notes and guests are entered —
     // meant discarding all of it, which is the worst possible moment.
     var showKycNotice        by remember { mutableStateOf(false) }
+    var showThemePicker      by remember { mutableStateOf(false) }
     // Funnel step 2. Watching the state rather than each opener means every path
     // into the detail sheet is counted, including ones added later.
     LaunchedEffect(showSalonDetail?.id) {
@@ -489,6 +496,9 @@ fun CustomerDashboardScreen(
                                 contentDescription = strings.exportTitle,
                                 tint               = RoseGold
                             )
+                        }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = DeepRose)
                         }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
@@ -884,6 +894,15 @@ fun CustomerDashboardScreen(
                     }
                 },
                 containerColor = ElegantCream
+            )
+        }
+
+        if (showThemePicker) {
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
             )
         }
 
@@ -3305,6 +3324,74 @@ fun LanguagePickerDialog(
         dismissButton  = {
             TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }
         },
+        containerColor = ElegantCream
+    )
+}
+
+/**
+ * Colour-family picker.
+ *
+ * Each option is previewed with a swatch drawn from that family's own palette
+ * rather than the one currently applied — the whole decision is "which of these
+ * do I like", so the choices have to look like themselves while you choose.
+ */
+@Composable
+fun ThemePickerDialog(
+    current: AppBrand,
+    onPick: (AppBrand) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val isDark  = LocalPalette.current.isDark
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(strings.themePickerTitle, fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 15.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppBrand.entries.forEach { brand ->
+                    // Preview in the same light/dark mode the user is in, so the
+                    // swatch matches what they will actually get.
+                    val preview  = paletteFor(brand, isDark)
+                    val selected = brand == current
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (selected) preview.blushPink else preview.dashboardSurface)
+                            .border(
+                                width = if (selected) 2.dp else 1.dp,
+                                color = if (selected) preview.roseGold else preview.cardBorder,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable { onPick(brand) }
+                            .padding(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(preview.brandRose))
+                        )
+                        Text(
+                            text       = if (brand == AppBrand.ROSE) strings.themeRose else strings.themeLavender,
+                            fontSize   = 15.sp,
+                            color      = preview.deepRose,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            modifier   = Modifier.weight(1f)
+                        )
+                        if (selected) {
+                            Icon(Icons.Default.CheckCircle, null, tint = preview.roseGold, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton  = {},
+        dismissButton  = { TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) } },
         containerColor = ElegantCream
     )
 }

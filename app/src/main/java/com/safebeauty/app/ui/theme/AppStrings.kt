@@ -665,6 +665,9 @@ class AppStrings {
     var showAllSalons: String = ""
     var viewSalon: String = ""
     var storiesTitle: String = ""
+    var themePickerTitle: String = ""
+    var themeRose: String = ""
+    var themeLavender: String = ""
     var storyExpires: (Int) -> String = { "" }
     // Security warnings (root / emulator)
     var securityWarningTitle: String = ""
@@ -1276,6 +1279,9 @@ object StringResources {
         showAllSalons              = "Show all salons"
         viewSalon                  = "View salon"
         storiesTitle               = "Available today"
+        themePickerTitle           = "Choose your colours"
+        themeRose                  = "Rose"
+        themeLavender              = "Lavender"
         storyExpires               = { h -> if (h <= 1) "Less than an hour left" else "$h hours left" }
         securityWarningTitle       = "Security Risk Detected"
         securityWarningRooted      = "This device appears to be rooted. Rooting removes Android's security sandbox and may allow other apps to read this app's data."
@@ -1881,6 +1887,9 @@ object StringResources {
         showAllSalons              = "نمایش همه سالن‌ها"
         viewSalon                  = "مشاهده سالن"
         storiesTitle               = "امروز جای خالی"
+        themePickerTitle           = "رنگ دلخواهتان را انتخاب کنید"
+        themeRose                  = "گلبهی"
+        themeLavender              = "بنفش"
         storyExpires               = { h -> if (h <= 1) "کمتر از یک ساعت باقی مانده" else "$h ساعت باقی مانده" }
         securityWarningTitle       = "خطر امنیتی شناسایی شد"
         securityWarningRooted      = "به نظر می‌رسد این دستگاه روت شده است. روت کردن لایه امنیتی اندروید را حذف می‌کند و ممکن است به برنامه‌های دیگر اجازه دهد داده‌های این برنامه را بخوانند."
@@ -2486,6 +2495,9 @@ object StringResources {
         showAllSalons              = "ټول سالونونه وښیه"
         viewSalon                  = "سالون وګورئ"
         storiesTitle               = "نن خالي ځای"
+        themePickerTitle           = "خپل خوښ رنګ وټاکئ"
+        themeRose                  = "ګلابي"
+        themeLavender              = "بنفش"
         storyExpires               = { h -> if (h <= 1) "له یوې ساعته لږ پاتې دي" else "$h ساعته پاتې دي" }
         securityWarningTitle       = "امنیتي خطر وموندل شو"
         securityWarningRooted      = "داسې ښکاري چې دا وسیله روټ شوې ده. روټ کول د اندروید امنیتي پوټکی لرې کوي او ممکن نورو اپونو ته اجازه ورکړي چې د دې اپ معلومات ولولي."

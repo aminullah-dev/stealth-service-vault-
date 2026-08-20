@@ -19,6 +19,9 @@ import com.safebeauty.app.navigation.AppNavGraph
 import com.safebeauty.app.navigation.NotificationDeeplink
 import com.safebeauty.app.security.SessionManager
 import com.safebeauty.app.ui.components.ForceUpdateDialog
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.ForceUpdateViewModel
@@ -53,9 +56,12 @@ class MainActivity : FragmentActivity() {
         setContent {
             // Themed at the root so every screen (and any future one) gets the
             // brand colors and the Vazirmatn typography without wrapping itself.
-            // Step 1 of dark mode: follow the device's dark-mode setting. An
-            // in-app Light/Dark/System toggle comes next.
-            DashboardTheme(darkTheme = isSystemInDarkTheme()) {
+            // Dark/light follows the device; the colour family is the user's own
+            // choice and is read synchronously, so the first frame is already
+            // painted in the family they picked rather than flashing the default.
+            val themeVm: ThemeViewModel = hiltViewModel()
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            DashboardTheme(darkTheme = isSystemInDarkTheme(), brand = brand) {
                 val navController = rememberNavController()
                 AppNavGraph(
                     navController      = navController,
