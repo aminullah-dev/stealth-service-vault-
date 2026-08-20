@@ -372,6 +372,17 @@ private fun BookingCard(
                         fontSize = 11.sp,
                         color    = TextFaint
                     )
+                    // The reference support will ask for. Blank on bookings made
+                    // before codes existed, so it is shown only when there is one.
+                    if (appt.bookingCode.isNotBlank()) {
+                        Text(
+                            appt.bookingCode,
+                            fontSize   = 11.sp,
+                            color      = RoseGold,
+                            fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 0.6.sp
+                        )
+                    }
                 }
                 Spacer(Modifier.width(4.dp))
                 IconButton(

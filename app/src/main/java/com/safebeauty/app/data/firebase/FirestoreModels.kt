@@ -220,6 +220,9 @@ fun SalonDocument.badge(): SalonBadge = when {
 
 data class AppointmentDocument(
     val id: String = "",                    // Firestore document ID
+    // The short reference a customer can read down a phone line ("SB-4C7GHJ").
+    // Minted server-side at booking; blank on bookings that predate it.
+    val bookingCode: String = "",
     val customerId: String = "",
     val customerName: String = "",
     val customerPhone: String = "",

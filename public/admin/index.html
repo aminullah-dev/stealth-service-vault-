@@ -483,6 +483,8 @@ const TABS = [
   { id:'users',    label:'Users',      icon:'👥', render:renderUsers },
   { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
   { id:'content',  label:'Content',    icon:'📸', render:renderContent },
+  { id:'booking',  label:'Booking',    icon:'🔎', render:renderBooking },
+  { id:'health',   label:'Health',     icon:'🩺', render:renderHealth },
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
@@ -1047,11 +1049,73 @@ function openUserModal(u, onChanged){
       ${adminBtn}
     </div>
 
+    <div class="mgroup">
+      <div class="mglabel">Account standing</div>
+      ${u.suspended
+        ? `<div class="meta" style="color:var(--bad-ink);margin-bottom:9px">
+             Suspended${u.suspendedReason?` — ${esc(u.suspendedReason)}`:''}. They can still sign in and
+             read their history; what is blocked is booking, confirming and rating.
+           </div>
+           <button class="btn-sm" id="m-reinstate" style="background:var(--green)">Reinstate account</button>`
+        : `<div class="mrow">
+             <input id="m-susreason" class="field" placeholder="Reason (kept on the record)" />
+             <button class="btn-sm" id="m-suspend" style="background:var(--red)">Suspend</button>
+           </div>`}
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Full history</div>
+      <button class="btn-sm" id="m-dossier" style="background:var(--surface);color:var(--deep)">Load bookings, reviews and reports</button>
+      <div id="m-dossier-out" style="margin-top:10px"></div>
+    </div>
+
     <button class="btn-sm mclose" id="m-close">Close</button>
   `);
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 700); };
   $('m-close').onclick = hideModal;
+
+  if($('m-suspend')) $('m-suspend').onclick = async (e) => {
+    const reason = $('m-susreason').value.trim();
+    if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A suspension needs a reason on the record.'; return; }
+    if(!confirm(`Suspend ${u.name||u.id}? They keep access to their own history and to support.`)) return;
+    if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:true, reason }, e.target, 'm-flash', 'Suspended ✓')) refresh();
+  };
+  if($('m-reinstate')) $('m-reinstate').onclick = async (e) => {
+    if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:false }, e.target, 'm-flash', 'Reinstated ✓')) refresh();
+  };
+
+  $('m-dossier').onclick = async (e) => {
+    const btn = e.target, lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try{
+      const salonId = (u.salons && u.salons[0]) || '';
+      const { data } = await httpsCallable(fns,'adminUserDossier')({ targetUid:u.id, salonId });
+      const b = data.bookings||[], r = data.reviews||[], rep = data.reports||[];
+      const list = (rows, body, empty) => rows.length
+        ? `<div class="tbl-wrap"><table class="tbl"><tbody>${rows.map(body).join('')}</tbody></table></div>`
+        : `<div class="meta" style="color:var(--muted)">${empty}</div>`;
+      $('m-dossier-out').innerHTML = `
+        <div class="mglabel" style="margin-top:4px">Bookings (${b.length})</div>
+        ${list(b, x => `<tr>
+            <td class="name">${esc(x.bookingCode||x.id)}</td>
+            <td>${esc(x.salonName||'—')}</td>
+            <td><span class="pill ${STATUS_PILL[x.status]||'info'}">${esc(x.status||'')}</span></td>
+            <td>${fmtDate(x.appointmentDate)}</td>
+          </tr>`, 'No bookings')}
+        <div class="mglabel" style="margin-top:12px">Reviews written (${r.length})</div>
+        ${list(r, x => `<tr><td>★ ${Number(x.rating||0)}</td><td>${esc(x.comment||'—')}</td></tr>`, 'None')}
+        <div class="mglabel" style="margin-top:12px">Reported by salons (${rep.length})</div>
+        ${list(rep, x => `<tr>
+            <td>${x.noShow?'<span class="pill bad">no-show</span>':'★ '+Number(x.rating||0)}</td>
+            <td>${esc(x.comment||'—')}</td><td>${fmtDate(x.createdAt)}</td>
+          </tr>`, 'None — nothing has been reported about this account')}
+        ${data.balance ? `<div class="mglabel" style="margin-top:12px">Salon balance</div>
+          <div class="meta">${Number(data.balance.owed||0).toLocaleString()} AFN owed</div>` : ''}`;
+    }catch(err){
+      $('m-dossier-out').innerHTML = `<div class="meta" style="color:var(--bad-ink)">${esc(fnError(err))}</div>`;
+    }finally{ btn.disabled = false; btn.textContent = lbl; }
+  };
 
   $('m-pwbtn').onclick = async (e) => {
     const pw = $('m-pw').value.trim();
@@ -1359,6 +1423,197 @@ async function renderContent(){
         if(b.dataset.path){ try{ await deleteObject(sref(storage, b.dataset.path)); }catch(_){} }
       })(b);
     });
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
+// ── Booking lookup (one reference, the whole story) ──────────────────────────
+//
+// The first thing a support call needs: a customer reads her SB- code, and this
+// shows what was booked, what was paid, and every state the booking has been
+// through with who moved it and why. Before this existed the only answer to
+// "why was my appointment cancelled" was a guess.
+const STATUS_PILL = {
+  AWAITING_PAYMENT: 'warn', PENDING: 'info', CONFIRMED: 'ok',
+  COMPLETED: 'ok', CANCELLED: 'bad',
+};
+
+function renderBooking(){
+  $('view').innerHTML = `
+    <div class="section-title">Find a booking</div>
+    <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+      Enter the reference the customer reads out (SB-4C7GHJ), or a booking's document id.
+      Case, spaces and a missing prefix are all fine.
+    </div>
+    <div class="mrow" style="max-width:520px">
+      <input id="bk-code" class="field" placeholder="SB-4C7GHJ" autocomplete="off" />
+      <button class="btn-sm" id="bk-go" style="background:var(--rose)">Look up</button>
+    </div>
+    <div id="bk-flash" class="mflash"></div>
+    <div id="bk-out"></div>`;
+
+  const run = async () => {
+    const code = $('bk-code').value.trim();
+    if(!code){ return; }
+    const btn = $('bk-go'), lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Looking…';
+    $('bk-flash').className = 'mflash'; $('bk-flash').textContent = '';
+    $('bk-out').innerHTML = '';
+    try{
+      const { data } = await httpsCallable(fns,'adminLookupBooking')({ code });
+      paintBooking(data);
+    }catch(e){
+      $('bk-flash').className = 'mflash bad';
+      $('bk-flash').textContent = fnError(e);
+    }finally{ btn.disabled = false; btn.textContent = lbl; }
+  };
+  $('bk-go').onclick = run;
+  $('bk-code').onkeydown = (e) => { if(e.key === 'Enter') run(); };
+  $('bk-code').focus();
+}
+
+function paintBooking(d){
+  const a = d.appointment || {};
+  const money = (n) => `${Number(n||0).toLocaleString()} AFN`;
+  const pill  = (st) => `<span class="pill ${STATUS_PILL[st]||'info'}">${esc(st||'—')}</span>`;
+
+  const rowsOrEmpty = (rows, head, body, empty) => rows.length
+    ? `<div class="tbl-wrap"><table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows.map(body).join('')}</tbody></table></div>`
+    : `<div class="empty">${empty}</div>`;
+
+  $('bk-out').innerHTML = `
+    <div class="card-pad" style="margin-top:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
+        <span style="font-size:19px;font-weight:800;letter-spacing:.5px;color:var(--deep)">${esc(a.bookingCode||a.id)}</span>
+        ${pill(a.status)}
+        ${a.paymentMethod === 'CASH' ? '<span class="pill info">Cash</span>' : '<span class="pill info">Online</span>'}
+        ${a.customerReported ? '<span class="pill warn">Customer reported</span>' : ''}
+      </div>
+      <div class="meta" style="color:var(--muted);line-height:1.9">
+        <b>${esc(a.serviceName||'—')}</b> at <b>${esc(a.salonName||'—')}</b>${a.staffName?` with ${esc(a.staffName)}`:''}<br/>
+        Customer: ${esc(a.customerName||'—')} · <bdi dir="ltr">${esc(a.customerPhone||'—')}</bdi><br/>
+        Appointment: ${fmtDate(a.appointmentDate)} · Booked: ${fmtDate(a.createdAt)}<br/>
+        ${a.notes?`Note: “${esc(a.notes)}”`:''}
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:22px">History (${(d.events||[]).length})</div>
+    ${rowsOrEmpty(d.events||[],
+      '<th scope="col">When</th><th scope="col">From</th><th scope="col">To</th><th scope="col">By</th><th scope="col">Why</th>',
+      (e) => `<tr>
+        <td>${fmtDate(e.at)}</td>
+        <td>${e.from?pill(e.from):'—'}</td>
+        <td>${pill(e.to)}</td>
+        <td class="name">${esc(e.actorName||e.actorRole||'system')}<div class="meta" style="color:var(--muted)">${esc(e.actorRole||'')}</div></td>
+        <td>${esc(e.reason||'—')}</td>
+      </tr>`,
+      'No history recorded — this booking predates the event trail.')}
+
+    <div class="section-title" style="margin-top:22px">Payments (${(d.payments||[]).length})</div>
+    ${rowsOrEmpty(d.payments||[],
+      '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Method</th><th scope="col">When</th>',
+      (p) => `<tr><td>${money(p.amount)}</td><td>${esc(p.status||'—')}</td><td>${esc(p.method||p.paymentMethod||'—')}</td><td>${fmtDate(p.createdAt)}</td></tr>`,
+      'No payment row')}
+
+    ${(d.refunds||[]).length ? `<div class="section-title" style="margin-top:22px">Refunds (${d.refunds.length})</div>` +
+      rowsOrEmpty(d.refunds,
+        '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">When</th>',
+        (r) => `<tr><td>${money(r.amount)}</td><td>${esc(r.status||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
+
+    ${(d.reports||[]).length ? `<div class="section-title" style="margin-top:22px">Behaviour reports (${d.reports.length})</div>` +
+      rowsOrEmpty(d.reports,
+        '<th scope="col">Rating</th><th scope="col">No-show</th><th scope="col">Comment</th><th scope="col">When</th>',
+        (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?'<span class="pill bad">yes</span>':'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
+
+    ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">Review</div>` +
+      rowsOrEmpty(d.reviews,
+        '<th scope="col">Rating</th><th scope="col">Comment</th><th scope="col">Salon reply</th>',
+        (r) => `<tr><td>★ ${Number(r.rating||0)}</td><td>${esc(r.comment||'—')}</td><td>${esc(r.providerReply||'—')}</td></tr>`, '') : ''}
+  `;
+}
+
+// ── Health (what the platform found wrong with itself overnight) ─────────────
+//
+// reconcileIntegrity writes its findings every night; without somewhere to read
+// them they are just a log line nobody opens. Backup state sits here too,
+// because "is there a backup" and "is anything broken" are the same question
+// asked at the same moment.
+async function renderHealth(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const [alertSnap, backupSnap] = await Promise.all([
+      getDocs(query(collection(db,'system_alerts'), orderBy('ranAt','desc'), limit(1))),
+      getDocs(query(collection(db,'system_backups'), orderBy('startedAt','desc'), limit(14))),
+    ]);
+    const latest  = alertSnap.empty ? null : alertSnap.docs[0].data();
+    const backups = backupSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+    const findings = (latest && latest.findings) || [];
+    const sev = { critical:'bad', warn:'warn' };
+    const lastGood = backups.find(b => b.state === 'DONE');
+    const ageH = lastGood ? Math.floor((Date.now() - Number(lastGood.finishedAt||0))/3600000) : null;
+
+    $('view').innerHTML = `
+      <div class="section-title">Backups</div>
+      <div class="card-pad" style="margin-bottom:8px">
+        ${lastGood
+          ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">Last verified ${ageH}h ago</span>
+             <span class="meta" style="margin-inline-start:10px;color:var(--muted)">${esc(lastGood.id)} → ${esc(lastGood.outputUri||'')}</span>`
+          : `<span class="pill bad">No verified backup on record</span>`}
+      </div>
+      ${backups.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Day</th><th scope="col">State</th><th scope="col">Started</th><th scope="col">Finished</th><th scope="col">Error</th></tr></thead>
+        <tbody>` + backups.map(b => `<tr>
+          <td class="name">${esc(b.id)}</td>
+          <td><span class="pill ${b.state==='DONE'?'ok':b.state==='FAILED'?'bad':b.state==='PRUNED'?'info':'warn'}">${esc(b.state||'—')}</span></td>
+          <td>${fmtDate(b.startedAt)}</td>
+          <td>${b.finishedAt?fmtDate(b.finishedAt):'—'}</td>
+          <td>${esc(b.error||'—')}</td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No backup has run yet</div>`}
+
+      <div class="section-title" style="margin-top:26px">
+        Integrity ${latest ? `— last checked ${fmtDate(latest.ranAt)}` : ''}
+      </div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        Found by the nightly sweep. Nothing here has been changed automatically — each one is a
+        disagreement between two records that a person should decide about.
+      </div>
+      ${!latest ? `<div class="empty">The nightly check has not run yet</div>`
+        : findings.length === 0 ? `<div class="empty">Nothing out of place 🎉</div>`
+        : `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Severity</th><th scope="col">Kind</th><th scope="col">Reference</th><th scope="col">Detail</th></tr></thead>
+        <tbody>` + findings.map(f => `<tr>
+          <td><span class="pill ${sev[f.severity]||'info'}">${esc(f.severity||'')}</span></td>
+          <td class="name">${esc(f.kind||'')}</td>
+          <td>${esc(f.ref||'')}</td>
+          <td>${esc(f.detail||'')}</td>
+        </tr>`).join('') + `</tbody></table></div>
+        ${latest.truncated ? `<div class="meta" style="color:var(--muted);margin-top:8px">Only the first 200 findings are stored.</div>` : ''}`}
+
+      <div class="section-title" style="margin-top:26px">Maintenance</div>
+      <div class="card-pad">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Bookings made before references existed have none, so support cannot look them up.
+          Safe to run repeatedly — it only touches bookings that still have no code.
+        </div>
+        <button class="btn-sm" id="h-backfill" style="background:var(--rose)">Assign missing booking references</button>
+        <div id="h-flash" class="mflash" style="margin-top:8px"></div>
+      </div>`;
+
+    $('h-backfill').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminBackfillBookingCodes')({ limit: 200 });
+        $('h-flash').className = 'mflash ok';
+        $('h-flash').textContent = `Scanned ${data.scanned}, assigned ${data.assigned}.` +
+          (data.done ? ' All done.' : ' Run again to continue.');
+      }catch(err){
+        $('h-flash').className = 'mflash bad';
+        $('h-flash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
   }catch(e){
     $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
   }

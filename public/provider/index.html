@@ -458,6 +458,7 @@ const STR = {
   colCustomer:{en:'Customer', fa:'مشتری', ps:'پیرودونکی'},
   colStaff:{en:'Staff', fa:'کارمند', ps:'کارمند'},
   colWhen:{en:'When', fa:'زمان', ps:'وخت'},
+  colRef:{en:'Ref', fa:'کد رزرو', ps:'د بکنګ کوډ'},
   colPayment:{en:'Payment', fa:'پرداخت', ps:'تادیه'},
   colStatus:{en:'Status', fa:'وضعیت', ps:'حالت'},
   anyStaff:{en:'Any', fa:'هرکدام', ps:'هر یو'},
@@ -935,6 +936,7 @@ function renderRequests(){
         return `<div class="row" data-id="${esc(a.id)}">
           <h3>${esc(a.serviceName||t('colService'))} ${cash}</h3>
           <div class="meta">
+            ${a.bookingCode?`🔖 <b style="letter-spacing:.5px">${esc(a.bookingCode)}</b><br>`:''}
             🗓 ${esc(fmtDT(a.appointmentDate))}${staff}<br>
             👤 ${esc(a.customerName||t('colCustomer'))} · ${esc(a.customerPhone||'')}<br>
             ⭐ ${rep}${noShow}${a.notes?`<br>📝 ${esc(a.notes)}`:''}
@@ -986,6 +988,7 @@ function paintCalendar(all){
     `<button class="chip ${f===calFilter?'on':''}" data-f="${f}">${esc(f==='ALL'?t('f_all'):stLabel(f))}</button>`).join('');
   const body = shown.length ? shown.map(a => `
       <tr>
+        <td style="white-space:nowrap;letter-spacing:.4px">${esc(a.bookingCode||'—')}</td>
         <td class="name">${esc(a.serviceName||'—')}</td>
         <td>${esc(a.customerName||'—')}</td>
         <td>${esc(a.staffName||t('anyStaff'))}</td>
@@ -997,7 +1000,7 @@ function paintCalendar(all){
   $('view').innerHTML =
     `<div class="chips">${chips}</div>
      <div class="tbl-wrap"><table class="tbl">
-       <thead><tr><th scope="col">${t('colService')}</th><th scope="col">${t('colCustomer')}</th><th scope="col">${t('colStaff')}</th><th scope="col">${t('colWhen')}</th><th scope="col">${t('colPayment')}</th><th scope="col">${t('colStatus')}</th></tr></thead>
+       <thead><tr><th scope="col">${t('colRef')}</th><th scope="col">${t('colService')}</th><th scope="col">${t('colCustomer')}</th><th scope="col">${t('colStaff')}</th><th scope="col">${t('colWhen')}</th><th scope="col">${t('colPayment')}</th><th scope="col">${t('colStatus')}</th></tr></thead>
        <tbody>${body}</tbody></table></div>`;
   $('view').querySelectorAll('.chip').forEach(c => c.onclick = () => { calFilter = c.dataset.f; paintCalendar(all); });
 }
