@@ -149,7 +149,7 @@ fun AppNavGraph(
             }
         }
 
-        val lockAndReturn: () -> Unit = {
+        val returnToLogin: () -> Unit = {
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Login.route) { inclusive = false }
                 launchSingleTop = true
@@ -239,7 +239,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 CustomerDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }
@@ -249,7 +249,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 ProviderDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }
@@ -259,7 +259,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 AdminDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }

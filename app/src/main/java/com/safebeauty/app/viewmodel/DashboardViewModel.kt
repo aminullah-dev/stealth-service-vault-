@@ -543,7 +543,7 @@ class DashboardViewModel @Inject constructor(
         promoChecking = false
     }
 
-    var lockTriggered by mutableStateOf(false)
+    var signOutTriggered by mutableStateOf(false)
         private set
 
     var cancelFailed by mutableStateOf(false)
@@ -1136,10 +1136,10 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun triggerLock() {
-        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer locked vault") }
-        lockTriggered = true
+    fun signOut() {
+        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer signed out") }
+        signOutTriggered = true
     }
 
-    fun resetLockTrigger() { lockTriggered = false }
+    fun resetSignOut() { signOutTriggered = false }
 }

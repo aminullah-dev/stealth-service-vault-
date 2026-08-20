@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -123,15 +123,15 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit = {},
     viewModel: AdminViewModel = hiltViewModel(),
     langVm: LanguageViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
 
@@ -206,8 +206,8 @@ fun AdminDashboardScreen(
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
+                        IconButton(onClick = { viewModel.signOut() }) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = strings.signOut, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)

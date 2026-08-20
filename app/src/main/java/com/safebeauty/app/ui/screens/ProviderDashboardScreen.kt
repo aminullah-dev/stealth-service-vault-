@@ -51,7 +51,7 @@ import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.SupportAgent
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import android.app.TimePickerDialog
@@ -167,16 +167,16 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit         = {},
     viewModel: ProviderViewModel         = hiltViewModel(),
     langVm: LanguageViewModel            = hiltViewModel(),
     notifVm: NotificationCenterViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
 
@@ -240,8 +240,8 @@ fun ProviderDashboardScreen(
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
+                        IconButton(onClick = { viewModel.signOut() }) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = strings.signOut, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)

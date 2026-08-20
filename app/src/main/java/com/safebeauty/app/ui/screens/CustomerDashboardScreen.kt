@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -250,7 +251,7 @@ private data class BookingIntent(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit           = {},
     viewModel: DashboardViewModel          = hiltViewModel(),
     langVm: LanguageViewModel              = hiltViewModel(),
@@ -298,10 +299,10 @@ fun CustomerDashboardScreen(
         }
     }
 
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
 
@@ -472,11 +473,10 @@ fun CustomerDashboardScreen(
                     },
                     actions = {
                         // Seven unlabeled icons crowded the bar and squeezed the
-                        // title. Only two earn a permanent slot: notifications
-                        // (badged, time-sensitive) and the lock (privacy — it has
-                        // to be reachable in one tap, always). The rest are
-                        // occasional, and moving them into a named menu makes them
-                        // MORE discoverable than a row of mystery glyphs was.
+                        // title. Only notifications earns a permanent slot — it
+                        // carries an unread badge. The rest are occasional, and a
+                        // named menu makes them MORE discoverable than a row of
+                        // mystery glyphs was.
                         val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
                         IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.customerId)) }) {
                             BadgedBox(badge = {
@@ -488,9 +488,6 @@ fun CustomerDashboardScreen(
                             }) {
                                 Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
                             }
-                        }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, strings.lock, tint = DeepRose)
                         }
                         Box {
                             IconButton(onClick = { showOverflow = true }) {
@@ -525,6 +522,10 @@ fun CustomerDashboardScreen(
                                     strings.exportTitle,
                                     enabled = exportVm.phase != ExportPhase.WORKING
                                 ) { exportVm.export() }
+                                HorizontalDivider()
+                                item(Icons.AutoMirrored.Filled.Logout, strings.signOut) {
+                                    viewModel.signOut()
+                                }
                             }
                         }
                     },

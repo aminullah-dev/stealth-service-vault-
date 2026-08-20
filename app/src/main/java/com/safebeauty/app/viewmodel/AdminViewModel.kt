@@ -203,7 +203,7 @@ class AdminViewModel @Inject constructor(
         private set
 
     var broadcastText by mutableStateOf("")
-    var lockTriggered by mutableStateOf(false)
+    var signOutTriggered by mutableStateOf(false)
         private set
 
     /** Parses [commissionInput] (0–100) and persists it; ignores invalid input. */
@@ -420,10 +420,10 @@ class AdminViewModel @Inject constructor(
         }
     }
 
-    fun triggerLock() {
-        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Admin locked vault") }
-        lockTriggered = true
+    fun signOut() {
+        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Admin signed out") }
+        signOutTriggered = true
     }
 
-    fun resetLockTrigger() { lockTriggered = false }
+    fun resetSignOut() { signOutTriggered = false }
 }
