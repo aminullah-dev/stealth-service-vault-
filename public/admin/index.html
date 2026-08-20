@@ -317,6 +317,8 @@ import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+import { getStorage, ref as sref, uploadBytes, getDownloadURL }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
@@ -330,6 +332,7 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 const fns  = getFunctions(app, 'us-central1');
+const storage = getStorage(app);
 
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
 function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
@@ -1271,6 +1274,8 @@ const AUDIT_META = {
   UPDATE_USER:    { icon:'✏️', cls:'info' },
   ADJUST_BALANCE: { icon:'💰', cls:'warn' },
   GRANT_CREDIT:   { icon:'🎁', cls:'ok'   },
+  CREATE_SALON:   { icon:'🏠', cls:'ok'   },
+  POST_FOR_SALON: { icon:'📸', cls:'info' },
 };
 function describeAudit(a){
   const d = a.details || {};
@@ -1282,6 +1287,8 @@ function describeAudit(a){
     case 'UPDATE_USER':    return `Edited <b>${who}</b> — ${esc(Object.keys(d.updates||{}).join(', ') || 'profile')}`;
     case 'ADJUST_BALANCE': return `Balance ${d.delta>0?'+':''}${esc(String(d.delta))} AFN for <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
     case 'GRANT_CREDIT':   return `Credit ${d.amount>0?'+':''}${esc(String(d.amount))} AFN to <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    case 'CREATE_SALON':   return `Added the salon <b>${esc(d.salonName||'')}</b>${d.district?` in ${esc(d.district)}`:''} for <b>${who}</b>`;
+    case 'POST_FOR_SALON': return `Published a ${d.kind==='STORY'?'story':'photo'} for <b>${esc(d.salonName||d.salonId||'')}</b>`;
     default:               return esc(a.action || '');
   }
 }
@@ -1357,6 +1364,25 @@ async function openSalonModal(salon, onChanged){
     </div>
 
     <div class="mgroup">
+      <div class="mglabel">Publish for this salon</div>
+      <div class="meta" style="color:var(--muted);margin-bottom:9px">
+        Seeds Discover while the owner is still finding their feet. Published under
+        the salon's name and recorded in the audit log — only with their consent.
+      </div>
+      <div class="mrow">
+        <input id="s-story" class="field" maxlength="200" placeholder="Story — e.g. two chairs free this afternoon (24h)" />
+        <button class="btn-sm" id="s-story-go" style="background:var(--rose)">Post story</button>
+      </div>
+      <!-- Three controls, and a file input is naturally wide: .modal .mrow is
+           nowrap, which would crush them onto one line on a narrow screen. -->
+      <div class="mrow" style="margin-top:8px;flex-wrap:wrap">
+        <input id="s-photo" class="field" type="file" accept="image/jpeg,image/png,image/webp" />
+        <input id="s-caption" class="field" maxlength="300" placeholder="Caption (optional)" />
+        <button class="btn-sm" id="s-photo-go" style="background:var(--rose)">Share photo</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
       <div class="mglabel">Actions</div>
       <div class="mrow" style="flex-wrap:wrap">
         <button class="btn-sm" id="s-verify" style="background:${salon.isVerified?'var(--muted)':'var(--green)'}">${salon.isVerified?'Unverify salon':'Verify salon'}</button>
@@ -1374,6 +1400,45 @@ async function openSalonModal(salon, onChanged){
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
   $('s-close').onclick = hideModal;
+
+  $('s-story-go').onclick = async (e) => {
+    const text = $('s-story').value.trim();
+    if(!text){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Write the story text first.'; return; }
+    if(await callFn('adminPostForSalon', { salonId: salon.id, kind:'STORY', text }, e.target, 's-flash', 'Story posted ✓')){
+      $('s-story').value = '';
+    }
+  };
+
+  $('s-photo-go').onclick = async (e) => {
+    const file = ($('s-photo').files || [])[0];
+    if(!file){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Choose a photo first.'; return; }
+    // Mirror storage.rules/isValidImage, so an oversized file fails here with a
+    // readable message instead of as an opaque upload rejection.
+    if(file.size >= 2*1024*1024){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Photo must be under 2 MB.'; return; }
+
+    const btn = e.target, label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    $('s-flash').className='mflash'; $('s-flash').textContent='';
+    try{
+      // The id is minted here so the Storage path and the document agree; the
+      // callable re-derives the same path and rejects any mismatch.
+      const postId = doc(collection(db,'salon_posts')).id;
+      const path   = `salon_posts/${salon.id}/${postId}.jpg`;
+      await uploadBytes(sref(storage, path), file, { contentType: file.type });
+      const imageUrl = await getDownloadURL(sref(storage, path));
+      btn.textContent = label;
+      const ok = await callFn('adminPostForSalon', {
+        salonId: salon.id, kind:'POST', postId, imageUrl, storagePath: path,
+        caption: $('s-caption').value.trim(),
+      }, btn, 's-flash', 'Photo published ✓');
+      if(ok){ $('s-photo').value = ''; $('s-caption').value = ''; }
+    }catch(err){
+      $('s-flash').className='mflash bad';
+      $('s-flash').textContent = 'Upload failed: ' + (err.message || String(err));
+    }finally{
+      btn.disabled = false; btn.textContent = label;
+    }
+  };
 
   $('s-save').onclick = async (e) => {
     // Only send fields that actually changed and aren't blank — sending an empty

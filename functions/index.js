@@ -3518,6 +3518,101 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
   }
 });
 
+// ── Seeding a salon's feed on the salon's behalf ──────────────────────────────
+//
+// A new marketplace has a circular problem: a customer will not browse an empty
+// Discover grid, and a salon will not post into a feed nobody reads yet. Someone
+// has to break the circle first, and it is the platform — the admin visits the
+// salon, photographs the work with the owner's consent, and publishes it here.
+//
+// Kept server-side like every other admin mutation: the rules give clients no
+// write path into a salon they do not own, and loosening them would have handed
+// that path to every client. Each seeded document carries `createdByAdmin` so
+// the content stays traceable and can be found again when the owner takes over.
+exports.adminPostForSalon = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d  = request.data || {};
+
+  const salonId = String(d.salonId || "").trim();
+  const kind    = String(d.kind || "POST").trim().toUpperCase();
+
+  if (!salonId) throw new HttpsError("invalid-argument", "salonId is required.");
+  if (kind !== "POST" && kind !== "STORY") {
+    throw new HttpsError("invalid-argument", "kind must be POST or STORY.");
+  }
+
+  const salonSnap = await db.doc(`salons/${salonId}`).get();
+  if (!salonSnap.exists) throw new HttpsError("not-found", "No such salon.");
+  const salon = salonSnap.data() || {};
+
+  const now = Date.now();
+
+  if (kind === "STORY") {
+    const text = String(d.text || "").trim().slice(0, 200);
+    if (!text) throw new HttpsError("invalid-argument", "A story needs text.");
+
+    const ref = db.collection("salon_stories").doc();
+    await ref.set({
+      id:          ref.id,
+      salonId,
+      salonName:   salon.salonName || "",
+      text,
+      imageUrl:    "",
+      storagePath: "",
+      createdAt:   now,
+      // The same fixed 24h lifetime the provider console writes, for the same
+      // reason: stamped by the author so it cannot drift with a reader's clock.
+      expiresAt:   now + 24 * 60 * 60 * 1000,
+      createdByAdmin: me.uid,
+    });
+
+    await logAdminAction(me, "POST_FOR_SALON", {
+      salonId, salonName: salon.salonName || "", kind, docId: ref.id,
+    });
+    logger.log(`adminPostForSalon: story for ${salonId} by ${me.uid}`);
+    return { ok: true, id: ref.id };
+  }
+
+  // A post carries an image the console has already uploaded, because the bytes
+  // never need to pass through a function to get to Storage. What must be
+  // checked here is that the path it points at is the one it claims: an
+  // unvalidated storagePath would let a post display any object in the bucket.
+  const postId      = String(d.postId || "").trim();
+  const imageUrl    = String(d.imageUrl || "").trim();
+  const storagePath = String(d.storagePath || "").trim();
+
+  if (!/^[A-Za-z0-9]{16,32}$/.test(postId)) {
+    throw new HttpsError("invalid-argument", "A valid postId is required.");
+  }
+  if (!imageUrl) throw new HttpsError("invalid-argument", "A post needs an image.");
+  if (storagePath !== `salon_posts/${salonId}/${postId}.jpg`) {
+    throw new HttpsError("invalid-argument", "storagePath does not match this salon and post.");
+  }
+
+  const ref = db.doc(`salon_posts/${postId}`);
+  if ((await ref.get()).exists) {
+    throw new HttpsError("already-exists", "That post already exists.");
+  }
+
+  await ref.set({
+    id:          postId,
+    salonId,
+    providerId:  salon.providerId || "",
+    salonName:   salon.salonName || "",
+    imageUrl,
+    storagePath,
+    caption:     String(d.caption || "").trim().slice(0, 300),
+    createdAt:   now,
+    createdByAdmin: me.uid,
+  });
+
+  await logAdminAction(me, "POST_FOR_SALON", {
+    salonId, salonName: salon.salonName || "", kind, docId: postId,
+  });
+  logger.log(`adminPostForSalon: post ${postId} for ${salonId} by ${me.uid}`);
+  return { ok: true, id: postId };
+});
+
 // ── Abuse protection for the pre-login callables ──────────────────────────────
 //
 // `lookupAccountByPhone` and `authenticateWithPassword` cannot require auth —

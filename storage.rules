@@ -65,7 +65,10 @@ service firebase.storage {
     // readable so the feed renders for everyone.
     match /salon_posts/{salonId}/{fileName} {
       allow read:   if isSignedIn();
-      allow create: if salonOwner(salonId) && isValidImage();
+      // The admin also uploads here, to seed a new salon's feed on its behalf
+      // (see adminPostForSalon). The Firestore document is still written
+      // server-side; this only opens the image bytes, not the post itself.
+      allow create: if (salonOwner(salonId) || isAdmin()) && isValidImage();
       allow update: if false;
       allow delete: if salonOwner(salonId) || isAdmin();
     }
