@@ -3753,6 +3753,14 @@ const NOTIF_I18N = {
       ? "یو پیرودونکي تادیه کړې او ستاسو د بکینګ تایید ته انتظار باسي."
       : `${p.count} پیرودونکو تادیه کړې او ستاسو د خپلو بکینګونو تایید ته انتظار باسي.` },
   },
+  BOOKING_AUTO_CANCELLED: {
+    en: { t: "Booking cancelled — refund on the way", b: (p) =>
+      `${p.salon} did not confirm your booking in time, so we cancelled it. Your payment is being refunded.` },
+    fa: { t: "رزرو لغو شد — بازپرداخت در راه است", b: (p) =>
+      `${p.salon} رزرو شما را به‌موقع تأیید نکرد، بنابراین آن را لغو کردیم. مبلغ پرداختی شما بازگردانده می‌شود.` },
+    ps: { t: "بکینګ لغوه شو — بیرته ورکړه په لاره ده", b: (p) =>
+      `${p.salon} ستاسو بکینګ په وخت سره تایید نه کړ، نو موږ یې لغوه کړ. ستاسو تادیه بیرته درکول کیږي.` },
+  },
   REVIEW_THANKS: {
     en: { t: "Thanks for your review 💬", b: (p) => `You earned ${p.points} loyalty points.` },
     fa: { t: "از نظر شما ممنونیم 💬",     b: (p) => `${p.points} امتیاز وفاداری گرفتید.` },
