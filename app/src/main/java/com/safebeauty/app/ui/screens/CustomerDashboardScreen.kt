@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -445,6 +446,7 @@ fun CustomerDashboardScreen(
     val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
     var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
+    var showOverflow        by remember { mutableStateOf(false) }
     var tipTarget           by remember { mutableStateOf<AppointmentDocument?>(null) }
 
     DashboardTheme {
@@ -469,12 +471,12 @@ fun CustomerDashboardScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { onNavigate(Screen.SalonMap.build(viewModel.customerId)) }) {
-                            Icon(Icons.Default.Map, contentDescription = strings.mapTitle, tint = RoseGold)
-                        }
-                        IconButton(onClick = { onNavigate(Screen.Feed.build(viewModel.customerId)) }) {
-                            Icon(Icons.Default.PhotoLibrary, contentDescription = strings.feedTitle, tint = RoseGold)
-                        }
+                        // Seven unlabeled icons crowded the bar and squeezed the
+                        // title. Only two earn a permanent slot: notifications
+                        // (badged, time-sensitive) and the lock (privacy — it has
+                        // to be reachable in one tap, always). The rest are
+                        // occasional, and moving them into a named menu makes them
+                        // MORE discoverable than a row of mystery glyphs was.
                         val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
                         IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.customerId)) }) {
                             BadgedBox(badge = {
@@ -487,24 +489,43 @@ fun CustomerDashboardScreen(
                                 Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
                             }
                         }
-                        IconButton(
-                            onClick  = { exportVm.export() },
-                            enabled  = exportVm.phase != ExportPhase.WORKING
-                        ) {
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = strings.exportTitle,
-                                tint               = RoseGold
-                            )
-                        }
-                        IconButton(onClick = { showThemePicker = true }) {
-                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = DeepRose)
-                        }
-                        IconButton(onClick = { showLangPicker = true }) {
-                            Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
-                        }
                         IconButton(onClick = { viewModel.triggerLock() }) {
                             Icon(Icons.Default.Lock, strings.lock, tint = DeepRose)
+                        }
+                        Box {
+                            IconButton(onClick = { showOverflow = true }) {
+                                Icon(Icons.Default.MoreVert, strings.menuMore, tint = DeepRose)
+                            }
+                            DropdownMenu(
+                                expanded         = showOverflow,
+                                onDismissRequest = { showOverflow = false }
+                            ) {
+                                @Composable
+                                fun item(
+                                    icon: androidx.compose.ui.graphics.vector.ImageVector,
+                                    label: String,
+                                    enabled: Boolean = true,
+                                    onClick: () -> Unit
+                                ) = DropdownMenuItem(
+                                    text        = { Text(label, color = DeepRose, fontSize = 14.sp) },
+                                    leadingIcon = { Icon(icon, null, tint = RoseGold) },
+                                    enabled     = enabled,
+                                    onClick     = { showOverflow = false; onClick() }
+                                )
+                                item(Icons.Default.Map, strings.mapTitle) {
+                                    onNavigate(Screen.SalonMap.build(viewModel.customerId))
+                                }
+                                item(Icons.Default.PhotoLibrary, strings.feedTitle) {
+                                    onNavigate(Screen.Feed.build(viewModel.customerId))
+                                }
+                                item(Icons.Default.Palette, strings.menuTheme) { showThemePicker = true }
+                                item(Icons.Default.Language, strings.languagePickerTitle) { showLangPicker = true }
+                                item(
+                                    Icons.Default.Download,
+                                    strings.exportTitle,
+                                    enabled = exportVm.phase != ExportPhase.WORKING
+                                ) { exportVm.export() }
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
