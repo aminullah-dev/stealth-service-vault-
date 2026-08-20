@@ -111,6 +111,8 @@ import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -154,6 +156,7 @@ fun AdminDashboardScreen(
     val kycPending       by viewModel.kycPending.collectAsStateWithLifecycle()
     val kycLoaded        by viewModel.kycLoaded.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
     val flaggedReports   by viewModel.flaggedReports.collectAsStateWithLifecycle()
@@ -196,6 +199,9 @@ fun AdminDashboardScreen(
                     actions = {
                         IconButton(onClick = { onNavigate(Screen.Support.route) }) {
                             Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
+                        }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = RoseGold)
                         }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
@@ -250,6 +256,16 @@ fun AdminDashboardScreen(
                     9 -> SupportTab(supportTickets, viewModel, onNavigate)
                 }
             }
+        }
+
+        if (showThemePicker) {
+            val themeVm: ThemeViewModel = hiltViewModel()
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
+            )
         }
 
         if (showLangPicker) {

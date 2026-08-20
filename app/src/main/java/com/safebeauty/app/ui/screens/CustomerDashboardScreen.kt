@@ -3377,7 +3377,11 @@ fun ThemePickerDialog(
                                 .background(Brush.linearGradient(preview.brandRose))
                         )
                         Text(
-                            text       = if (brand == AppBrand.ROSE) strings.themeRose else strings.themeLavender,
+                            text       = when (brand) {
+                                AppBrand.ROSE     -> strings.themeRose
+                                AppBrand.LAVENDER -> strings.themeLavender
+                                AppBrand.SAGE     -> strings.themeSage
+                            },
                             fontSize   = 15.sp,
                             color      = preview.deepRose,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,

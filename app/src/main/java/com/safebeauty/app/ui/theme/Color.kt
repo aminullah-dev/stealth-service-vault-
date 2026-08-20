@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
  * ~27 screens which call `DashboardTheme { }` with no arguments inherit the
  * brand exactly the way they already inherit light/dark — no call site changes.
  */
-enum class AppBrand { ROSE, LAVENDER }
+enum class AppBrand { ROSE, LAVENDER, SAGE }
 
 data class Palette(
     val brand: AppBrand,
@@ -235,6 +235,92 @@ val LavenderDarkPalette = Palette(
     softPink         = listOf(Color(0xFF2A2340), Color(0xFF241E36)),
     dreamy           = listOf(Color(0xFF272038), Color(0xFF2B2342)),
     petal            = listOf(Color(0xFF1E1830), Color(0xFF272038), Color(0xFF1C1730)),
+    gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
+)
+
+// ── Sage ────────────────────────────────────────────────────────────────────────
+// The third family: a soft green that reads calm and spa-like rather than
+// clinical. Same structure and the same roles as the other two, so no screen
+// needs to know it exists.
+//
+// The one place green needed care: availableGreen and the Verified badge are
+// also green, and in a green theme a "verified" badge that matches the accent
+// stops signalling anything. Both are pushed toward a deeper, cooler green than
+// the sage accent so they still read as a distinct state rather than decoration.
+
+val SageLightPalette = Palette(
+    brand            = AppBrand.SAGE,
+    isDark           = false,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFF6E9080),   // primary accent — muted sage
+    deepRose         = Color(0xFF2F4F42),   // headline ink — deep pine
+    blushPink        = Color(0xFFD4E6DD),
+    softPurple       = Color(0xFF6E8C9B),
+    elegantCream     = Color(0xFFF7FBF8),
+    warmGold         = Color(0xFFD4A853),
+    dashboardSurface = Color(0xFFEAF4EE),
+    chipActive       = Color(0xFF6E9080),
+    chipInactive     = Color(0xFFD3E5DB),
+    // Deeper and cooler than the sage accent so "available" stays a state.
+    availableGreen   = Color(0xFF2E7D32),
+    unavailableGrey  = Color(0xFF9E9E9E),
+    cardBorder       = Color(0xFFD8E8DF),
+    deeperRose       = Color(0xFF24402F),
+    petalPink        = Color(0xFFE7F3EC),
+    lilacMist        = Color(0xFFD8E8DF),
+    softLavender     = Color(0xFFEFF7F2),
+    rosePetal        = Color(0xFF93B5A4),
+    dangerRed        = Color(0xFFC0392B),
+    warningOrange    = Color(0xFFE67E22),
+    neutralGrey      = Color(0xFF819088),
+    adminPurple      = Color(0xFF5F7F9B),
+    textStrong       = Color(0xFF37453E),
+    textMuted        = Color(0xFF74847C),
+    textFaint        = Color(0xFF9DAAA3),
+    brandRose        = listOf(Color(0xFFA6C9B6), Color(0xFF6E9080), Color(0xFF2F4F42)),
+    brandRoseSoft    = listOf(Color(0xFF8FB9A3), Color(0xFF4C6E5D)),
+    screenBg         = listOf(Color(0xFFF7FBF8), Color(0xFFEDF6F1), Color(0xFFE7F2EC)),
+    softPink         = listOf(Color(0xFFE7F3EC), Color(0xFFD9EAE1)),
+    dreamy           = listOf(Color(0xFFE7F3EC), Color(0xFFD8E8DF)),
+    petal            = listOf(Color(0xFFF2F9F5), Color(0xFFE7F3EC), Color(0xFFDCEDE4)),
+    gold             = listOf(Color(0xFFE6C06A), Color(0xFFC79A3C)),
+)
+
+val SageDarkPalette = Palette(
+    brand            = AppBrand.SAGE,
+    isDark           = true,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFF6F9B85),
+    deepRose         = Color(0xFFD9EBE1),   // headline ink, inverted for dark
+    blushPink        = Color(0xFF263A31),
+    softPurple       = Color(0xFF8FAEBD),
+    elegantCream     = Color(0xFF0E1512),
+    warmGold         = Color(0xFFE0B968),
+    dashboardSurface = Color(0xFF17241E),
+    chipActive       = Color(0xFF6F9B85),
+    chipInactive     = Color(0xFF21332B),
+    // Brighter than the accent so it still reads as a state on a green ground.
+    availableGreen   = Color(0xFF7BD98A),
+    unavailableGrey  = Color(0xFF8A8A8A),
+    cardBorder       = Color(0xFF2A3D34),
+    deeperRose       = Color(0xFF2C4A3B),
+    petalPink        = Color(0xFF1D2C25),
+    lilacMist        = Color(0xFF223129),
+    softLavender     = Color(0xFF1A2721),
+    rosePetal        = Color(0xFF87AF9A),
+    dangerRed        = Color(0xFFE06C5E),
+    warningOrange    = Color(0xFFE9975A),
+    neutralGrey      = Color(0xFF95A69D),
+    adminPurple      = Color(0xFF9DB6C7),
+    textStrong       = Color(0xFFCEDDD5),
+    textMuted        = Color(0xFFA0B2A8),
+    textFaint        = Color(0xFF7C8C84),
+    brandRose        = listOf(Color(0xFF4E7462), Color(0xFF3B5A4B), Color(0xFF273D32)),
+    brandRoseSoft    = listOf(Color(0xFF466A58), Color(0xFF2E4839)),
+    screenBg         = listOf(Color(0xFF0E1512), Color(0xFF121C17), Color(0xFF15201A)),
+    softPink         = listOf(Color(0xFF21332B), Color(0xFF1C2A23)),
+    dreamy           = listOf(Color(0xFF1D2C25), Color(0xFF223129)),
+    petal            = listOf(Color(0xFF17241E), Color(0xFF1D2C25), Color(0xFF16211C)),
     gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
 )
 

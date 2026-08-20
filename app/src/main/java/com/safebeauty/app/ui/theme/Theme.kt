@@ -45,6 +45,7 @@ private fun schemeFor(p: Palette) = if (p.isDark) {
 fun paletteFor(brand: AppBrand, dark: Boolean): Palette = when (brand) {
     AppBrand.ROSE     -> if (dark) RoseDarkPalette else RoseLightPalette
     AppBrand.LAVENDER -> if (dark) LavenderDarkPalette else LavenderLightPalette
+    AppBrand.SAGE     -> if (dark) SageDarkPalette else SageLightPalette
 }
 
 /**

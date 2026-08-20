@@ -138,6 +138,8 @@ import com.safebeauty.app.ui.theme.TextStrong
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.WarningOrange
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -192,6 +194,7 @@ fun ProviderDashboardScreen(
     val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
     var showLangPicker      by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
 
     val salonName = salon?.salonName ?: "My Salon"
 
@@ -230,6 +233,9 @@ fun ProviderDashboardScreen(
                         }
                         IconButton(onClick = { onNavigate(Screen.Support.route) }) {
                             Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
+                        }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = RoseGold)
                         }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
@@ -450,6 +456,16 @@ fun ProviderDashboardScreen(
 
         // ── Admin announcement popup (one-time per broadcast) ─────────────────
         com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
+
+        if (showThemePicker) {
+            val themeVm: ThemeViewModel = hiltViewModel()
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
+            )
+        }
 
         if (showLangPicker) {
             LanguagePickerDialog(
