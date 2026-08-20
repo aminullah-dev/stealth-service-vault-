@@ -192,7 +192,14 @@ service cloud.firestore {
                      // server-side at registration, so a self-edit could shadow
                      // another account's login resolution. Frozen post-signup.
                      && request.resource.data.get('phone', '')
-                          == resource.data.get('phone', ''));
+                          == resource.data.get('phone', '')
+                     // Set only by adminSetUserStatus. A suspension a user can
+                     // lift is not a suspension, and the acting callables read
+                     // this flag to decide whether to refuse.
+                     && request.resource.data.get('suspended', false)
+                          == resource.data.get('suspended', false)
+                     && request.resource.data.get('suspendedReason', '')
+                          == resource.data.get('suspendedReason', ''));
 
       allow delete: if isAdmin();
     }
@@ -367,6 +374,36 @@ service cloud.firestore {
       allow update: if false;
 
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── appointment_events ───────────────────────────────────────────────────────
+    // The history of one booking: who moved it to which state, when, and why.
+    //
+    // Written only by the Cloud Functions that perform the transitions (the
+    // Admin SDK bypasses these rules), so there is no client create path at all
+    // — a trail a client can append to is not evidence of anything.
+    //
+    // Readable by the two parties to the booking and by an admin. A customer
+    // asking why her appointment was cancelled deserves the answer without
+    // going through support.
+    match /appointment_events/{eventId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // ── booking_codes ────────────────────────────────────────────────────────────
+    // One empty document per issued booking reference. It exists only so that
+    // creating it fails when the code is taken, which is what makes a code
+    // unique without a read-then-write two bookings could both pass.
+    //
+    // Never read by a client: a readable list of live codes would let anyone
+    // guess their way to other people's bookings through adminLookupBooking's
+    // input space.
+    match /booking_codes/{code} {
+      allow read, create, update, delete: if false;
     }
 
     // ── post_likes ───────────────────────────────────────────────────────────────

@@ -42,6 +42,7 @@ const { expandBooked, serviceSlotSpan, hasSlotConflict } = require("./lib/slots"
 const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 const { isValidDocId } = require("./lib/validate");
 const { averageRating } = require("./lib/reviews");
+const { bookingCodeFromBytes, normalizeBookingCode } = require("./lib/booking");
 
 // Reject a malformed / path-unsafe document id before it is interpolated into a
 // Firestore doc path — defense-in-depth: a value with a slash makes an
@@ -198,6 +199,7 @@ exports.createPaymentSession = onCall(
     }
 
     const appUser = await resolveAppUser(request);
+    assertNotSuspended(appUser);
     // Identity must be verified before booking. The client gates this too and
     // routes to the KYC screen; this is the non-bypassable server enforcement.
     if ((appUser.kycStatus || "NONE") !== "APPROVED") {
@@ -457,8 +459,10 @@ exports.createPaymentSession = onCall(
     if (paymentMethod === "CASH") {
       const apptRef    = db.collection("appointments").doc();
       const paymentRef = db.collection("payments").doc();
+      const bookingCode = await reserveBookingCode();
       const batch = db.batch();
       batch.set(apptRef, {
+        bookingCode,
         customerId:     uid,
         customerName:   user.name  || "",
         customerPhone:  user.phone || "",
@@ -532,6 +536,12 @@ exports.createPaymentSession = onCall(
       }
       try {
         await batch.commit();
+        await logAppointmentEvent(
+          { bookingCode, salonId, customerId: uid, status: "" },
+          apptRef.id, "PENDING",
+          { uid, role: "CUSTOMER", name: user.name || "" },
+          "Booked, paying the salon in cash"
+        );
       } catch (err) {
         await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
         logger.error("createPaymentSession cash write failed", err);
@@ -557,8 +567,10 @@ exports.createPaymentSession = onCall(
     // never end up with one without the other if the function dies mid-write.
     const apptRef    = db.collection("appointments").doc();
     const paymentRef = db.collection("payments").doc();
+    const bookingCode = await reserveBookingCode();
     const createBatch = db.batch();
     createBatch.set(apptRef, {
+      bookingCode,
       customerId:    uid,
       customerName:  user.name  || "",
       customerPhone: user.phone || "",
@@ -613,6 +625,12 @@ exports.createPaymentSession = onCall(
     });
     try {
       await createBatch.commit();
+      await logAppointmentEvent(
+        { bookingCode, salonId, customerId: uid, status: "" },
+        apptRef.id, "AWAITING_PAYMENT",
+        { uid, role: "CUSTOMER", name: user.name || "" },
+        "Booked, awaiting online payment"
+      );
     } catch (err) {
       await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
       logger.error("createPaymentSession online write failed", err);
@@ -1149,6 +1167,14 @@ exports.hesabPayWebhook = onRequest(
       }
     }
 
+    // Recorded inside the transaction, written after it commits: the trail
+    // entry needs the appointment's own previous status and booking code, and
+    // Firestore requires every read in a transaction to precede every write --
+    // by the time the appointment is updated here, writes have already begun.
+    // Assigning a plain descriptor is safe against transaction retries because
+    // a retry recomputes exactly the same value.
+    let apptEventAfter = null;
+
     try {
       const result = await db.runTransaction(async (tx) => {
         // Re-read inside the transaction so two concurrent retries can't both
@@ -1282,6 +1308,7 @@ exports.hesabPayWebhook = onRequest(
           });
           // Release the appointment to the provider's pending queue.
           tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
+          apptEventAfter = { id: fresh.appointmentId, to: "PENDING", reason: "Online payment received" };
           // Track what the provider is owed (platform pays out separately).
           // Guarded: an empty providerId would make db.doc("provider_balances/")
           // throw synchronously, 500-ing every webhook retry and stranding the
@@ -1344,6 +1371,7 @@ exports.hesabPayWebhook = onRequest(
           // FAILED write); the reservation refund runs just after the transaction.
           if (fresh.appointmentId && !fresh.type) {
             tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "CANCELLED" });
+            apptEventAfter = { id: fresh.appointmentId, to: "CANCELLED", reason: "Online payment failed" };
           }
           // Keep the linked gift-card doc in sync — otherwise it sits PENDING
           // forever (the create-session rollback only covers pre-checkout errors).
@@ -1359,6 +1387,21 @@ exports.hesabPayWebhook = onRequest(
 
       if (result === "not_found") return res.status(404).send("Payment not found");
       if (result === "replay")    return res.status(409).send("Duplicate transaction");
+
+      if (apptEventAfter) {
+        const snap = await db.doc(`appointments/${apptEventAfter.id}`).get();
+        if (snap.exists) {
+          // `from` is reconstructed rather than read: the document already
+          // carries the new status by now, and the only state the webhook ever
+          // moves an appointment out of is AWAITING_PAYMENT.
+          await logAppointmentEvent(
+            { ...snap.data(), status: "AWAITING_PAYMENT" },
+            apptEventAfter.id, apptEventAfter.to,
+            { uid: "hesabpay", role: "SYSTEM", name: "HesabPay" },
+            apptEventAfter.reason
+          );
+        }
+      }
 
       // On an explicit failure of a reserved booking, hand back the referral
       // credit + promo use that were spent atomically at checkout (best-effort,
@@ -1817,7 +1860,7 @@ exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request)
 //
 // `cancelledBy` is "CUSTOMER" or "PROVIDER" — it decides who gets notified
 // (the other party) and who is authorized to act, via `authorize(appt, payment)`.
-async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
+async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, actor = null, reason = "") {
   const apptRef = db.doc(`appointments/${appointmentId}`);
 
   const result = await db.runTransaction(async (tx) => {
@@ -1841,6 +1884,15 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize) {
     }
 
     tx.update(apptRef, { status: "CANCELLED" });
+    writeAppointmentEvent(
+      tx, appt, appointmentId, "CANCELLED",
+      actor || { uid: "system", role: cancelledBy, name: "" },
+      reason || (cancelledBy === "PROVIDER"
+        ? "Salon declined the booking"
+        : cancelledBy === "CUSTOMER"
+          ? "Cancelled by the customer"
+          : "Cancelled automatically")
+    );
 
     let refundRequestId = null;
     const providerId = payment ? (payment.providerId || "") : "";
@@ -1992,7 +2044,8 @@ exports.cancelAppointment = onCall({ region: "us-central1" }, async (request) =>
   }
   const appUser = await resolveAppUser(request);
   return cancelPaidAppointment(appointmentId, "CUSTOMER", (appt) =>
-    appt.customerId === appUser.uid
+    appt.customerId === appUser.uid,
+    { uid: appUser.uid, role: "CUSTOMER", name: appUser.name }
   );
 });
 
@@ -2012,7 +2065,8 @@ exports.providerDeclineAppointment = onCall({ region: "us-central1" }, async (re
   }
   const appUser = await resolveAppUser(request);
   return cancelPaidAppointment(appointmentId, "PROVIDER", (appt, payment) =>
-    !!payment && payment.providerId === appUser.uid
+    !!payment && payment.providerId === appUser.uid,
+    { uid: appUser.uid, role: "PROVIDER", name: appUser.name }
   );
 });
 
@@ -2076,6 +2130,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     throw new HttpsError("invalid-argument", "The new time must be in the future.");
   }
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   const apptRef = db.doc(`appointments/${appointmentId}`);
 
   await db.runTransaction(async (tx) => {
@@ -2124,6 +2179,8 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     }
 
     tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
+    writeAppointmentEvent(tx, appt, appointmentId, "PENDING", actor,
+      `Rescheduled to ${new Date(dateMs).toISOString()}`);
     if (providerId) {
       tx.set(db.collection("notifications").doc(), {
         recipientId: providerId,
@@ -2159,6 +2216,7 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
     throw new HttpsError("invalid-argument", "appointmentId is required.");
   }
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   const apptRef = db.doc(`appointments/${appointmentId}`);
 
   await db.runTransaction(async (tx) => {
@@ -2188,6 +2246,8 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
     }
 
     tx.update(apptRef, { status: "CONFIRMED" });
+    writeAppointmentEvent(tx, appt, appointmentId, "CONFIRMED",
+      { uid: appUser.uid, role: "PROVIDER", name: appUser.name }, "Salon accepted the booking");
     if (salonSnap.exists) {
       tx.update(salonRef, {
         confirmedCount: admin.firestore.FieldValue.increment(1),
@@ -2228,6 +2288,7 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
 exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   if (appUser.role !== "PROVIDER") {
     throw new HttpsError("permission-denied", "Only providers can rate customers.");
   }
@@ -2269,6 +2330,9 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
     }
 
     tx.update(apptRef, { customerReported: true });
+    writeAppointmentEvent(tx, appt, appointmentId, appt.status,
+      { uid: appUser.uid, role: "PROVIDER", name: appUser.name },
+      noShow ? "Salon reported a no-show" : `Salon rated the customer ${rating}/5`);
 
     const reportRef = db.collection("customer_reports").doc();
     tx.set(reportRef, {
@@ -2356,6 +2420,16 @@ exports.expireAbandonedPayments = onSchedule(
           promoId:      outcome.promoCode,
         });
       }
+      if (outcome.appointmentId && !outcome.type) {
+        const snap = await db.doc(`appointments/${outcome.appointmentId}`).get();
+        if (snap.exists) {
+          await logAppointmentEvent(
+            { ...snap.data(), status: "AWAITING_PAYMENT" },
+            outcome.appointmentId, "CANCELLED", null,
+            "Checkout abandoned — payment never completed"
+          );
+        }
+      }
       count++;
     }
     logger.log(`expireAbandonedPayments: expired ${count} stale payment(s)`);
@@ -2440,6 +2514,8 @@ exports.completePastAppointments = onSchedule(
       if (Number(a.appointmentDate) <= cutoff) {
         const now = Date.now();
         await doc.ref.update({ status: "COMPLETED", completedAt: now });
+        await logAppointmentEvent({ ...doc.data(), status: "CONFIRMED" }, doc.id, "COMPLETED",
+          null, "Visit time passed without a cancellation");
         // Stamp the customer's last visit — a cheap recency signal the
         // re-engagement nudge reads instead of scanning appointment history.
         if (a.customerId) {
@@ -3037,6 +3113,23 @@ async function assertAdmin(request) {
     throw new HttpsError("permission-denied", "Admins only.");
   }
   return appUser;
+}
+
+/**
+ * Refuse an action by a suspended account.
+ *
+ * Deliberately not folded into resolveAppUser: a suspended person must still be
+ * able to sign in, read their own history and reach support -- otherwise a
+ * suspension is indistinguishable from a broken account, and the one route for
+ * disputing it is the route that gets closed. What stops is acting.
+ */
+function assertNotSuspended(appUser) {
+  if (appUser && appUser.suspended === true) {
+    throw new HttpsError(
+      "permission-denied",
+      "This account is suspended. Please contact support."
+    );
+  }
 }
 
 /** Append a tamper-evident record of a privileged admin action. Best-effort. */
@@ -3689,6 +3782,275 @@ exports.adminPostForSalon = onCall({ region: "us-central1" }, async (request) =>
   return { ok: true, id: postId };
 });
 
+// ── Booking codes and the appointment event trail ────────────────────────────
+//
+// A booking used to be identifiable only by its Firestore document id: twenty
+// random characters that nobody can read down a phone line. When a customer
+// rings to ask what happened to her appointment, the person answering needs
+// something she can say out loud, and a record of what actually happened to it.
+//
+// The alphabet and the normalizer live in lib/booking, which is unit-tested:
+// getting either wrong means two customers can hold the same reference, or a
+// correctly-read code fails to resolve.
+function randomBookingCode() {
+  return bookingCodeFromBytes(crypto.randomBytes(6));
+}
+
+/**
+ * Reserve a booking code nobody else holds.
+ *
+ * The reservation is a document create, which fails if the id is taken — so
+ * uniqueness is decided by Firestore rather than by a read-then-write that two
+ * simultaneous bookings could both pass. A code reserved by a booking that then
+ * fails to write is simply never used; that costs one tiny document, which is
+ * the cheaper end of the trade against ever issuing the same code twice.
+ */
+async function reserveBookingCode(attempts = 6) {
+  for (let i = 0; i < attempts; i++) {
+    const code = randomBookingCode();
+    try {
+      await db.doc(`booking_codes/${code}`).create({ createdAt: Date.now() });
+      return code;
+    } catch (e) {
+      if (i === attempts - 1) {
+        logger.error("reserveBookingCode: exhausted attempts", e);
+        throw new HttpsError("internal", "Could not allocate a booking reference.");
+      }
+    }
+  }
+}
+
+/**
+ * The shape of one entry in an appointment's history.
+ *
+ * Denormalizes salonId/customerId so the trail can be queried for "everything
+ * that happened to this salon's bookings" without joining back through the
+ * appointment, and the actor so the record still reads correctly after that
+ * person's name or role changes.
+ */
+function appointmentEvent(appt, appointmentId, to, actor, reason) {
+  return {
+    appointmentId,
+    bookingCode: appt.bookingCode || "",
+    salonId:     appt.salonId     || "",
+    customerId:  appt.customerId  || "",
+    from:        appt.status      || "",
+    to,
+    at:          Date.now(),
+    actorUid:    (actor && actor.uid)  || "system",
+    actorRole:   (actor && actor.role) || "SYSTEM",
+    actorName:   (actor && actor.name) || "",
+    reason:      String(reason || ""),
+  };
+}
+
+/**
+ * Append to the trail from inside a transaction or batch.
+ *
+ * Preferred over the fire-and-forget version: the history entry then commits
+ * with the status change it describes, so the two can never disagree.
+ */
+function writeAppointmentEvent(txOrBatch, appt, appointmentId, to, actor, reason) {
+  txOrBatch.set(
+    db.collection("appointment_events").doc(),
+    appointmentEvent(appt, appointmentId, to, actor, reason)
+  );
+}
+
+/** Append outside a transaction. Best-effort: never fail a booking over history. */
+async function logAppointmentEvent(appt, appointmentId, to, actor, reason) {
+  try {
+    await db.collection("appointment_events").add(
+      appointmentEvent(appt, appointmentId, to, actor, reason)
+    );
+  } catch (e) {
+    logger.error("logAppointmentEvent failed", e);
+  }
+}
+
+// ── adminLookupBooking ────────────────────────────────────────────────────────
+//
+// Everything known about one booking, from a code a customer can read down the
+// phone. Assembled server-side because the pieces live in five collections the
+// admin console would otherwise have to query separately, and because two of
+// them (payments, refund_requests) are not client-readable at all.
+//
+// Accepts either the booking code or the raw document id, so a support call and
+// a log line both lead to the same place.
+exports.adminLookupBooking = onCall({ region: "us-central1" }, async (request) => {
+  await assertAdmin(request);
+  const raw = String((request.data || {}).code || "").trim();
+  if (!raw) throw new HttpsError("invalid-argument", "A booking code is required.");
+
+  // Typed by a human off a screen or read down a phone line: lower case, a
+  // missing prefix and stray punctuation all resolve to the same code. Anything
+  // that could not be a code normalizes to "" and skips the query entirely.
+  const code = normalizeBookingCode(raw);
+
+  let apptDoc = null;
+  if (code) {
+    const snap = await db.collection("appointments")
+      .where("bookingCode", "==", code).limit(1).get();
+    apptDoc = snap.empty ? null : snap.docs[0];
+  }
+
+  // Fall back to the raw document id, so a value copied out of a log line finds
+  // the same booking a customer's code does. Validated first: an unchecked
+  // string interpolated into a path throws a 500 on the first stray slash.
+  if (!apptDoc && isValidDocId(raw)) {
+    const byId = await db.doc(`appointments/${raw}`).get();
+    if (byId.exists) apptDoc = byId;
+  }
+  if (!apptDoc) throw new HttpsError("not-found", "No booking with that reference.");
+
+  const appointmentId = apptDoc.id;
+  const appt = apptDoc.data();
+
+  const [eventsSnap, paySnap, refundSnap, reportSnap, reviewSnap] = await Promise.all([
+    db.collection("appointment_events").where("appointmentId", "==", appointmentId)
+      .orderBy("at", "asc").get(),
+    db.collection("payments").where("appointmentId", "==", appointmentId).get(),
+    db.collection("refund_requests").where("appointmentId", "==", appointmentId).get(),
+    db.collection("customer_reports").where("appointmentId", "==", appointmentId).get(),
+    db.collection("reviews").where("appointmentId", "==", appointmentId).get(),
+  ]);
+
+  const rows = (q) => q.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  return {
+    appointment: { id: appointmentId, ...appt },
+    events:      rows(eventsSnap),
+    payments:    rows(paySnap),
+    refunds:     rows(refundSnap),
+    reports:     rows(reportSnap),
+    reviews:     rows(reviewSnap),
+  };
+});
+
+// ── adminBackfillBookingCodes ─────────────────────────────────────────────────
+//
+// Bookings made before codes existed have none, so support cannot look them up
+// and their history starts mid-story. Walks a page at a time and is safe to run
+// repeatedly: it only ever touches appointments with no code, so a second run
+// after a timeout continues where the first stopped.
+exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const limit = Math.min(400, Math.max(1, Number((request.data || {}).limit || 200)));
+
+  // A missing field cannot be queried for, so this walks by creation order and
+  // skips the ones already done rather than filtering server-side.
+  const snap = await db.collection("appointments").orderBy("createdAt", "asc").limit(limit).get();
+
+  let assigned = 0;
+  for (const d of snap.docs) {
+    if (d.data().bookingCode) continue;
+    const code = await reserveBookingCode();
+    await d.ref.update({ bookingCode: code });
+    await logAppointmentEvent(
+      { ...d.data(), bookingCode: code, status: d.data().status },
+      d.id, d.data().status, { uid: me.uid, role: "ADMIN", name: me.name },
+      "Reference assigned retroactively"
+    );
+    assigned += 1;
+  }
+
+  await logAdminAction(me, "BACKFILL_CODES", { scanned: snap.size, assigned });
+  return { ok: true, scanned: snap.size, assigned, done: snap.size < limit };
+});
+
+// ── adminSetUserStatus ────────────────────────────────────────────────────────
+//
+// Suspend or reinstate an account. The platform could already adjust a user's
+// money and rewrite their password, but not stop them booking -- the only
+// lever against someone abusing the service was deleting them outright, which
+// destroys the evidence along with the account.
+//
+// A suspension is recorded on the user document rather than in Firebase Auth so
+// the person can still sign in and read their own history; what stops is the
+// ability to act, which the booking callables check.
+exports.adminSetUserStatus = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d  = request.data || {};
+  const targetUid = String(d.targetUid || "").trim();
+  const suspend   = d.suspend === true;
+  const reason    = String(d.reason || "").trim().slice(0, 300);
+
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid is required.");
+  if (suspend && !reason) {
+    throw new HttpsError("invalid-argument", "A suspension needs a reason on the record.");
+  }
+
+  const ref  = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "No such user.");
+  const target = snap.data();
+
+  if (target.role === "ADMIN" && suspend) {
+    throw new HttpsError("failed-precondition", "Remove admin access before suspending this account.");
+  }
+
+  await ref.update({
+    suspended:       suspend,
+    suspendedReason: suspend ? reason : "",
+    suspendedAt:     suspend ? Date.now() : 0,
+    suspendedBy:     suspend ? me.uid : "",
+  });
+
+  await logAdminAction(me, suspend ? "SUSPEND_USER" : "REINSTATE_USER", {
+    targetUid, targetName: target.name || "", reason,
+  });
+  return { ok: true, suspended: suspend };
+});
+
+// ── adminUserDossier ──────────────────────────────────────────────────────────
+//
+// Everything about one account in a single call: who they are, what they have
+// booked, what they have paid, what has been said about them and by them.
+//
+// The console used to answer a support question by opening four tabs and
+// eyeballing across them, which is slow at the moment it matters and easy to
+// get wrong. Bounded to the most recent rows of each kind so the response stays
+// a fixed size no matter how long the account has been active.
+exports.adminUserDossier = onCall({ region: "us-central1" }, async (request) => {
+  await assertAdmin(request);
+  const targetUid = String((request.data || {}).targetUid || "").trim();
+  if (!targetUid) throw new HttpsError("invalid-argument", "targetUid is required.");
+
+  const snap = await db.doc(`users/${targetUid}`).get();
+  if (!snap.exists) throw new HttpsError("not-found", "No such user.");
+  const user = snap.data();
+
+  // Strip the credential material. An admin never needs it, and a dossier is
+  // exactly the kind of payload that ends up pasted into a chat window.
+  const { pinHash, salt, firebaseEmail, ...safeUser } = user;
+
+  const isProvider = user.role === "PROVIDER";
+  const bookingsQ  = isProvider
+    ? db.collection("appointments").where("salonId", "==", String((request.data || {}).salonId || "___none___"))
+    : db.collection("appointments").where("customerId", "==", targetUid);
+
+  const [bookings, reviews, reportsAbout, balance, salons] = await Promise.all([
+    bookingsQ.orderBy("createdAt", "desc").limit(25).get().catch(() => ({ docs: [] })),
+    db.collection("reviews").where("customerId", "==", targetUid)
+      .limit(15).get().catch(() => ({ docs: [] })),
+    db.collection("customer_reports").where("customerId", "==", targetUid)
+      .limit(15).get().catch(() => ({ docs: [] })),
+    db.doc(`provider_balances/${targetUid}`).get().catch(() => ({ exists: false })),
+    db.collection("salons").where("providerId", "==", targetUid).get().catch(() => ({ docs: [] })),
+  ]);
+
+  const rows = (q) => (q.docs || []).map((d) => ({ id: d.id, ...d.data() }));
+
+  return {
+    user:     { id: targetUid, ...safeUser },
+    salons:   rows(salons),
+    bookings: rows(bookings),
+    reviews:  rows(reviews),
+    reports:  rows(reportsAbout),
+    balance:  balance.exists ? balance.data() : null,
+  };
+});
+
 // ── Abuse protection for the pre-login callables ──────────────────────────────
 //
 // `lookupAccountByPhone` and `authenticateWithPassword` cannot require auth —
@@ -3792,18 +4154,279 @@ exports.scheduledFirestoreBackup = onSchedule(
     // would ask for ("restore Tuesday's data").
     const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" });
 
+    // exportDocuments STARTS an export and returns immediately; the operation can
+    // still fail afterwards. Recording the run in Firestore, and having
+    // verifyFirestoreBackup finish the story, is what turns "we called the API"
+    // into "we have a backup" — the difference the comment below warns about.
+    const runRef = db.doc(`system_backups/${stamp}`);
+
     try {
       const [response] = await client.exportDocuments({
         name: databaseName,
         outputUriPrefix: `${BACKUP_BUCKET}/${stamp}`,
         collectionIds: [],   // empty = every collection
       });
+      await runRef.set({
+        stamp,
+        state:         "RUNNING",
+        operationName: response.name || "",
+        outputUri:     `${BACKUP_BUCKET}/${stamp}`,
+        startedAt:     Date.now(),
+        finishedAt:    0,
+        error:         "",
+      });
       logger.log(`scheduledFirestoreBackup: started ${response.name} -> ${BACKUP_BUCKET}/${stamp}`);
     } catch (e) {
       // Loud: a silently failing backup is worse than no backup, because you
       // only discover it the day you need to restore.
+      await runRef.set({
+        stamp, state: "FAILED", operationName: "",
+        outputUri: `${BACKUP_BUCKET}/${stamp}`,
+        startedAt: Date.now(), finishedAt: Date.now(),
+        error: String((e && e.message) || e).slice(0, 500),
+      }, { merge: true });
       logger.error("scheduledFirestoreBackup FAILED", e);
       throw e;
+    }
+  }
+);
+
+// ── verifyFirestoreBackup ─────────────────────────────────────────────────────
+//
+// The export is asynchronous: scheduledFirestoreBackup only learns that it
+// started. This closes the loop by asking the operation how it ended, so the
+// console can say "last good backup: 02:00 today" rather than "we asked for one".
+//
+// Runs a few times after the nightly window rather than once, because a full
+// export of a growing database takes an unpredictable while.
+exports.verifyFirestoreBackup = onSchedule(
+  { schedule: "0 3,4,6,9 * * *", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const running = await db.collection("system_backups")
+      .where("state", "==", "RUNNING").limit(10).get();
+    if (running.empty) return;
+
+    const client = new admin.firestore.v1.FirestoreAdminClient();
+
+    for (const doc of running.docs) {
+      const { operationName, startedAt } = doc.data();
+      if (!operationName) continue;
+      const stuck = Date.now() - Number(startedAt || 0) > 12 * 60 * 60 * 1000;
+
+      // Two independent checks, because they fail in different ways.
+      //
+      // Asking the long-running-operation directly is the precise answer, but it
+      // reaches through a generated client whose surface is not part of any
+      // stability promise — so it is attempted, and never trusted to be there.
+      // The elapsed-time rule needs nothing but the clock, and is what actually
+      // guarantees a stalled export cannot sit in RUNNING forever looking fine.
+      let op = null;
+      try {
+        if (client.operationsClient && typeof client.operationsClient.getOperation === "function") {
+          const [fetched] = await client.operationsClient.getOperation({ name: operationName });
+          op = fetched;
+        }
+      } catch (e) {
+        logger.warn(`verifyFirestoreBackup: could not read operation for ${doc.id}`, e);
+      }
+
+      try {
+        if (op && op.done === true) {
+          if (op.error && op.error.message) {
+            await doc.ref.update({
+              state: "FAILED", finishedAt: Date.now(),
+              error: String(op.error.message).slice(0, 500),
+            });
+            logger.error(`verifyFirestoreBackup: ${doc.id} failed`, op.error);
+          } else {
+            await doc.ref.update({ state: "DONE", finishedAt: Date.now(), error: "" });
+            logger.log(`verifyFirestoreBackup: ${doc.id} completed`);
+          }
+        } else if (stuck) {
+          await doc.ref.update({
+            state: "FAILED", finishedAt: Date.now(),
+            error: "Export never reported completion within 12 hours.",
+          });
+          logger.error(`verifyFirestoreBackup: ${doc.id} stuck in RUNNING`);
+        }
+      } catch (e) {
+        logger.error(`verifyFirestoreBackup: could not update ${doc.id}`, e);
+      }
+    }
+  }
+);
+
+// ── pruneOldBackups ───────────────────────────────────────────────────────────
+//
+// Every night's export is a full copy of the database. Kept forever they are a
+// bill that grows quadratically with the life of the product, for copies nobody
+// will ever restore. Thirty days is long enough to notice that something was
+// corrupted weeks ago and short enough that the cost stays flat.
+//
+// Only ever deletes a prefix that has its own DONE record older than the
+// window — never a folder it does not recognise, and never the newest one.
+const BACKUP_RETENTION_DAYS = 30;
+
+exports.pruneOldBackups = onSchedule(
+  { schedule: "every day 05:00", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const old = await db.collection("system_backups")
+      .where("state", "==", "DONE")
+      .where("finishedAt", "<", cutoff)
+      .limit(20).get();
+    if (old.empty) return;
+
+    const bucketName = BACKUP_BUCKET.replace("gs://", "");
+    const bucket = admin.storage().bucket(bucketName);
+
+    for (const doc of old.docs) {
+      try {
+        await bucket.deleteFiles({ prefix: `${doc.id}/`, force: true });
+        await doc.ref.update({ state: "PRUNED", prunedAt: Date.now() });
+        logger.log(`pruneOldBackups: removed ${doc.id}`);
+      } catch (e) {
+        logger.error(`pruneOldBackups: could not remove ${doc.id}`, e);
+      }
+    }
+  }
+);
+
+// ── reconcileIntegrity ────────────────────────────────────────────────────────
+//
+// Nothing in this system notices when it has quietly gone wrong.
+//
+// Every failure mode below has the same shape: two records that should agree
+// stop agreeing, and neither side complains, because each one is individually
+// valid. A payment settles but the webhook retry that flips the appointment
+// never lands; a booking sits in AWAITING_PAYMENT because the customer closed
+// the tab; a visit passes and nobody marks it done. Each is invisible until a
+// person happens to look at exactly the right row -- usually because a customer
+// is already angry.
+//
+// This looks for the disagreements on a schedule and writes what it finds to
+// system_alerts, so the console can show them and the platform learns about its
+// own problems before its customers explain them.
+//
+// Findings only. Nothing here repairs anything on its own: an automatic fix
+// applied to a case nobody has understood yet turns one wrong record into two.
+const INTEGRITY_LOOKBACK_DAYS = 30;
+
+/** Firestore's `in` operator takes at most 10 values, so queries go in tens. */
+function chunkArray(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+exports.reconcileIntegrity = onSchedule(
+  { schedule: "every day 04:00", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const now    = Date.now();
+    const since  = now - INTEGRITY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+    const findings = [];
+
+    const add = (kind, severity, ref, detail) =>
+      findings.push({ kind, severity, ref, detail });
+
+    // 1. Paid, but the booking never moved out of AWAITING_PAYMENT.
+    //    The customer has been charged and the salon has never seen the request.
+    //    This is the one that costs money and trust at the same time.
+    const paid = await db.collection("payments")
+      .where("status", "==", "PAID").where("createdAt", ">", since).get();
+    const paidApptIds = paid.docs
+      .map((d) => d.data())
+      .filter((p) => p.appointmentId && !p.type)
+      .map((p) => p.appointmentId);
+
+    for (const chunk of chunkArray(paidApptIds, 10)) {
+      const snap = await db.collection("appointments")
+        .where(admin.firestore.FieldPath.documentId(), "in", chunk).get();
+      snap.docs.forEach((d) => {
+        const a = d.data();
+        if (a.status === "AWAITING_PAYMENT") {
+          add("PAID_BUT_AWAITING", "critical", a.bookingCode || d.id,
+            "Payment settled but the booking never reached the salon.");
+        }
+      });
+    }
+
+    // 2. Bookings stuck in AWAITING_PAYMENT well past any live checkout.
+    //    expireStalePayments should have collected these; if they are here, it
+    //    did not run or the payment row is missing.
+    const stuck = await db.collection("appointments")
+      .where("status", "==", "AWAITING_PAYMENT")
+      .where("createdAt", "<", now - 24 * 60 * 60 * 1000)
+      .limit(50).get();
+    stuck.docs.forEach((d) => {
+      const a = d.data();
+      add("STUCK_AWAITING_PAYMENT", "warn", a.bookingCode || d.id,
+        "Awaiting payment for over a day — expiry should have cleared it.");
+    });
+
+    // 3. Visits that happened and were never closed. completePastAppointments
+    //    flips CONFIRMED past its time; a PENDING one it never touches, so a
+    //    booking the salon never accepted just rots.
+    const past = await db.collection("appointments")
+      .where("status", "==", "PENDING")
+      .where("appointmentDate", "<", now - 48 * 60 * 60 * 1000)
+      .limit(50).get();
+    past.docs.forEach((d) => {
+      const a = d.data();
+      add("NEVER_ANSWERED", "warn", a.bookingCode || d.id,
+        "The visit time passed while the salon had still not accepted or declined.");
+    });
+
+    // 4. Refunds nobody has actioned. HesabPay has no automated refund API
+    //    wired, so every one of these is a person owed money who is waiting on
+    //    a human — and the only thing tracking that human is this list.
+    const refunds = await db.collection("refund_requests")
+      .where("status", "==", "PENDING")
+      .where("createdAt", "<", now - 7 * 24 * 60 * 60 * 1000)
+      .limit(50).get();
+    refunds.docs.forEach((d) => {
+      add("REFUND_OVERDUE", "critical", d.id,
+        `Refund pending for more than a week (${Number(d.data().amount || 0)} AFN).`);
+    });
+
+    // 5. A backup that is not recent is not a backup.
+    const lastGood = await db.collection("system_backups")
+      .where("state", "==", "DONE").orderBy("finishedAt", "desc").limit(1).get();
+    const lastGoodAt = lastGood.empty ? 0 : Number(lastGood.docs[0].data().finishedAt || 0);
+    if (now - lastGoodAt > 48 * 60 * 60 * 1000) {
+      add("BACKUP_STALE", "critical", "system_backups",
+        lastGoodAt
+          ? `Last verified backup finished ${Math.floor((now - lastGoodAt) / 86400000)} days ago.`
+          : "No verified backup has ever been recorded.");
+    }
+
+    // 6. Negative provider balances. A payout that overshot, or commission debt
+    //    that never cleared — either way the arithmetic has drifted.
+    const balances = await db.collection("provider_balances").get();
+    balances.docs.forEach((d) => {
+      const owed = Number(d.data().owed || 0);
+      if (owed < 0) {
+        add("NEGATIVE_BALANCE", "warn", d.id, `Provider balance is ${owed} AFN.`);
+      }
+    });
+
+    const critical = findings.filter((f) => f.severity === "critical").length;
+
+    await db.doc(`system_alerts/${new Date(now).toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" })}`)
+      .set({
+        ranAt: now,
+        total: findings.length,
+        critical,
+        // Bounded: a genuinely broken day could produce thousands, and a
+        // document that cannot be written tells nobody anything.
+        findings: findings.slice(0, 200),
+        truncated: findings.length > 200,
+      });
+
+    if (critical > 0) {
+      logger.error(`reconcileIntegrity: ${critical} critical finding(s)`, { findings: findings.slice(0, 20) });
+    } else {
+      logger.log(`reconcileIntegrity: ${findings.length} finding(s), none critical`);
     }
   }
 );
@@ -4072,7 +4695,8 @@ exports.nudgeUnconfirmedBookings = onSchedule(
         // Reuses the same path as a provider decline, so the refund request,
         // the payment status and the provider's owed balance all unwind exactly
         // as they do for a manual cancellation.
-        await cancelPaidAppointment(d.id, "SYSTEM", () => true);
+        await cancelPaidAppointment(d.id, "SYSTEM", () => true, null,
+          "Salon never confirmed before the deadline");
         await db.collection("notifications").add({
           recipientId: appt.customerId,
           type:        "BOOKING_CANCELLED",
