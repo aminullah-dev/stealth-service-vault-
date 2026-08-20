@@ -3742,6 +3742,17 @@ const NOTIF_I18N = {
     fa: { t: "دلتنگ شما شدیم 💕", b: () => "مدتی گذشته — نوبت بعدی زیبایی‌تان را در سیف‌بیوتی رزرو کنید." },
     ps: { t: "ستاسو په یاد یو 💕", b: () => "یو څه وخت تېر شو — خپل راتلونکی د ښکلا نوبت په سیف‌بیوتي کې ونیسئ." },
   },
+  PENDING_BOOKINGS_WAITING: {
+    en: { t: "Bookings waiting for you ⏳", b: (p) => p.count === 1
+      ? "A customer has paid and is waiting for you to confirm their booking."
+      : `${p.count} customers have paid and are waiting for you to confirm their bookings.` },
+    fa: { t: "رزروها در انتظار شما ⏳", b: (p) => p.count === 1
+      ? "یک مشتری پرداخت کرده و منتظر تأیید رزرو توسط شماست."
+      : `${p.count} مشتری پرداخت کرده‌اند و منتظر تأیید رزروهایشان توسط شما هستند.` },
+    ps: { t: "بکینګونه ستاسو په تمه دي ⏳", b: (p) => p.count === 1
+      ? "یو پیرودونکي تادیه کړې او ستاسو د بکینګ تایید ته انتظار باسي."
+      : `${p.count} پیرودونکو تادیه کړې او ستاسو د خپلو بکینګونو تایید ته انتظار باسي.` },
+  },
   REVIEW_THANKS: {
     en: { t: "Thanks for your review 💬", b: (p) => `You earned ${p.points} loyalty points.` },
     fa: { t: "از نظر شما ممنونیم 💬",     b: (p) => `${p.points} امتیاز وفاداری گرفتید.` },
@@ -3763,3 +3774,73 @@ function localizeNotification(n, lang) {
   catch (_) { body = String(n.body || ""); }
   return { title: L.t, body };
 }
+
+// ── Chase unconfirmed bookings ────────────────────────────────────────────────
+//
+// A booking is PAID before the provider confirms it: the webhook flips it
+// AWAITING_PAYMENT -> PENDING, and it stays there until the provider taps
+// confirm. Nothing chased that. A provider who simply doesn't open the app
+// leaves a paying customer waiting indefinitely — no confirmation, no
+// cancellation, no refund, and no one told either side.
+//
+// That is the two-sided marketplace failure mode: the supply side going quiet
+// silently ruins the demand side's experience, and the customer blames the
+// platform, not the salon. This nudges the provider once per booking so the
+// booking either gets confirmed or gets declined (which refunds), instead of
+// hanging.
+//
+// Nudged once per appointment (providerNudged), so a provider who is genuinely
+// away is not spammed every run.
+
+const UNCONFIRMED_NUDGE_AFTER_MS = 2 * 60 * 60 * 1000;   // 2 hours
+
+exports.nudgeUnconfirmedBookings = onSchedule(
+  { schedule: "every 2 hours", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - UNCONFIRMED_NUDGE_AFTER_MS;
+    const snap = await db.collection("appointments")
+      .where("status", "==", "PENDING")
+      .where("createdAt", "<", cutoff)
+      .get();
+    if (snap.empty) return;
+
+    // One notification per provider, however many bookings are waiting —
+    // five separate pushes would read as noise and get the app muted.
+    const byProvider = new Map();
+    snap.docs.forEach((d) => {
+      const a = d.data();
+      if (a.providerNudged) return;              // already chased this one
+      if (!a.providerId) return;
+      if (!byProvider.has(a.providerId)) byProvider.set(a.providerId, []);
+      byProvider.get(a.providerId).push(d);
+    });
+    if (byProvider.size === 0) return;
+
+    const now = Date.now();
+    let notified = 0;
+    for (const [providerId, docs] of byProvider) {
+      const batch = db.batch();
+      batch.set(db.collection("notifications").doc(), {
+        recipientId: providerId,
+        type:        "NEW_BOOKING",             // taps route to the requests tab
+        msgKey:      "PENDING_BOOKINGS_WAITING",
+        msgParams:   { count: docs.length },
+        title:       "Bookings waiting for you ⏳",
+        body:        docs.length === 1
+          ? "A customer has paid and is waiting for you to confirm their booking."
+          : `${docs.length} customers have paid and are waiting for you to confirm their bookings.`,
+        isRead:      false,
+        createdAt:   now,
+        relatedId:   docs[0].id,
+      });
+      docs.forEach((d) => batch.update(d.ref, { providerNudged: true }));
+      try {
+        await batch.commit();
+        notified++;
+      } catch (e) {
+        logger.warn("nudgeUnconfirmedBookings: batch failed", { providerId, error: String(e.message || e) });
+      }
+    }
+    logger.log(`nudgeUnconfirmedBookings: nudged ${notified} provider(s)`);
+  }
+);
