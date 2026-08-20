@@ -26,6 +26,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -98,6 +107,9 @@ fun FeedScreen(
     val strings = LocalStrings.current
     val posts by viewModel.posts.collectAsStateWithLifecycle()
     val stories by viewModel.stories.collectAsStateWithLifecycle()
+    val likedIds by viewModel.likedPostIds.collectAsStateWithLifecycle()
+    val comments by viewModel.comments.collectAsStateWithLifecycle()
+    val commentFailed by viewModel.commentFailed.collectAsStateWithLifecycle()
     var opened by remember { mutableStateOf<SalonPostDocument?>(null) }
     var openStory by remember { mutableStateOf<StoryDocument?>(null) }
 
@@ -239,9 +251,20 @@ fun FeedScreen(
             }
         }
 
-        opened?.let { post ->
+        opened?.let { tapped ->
+            // The counts move while the sheet is open — this user comments, or
+            // someone else likes the photo — so render from the live list rather
+            // than from the snapshot captured at tap time.
+            val post  = posts.firstOrNull { it.id == tapped.id } ?: tapped
+            val liked = post.id in likedIds
+            var draft by remember(post.id) { mutableStateOf("") }
+
+            // One thread is listened to at a time, and only while its sheet is
+            // open: a listener per tile would put a hundred of them on Discover.
+            LaunchedEffect(post.id) { viewModel.openComments(post.id) }
+
             ModalBottomSheet(
-                onDismissRequest = { opened = null },
+                onDismissRequest = { opened = null; viewModel.closeComments() },
                 sheetState       = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                 containerColor   = ElegantCream
             ) {
@@ -249,6 +272,9 @@ fun FeedScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
+                        // Without this the keyboard covers the comment field it
+                        // was opened to fill.
+                        .imePadding()
                         .padding(bottom = 28.dp)
                 ) {
                     AsyncImage(
@@ -272,7 +298,29 @@ fun FeedScreen(
                         }
                         Spacer(Modifier.height(6.dp))
                         Text(formatFeedTime(post.createdAt), fontSize = 11.sp, color = TextMuted)
-                        Spacer(Modifier.height(16.dp))
+
+                        Spacer(Modifier.height(10.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { viewModel.toggleLike(post) }) {
+                                Icon(
+                                    imageVector = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = strings.feedLikes,
+                                    tint = if (liked) DeepRose else TextMuted,
+                                )
+                            }
+                            Text("${post.likeCount}", fontSize = 13.sp, color = TextStrong)
+                            Spacer(Modifier.width(14.dp))
+                            Icon(
+                                Icons.Outlined.ChatBubbleOutline,
+                                contentDescription = strings.feedComments,
+                                tint = TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("${post.commentCount}", fontSize = 13.sp, color = TextStrong)
+                        }
+
+                        Spacer(Modifier.height(10.dp))
                         Button(
                             onClick = {
                                 val id = post.salonId
@@ -284,6 +332,92 @@ fun FeedScreen(
                             colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
                         ) {
                             Text(strings.viewSalon, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(Modifier.height(18.dp))
+                        HorizontalDivider(color = DashboardSurface)
+                        Spacer(Modifier.height(14.dp))
+
+                        Text(
+                            strings.feedComments,
+                            fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose
+                        )
+                        Spacer(Modifier.height(10.dp))
+
+                        if (comments.isEmpty()) {
+                            Text(strings.feedNoComments, fontSize = 13.sp, color = TextMuted)
+                        } else {
+                            comments.forEach { c ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            c.authorName.ifBlank { "—" },
+                                            fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextStrong,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(c.text, fontSize = 13.sp, color = TextStrong)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(formatFeedTime(c.createdAt), fontSize = 10.sp, color = TextMuted)
+                                    }
+                                    // Only the author's own comment is removable from
+                                    // here. A salon moderating its own thread, or an
+                                    // admin, does it from their console — putting that
+                                    // power on a customer's screen would only confuse.
+                                    if (c.userId == viewModel.userId) {
+                                        IconButton(
+                                            onClick  = { viewModel.deleteComment(c.id) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = strings.feedCommentDelete,
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (commentFailed) {
+                            Text(
+                                strings.feedCommentFailed,
+                                fontSize = 12.sp, color = DeepRose,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value         = draft,
+                                onValueChange = { if (it.length <= 300) draft = it },
+                                placeholder   = { Text(strings.feedCommentHint, fontSize = 13.sp) },
+                                singleLine    = true,
+                                shape         = RoundedCornerShape(14.dp),
+                                modifier      = Modifier.weight(1f),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor   = RoseGold,
+                                    unfocusedBorderColor = DashboardSurface,
+                                )
+                            )
+                            IconButton(
+                                onClick = {
+                                    viewModel.postComment(post, draft)
+                                    draft = ""
+                                },
+                                enabled = draft.isNotBlank()
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = strings.feedCommentSend,
+                                    tint = if (draft.isNotBlank()) RoseGold else TextMuted
+                                )
+                            }
                         }
                     }
                 }

@@ -369,6 +369,52 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── post_likes ───────────────────────────────────────────────────────────────
+    // The document id is "{postId}_{userId}", which makes a second like from the
+    // same person impossible to write rather than merely discouraged.
+    //
+    // A liker's identity is deliberately not public. What a salon needs is the
+    // count, and the count lives on the post itself, maintained by a trigger
+    // running with the Admin SDK — so it cannot be inflated from a client, and
+    // no client can list who liked a particular photo. A user reads only their
+    // own likes, which is exactly enough to draw the heart filled.
+    match /post_likes/{likeId} {
+      allow read: if isSignedIn() && resource.data.userId == me();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.userId == me()
+                 && likeId == request.resource.data.postId + '_' + me();
+
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.userId == me();
+    }
+
+    // ── post_comments ────────────────────────────────────────────────────────────
+    // Public, like the reviews a salon already carries, and signed with the same
+    // stored name. The name is checked against the author's own user document so
+    // a comment cannot be signed with somebody else's.
+    match /post_comments/{commentId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.userId == me()
+                 && request.resource.data.authorName == myData().name
+                 && request.resource.data.text is string
+                 && request.resource.data.text.size() > 0
+                 && request.resource.data.text.size() <= 300;
+
+      // Immutable, for the same reason a story is: editing a comment after
+      // people have read or answered it rewrites a conversation they saw.
+      allow update: if false;
+
+      // The author can retract their own; the salon moderates the thread under
+      // its own photo; the admin moderates anything.
+      allow delete: if isSignedIn()
+                 && (resource.data.userId == me()
+                     || ownsThisSalon(resource.data.salonId)
+                     || isAdmin());
+    }
+
     // ── favorites ────────────────────────────────────────────────────────────────
     // A customer's favorited salons, mirrored from the on-device list so the
     // server can notify favoriters when their salon posts an offer (see

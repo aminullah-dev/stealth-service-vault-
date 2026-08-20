@@ -309,6 +309,27 @@ data class SalonPostDocument(
     val imageUrl: String = "",
     val storagePath: String = "",
     val caption: String = "",
+    val createdAt: Long = 0L,
+    // Maintained by the countPostLike / countPostComment triggers, never by a
+    // client — salon_posts allows no client update at all.
+    val likeCount: Int = 0,
+    val commentCount: Int = 0
+)
+
+/**
+ * One comment under a Discover post.
+ *
+ * [authorName] is denormalized so a thread renders without a user lookup per
+ * row; the security rules check it against the author's own user document on
+ * write, so it cannot be signed with somebody else's name.
+ */
+data class PostCommentDocument(
+    val id: String = "",
+    val postId: String = "",
+    val salonId: String = "",
+    val userId: String = "",
+    val authorName: String = "",
+    val text: String = "",
     val createdAt: Long = 0L
 )
 

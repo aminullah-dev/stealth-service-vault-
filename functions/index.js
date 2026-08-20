@@ -32,7 +32,7 @@
 
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten, onDocumentDeleted } = require("firebase-functions/v2/firestore");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -3517,6 +3517,82 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
     throw new HttpsError("internal", "Could not create the salon.");
   }
 });
+
+// ── Like and comment counters ─────────────────────────────────────────────────
+//
+// The counts live on the post so the grid and the viewer can show them without
+// a second query per photo, and they are maintained here rather than by the
+// client for two reasons: `salon_posts` allows no client update at all (so a
+// client could not write them even if we wanted it to), and a count a client
+// can set is a count a client can invent.
+//
+// Written with increment() rather than a recount, so two people liking at the
+// same moment cannot overwrite each other. A create/delete pair on the same id
+// (unlike then like again) nets out correctly because each event moves the
+// count by exactly one in one direction.
+function countDelta(event) {
+  const before = event.data && event.data.before && event.data.before.exists;
+  const after  = event.data && event.data.after  && event.data.after.exists;
+  if (!before && after) return 1;    // created
+  if (before && !after) return -1;   // deleted
+  return 0;                          // edited — the count did not move
+}
+
+async function bumpPostCounter(postId, field, delta) {
+  if (!postId || !delta) return;
+  try {
+    await db.doc(`salon_posts/${postId}`).update({
+      [field]: admin.firestore.FieldValue.increment(delta),
+    });
+  } catch (e) {
+    // The post was deleted while its likes/comments were still being cleaned
+    // up. Nothing to count any more, and nothing worth failing the trigger for.
+    logger.warn(`bumpPostCounter: ${field} ${delta > 0 ? "+" : ""}${delta} on ${postId} failed`, e);
+  }
+}
+
+exports.countPostLike = onDocumentWritten(
+  { document: "post_likes/{likeId}", region: "us-central1" },
+  async (event) => {
+    const delta = countDelta(event);
+    if (!delta) return;
+    const snap = (event.data.after.exists ? event.data.after : event.data.before);
+    await bumpPostCounter((snap.data() || {}).postId, "likeCount", delta);
+  }
+);
+
+exports.countPostComment = onDocumentWritten(
+  { document: "post_comments/{commentId}", region: "us-central1" },
+  async (event) => {
+    const delta = countDelta(event);
+    if (!delta) return;
+    const snap = (event.data.after.exists ? event.data.after : event.data.before);
+    await bumpPostCounter((snap.data() || {}).postId, "commentCount", delta);
+  }
+);
+
+// A deleted post leaves its likes and comments behind, and nothing would ever
+// collect them: they are keyed by postId, not nested under it. Left alone they
+// are billed storage that no screen can ever reach again.
+exports.cleanupDeletedPost = onDocumentDeleted(
+  { document: "salon_posts/{postId}", region: "us-central1" },
+  async (event) => {
+    const postId = event.params.postId;
+    for (const col of ["post_likes", "post_comments"]) {
+      // Batched rather than one delete per document: a popular photo can carry
+      // hundreds of rows, and 500 is the batch ceiling.
+      while (true) {
+        const snap = await db.collection(col).where("postId", "==", postId).limit(400).get();
+        if (snap.empty) break;
+        const batch = db.batch();
+        snap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+        if (snap.size < 400) break;
+      }
+    }
+    logger.log(`cleanupDeletedPost: cleared likes and comments for ${postId}`);
+  }
+);
 
 // ── Seeding a salon's feed on the salon's behalf ──────────────────────────────
 //

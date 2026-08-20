@@ -45,9 +45,12 @@ class FirestoreRepository @Inject constructor(
     private val galleryCol      = db.collection("salon_gallery")
     private val postsCol        = db.collection("salon_posts")
     private val storiesCol      = db.collection("salon_stories")
+    private val postLikesCol    = db.collection("post_likes")
+    private val postCommentsCol = db.collection("post_comments")
     // How many Discover tiles to fetch. A grid shows ~9 per screen, so 100
     // is several screens of scrolling before anyone notices an edge.
     private val FEED_PAGE_SIZE  = 100L
+    private val COMMENT_PAGE_SIZE = 200L
     private val offersCol       = db.collection("salon_offers")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
@@ -504,6 +507,72 @@ class FirestoreRepository @Inject constructor(
                 trySend(list)
             }
         awaitClose { listener.remove() }
+    }
+
+    // ── Likes and comments on Discover posts ─────────────────────────────────
+    //
+    // The like id is "{postId}_{userId}", so liking twice is not a thing the
+    // client has to guard against — the second write lands on the same document.
+
+    private fun likeId(postId: String, userId: String) = "${postId}_$userId"
+
+    /**
+     * The ids of every post [userId] has liked.
+     *
+     * One query for the whole grid rather than a read per tile. The rules let a
+     * user read only their own likes, so this is also the only shape of like
+     * query a client can make — nobody can list who liked a salon's photo.
+     */
+    fun observeMyLikes(userId: String): Flow<Set<String>> = callbackFlow {
+        if (userId.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+        val listener = postLikesCol
+            .whereEqualTo("userId", userId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
+                trySend(snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet())
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun setPostLiked(postId: String, salonId: String, userId: String, liked: Boolean) {
+        if (postId.isBlank() || userId.isBlank()) return
+        val ref = postLikesCol.document(likeId(postId, userId))
+        if (liked) {
+            ref.set(mapOf(
+                "postId"    to postId,
+                "salonId"   to salonId,
+                "userId"    to userId,
+                "createdAt" to System.currentTimeMillis(),
+            )).await()
+        } else {
+            ref.delete().await()
+        }
+    }
+
+    /** A post's comments, oldest first — a thread reads top to bottom. */
+    fun observeComments(postId: String): Flow<List<PostCommentDocument>> = callbackFlow {
+        if (postId.isBlank()) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
+        val listener = postCommentsCol
+            .whereEqualTo("postId", postId)
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(COMMENT_PAGE_SIZE)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                trySend(snap?.documents
+                    ?.mapNotNull { it.toObject(PostCommentDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList())
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun addComment(comment: PostCommentDocument) {
+        val ref = postCommentsCol.document()
+        ref.set(comment.copy(id = ref.id)).await()
+    }
+
+    suspend fun deleteComment(commentId: String) {
+        if (commentId.isBlank()) return
+        postCommentsCol.document(commentId).delete().await()
     }
 
     suspend fun addGalleryImage(image: GalleryImageDocument) {
