@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -414,29 +415,47 @@ internal fun SalonDetailSheetContent(
         if (gallery.isNotEmpty()) {
             Text(strings.portfolioTitle, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
             Spacer(Modifier.height(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(gallery, key = { it.id }) { image ->
-                    val imageModifier = Modifier
-                        .size(140.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(BlushPink)
-                    if (image.imageUrl.isNotBlank()) {
-                        AsyncImage(
-                            model              = image.imageUrl,
-                            contentDescription = null,
-                            contentScale       = ContentScale.Crop,
-                            modifier           = imageModifier
-                        )
-                    } else {
-                        val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
-                        if (bitmap != null) {
-                            Image(
-                                bitmap             = bitmap.asImageBitmap(),
-                                contentDescription = null,
-                                contentScale       = ContentScale.Crop,
-                                modifier           = imageModifier
-                            )
+            // A profile-style square grid rather than a horizontal strip. The strip
+            // showed three photos and hid the rest behind a sideways swipe most
+            // people never make; the grid shows a salon's whole body of work at a
+            // glance, which is how someone actually decides to book.
+            //
+            // Laid out with plain Rows, not LazyVerticalGrid: this sheet is a
+            // Column with verticalScroll, and a lazy grid inside one is measured
+            // with an infinite height constraint and crashes.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                gallery.chunked(3).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        row.forEach { image ->
+                            val tile = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(BlushPink)
+                            if (image.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model              = image.imageUrl,
+                                    contentDescription = null,
+                                    contentScale       = ContentScale.Crop,
+                                    modifier           = tile
+                                )
+                            } else {
+                                val bitmap = remember(image.id) { ImageUtils.base64ToBitmap(image.imageBase64) }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap             = bitmap.asImageBitmap(),
+                                        contentDescription = null,
+                                        contentScale       = ContentScale.Crop,
+                                        modifier           = tile
+                                    )
+                                } else {
+                                    Box(tile)
+                                }
+                            }
                         }
+                        // Keep the last row's tiles the same size as a full row's
+                        // instead of letting one photo stretch across the width.
+                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }

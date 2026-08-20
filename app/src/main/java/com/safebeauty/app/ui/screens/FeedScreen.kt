@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -55,6 +56,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.safebeauty.app.data.firebase.SalonPostDocument
+import com.safebeauty.app.data.firebase.StoryDocument
 import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
@@ -64,6 +66,11 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextStrong
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.viewmodel.FeedViewModel
 import java.util.Locale
 import java.util.Date
@@ -90,7 +97,9 @@ fun FeedScreen(
 ) {
     val strings = LocalStrings.current
     val posts by viewModel.posts.collectAsStateWithLifecycle()
+    val stories by viewModel.stories.collectAsStateWithLifecycle()
     var opened by remember { mutableStateOf<SalonPostDocument?>(null) }
+    var openStory by remember { mutableStateOf<StoryDocument?>(null) }
 
     DashboardTheme {
         Scaffold(
@@ -110,10 +119,14 @@ fun FeedScreen(
             }
         ) { padding ->
             if (posts.isEmpty()) {
-                Box(
-                    modifier         = Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
+                Column(Modifier.fillMaxSize().padding(padding)) {
+                    // A salon with no portfolio can still be announcing a free
+                    // chair; the empty grid must not hide that.
+                    if (stories.isNotEmpty()) StoryRow(stories = stories, onOpen = { openStory = it })
+                    Box(
+                        modifier         = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(
                             Icons.Default.PhotoLibrary, null,
@@ -128,6 +141,7 @@ fun FeedScreen(
                             modifier  = Modifier.padding(horizontal = 32.dp)
                         )
                     }
+                    }
                 }
             } else {
                 // 1dp gaps, edge to edge: the photos form one continuous surface
@@ -139,6 +153,14 @@ fun FeedScreen(
                     horizontalArrangement = Arrangement.spacedBy(1.dp),
                     verticalArrangement   = Arrangement.spacedBy(1.dp),
                 ) {
+                    // Today's availability sits above the portfolio grid: a free
+                    // chair this afternoon is worth more to both sides than a photo
+                    // from last month, and it expires on its own.
+                    if (stories.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            StoryRow(stories = stories, onOpen = { openStory = it })
+                        }
+                    }
                     items(posts, key = { it.id }) { post ->
                         AsyncImage(
                             model              = post.imageUrl,
@@ -156,6 +178,56 @@ fun FeedScreen(
 
         // Tapping a tile opens the full photo, its caption, and the route to the
         // salon — the grid is for finding work, this is for acting on it.
+        // Full-screen-ish story viewer: the announcement text is the payload, the
+        // photo is optional decoration, and the salon is one tap away.
+        openStory?.let { story ->
+            val hoursLeft = ((story.expiresAt - System.currentTimeMillis()) / 3_600_000L)
+                .coerceAtLeast(0L).toInt()
+            ModalBottomSheet(
+                onDismissRequest = { openStory = null },
+                sheetState       = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor   = ElegantCream
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 28.dp)
+                ) {
+                    if (story.imageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model              = story.imageUrl,
+                            contentDescription = story.salonName,
+                            contentScale       = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp)
+                                .background(DashboardSurface)
+                        )
+                    }
+                    Column(Modifier.padding(18.dp)) {
+                        Text(
+                            story.salonName,
+                            fontWeight = FontWeight.Bold, fontSize = 16.sp, color = DeepRose,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(story.text, fontSize = 15.sp, color = TextStrong)
+                        Spacer(Modifier.height(8.dp))
+                        Text(strings.storyExpires(hoursLeft), fontSize = 11.sp, color = TextMuted)
+                        Spacer(Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                val id = story.salonId
+                                openStory = null
+                                if (id.isNotBlank()) onOpenSalon(id)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape    = RoundedCornerShape(14.dp),
+                            colors   = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.viewSalon, color = Color.White, fontWeight = FontWeight.Bold) }
+                    }
+                }
+            }
+        }
+
         opened?.let { post ->
             ModalBottomSheet(
                 onDismissRequest = { opened = null },
@@ -223,5 +295,71 @@ private fun formatFeedTime(epochMs: Long): String {
         hours < 24  -> strings.timeHoursAgo(hours.toInt())
         days  == 1L -> strings.timeYesterday
         else        -> SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(epochMs))
+    }
+}
+
+/**
+ * The availability rail: one ring per salon announcing a free chair today.
+ *
+ * Rings rather than cards because the row has to stay small — it sits above the
+ * portfolio grid and must not push the actual work off the screen.
+ */
+@Composable
+private fun StoryRow(stories: List<StoryDocument>, onOpen: (StoryDocument) -> Unit) {
+    val strings = LocalStrings.current
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text(
+            strings.storiesTitle,
+            fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold,
+            modifier = Modifier.padding(start = 14.dp, bottom = 10.dp)
+        )
+        LazyRow(
+            contentPadding        = PaddingValues(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(stories, key = { it.id }) { story ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(74.dp).clickable { onOpen(story) }
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            // The gradient ring is the "unseen story" cue people
+                            // already know from elsewhere; reusing the brand
+                            // gradient keeps it ours rather than a copy.
+                            .background(Gradients.BrandRose)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(57.dp).clip(CircleShape).background(ElegantCream)
+                        ) {
+                            if (story.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model              = story.imageUrl,
+                                    contentDescription = story.salonName,
+                                    contentScale       = ContentScale.Crop,
+                                    modifier           = Modifier.size(53.dp).clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    story.salonName.firstOrNull()?.uppercase() ?: "•",
+                                    fontWeight = FontWeight.Bold, fontSize = 20.sp, color = DeepRose
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        story.salonName,
+                        fontSize = 11.sp, color = TextMuted,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }

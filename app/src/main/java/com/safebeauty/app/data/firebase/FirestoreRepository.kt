@@ -44,6 +44,7 @@ class FirestoreRepository @Inject constructor(
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
     private val postsCol        = db.collection("salon_posts")
+    private val storiesCol      = db.collection("salon_stories")
     // How many Discover tiles to fetch. A grid shows ~9 per screen, so 100
     // is several screens of scrolling before anyone notices an edge.
     private val FEED_PAGE_SIZE  = 100L
@@ -459,6 +460,29 @@ class FirestoreRepository @Inject constructor(
     fun newGalleryDocId(): String = galleryCol.document().id
 
     // ── Social discovery feed (salon_posts) ─────────────────────────────────────
+
+    /**
+     * Live stories across every salon, newest first.
+     *
+     * Expiry is filtered client-side against expiresAt rather than queried,
+     * because a range filter here would need a composite index and the set is
+     * tiny by construction — nothing survives more than a day.
+     */
+    fun observeStories(): Flow<List<StoryDocument>> = callbackFlow {
+        val listener = storiesCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(60)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val now = System.currentTimeMillis()
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(StoryDocument::class.java)?.copy(id = it.id) }
+                    ?.filter { it.expiresAt > now }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
 
     /**
      * The global Discover feed: the newest salon posts across the whole platform.

@@ -563,6 +563,13 @@ const STR = {
   feedHint:{en:'Photos you share appear in the discovery feed and notify your followers.', fa:'عکس‌هایی که منتشر می‌کنید در فید کشف نمایش داده می‌شوند و به دنبال‌کنندگان اعلان می‌رود.', ps:'هغه عکسونه چې خپروئ د کشف په فیډ کې ښکاري او ستاسو پیروانو ته خبرتیا ورکوي.'},
   captionPh:{en:'Caption (optional)', fa:'کپشن (اختیاری)', ps:'سرلیک (اختیاري)'},
   sharePost:{en:'Share', fa:'انتشار', ps:'خپرول'},
+  storyTitle:{en:'Announce free time today', fa:'اعلام وقت خالی امروز', ps:'د نن ورځې خالي وخت اعلان'},
+  storyHint:{en:'Tell customers about a free chair today. It disappears after 24 hours and is shown to everyone, including customers who have not verified their identity yet.', fa:'به مشتریان بگویید امروز جای خالی دارید. بعد از ۲۴ ساعت خودش پاک می‌شود و به همه نمایش داده می‌شود، حتی مشتریانی که هنوز هویتشان را تأیید نکرده‌اند.', ps:'پیرودونکو ته ووایاست چې نن خالي څوکۍ لرئ. له ۲۴ ساعتونو وروسته پخپله ورکیږي او هرچا ته ښودل کیږي، حتی هغو پیرودونکو ته چې لا یې پیژندنه نه ده تصدیق کړې.'},
+  storyPh:{en:'e.g. Two chairs free after 2pm today', fa:'مثلاً امروز بعد از ساعت ۲ دو جای خالی داریم', ps:'لکه نن د ۲ بجو وروسته دوه خالي څوکۍ لرو'},
+  storyPost:{en:'Announce', fa:'اعلام کن', ps:'اعلان کړئ'},
+  storyLive:{en:'Live now', fa:'فعال', ps:'اوس فعال'},
+  storyNone:{en:'No announcement running.', fa:'اعلانی فعال نیست.', ps:'هیڅ اعلان فعال نه دی.'},
+  storyNeedText:{en:'Write what is free today first.', fa:'اول بنویسید امروز چه وقتی خالی است.', ps:'لومړی ولیکئ چې نن څه خالي دي.'},
   yourPosts:{en:'Your posts', fa:'پست‌های شما', ps:'ستاسو پوسټونه'},
   noPosts:{en:'No posts yet — share your first.', fa:'هنوز پستی نیست — اولی را منتشر کنید.', ps:'تر اوسه پوسټ نشته — لومړی یې خپور کړئ.'},
   deletePostConfirm:{en:'Delete this post?', fa:'این پست حذف شود؟', ps:'دا پوسټ ړنګ شي؟'},
@@ -1146,6 +1153,13 @@ function renderFeed(){
     const posts = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     $('view').innerHTML =
       `<div class="card-pad">
+         <span class="fl">${t('storyTitle')}</span>
+         <div class="meta" style="color:var(--muted);margin-bottom:11px">${t('storyHint')}</div>
+         <div id="story-live"></div>
+         <input id="story-text" class="mini" placeholder="${esc(t('storyPh'))}" style="margin-bottom:11px" />
+         <button id="story-post" class="btn" style="width:auto;padding:11px 26px">${t('storyPost')}</button>
+       </div>
+       <div class="card-pad">
          <span class="fl">${t('feedTitle')}</span>
          <div class="meta" style="color:var(--muted);margin-bottom:11px">${t('feedHint')}</div>
          <div id="pf-preview"></div>
@@ -1171,6 +1185,51 @@ function renderFeed(){
         host.innerHTML = `<img src="${url}" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:10px" />`;
       } else host.innerHTML = '';
     };
+    // ── Story: a 24-hour availability announcement ──────────────────────────
+    // No image required. The point is speed: a salon with an empty chair should
+    // be able to say so in one line, from a phone, between customers.
+    (async () => {
+      const host = $('story-live'); if(!host) return;
+      try{
+        const snap = await getDocs(query(collection(db,'salon_stories'), where('salonId','==',salonId)));
+        const live = snap.docs.map(d=>({id:d.id,...d.data()})).filter(x => (x.expiresAt||0) > Date.now());
+        host.innerHTML = live.length
+          ? live.map(x => `<div class="row" style="margin-bottom:9px" data-story="${esc(x.id)}">
+               <span class="pill ok">${t('storyLive')}</span>
+               <div style="margin-top:6px;font-size:13px;color:var(--ink)">${esc(x.text||'')}</div>
+               <div class="actions" style="margin-top:8px"><button class="btn-sm story-del" style="background:var(--red)">${t('del')}</button></div>
+             </div>`).join('')
+          : `<div class="meta" style="color:var(--muted);margin-bottom:10px">${t('storyNone')}</div>`;
+        host.querySelectorAll('[data-story]').forEach(row => {
+          row.querySelector('.story-del').onclick = async () => {
+            try{ await deleteDoc(doc(db,'salon_stories', row.dataset.story)); renderFeed(); }
+            catch(err){ alert(err.message||String(err)); }
+          };
+        });
+      }catch(_){ host.innerHTML = ''; }
+    })();
+
+    $('story-post').onclick = async (e) => {
+      const text = ($('story-text').value||'').trim().slice(0,200);
+      if(!text){ alert(t('storyNeedText')); return; }
+      const btn = e.target, lbl = btn.textContent; btn.disabled = true;
+      try{
+        const now = Date.now();
+        const ref = doc(collection(db,'salon_stories'));
+        await setDoc(ref, {
+          id: ref.id, salonId, salonName: (salon&&salon.salonName)||'',
+          text, imageUrl: '', storagePath: '',
+          createdAt: now,
+          // Written by the author rather than inferred on read, so the lifetime
+          // does not shift with each reader's clock.
+          expiresAt: now + 24*60*60*1000,
+        });
+        $('story-text').value = '';
+        renderFeed();
+      }catch(err){ alert(err.message||String(err)); }
+      finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
     $('post-pick').onclick = () => pickImage(f => {
       if(!validImage(f)){ alert(t('imageTooBig')); return; }
       feedDraftFile = f; paintPreview();

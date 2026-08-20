@@ -664,6 +664,8 @@ class AppStrings {
     var ratingNew: String = ""
     var showAllSalons: String = ""
     var viewSalon: String = ""
+    var storiesTitle: String = ""
+    var storyExpires: (Int) -> String = { "" }
     // Security warnings (root / emulator)
     var securityWarningTitle: String = ""
     var securityWarningRooted: String = ""
@@ -1273,6 +1275,8 @@ object StringResources {
         ratingNew                  = "New"
         showAllSalons              = "Show all salons"
         viewSalon                  = "View salon"
+        storiesTitle               = "Available today"
+        storyExpires               = { h -> if (h <= 1) "Less than an hour left" else "$h hours left" }
         securityWarningTitle       = "Security Risk Detected"
         securityWarningRooted      = "This device appears to be rooted. Rooting removes Android's security sandbox and may allow other apps to read this app's data."
         securityWarningEmulator    = "This device appears to be an emulator. Your data may be less secure outside a physical device."
@@ -1876,6 +1880,8 @@ object StringResources {
         ratingNew                  = "جدید"
         showAllSalons              = "نمایش همه سالن‌ها"
         viewSalon                  = "مشاهده سالن"
+        storiesTitle               = "امروز جای خالی"
+        storyExpires               = { h -> if (h <= 1) "کمتر از یک ساعت باقی مانده" else "$h ساعت باقی مانده" }
         securityWarningTitle       = "خطر امنیتی شناسایی شد"
         securityWarningRooted      = "به نظر می‌رسد این دستگاه روت شده است. روت کردن لایه امنیتی اندروید را حذف می‌کند و ممکن است به برنامه‌های دیگر اجازه دهد داده‌های این برنامه را بخوانند."
         securityWarningEmulator    = "به نظر می‌رسد این دستگاه یک شبیه‌ساز است. داده‌های شما خارج از یک دستگاه فیزیکی ممکن است کمتر ایمن باشند."
@@ -2479,6 +2485,8 @@ object StringResources {
         ratingNew                  = "نوی"
         showAllSalons              = "ټول سالونونه وښیه"
         viewSalon                  = "سالون وګورئ"
+        storiesTitle               = "نن خالي ځای"
+        storyExpires               = { h -> if (h <= 1) "له یوې ساعته لږ پاتې دي" else "$h ساعته پاتې دي" }
         securityWarningTitle       = "امنیتي خطر وموندل شو"
         securityWarningRooted      = "داسې ښکاري چې دا وسیله روټ شوې ده. روټ کول د اندروید امنیتي پوټکی لرې کوي او ممکن نورو اپونو ته اجازه ورکړي چې د دې اپ معلومات ولولي."
         securityWarningEmulator    = "داسې ښکاري چې دا وسیله یو شبیه‌ساز دی. ستاسو معلومات د فزیکي وسیلې بهر کم خوندي کیدای شي."

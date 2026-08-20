@@ -351,6 +351,24 @@ service cloud.firestore {
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
     }
 
+    // ── salon_stories ────────────────────────────────────────────────────────────
+    // A salon's 24-hour announcement ("two chairs free this afternoon"). Same
+    // ownership model as salon_posts. Readable by any signed-in user — unlike
+    // offers, stories are NOT gated behind identity verification, because an
+    // empty chair needs to reach the customers who have not verified yet.
+    // Immutable once written: a story is a moment, and editing one after people
+    // have acted on it would let a salon rewrite what it promised.
+    match /salon_stories/{storyId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
     // ── favorites ────────────────────────────────────────────────────────────────
     // A customer's favorited salons, mirrored from the on-device list so the
     // server can notify favoriters when their salon posts an offer (see

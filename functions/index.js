@@ -3928,3 +3928,39 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
   }
 );
+
+// ── Expire stories ────────────────────────────────────────────────────────────
+//
+// A story is a 24-hour announcement. Clients already hide expired ones by
+// comparing expiresAt, so this is not what makes them disappear — it is what
+// stops the collection growing forever, and what removes the photo from Storage,
+// which no client-side filter can do.
+
+exports.cleanupExpiredStories = onSchedule(
+  { schedule: "every 6 hours", region: "us-central1" },
+  async () => {
+    const snap = await db.collection("salon_stories")
+      .where("expiresAt", "<", Date.now())
+      .limit(300)
+      .get();
+    if (snap.empty) return;
+
+    // Delete the images first: losing the document while the file survives
+    // would orphan the file with nothing left pointing at it.
+    for (const d of snap.docs) {
+      const path = String(d.data().storagePath || "");
+      if (!path) continue;
+      try {
+        await admin.storage().bucket().file(path).delete();
+      } catch (e) {
+        // Already gone, or never uploaded — not worth failing the sweep over.
+        logger.debug("cleanupExpiredStories: image delete skipped", { path });
+      }
+    }
+
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    logger.log(`cleanupExpiredStories: removed ${snap.size} expired story/stories`);
+  }
+);

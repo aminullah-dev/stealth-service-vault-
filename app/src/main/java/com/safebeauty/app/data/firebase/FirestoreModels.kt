@@ -312,6 +312,28 @@ data class SalonPostDocument(
     val createdAt: Long = 0L
 )
 
+/**
+ * A salon's 24-hour story — "two chairs free this afternoon".
+ *
+ * Deliberately its own collection rather than a short-lived OfferDocument:
+ * offers are gated behind identity verification for customers, and an empty
+ * chair needs to reach exactly the people who have not verified yet. Stories
+ * carry no discount and no money, so they need no gate.
+ *
+ * [expiresAt] is written by the author, not inferred at read time, so a story's
+ * lifetime survives clock differences between devices.
+ */
+data class StoryDocument(
+    val id: String = "",
+    val salonId: String = "",
+    val salonName: String = "",
+    val text: String = "",                  // the announcement itself
+    val imageUrl: String = "",              // optional
+    val storagePath: String = "",           // for deletion
+    val createdAt: Long = 0L,
+    val expiresAt: Long = 0L                // createdAt + 24h
+)
+
 data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",
