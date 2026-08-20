@@ -226,6 +226,22 @@ class DashboardViewModel @Inject constructor(
         _maxPrice.value  = 0
     }
 
+    /**
+     * Clears EVERY narrowing control, not just the ones in the filter sheet.
+     * resetFilters() leaves category, neighbourhood, search text and the
+     * favourites toggle untouched, so a customer who filtered themselves into an
+     * empty list with "Makeup" + "District 5" would still see nothing after
+     * resetting. This is what the empty state offers, so it has to undo
+     * everything that could have emptied the list.
+     */
+    fun clearAllFilters() {
+        resetFilters()
+        _selectedCategoryIndex.value     = 0
+        _selectedNeighborhoodIndex.value = 0
+        _searchQuery.value               = ""
+        _showFavoritesOnly.value         = false
+    }
+
     /** The cheapest priced service at a salon (null if none priced). */
     private fun salonMinPrice(s: SalonDocument): Int? =
         s.pricePerService.values.filter { it > 0 }.minOrNull()

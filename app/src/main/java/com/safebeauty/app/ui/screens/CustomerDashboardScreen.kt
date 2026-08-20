@@ -717,9 +717,12 @@ fun CustomerDashboardScreen(
                 // the fold; now they scroll away and the list gets the full height.
                 // The search/filter header above stays pinned.
                 if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
+                    val narrowing = filtersActive || showFavoritesOnly || searchQuery.isNotBlank() ||
+                    selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                     SalonEmptyState(
-                        favoritesOnly = showFavoritesOnly,
-                        modifier      = Modifier.fillMaxSize()
+                        favoritesOnly  = showFavoritesOnly,
+                        modifier       = Modifier.fillMaxSize(),
+                        onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                     )
                 } else {
                     val listState = rememberLazyListState()
@@ -773,9 +776,15 @@ fun CustomerDashboardScreen(
                         }
                         if (filteredSalons.isEmpty()) {
                             item(key = "empty") {
+                                // The common case: recommendations or deals still have
+                                // content, so only the filtered list came up empty.
+                                val narrowing = filtersActive || showFavoritesOnly ||
+                                    searchQuery.isNotBlank() ||
+                                    selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                                 SalonEmptyState(
-                                    favoritesOnly = showFavoritesOnly,
-                                    modifier      = Modifier.fillParentMaxWidth().padding(vertical = 40.dp)
+                                    favoritesOnly  = showFavoritesOnly,
+                                    modifier       = Modifier.fillParentMaxWidth().padding(vertical = 40.dp),
+                                    onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                                 )
                             }
                         } else {
@@ -2962,7 +2971,14 @@ private fun RecommendedSalonCard(
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier = Modifier) {
+private fun SalonEmptyState(
+    favoritesOnly: Boolean = false,
+    modifier: Modifier = Modifier,
+    // Non-null when something the user chose is narrowing the list. Without a way
+    // back, an over-filtered search is a dead end: the customer has to work out on
+    // their own which of category, neighbourhood, search or favourites emptied it.
+    onClearFilters: (() -> Unit)? = null,
+) {
     val strings = LocalStrings.current
     Box(contentAlignment = Alignment.Center, modifier = modifier.padding(40.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2995,6 +3011,16 @@ private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier =
                 color     = TextFaint,
                 textAlign = TextAlign.Center
             )
+            if (onClearFilters != null) {
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = onClearFilters,
+                    shape   = RoundedCornerShape(14.dp),
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) {
+                    Text(strings.showAllSalons, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
         }
     }
 }
