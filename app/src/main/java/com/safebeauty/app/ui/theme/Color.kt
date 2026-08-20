@@ -23,7 +23,7 @@ import androidx.compose.ui.graphics.Color
  * ~27 screens which call `DashboardTheme { }` with no arguments inherit the
  * brand exactly the way they already inherit light/dark — no call site changes.
  */
-enum class AppBrand { ROSE, LAVENDER, SAGE, OCEAN, HONEY }
+enum class AppBrand { ROSE, LAVENDER, SAGE, OCEAN, HONEY, MAROON }
 
 data class Palette(
     val brand: AppBrand,
@@ -482,6 +482,92 @@ val HoneyDarkPalette = Palette(
     dreamy           = listOf(Color(0xFF2A2214), Color(0xFF322818)),
     petal            = listOf(Color(0xFF221C11), Color(0xFF2A2214), Color(0xFF1E1910)),
     gold             = listOf(Color(0xFFDCB367), Color(0xFFBE9139)),
+)
+
+// ── Maroon ──────────────────────────────────────────────────────────────────────
+// Deep burgundy — the most serious of the families, for anyone who wants the
+// warmth of the rose without its softness.
+//
+// This one had the sharpest version of the problem sage and honey each hit: the
+// accent is a deep red and dangerRed is red, so a delete button or an error
+// message would have read as ordinary chrome. dangerRed is therefore pushed to a
+// brighter, more orange red than the accent in both modes — far enough that
+// "this will destroy something" still stops the eye on a maroon surface.
+
+val MaroonLightPalette = Palette(
+    brand            = AppBrand.MAROON,
+    isDark           = false,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFF8E3B44),
+    deepRose         = Color(0xFF5C1F2A),
+    blushPink        = Color(0xFFEFD6D9),
+    softPurple       = Color(0xFF95606E),
+    elegantCream     = Color(0xFFFFF8F8),
+    warmGold         = Color(0xFFB98A34),
+    dashboardSurface = Color(0xFFF9EAEB),
+    chipActive       = Color(0xFF8E3B44),
+    chipInactive     = Color(0xFFEBD5D7),
+    availableGreen   = Color(0xFF2E7D32),
+    unavailableGrey  = Color(0xFF9E9E9E),
+    cardBorder       = Color(0xFFEBD3D6),
+    deeperRose       = Color(0xFF46141E),
+    petalPink        = Color(0xFFF7E3E5),
+    lilacMist        = Color(0xFFEBD3D6),
+    softLavender     = Color(0xFFFAEDEE),
+    rosePetal        = Color(0xFFC08088),
+    // Brighter and more orange than the maroon accent, so destructive actions
+    // and errors do not blend into the theme.
+    dangerRed        = Color(0xFFE04A2F),
+    warningOrange    = Color(0xFFE67E22),
+    neutralGrey      = Color(0xFF917E82),
+    adminPurple      = Color(0xFF7B5E86),
+    textStrong       = Color(0xFF4A3A3D),
+    textMuted        = Color(0xFF877377),
+    textFaint        = Color(0xFFB09A9E),
+    brandRose        = listOf(Color(0xFFC4737D), Color(0xFF8E3B44), Color(0xFF5C1F2A)),
+    brandRoseSoft    = listOf(Color(0xFFAE5A66), Color(0xFF6E2833)),
+    screenBg         = listOf(Color(0xFFFFF8F8), Color(0xFFFBEEEF), Color(0xFFF7E7E9)),
+    softPink         = listOf(Color(0xFFF7E3E5), Color(0xFFF0D5D8)),
+    dreamy           = listOf(Color(0xFFF7E3E5), Color(0xFFEBD3D6)),
+    petal            = listOf(Color(0xFFFDF3F3), Color(0xFFF7E3E5), Color(0xFFF1D9DC)),
+    gold             = listOf(Color(0xFFE6C06A), Color(0xFFC79A3C)),
+)
+
+val MaroonDarkPalette = Palette(
+    brand            = AppBrand.MAROON,
+    isDark           = true,
+    onPrimaryWhite   = Color(0xFFFFFFFF),
+    roseGold         = Color(0xFFA85260),
+    deepRose         = Color(0xFFF2D8DC),
+    blushPink        = Color(0xFF3E2028),
+    softPurple       = Color(0xFFC49AA6),
+    elegantCream     = Color(0xFF160C0F),
+    warmGold         = Color(0xFFE0B968),
+    dashboardSurface = Color(0xFF25141A),
+    chipActive       = Color(0xFFA85260),
+    chipInactive     = Color(0xFF331A21),
+    availableGreen   = Color(0xFF5CC462),
+    unavailableGrey  = Color(0xFF8A8A8A),
+    cardBorder       = Color(0xFF3B2027),
+    deeperRose       = Color(0xFF5A222E),
+    petalPink        = Color(0xFF2C171D),
+    lilacMist        = Color(0xFF331A21),
+    softLavender     = Color(0xFF221218),
+    rosePetal        = Color(0xFFC17F8B),
+    dangerRed        = Color(0xFFFF7A5C),
+    warningOrange    = Color(0xFFE9975A),
+    neutralGrey      = Color(0xFFAC9096),
+    adminPurple      = Color(0xFFC2A0CE),
+    textStrong       = Color(0xFFE2CDD2),
+    textMuted        = Color(0xFFB79CA3),
+    textFaint        = Color(0xFF8C757C),
+    brandRose        = listOf(Color(0xFF8A3844), Color(0xFF6B2B36), Color(0xFF471A23)),
+    brandRoseSoft    = listOf(Color(0xFF7C323E), Color(0xFF52202A)),
+    screenBg         = listOf(Color(0xFF160C0F), Color(0xFF1D1014), Color(0xFF221318)),
+    softPink         = listOf(Color(0xFF331A21), Color(0xFF2B161C)),
+    dreamy           = listOf(Color(0xFF2C171D), Color(0xFF331A21)),
+    petal            = listOf(Color(0xFF25141A), Color(0xFF2C171D), Color(0xFF201217)),
+    gold             = listOf(Color(0xFFCBA26A), Color(0xFFB08430)),
 )
 
 // Provided by DashboardTheme; defaults to light for any composable rendered

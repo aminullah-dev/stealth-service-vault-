@@ -671,6 +671,7 @@ class AppStrings {
     var themeSage: String = ""
     var themeOcean: String = ""
     var themeHoney: String = ""
+    var themeMaroon: String = ""
     var storyExpires: (Int) -> String = { "" }
     // Security warnings (root / emulator)
     var securityWarningTitle: String = ""
@@ -1288,6 +1289,7 @@ object StringResources {
         themeSage                  = "Sage"
         themeOcean                 = "Ocean"
         themeHoney                 = "Honey"
+        themeMaroon                = "Maroon"
         storyExpires               = { h -> if (h <= 1) "Less than an hour left" else "$h hours left" }
         securityWarningTitle       = "Security Risk Detected"
         securityWarningRooted      = "This device appears to be rooted. Rooting removes Android's security sandbox and may allow other apps to read this app's data."
@@ -1899,6 +1901,7 @@ object StringResources {
         themeSage                  = "سبز"
         themeOcean                 = "آبی"
         themeHoney                 = "عسلی"
+        themeMaroon                = "جیگری"
         storyExpires               = { h -> if (h <= 1) "کمتر از یک ساعت باقی مانده" else "$h ساعت باقی مانده" }
         securityWarningTitle       = "خطر امنیتی شناسایی شد"
         securityWarningRooted      = "به نظر می‌رسد این دستگاه روت شده است. روت کردن لایه امنیتی اندروید را حذف می‌کند و ممکن است به برنامه‌های دیگر اجازه دهد داده‌های این برنامه را بخوانند."
@@ -2510,6 +2513,7 @@ object StringResources {
         themeSage                  = "شین"
         themeOcean                 = "آسماني"
         themeHoney                 = "شاتي"
+        themeMaroon                = "تک‌سور"
         storyExpires               = { h -> if (h <= 1) "له یوې ساعته لږ پاتې دي" else "$h ساعته پاتې دي" }
         securityWarningTitle       = "امنیتي خطر وموندل شو"
         securityWarningRooted      = "داسې ښکاري چې دا وسیله روټ شوې ده. روټ کول د اندروید امنیتي پوټکی لرې کوي او ممکن نورو اپونو ته اجازه ورکړي چې د دې اپ معلومات ولولي."
