@@ -3343,56 +3343,80 @@ fun ThemePickerDialog(
 ) {
     val strings = LocalStrings.current
     val isDark  = LocalPalette.current.isDark
+    val label: (AppBrand) -> String = { brand ->
+        when (brand) {
+            AppBrand.ROSE     -> strings.themeRose
+            AppBrand.LAVENDER -> strings.themeLavender
+            AppBrand.SAGE     -> strings.themeSage
+            AppBrand.OCEAN    -> strings.themeOcean
+            AppBrand.HONEY    -> strings.themeHoney
+            AppBrand.MAROON   -> strings.themeMaroon
+        }
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(strings.themePickerTitle, fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 15.sp)
         },
         text = {
+            // Two columns of swatches rather than a stack of full-width rows.
+            // Six families made the stacked list taller than the dialog, and the
+            // choice is made by looking at colour, not by reading names — so the
+            // colours should all be visible at once, without scrolling.
+            //
+            // Built from Rows rather than LazyVerticalGrid: an AlertDialog measures
+            // its content with an unbounded height, which a lazy grid cannot handle.
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                AppBrand.entries.forEach { brand ->
-                    // Preview in the same light/dark mode the user is in, so the
-                    // swatch matches what they will actually get.
-                    val preview  = paletteFor(brand, isDark)
-                    val selected = brand == current
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) preview.blushPink else preview.dashboardSurface)
-                            .border(
-                                width = if (selected) 2.dp else 1.dp,
-                                color = if (selected) preview.roseGold else preview.cardBorder,
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                            .clickable { onPick(brand) }
-                            .padding(14.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(Brush.linearGradient(preview.brandRose))
-                        )
-                        Text(
-                            text       = when (brand) {
-                                AppBrand.ROSE     -> strings.themeRose
-                                AppBrand.LAVENDER -> strings.themeLavender
-                                AppBrand.SAGE     -> strings.themeSage
-                                AppBrand.OCEAN    -> strings.themeOcean
-                                AppBrand.HONEY    -> strings.themeHoney
-                                AppBrand.MAROON   -> strings.themeMaroon
-                            },
-                            fontSize   = 15.sp,
-                            color      = preview.deepRose,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            modifier   = Modifier.weight(1f)
-                        )
-                        if (selected) {
-                            Icon(Icons.Default.CheckCircle, null, tint = preview.roseGold, modifier = Modifier.size(20.dp))
+                AppBrand.entries.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { brand ->
+                            // Preview in the mode the user is actually in, so the
+                            // swatch matches what applying it will look like.
+                            val preview  = paletteFor(brand, isDark)
+                            val selected = brand == current
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (selected) preview.blushPink else preview.dashboardSurface)
+                                    .border(
+                                        width = if (selected) 2.dp else 1.dp,
+                                        color = if (selected) preview.roseGold else preview.cardBorder,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable { onPick(brand) }
+                                    .padding(vertical = 14.dp, horizontal = 8.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Brush.linearGradient(preview.brandRose))
+                                    )
+                                    if (selected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle, null,
+                                            tint = preview.onPrimaryWhite,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text       = label(brand),
+                                    fontSize   = 13.sp,
+                                    color      = preview.deepRose,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines   = 1,
+                                    overflow   = TextOverflow.Ellipsis
+                                )
+                            }
                         }
+                        // An odd number of families must not stretch the last one
+                        // across the full width.
+                        repeat(2 - pair.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
