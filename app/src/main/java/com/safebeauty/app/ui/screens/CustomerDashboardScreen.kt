@@ -176,6 +176,7 @@ import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.safebeauty.app.util.ratingLabel
 import com.safebeauty.app.util.Analytics
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
@@ -369,6 +370,10 @@ fun CustomerDashboardScreen(
     var showLangPicker       by remember { mutableStateOf(false) }
     var showProfileSheet     by remember { mutableStateOf(false) }
     var showSalonDetail      by remember { mutableStateOf<SalonDocument?>(null) }
+    // Shown INSTEAD of starting a booking when the account isn't verified yet.
+    // Asking at the end — after services, slot, notes and guests are entered —
+    // meant discarding all of it, which is the worst possible moment.
+    var showKycNotice        by remember { mutableStateOf(false) }
     // Funnel step 2. Watching the state rather than each opener means every path
     // into the detail sheet is counted, including ones added later.
     LaunchedEffect(showSalonDetail?.id) {
@@ -852,6 +857,27 @@ fun CustomerDashboardScreen(
         }
 
         // ── Language picker dialog ────────────────────────────────────────────
+        if (showKycNotice) {
+            AlertDialog(
+                onDismissRequest = { showKycNotice = false },
+                icon  = { Icon(Icons.Default.Lock, null, tint = RoseGold) },
+                title = { Text(strings.kycBeforeBookingTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.kycBeforeBookingText, fontSize = 14.sp, color = TextStrong) },
+                confirmButton = {
+                    Button(
+                        onClick = { showKycNotice = false; onNavigate(Screen.Kyc.build(viewModel.customerId)) },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.kycVerifyNow, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showKycNotice = false }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         if (showLangPicker) {
             LanguagePickerDialog(
                 current  = langVm.language.value,
@@ -1712,17 +1738,12 @@ fun CustomerDashboardScreen(
                         onClick = {
                             // Identity must be verified before a customer can book.
                             if (viewModel.needsKycBeforeBooking()) {
+                                // Safety net only — the flow is normally stopped
+                                // before any of this is entered (see showKycNotice).
+                                // The draft is deliberately KEPT so that returning
+                                // from verification lands the user back on a filled
+                                // booking instead of an empty one.
                                 showNotesDialog = false
-                                bookingIntent   = null
-                                // Clear the whole booking draft, incl. the group
-                                // party list — otherwise the old guest list leaks
-                                // into the next, unrelated booking's notes.
-                                bookingNotes    = ""
-                                partyNote       = ""
-                                partyGuests.clear()
-                                guestNameInput  = ""
-                                viewModel.clearPromo()
-                                viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
                                 val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
@@ -2186,10 +2207,15 @@ fun CustomerDashboardScreen(
                     isFavorite       = favoriteIds.contains(salon.id),
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
-                        showSalonDetail   = null
-                        selectedServices.clear()
-                        bookingIntent     = BookingIntent(salon, emptyList())
-                        showServiceDialog = true
+                        if (viewModel.needsKycBeforeBooking()) {
+                            showSalonDetail = null
+                            showKycNotice   = true
+                        } else {
+                            showSalonDetail   = null
+                            selectedServices.clear()
+                            bookingIntent     = BookingIntent(salon, emptyList())
+                            showServiceDialog = true
+                        }
                     },
                     onBookPackage = { pkg ->
                         // Package services are fixed — skip service selection and go
@@ -2646,7 +2672,7 @@ private fun SalonCard(
                 ) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                 }
                 IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                     Icon(
@@ -2917,7 +2943,7 @@ private fun RecommendedSalonCard(
             if (salon.rating > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(11.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 10.sp, color = UnavailableGrey)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 10.sp, color = UnavailableGrey)
                 }
             }
             Button(

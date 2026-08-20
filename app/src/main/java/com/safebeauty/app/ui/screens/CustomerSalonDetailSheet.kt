@@ -170,6 +170,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.safebeauty.app.util.ratingLabel
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
@@ -300,7 +301,7 @@ internal fun SalonDetailSheetContent(
                 ) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                     if (reviews.isNotEmpty()) {
                         Text("  (${reviews.size})", fontSize = 11.sp, color = TextMuted)
                     }
@@ -632,7 +633,7 @@ internal fun SalonDetailSheetContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(15.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 13.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 13.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                 }
             }
         }

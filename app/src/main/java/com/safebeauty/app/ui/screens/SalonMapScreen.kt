@@ -47,6 +47,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.hasLocation
+import com.safebeauty.app.util.ratingLabel
 import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
@@ -162,7 +163,7 @@ fun SalonMapScreen(
                                 Text(salon.district, fontSize = 12.sp, color = TextMuted, modifier = Modifier.weight(1f))
                                 Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(3.dp))
-                                Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                                Text(ratingLabel(salon.rating, strings), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.size(12.dp))
                             Button(
