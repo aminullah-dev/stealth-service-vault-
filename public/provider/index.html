@@ -365,7 +365,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, query, where, getDocs, getDoc, doc,
+import { getFirestore, collection, query, where, orderBy, getDocs, getDoc, doc,
          setDoc, updateDoc, addDoc, deleteDoc, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
@@ -574,6 +574,16 @@ const STR = {
   noPosts:{en:'No posts yet — share your first.', fa:'هنوز پستی نیست — اولی را منتشر کنید.', ps:'تر اوسه پوسټ نشته — لومړی یې خپور کړئ.'},
   deletePostConfirm:{en:'Delete this post?', fa:'این پست حذف شود؟', ps:'دا پوسټ ړنګ شي؟'},
   pickImageFirst:{en:'Choose a photo first.', fa:'ابتدا یک عکس انتخاب کنید.', ps:'لومړی یو عکس وټاکئ.'},
+  // ── Engagement on your own posts ────────────────────────────────────────────
+  engLikes:{en:'likes', fa:'پسند', ps:'خوښې'},
+  engComments:{en:'comments', fa:'نظر', ps:'نظرونه'},
+  showComments:{en:'Comments', fa:'نظرها', ps:'نظرونه'},
+  hideComments:{en:'Hide comments', fa:'بستن نظرها', ps:'نظرونه پټ کړئ'},
+  noComments:{en:'No comments on this photo yet.', fa:'هنوز نظری روی این عکس نیست.', ps:'تر اوسه پر دې عکس نظر نشته.'},
+  loadingComments:{en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  deleteCommentConfirm:{en:'Remove this comment? The person who wrote it is not told.', fa:'این نظر حذف شود؟ به نویسنده‌اش اطلاع داده نمی‌شود.', ps:'دا نظر ړنګ شي؟ لیکونکي ته یې خبر نه ورکول کیږي.'},
+  hoursLeft:{en:(h)=>`${h} h left`, fa:(h)=>`${h} ساعت باقی مانده`, ps:(h)=>`${h} ساعته پاتې`},
+  expiringSoon:{en:'Ends within the hour', fa:'کمتر از یک ساعت باقی مانده', ps:'له یوه ساعت لږ پاتې'},
   // Days
   Saturday:{en:'Saturday', fa:'شنبه', ps:'شنبه'},
   Sunday:{en:'Sunday', fa:'یکشنبه', ps:'یکشنبه'},
@@ -1144,6 +1154,56 @@ function pickImage(onFile){
 }
 function validImage(f){ return /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 2*1024*1024; }
 
+// A story is only worth reading while it is still true, so say how long that is
+// rather than only that it is "live" — a salon deciding whether to post another
+// one needs the number, not the pill.
+function storyLeft(expiresAt){
+  const ms = (expiresAt||0) - Date.now();
+  if(ms <= 0) return '';
+  const hours = Math.floor(ms / 3600000);
+  return hours < 1 ? t('expiringSoon') : t('hoursLeft', String(hours));
+}
+
+// The comment thread under one of this salon's own photos.
+//
+// Loaded on demand rather than with a listener per post: a salon with thirty
+// photos would otherwise open thirty live queries to render a tab where most
+// threads are never looked at.
+//
+// Deleting is the salon moderating its own photo, which the rules allow
+// (ownsThisSalon). The author is not notified — this removes a comment, it does
+// not argue with anyone.
+async function paintComments(host, postId){
+  host.innerHTML = `<div class="meta" style="color:var(--muted)">${t('loadingComments')}</div>`;
+  try{
+    const snap = await getDocs(query(
+      collection(db,'post_comments'),
+      where('postId','==',postId),
+      orderBy('createdAt','asc')
+    ));
+    const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    host.innerHTML = rows.length
+      ? rows.map(c => `<div class="row" style="margin-bottom:7px" data-cmt="${esc(c.id)}">
+           <div style="font-size:13px;font-weight:700;color:var(--deep)">${esc(c.authorName||'—')}</div>
+           <div style="font-size:13px;color:var(--ink);margin-top:2px">${esc(c.text||'')}</div>
+           <div class="meta" style="margin-top:3px">${esc(fmtD(c.createdAt))}</div>
+           <div class="actions" style="margin-top:7px"><button class="btn-sm cmt-del" style="background:var(--red)">${t('del')}</button></div>
+         </div>`).join('')
+      : `<div class="meta" style="color:var(--muted)">${t('noComments')}</div>`;
+    host.querySelectorAll('[data-cmt]').forEach(row => {
+      row.querySelector('.cmt-del').onclick = async () => {
+        if(!confirm(t('deleteCommentConfirm'))) return;
+        try{
+          await deleteDoc(doc(db,'post_comments', row.dataset.cmt));
+          await paintComments(host, postId);
+        }catch(e){ alert(e.message||String(e)); }
+      };
+    });
+  }catch(e){
+    host.innerHTML = `<div class="meta" style="color:var(--muted)">${esc(e.message||String(e))}</div>`;
+  }
+}
+
 // ── Feed (social posts → discovery feed + follower notifications) ───────────────
 let feedDraftFile = null;   // the image chosen for the next post
 function renderFeed(){
@@ -1171,11 +1231,19 @@ function renderFeed(){
        </div>
        <div class="section-title">${t('yourPosts')} (${posts.length})</div>` +
       (posts.length ? posts.map(p => `
-        <div class="row wide" data-id="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">
+        <div class="row wide" data-id="${esc(p.id)}" data-path="${esc(p.storagePath||'')}" data-cc="${Number(p.commentCount||0)}">
           <img src="${esc(p.imageUrl||'')}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px" />
           ${p.caption?`<div style="margin-top:8px;font-size:13px;color:var(--ink)">${esc(p.caption)}</div>`:''}
-          <div class="meta" style="margin-top:5px">${esc(fmtD(p.createdAt))}</div>
-          <div class="actions" style="margin-top:9px"><button class="btn-sm post-del" style="background:var(--red)">${t('del')}</button></div>
+          <div class="meta" style="margin-top:5px">
+            ${esc(fmtD(p.createdAt))}
+            &nbsp;·&nbsp; ❤ ${Number(p.likeCount||0)} ${t('engLikes')}
+            &nbsp;·&nbsp; 💬 ${Number(p.commentCount||0)} ${t('engComments')}
+          </div>
+          <div class="actions" style="margin-top:9px">
+            <button class="btn-sm post-cmt" style="background:var(--surface);color:var(--deep)">${t('showComments')} (${Number(p.commentCount||0)})</button>
+            <button class="btn-sm post-del" style="background:var(--red)">${t('del')}</button>
+          </div>
+          <div class="cmt-host" style="margin-top:10px"></div>
         </div>`).join('') : `<div class="empty">${t('noPosts')}</div>`);
 
     const paintPreview = () => {
@@ -1196,6 +1264,7 @@ function renderFeed(){
         host.innerHTML = live.length
           ? live.map(x => `<div class="row" style="margin-bottom:9px" data-story="${esc(x.id)}">
                <span class="pill ok">${t('storyLive')}</span>
+               <span class="meta" style="margin-inline-start:8px">${esc(storyLeft(x.expiresAt))}</span>
                <div style="margin-top:6px;font-size:13px;color:var(--ink)">${esc(x.text||'')}</div>
                <div class="actions" style="margin-top:8px"><button class="btn-sm story-del" style="background:var(--red)">${t('del')}</button></div>
              </div>`).join('')
@@ -1255,10 +1324,28 @@ function renderFeed(){
     };
     paintPreview();
 
-    $('view').querySelectorAll('.row').forEach(row => {
+    // Scoped to post rows. Stories and comments carry the same .row class and are
+    // painted asynchronously into this same view, so a bare '.row' selector only
+    // ever worked because it happened to run before they arrived.
+    $('view').querySelectorAll('.row[data-id]').forEach(row => {
+      const host = row.querySelector('.cmt-host');
+      const cmt  = row.querySelector('.post-cmt');
+      if(cmt) cmt.onclick = async () => {
+        const open = host.dataset.open === '1';
+        if(open){
+          host.innerHTML = ''; host.dataset.open = '';
+          cmt.textContent = `${t('showComments')} (${row.dataset.cc||0})`;
+        }else{
+          host.dataset.open = '1';
+          cmt.textContent = t('hideComments');
+          await paintComments(host, row.dataset.id);
+        }
+      };
       row.querySelector('.post-del').onclick = async () => {
         if(!confirm(t('deletePostConfirm'))) return;
         try{
+          // The cleanupDeletedPost trigger clears this post's likes and comments;
+          // only the image has to be removed from here.
           await deleteDoc(doc(db,'salon_posts', row.dataset.id));
           if(row.dataset.path){ try{ await deleteObject(sref(storage, row.dataset.path)); }catch(_){} }
         }catch(e){ alert(e.message); }

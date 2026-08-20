@@ -317,7 +317,7 @@ import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
-import { getStorage, ref as sref, uploadBytes, getDownloadURL }
+import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const firebaseConfig = {
@@ -482,6 +482,7 @@ const TABS = [
   { id:'kyc',      label:'KYC',        icon:'🪪', render:renderKyc },
   { id:'users',    label:'Users',      icon:'👥', render:renderUsers },
   { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
+  { id:'content',  label:'Content',    icon:'📸', render:renderContent },
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
@@ -1264,6 +1265,103 @@ async function renderSalons(){
     draw();
     $('ssearch').oninput = e => draw(e.target.value);
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Content (what customers actually see) ────────────────────────────────────
+//
+// Everything published into Discover, in one place, with a way to take any of it
+// down. Until this tab existed the platform could publish but not moderate: an
+// abusive comment or a photo posted in bad faith could only be removed from the
+// Firestore console, which is not a tool anyone should need at 9pm.
+//
+// Comments come first deliberately. Photos are posted by salons the admin has
+// vetted; comments are written by anyone with an account, so that is where
+// something is most likely to need removing, and burying it under two other
+// sections would cost time when it matters.
+async function renderContent(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const [cSnap, pSnap, sSnap] = await Promise.all([
+      getDocs(query(collection(db,'post_comments'), orderBy('createdAt','desc'), limit(100))),
+      getDocs(query(collection(db,'salon_posts'),   orderBy('createdAt','desc'), limit(60))),
+      getDocs(collection(db,'salon_stories')),
+    ]);
+    const comments = cSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const posts    = pSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const stories  = sSnap.docs.map(d=>({id:d.id,...d.data()}))
+                          .filter(x => (x.expiresAt||0) > Date.now())
+                          .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+    const seeded = (x) => x.createdByAdmin ? ' <span class="pill info">by admin</span>' : '';
+    const hoursLeft = (ms) => {
+      const h = Math.floor(((ms||0) - Date.now())/3600000);
+      return h < 1 ? '<1h' : h + 'h';
+    };
+
+    $('view').innerHTML = `
+      <div class="section-title">Comments (${comments.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        The 100 most recent across the platform. Removing one does not notify its author.
+      </div>
+      ${comments.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Author</th><th scope="col">Comment</th><th scope="col">Salon</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <tbody>` + comments.map(c => `<tr>
+          <td class="name">${esc(c.authorName||'—')}</td>
+          <td>${esc(c.text||'')}</td>
+          <td>${esc(c.salonId||'—')}</td>
+          <td>${fmtDate(c.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-delc="${esc(c.id)}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No comments yet</div>`}
+
+      <div class="section-title" style="margin-top:26px">Live stories (${stories.length})</div>
+      ${stories.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Salon</th><th scope="col">Announcement</th><th scope="col">Left</th><th scope="col"></th></tr></thead>
+        <tbody>` + stories.map(x => `<tr>
+          <td class="name">${esc(x.salonName||x.salonId||'—')}${seeded(x)}</td>
+          <td>${esc(x.text||'')}</td>
+          <td>${hoursLeft(x.expiresAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-dels="${esc(x.id)}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No story running</div>`}
+
+      <div class="section-title" style="margin-top:26px">Posts (${posts.length})</div>
+      ${posts.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Photo</th><th scope="col">Salon</th><th scope="col">Caption</th><th scope="col">❤</th><th scope="col">💬</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <tbody>` + posts.map(p => `<tr>
+          <td><img src="${esc(p.imageUrl||'')}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:9px;border:1px solid var(--line)"/></td>
+          <td class="name">${esc(p.salonName||p.salonId||'—')}${seeded(p)}</td>
+          <td>${esc(p.caption||'—')}</td>
+          <td>${Number(p.likeCount||0)}</td>
+          <td>${Number(p.commentCount||0)}</td>
+          <td>${fmtDate(p.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)"
+                data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No posts yet</div>`}
+    `;
+
+    const after = (fn) => async (btn) => {
+      btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Removing…';
+      try{ await fn(); await renderContent(); }
+      catch(e){ alert(e.message||String(e)); btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('view').querySelectorAll('[data-delc]').forEach(b => b.onclick = () => {
+      if(confirm('Remove this comment?')) after(() => deleteDoc(doc(db,'post_comments', b.dataset.delc)))(b);
+    });
+    $('view').querySelectorAll('[data-dels]').forEach(b => b.onclick = () => {
+      if(confirm('Remove this story?')) after(() => deleteDoc(doc(db,'salon_stories', b.dataset.dels)))(b);
+    });
+    $('view').querySelectorAll('[data-delp]').forEach(b => b.onclick = () => {
+      if(!confirm('Remove this photo? Its likes and comments go with it.')) return;
+      after(async () => {
+        // cleanupDeletedPost collects the likes and comments; the image is the
+        // only part that does not belong to Firestore.
+        await deleteDoc(doc(db,'salon_posts', b.dataset.delp));
+        if(b.dataset.path){ try{ await deleteObject(sref(storage, b.dataset.path)); }catch(_){} }
+      })(b);
+    });
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
 }
 
 // ── Audit log (privileged admin actions) ──────────────────────────────────────
