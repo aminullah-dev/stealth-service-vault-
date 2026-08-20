@@ -354,6 +354,7 @@ fun CustomerDashboardScreen(
     val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
     val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
+    val stories                   by viewModel.stories.collectAsStateWithLifecycle()
     val searchQuery               by viewModel.searchQuery.collectAsStateWithLifecycle()
 
     // Funnel step 1. Keyed on the result set so it fires once per distinct view
@@ -512,8 +513,8 @@ fun CustomerDashboardScreen(
                                 item(Icons.Default.Map, strings.mapTitle) {
                                     onNavigate(Screen.SalonMap.build(viewModel.customerId))
                                 }
-                                item(Icons.Default.PhotoLibrary, strings.feedTitle) {
-                                    onNavigate(Screen.Feed.build(viewModel.customerId))
+                                item(Icons.Default.SupportAgent, strings.tabSupport) {
+                                    onNavigate(Screen.Support.route)
                                 }
                                 item(Icons.Default.Palette, strings.menuTheme) { showThemePicker = true }
                                 item(Icons.Default.Language, strings.languagePickerTitle) { showLangPicker = true }
@@ -534,10 +535,18 @@ fun CustomerDashboardScreen(
             },
             bottomBar = {
                 // Primary navigation moved off the cramped top-bar icon row into a
-                // labeled bottom tab bar. Explore is the persistent content;
+                // labeled bottom tab bar. Salons is the persistent content;
                 // Bookings/Profile open their sheets, Favorites toggles the filter
-                // (so its selected state reflects showFavoritesOnly), Support opens
-                // its own screen.
+                // (so its selected state reflects showFavoritesOnly), Discover
+                // opens its own screen.
+                //
+                // Discover took the fifth slot from Support. Discover is where a
+                // customer decides which salon to book -- the reason to open the
+                // app at all -- and it had been sitting in the overflow menu,
+                // which is no place for a primary destination. Support is a
+                // utility reached once in a while, and the menu now carries
+                // labels, so it is easier to find there than an unlabeled icon
+                // ever was here.
                 NavigationBar(containerColor = DashboardSurface, tonalElevation = 0.dp) {
                     val itemColors = NavigationBarItemDefaults.colors(
                         selectedIconColor   = DeepRose,
@@ -586,9 +595,9 @@ fun CustomerDashboardScreen(
                     )
                     NavigationBarItem(
                         selected = false,
-                        onClick  = { onNavigate(Screen.Support.route) },
-                        icon     = { Icon(Icons.Default.SupportAgent, null) },
-                        label    = { Text(strings.tabSupport, fontSize = 11.sp) },
+                        onClick  = { onNavigate(Screen.Feed.build(viewModel.customerId)) },
+                        icon     = { Icon(Icons.Default.PhotoLibrary, null) },
+                        label    = { Text(strings.feedTitle, fontSize = 11.sp) },
                         colors   = itemColors
                     )
                 }
@@ -626,6 +635,20 @@ fun CustomerDashboardScreen(
                 // ── Broadcast announcements ───────────────────────────────────
                 if (broadcasts.isNotEmpty()) {
                     BroadcastBanner(broadcasts = broadcasts)
+                }
+
+                // ── Today's free chairs ───────────────────────────────────────
+                // These used to live only inside Discover, one tap away. A story
+                // says "two chairs free this afternoon" and deletes itself in 24
+                // hours -- of everything on this screen it is the item with the
+                // shortest shelf life, so hiding it behind a tap wasted most of
+                // what it was worth. Tapping a ring opens that exact story in
+                // Discover rather than dropping the customer at the top of it.
+                if (stories.isNotEmpty()) {
+                    StoryRow(
+                        stories = stories,
+                        onOpen  = { onNavigate(Screen.Feed.build(viewModel.customerId, it.id)) }
+                    )
                 }
 
                 // ── Search bar ────────────────────────────────────────────────

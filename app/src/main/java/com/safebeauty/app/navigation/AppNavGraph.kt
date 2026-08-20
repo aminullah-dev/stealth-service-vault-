@@ -92,8 +92,11 @@ sealed class Screen(val route: String) {
         fun build(userId: String) = "kyc/$userId"
     }
     object Support : Screen("support")
-    object Feed : Screen("feed/{userId}") {
-        fun build(userId: String) = "feed/$userId"
+    object Feed : Screen("feed/{userId}?story={story}") {
+        // The optional story lets a ring tapped on the dashboard land on that
+        // exact announcement instead of dropping the customer at the top of
+        // Discover to hunt for it again.
+        fun build(userId: String, storyId: String = "") = "feed/$userId?story=$storyId"
     }
     object SalonMap : Screen("salonMap/{userId}") {
         fun build(userId: String) = "salonMap/$userId"
@@ -334,13 +337,17 @@ fun AppNavGraph(
 
             composable(
                 route     = Screen.Feed.route,
-                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+                arguments = listOf(
+                    navArgument("userId") { type = NavType.StringType },
+                    navArgument("story")  { type = NavType.StringType; defaultValue = "" },
+                )
             ) {
                 // Discover leads somewhere: tapping through to a salon returns to
                 // the dashboard with that salon active, so the detail sheet opens
                 // on exactly the salon whose work caught the customer's eye.
                 val dashVm: com.safebeauty.app.viewmodel.DashboardViewModel = hiltViewModel()
                 FeedScreen(
+                    initialStoryId = it.arguments?.getString("story").orEmpty(),
                     onBack      = { navController.popBackStack() },
                     onOpenSalon = { salonId ->
                         dashVm.setActiveSalon(salonId)

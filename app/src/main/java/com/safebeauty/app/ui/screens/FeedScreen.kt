@@ -102,6 +102,7 @@ import java.text.SimpleDateFormat
 fun FeedScreen(
     onBack: () -> Unit,
     onOpenSalon: (String) -> Unit = {},
+    initialStoryId: String = "",
     viewModel: FeedViewModel = hiltViewModel()
 ) {
     val strings = LocalStrings.current
@@ -112,6 +113,20 @@ fun FeedScreen(
     val commentFailed by viewModel.commentFailed.collectAsStateWithLifecycle()
     var opened by remember { mutableStateOf<SalonPostDocument?>(null) }
     var openStory by remember { mutableStateOf<StoryDocument?>(null) }
+
+    // A story ring tapped on the dashboard sends its id here. Stories stream in
+    // asynchronously, so this waits for the list rather than firing once on
+    // entry and finding nothing. Keyed on the id too, so re-entering with the
+    // same story opens it again.
+    var consumedStoryId by remember { mutableStateOf("") }
+    LaunchedEffect(initialStoryId, stories) {
+        if (initialStoryId.isNotBlank() && initialStoryId != consumedStoryId) {
+            stories.firstOrNull { it.id == initialStoryId }?.let {
+                openStory = it
+                consumedStoryId = initialStoryId
+            }
+        }
+    }
 
     DashboardTheme {
         Scaffold(
@@ -450,7 +465,7 @@ private fun formatFeedTime(epochMs: Long): String {
  * portfolio grid and must not push the actual work off the screen.
  */
 @Composable
-private fun StoryRow(stories: List<StoryDocument>, onOpen: (StoryDocument) -> Unit) {
+internal fun StoryRow(stories: List<StoryDocument>, onOpen: (StoryDocument) -> Unit) {
     val strings = LocalStrings.current
     Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Text(

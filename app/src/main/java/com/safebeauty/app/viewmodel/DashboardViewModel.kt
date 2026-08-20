@@ -164,6 +164,18 @@ class DashboardViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * Live 24-hour salon announcements, for the ring row on the dashboard.
+     *
+     * Also streamed by FeedViewModel for Discover. A free chair this afternoon
+     * expires on its own and is worth more to both sides than anything else on
+     * the screen, so it belongs on the first screen rather than one tap deep.
+     */
+    val stories: StateFlow<List<com.safebeauty.app.data.firebase.StoryDocument>> =
+        firestoreRepository.observeStories()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     var reviewThanksShown by mutableStateOf(false)
         private set
 
