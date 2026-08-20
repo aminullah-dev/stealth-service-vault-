@@ -144,10 +144,21 @@ fun FeedScreen(
                     }
                 }
             } else {
+                // A fixed 3-up grid assumes a full catalogue. At launch there are
+                // one or two photos on the whole platform, and three columns turn
+                // that into a lonely tile in the corner above two thirds of empty
+                // row -- which reads as broken rather than as new. Widening the
+                // tiles while there are few of them keeps every row full, and the
+                // grid tightens to 3-up on its own as salons post.
+                val columns = when {
+                    posts.size < 3  -> posts.size   // 1 or 2 photos fill their own row
+                    posts.size == 4 -> 2            // a 2x2 block beats a row of 3 plus an orphan
+                    else            -> 3
+                }
                 // 1dp gaps, edge to edge: the photos form one continuous surface
                 // rather than a list of separated cards.
                 LazyVerticalGrid(
-                    columns             = GridCells.Fixed(3),
+                    columns             = GridCells.Fixed(columns),
                     modifier            = Modifier.fillMaxSize().padding(padding),
                     contentPadding      = PaddingValues(1.dp),
                     horizontalArrangement = Arrangement.spacedBy(1.dp),
