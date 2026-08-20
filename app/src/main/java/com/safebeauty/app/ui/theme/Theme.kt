@@ -46,6 +46,8 @@ fun paletteFor(brand: AppBrand, dark: Boolean): Palette = when (brand) {
     AppBrand.ROSE     -> if (dark) RoseDarkPalette else RoseLightPalette
     AppBrand.LAVENDER -> if (dark) LavenderDarkPalette else LavenderLightPalette
     AppBrand.SAGE     -> if (dark) SageDarkPalette else SageLightPalette
+    AppBrand.OCEAN    -> if (dark) OceanDarkPalette else OceanLightPalette
+    AppBrand.HONEY    -> if (dark) HoneyDarkPalette else HoneyLightPalette
 }
 
 /**

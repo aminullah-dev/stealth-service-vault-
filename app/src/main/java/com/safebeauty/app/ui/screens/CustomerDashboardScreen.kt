@@ -3381,6 +3381,8 @@ fun ThemePickerDialog(
                                 AppBrand.ROSE     -> strings.themeRose
                                 AppBrand.LAVENDER -> strings.themeLavender
                                 AppBrand.SAGE     -> strings.themeSage
+                                AppBrand.OCEAN    -> strings.themeOcean
+                                AppBrand.HONEY    -> strings.themeHoney
                             },
                             fontSize   = 15.sp,
                             color      = preview.deepRose,
