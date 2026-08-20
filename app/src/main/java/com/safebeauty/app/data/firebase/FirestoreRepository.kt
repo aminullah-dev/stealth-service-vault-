@@ -1,6 +1,7 @@
 package com.safebeauty.app.data.firebase
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
@@ -43,6 +44,9 @@ class FirestoreRepository @Inject constructor(
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
     private val postsCol        = db.collection("salon_posts")
+    // How many Discover tiles to fetch. A grid shows ~9 per screen, so 100
+    // is several screens of scrolling before anyone notices an edge.
+    private val FEED_PAGE_SIZE  = 100L
     private val offersCol       = db.collection("salon_offers")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
@@ -456,17 +460,25 @@ class FirestoreRepository @Inject constructor(
 
     // ── Social discovery feed (salon_posts) ─────────────────────────────────────
 
-    /** The global feed of the most recent salon posts (newest first, capped). */
+    /**
+     * The global Discover feed: the newest salon posts across the whole platform.
+     *
+     * Ordered and capped SERVER-side. It previously attached a listener to the
+     * whole collection and took the first 100 after they arrived, so the display
+     * was capped but the download was not — every open of Discover pulled every
+     * post ever published, and kept paying for each one on every change.
+     */
     fun observeFeed(): Flow<List<SalonPostDocument>> = callbackFlow {
-        val listener = postsCol.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-            val list = snap?.documents
-                ?.mapNotNull { it.toObject(SalonPostDocument::class.java)?.copy(id = it.id) }
-                ?.sortedByDescending { it.createdAt }
-                ?.take(100)
-                ?: emptyList()
-            trySend(list)
-        }
+        val listener = postsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(FEED_PAGE_SIZE)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(SalonPostDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList()
+                trySend(list)
+            }
         awaitClose { listener.remove() }
     }
 

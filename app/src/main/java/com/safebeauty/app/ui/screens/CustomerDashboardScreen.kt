@@ -465,7 +465,7 @@ fun CustomerDashboardScreen(
                         IconButton(onClick = { onNavigate(Screen.SalonMap.build(viewModel.customerId)) }) {
                             Icon(Icons.Default.Map, contentDescription = strings.mapTitle, tint = RoseGold)
                         }
-                        IconButton(onClick = { onNavigate(Screen.Feed.route) }) {
+                        IconButton(onClick = { onNavigate(Screen.Feed.build(viewModel.customerId)) }) {
                             Icon(Icons.Default.PhotoLibrary, contentDescription = strings.feedTitle, tint = RoseGold)
                         }
                         val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()

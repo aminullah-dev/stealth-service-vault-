@@ -92,7 +92,9 @@ sealed class Screen(val route: String) {
         fun build(userId: String) = "kyc/$userId"
     }
     object Support : Screen("support")
-    object Feed : Screen("feed")
+    object Feed : Screen("feed/{userId}") {
+        fun build(userId: String) = "feed/$userId"
+    }
     object SalonMap : Screen("salonMap/{userId}") {
         fun build(userId: String) = "salonMap/$userId"
     }
@@ -330,8 +332,21 @@ fun AppNavGraph(
                 )
             }
 
-            composable(Screen.Feed.route) {
-                FeedScreen(onBack = { navController.popBackStack() })
+            composable(
+                route     = Screen.Feed.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) {
+                // Discover leads somewhere: tapping through to a salon returns to
+                // the dashboard with that salon active, so the detail sheet opens
+                // on exactly the salon whose work caught the customer's eye.
+                val dashVm: com.safebeauty.app.viewmodel.DashboardViewModel = hiltViewModel()
+                FeedScreen(
+                    onBack      = { navController.popBackStack() },
+                    onOpenSalon = { salonId ->
+                        dashVm.setActiveSalon(salonId)
+                        navController.popBackStack()
+                    }
+                )
             }
 
             composable(
