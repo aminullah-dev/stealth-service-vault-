@@ -3800,10 +3800,16 @@ function localizeNotification(n, lang) {
 // Nudged once per appointment (providerNudged), so a provider who is genuinely
 // away is not spammed every run.
 
-const UNCONFIRMED_NUDGE_AFTER_MS = 2 * 60 * 60 * 1000;   // 2 hours
+// Timings and the give-up deadline live in lib/unconfirmed.js so the boundary
+// cases are unit-tested — this decides whether real money is refunded.
+const {
+  UNCONFIRMED_NUDGE_AFTER_MS,
+  UNCONFIRMED_ADMIN_AFTER_MS,
+  unconfirmedDeadline,
+} = require("./lib/unconfirmed");
 
 exports.nudgeUnconfirmedBookings = onSchedule(
-  { schedule: "every 2 hours", region: "us-central1" },
+  { schedule: "every 1 hours", region: "us-central1" },
   async () => {
     const cutoff = Date.now() - UNCONFIRMED_NUDGE_AFTER_MS;
     const snap = await db.collection("appointments")
@@ -3850,5 +3856,75 @@ exports.nudgeUnconfirmedBookings = onSchedule(
       }
     }
     logger.log(`nudgeUnconfirmedBookings: nudged ${notified} provider(s)`);
+
+    // ── Stage 2: put a human on it ──────────────────────────────────────────
+    // With a handful of salons the admin personally onboarded every owner and
+    // has their phone number, so one call converts most of these into a
+    // confirmed booking. That is worth far more than a refund.
+    const adminCutoff = now - UNCONFIRMED_ADMIN_AFTER_MS;
+    const needsAdmin = snap.docs.filter((d) => {
+      const a = d.data();
+      return !a.adminAlerted && (a.createdAt || 0) < adminCutoff;
+    });
+    if (needsAdmin.length) {
+      const admins = await db.collection("users").where("role", "==", "ADMIN").get();
+      const batch = db.batch();
+      admins.docs.forEach((adminDoc) => {
+        batch.set(db.collection("notifications").doc(), {
+          recipientId: adminDoc.id,
+          type:        "SYSTEM",
+          title:       "Bookings still unconfirmed",
+          body:        `${needsAdmin.length} paid booking(s) have gone unconfirmed for over 6 hours. Contact the salon before they are auto-cancelled.`,
+          isRead:      false,
+          createdAt:   now,
+          relatedId:   needsAdmin[0].id,
+        });
+      });
+      needsAdmin.forEach((d) => batch.update(d.ref, { adminAlerted: true }));
+      try {
+        await batch.commit();
+        logger.log(`nudgeUnconfirmedBookings: alerted admins about ${needsAdmin.length} booking(s)`);
+      } catch (e) {
+        logger.warn("nudgeUnconfirmedBookings: admin alert failed", e);
+      }
+    }
+
+    // ── Stage 3: stop waiting, refund, and say so ───────────────────────────
+    // Deliberately NOT auto-confirm. The provider never agreed to this booking;
+    // sending a customer across Kabul to a salon that is not expecting her is a
+    // worse outcome than any refund.
+    const expired = snap.docs.filter((d) => now >= unconfirmedDeadline(d.data()));
+    let cancelled = 0;
+    for (const d of expired) {
+      const appt = d.data();
+      try {
+        // Reuses the same path as a provider decline, so the refund request,
+        // the payment status and the provider's owed balance all unwind exactly
+        // as they do for a manual cancellation.
+        await cancelPaidAppointment(d.id, "SYSTEM", () => true);
+        await db.collection("notifications").add({
+          recipientId: appt.customerId,
+          type:        "BOOKING_CANCELLED",
+          msgKey:      "BOOKING_AUTO_CANCELLED",
+          msgParams:   { salon: appt.salonName || "The salon" },
+          title:       "Booking cancelled — refund on the way",
+          body:        `${appt.salonName || "The salon"} did not confirm your booking in time, so we cancelled it. Your payment is being refunded.`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   d.id,
+        });
+        cancelled++;
+      } catch (e) {
+        // A booking the provider confirmed or cancelled in the same window
+        // throws failed-precondition here; that is the correct outcome, not an
+        // error worth retrying.
+        logger.warn("nudgeUnconfirmedBookings: could not auto-cancel", {
+          appointmentId: d.id, error: String(e.message || e),
+        });
+      }
+    }
+    if (cancelled) {
+      logger.log(`nudgeUnconfirmedBookings: auto-cancelled ${cancelled} unconfirmed booking(s)`);
+    }
   }
 );
