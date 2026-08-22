@@ -9,6 +9,7 @@ import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
 import com.safebeauty.app.util.CrashReporter
+import com.safebeauty.app.util.PhoneUtils
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -877,18 +878,138 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
-    // ── Admin — all users ────────────────────────────────────────────────────
+    // ── Admin — users ────────────────────────────────────────────────────────
+    //
+    // This replaces observeAllUsers, which held a snapshot listener on the whole
+    // collection and sorted it in memory. At the 12 accounts the platform has
+    // today that is invisible; at 100,000 it is 100,000 documents downloaded to
+    // a phone on every open of the Users tab, and re-sent on every write anyone
+    // makes. It was the only listener in the app that scaled with the customer
+    // base rather than with one person's own data.
+    //
+    // Same shape as salonPage/salonCount, for the same reason: one query builder
+    // so the list and the count can never disagree about what "matching" means.
 
-    fun observeAllUsers(): Flow<List<UserDocument>> = callbackFlow {
-        val listener = usersCol.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-            val list = snap?.documents
-                ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                ?.sortedBy { it.createdAt }
-                ?: emptyList()
-            trySend(list)
+    data class UserFilter(
+        val role: String? = null,      // null = every role
+        val search: String = "",
+    )
+
+    data class UserPage(
+        val users: List<UserDocument>,
+        val cursor: DocumentSnapshot?, // pass back as `after` for the next page
+        val endReached: Boolean,
+    )
+
+    /**
+     * The Stats tab's six numbers.
+     *
+     * Null means "could not ask", not zero — see salonCount. An admin looking at
+     * a confidently wrong 0 has no way to tell it from an empty platform.
+     */
+    data class UserCounts(
+        val total: Int? = null,
+        val providers: Int? = null,
+        val customers: Int? = null,
+        val pending: Int? = null,
+        val suspended: Int? = null,
+    )
+
+    private val USER_PAGE_SIZE = 25L
+
+    private fun userQuery(filter: UserFilter): Query {
+        var q: Query = usersCol
+        filter.role?.let { q = q.whereEqualTo("role", it) }
+
+        val search = filter.search.trim().lowercase()
+        if (search.isNotEmpty()) {
+            // An admin searching for a person types one of two things: a phone
+            // number or a name. Both are answered by a field the server derives
+            // (deriveUserPhoneKey), never by one the client can write.
+            val key = PhoneUtils.loginKey(search)
+            if (key.isNotEmpty()) {
+                // Exact, not prefix: this is the same key login resolves by, so
+                // "the number I was given" finds the account that number signs
+                // into — including accounts whose stored phone was never
+                // normalized, which is the whole reason the key exists.
+                return q.whereEqualTo("phoneDigits", key).limit(USER_PAGE_SIZE)
+            }
+            // Firestore cannot match a substring. A range over the normalized
+            // name gives prefix search; \uf8ff is the highest code point, so it
+            // bounds the range at "anything starting with this". Mid-name search
+            // would need an external search service, which the architecture
+            // deliberately excludes.
+            return q.orderBy("nameKey")
+                .startAt(search)
+                .endAt(search + "\uf8ff")
+                .limit(USER_PAGE_SIZE)
         }
-        awaitClose { listener.remove() }
+
+        // Oldest first, which is the order observeAllUsers produced. createdAt is
+        // written at registration and present on every account — worth stating,
+        // because Firestore drops documents that lack the orderBy field, and an
+        // admin list that silently omits accounts is worse than a slow one.
+        return q.orderBy("createdAt").limit(USER_PAGE_SIZE)
+    }
+
+    /** One page of users matching [filter]. */
+    suspend fun usersPage(filter: UserFilter, after: DocumentSnapshot? = null): UserPage {
+        var q = userQuery(filter)
+        if (after != null) q = q.startAfter(after)
+        return runCatching {
+            val snap = q.get().await()
+            UserPage(
+                users = snap.documents.mapNotNull {
+                    it.toObject(UserDocument::class.java)?.copy(uid = it.id)
+                },
+                cursor = snap.documents.lastOrNull(),
+                endReached = snap.documents.size < USER_PAGE_SIZE,
+            )
+        }.getOrElse { err ->
+            CrashReporter.recordNonFatal(err, "usersPage")
+            UserPage(emptyList(), null, true)
+        }
+    }
+
+    /** Counted on the server, so the six numbers do not require reading 100,000 documents. */
+    suspend fun userCounts(): UserCounts {
+        suspend fun countOf(q: Query): Int? = runCatching {
+            q.count().get(AggregateSource.SERVER).await().count.toInt()
+        }.getOrElse {
+            CrashReporter.recordNonFatal(it, "userCounts")
+            null
+        }
+        return UserCounts(
+            total     = countOf(usersCol),
+            providers = countOf(usersCol.whereEqualTo("role", "PROVIDER")),
+            customers = countOf(usersCol.whereEqualTo("role", "CUSTOMER")),
+            pending   = countOf(usersCol.whereEqualTo("status", "PENDING")),
+            suspended = countOf(usersCol.whereEqualTo("status", "SUSPENDED")),
+        )
+    }
+
+    /**
+     * The users behind a set of ids — for attaching names to balances, payouts
+     * and refunds.
+     *
+     * Those screens used to read the whole user collection and join in memory.
+     * Looking up only the ids actually on screen keeps the cost proportional to
+     * what is displayed instead of to how many people have registered. whereIn
+     * takes at most 30 values, so the ids are chunked.
+     */
+    suspend fun usersByIds(ids: Collection<String>): Map<String, UserDocument> {
+        val wanted = ids.filter { it.isNotBlank() }.distinct()
+        if (wanted.isEmpty()) return emptyMap()
+        val out = mutableMapOf<String, UserDocument>()
+        wanted.chunked(30).forEach { chunk ->
+            runCatching {
+                usersCol.whereIn(FieldPath.documentId(), chunk).get().await()
+                    .documents.forEach { d ->
+                        d.toObject(UserDocument::class.java)?.let { out[d.id] = it.copy(uid = d.id) }
+                    }
+            }.onFailure { CrashReporter.recordNonFatal(it, "usersByIds") }
+        }
+        return out
     }
 
     // ── Broadcasts ───────────────────────────────────────────────────────────

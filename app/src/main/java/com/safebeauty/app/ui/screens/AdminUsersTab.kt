@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -81,6 +81,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -129,14 +130,21 @@ internal fun UsersTab(users: List<UserDocument>, isLoaded: Boolean, viewModel: A
     var searchQuery  by remember { mutableStateOf("") }
     var roleFilter   by remember { mutableStateOf<String?>(null) }   // null = all roles
 
-    val filtered = remember(users, searchQuery, roleFilter) {
-        users
-            .filter { roleFilter == null || it.role == roleFilter }
-            .filter {
-                searchQuery.isBlank() ||
-                    it.name.contains(searchQuery, ignoreCase = true) ||
-                    it.phone.contains(searchQuery, ignoreCase = true)
-            }
+    // The role filter and the search are resolved by the server now, not by
+    // filtering a downloaded copy of every account. What the admin types is
+    // debounced: a query per keystroke would send five for "ahmad", each one
+    // paging the collection.
+    //
+    // What the search matches changed with it. It was a case-insensitive
+    // substring of name or phone; it is now a name PREFIX, or a phone number
+    // matched exactly on the key login resolves by. Prefix rather than
+    // substring because Firestore cannot match mid-string without an external
+    // search service. The phone half is strictly better than before — it finds
+    // an account whose stored number was never normalized, which a substring
+    // match on the raw field would miss.
+    LaunchedEffect(searchQuery, roleFilter) {
+        if (searchQuery.isNotEmpty()) delay(300)
+        viewModel.setUserFilter(role = roleFilter, search = searchQuery)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -172,7 +180,7 @@ internal fun UsersTab(users: List<UserDocument>, isLoaded: Boolean, viewModel: A
 
         if (!isLoaded) {
             LoadingBox()
-        } else if (filtered.isEmpty()) {
+        } else if (users.isEmpty()) {
             CenteredEmpty(
                 Icons.Default.Group,
                 strings.statsTotalUsers,
@@ -183,7 +191,14 @@ internal fun UsersTab(users: List<UserDocument>, isLoaded: Boolean, viewModel: A
                 contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(filtered, key = { it.uid }) { user ->
+                itemsIndexed(users, key = { _, u -> u.uid }) { index, user ->
+                    // Fetch the next page a few rows before the end so scrolling
+                    // does not stop to wait. loadMoreUsers ignores the call while
+                    // one is in flight or the end is reached, so this cannot
+                    // stampede.
+                    if (index >= users.size - 4) {
+                        LaunchedEffect(users.size, index) { viewModel.loadMoreUsers() }
+                    }
                     UserRow(
                         user        = user,
                         onDelete    = { deleteTarget = user },

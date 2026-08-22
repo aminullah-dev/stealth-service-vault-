@@ -116,8 +116,9 @@ service cloud.firestore {
                  && request.resource.data.get('noShowCount', 0) == 0
                  && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
                  && request.resource.data.get('profileRewardClaimed', false) == false
-                 // Nor may it seed the login lookup key — see the update rule.
-                 && request.resource.data.get('phoneDigits', '') == '';
+                 // Nor may it seed either derived lookup key — see the update rule.
+                 && request.resource.data.get('phoneDigits', '') == ''
+                 && request.resource.data.get('nameKey', '') == '';
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -202,14 +203,19 @@ service cloud.firestore {
                           == resource.data.get('suspended', false)
                      && request.resource.data.get('suspendedReason', '')
                           == resource.data.get('suspendedReason', '')
-                     // The login lookup key, written only by
-                     // adminBackfillPhoneKeys. authenticateWithPassword resolves
-                     // an account by this value, so a client that could write it
-                     // could claim another account's key and lock its owner out
-                     // — the password check would then run against the wrong
-                     // record.
+                     // The two derived lookup keys, written only by the
+                     // deriveUserPhoneKey trigger. authenticateWithPassword
+                     // resolves an account by phoneDigits, so a client that
+                     // could write it could claim another account's key and
+                     // lock its owner out — the password check would then run
+                     // against the wrong record. nameKey is what the admin
+                     // console searches by; a client that could choose it could
+                     // make its own account unfindable, or surface under
+                     // someone else's name.
                      && request.resource.data.get('phoneDigits', '')
-                          == resource.data.get('phoneDigits', ''));
+                          == resource.data.get('phoneDigits', '')
+                     && request.resource.data.get('nameKey', '')
+                          == resource.data.get('nameKey', ''));
 
       allow delete: if isAdmin();
     }

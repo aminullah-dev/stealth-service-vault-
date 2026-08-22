@@ -28,13 +28,21 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * The Stats tab's six numbers.
+ *
+ * Nullable because they are now counted on the server, and a count can fail.
+ * Null means "could not ask" and renders as a dash; zero means "none". Folding
+ * the first into the second would show an admin a confident 0 registered users
+ * when the truth is that the query did not run.
+ */
 data class SystemStats(
-    val totalUsers: Int = 0,
-    val providers: Int = 0,
-    val customers: Int = 0,
-    val pendingApprovals: Int = 0,
-    val totalSalons: Int = 0,
-    val suspendedUsers: Int = 0
+    val totalUsers: Int? = null,
+    val providers: Int? = null,
+    val customers: Int? = null,
+    val pendingApprovals: Int? = null,
+    val totalSalons: Int? = null,
+    val suspendedUsers: Int? = null
 )
 
 @HiltViewModel
@@ -93,13 +101,87 @@ class AdminViewModel @Inject constructor(
         }
     }
 
+    // ── Users: paged, filtered and counted on the server ────────────────────
+    //
+    // This used to be one StateFlow over a listener on the entire users
+    // collection, which the Users tab then searched and filtered in memory, and
+    // which three other screens joined against for display names. That works
+    // exactly until the platform has more users than a phone wants to download.
+    //
+    // Each of those four jobs now asks for what it needs: a page, a count, or
+    // the specific people on screen.
+
     private val _usersLoaded = MutableStateFlow(false)
     val usersLoaded: StateFlow<Boolean> = _usersLoaded.asStateFlow()
-    val allUsers: StateFlow<List<UserDocument>> =
-        firestoreRepository.observeAllUsers()
-            .onEach { _usersLoaded.value = true }
-            .catch { _usersLoaded.value = true; emit(emptyList()) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _users = MutableStateFlow<List<UserDocument>>(emptyList())
+    val users: StateFlow<List<UserDocument>> = _users.asStateFlow()
+
+    private val _userFilter = MutableStateFlow(FirestoreRepository.UserFilter())
+    val userFilter: StateFlow<FirestoreRepository.UserFilter> = _userFilter.asStateFlow()
+
+    private val _endOfUsers = MutableStateFlow(false)
+    val endOfUsers: StateFlow<Boolean> = _endOfUsers.asStateFlow()
+
+    private var userCursor: com.google.firebase.firestore.DocumentSnapshot? = null
+    private var loadingUsers = false
+
+    /**
+     * Apply a role filter and/or a search term, and start again from the first
+     * page. Both are answered by the server: the search resolves a phone number
+     * through the same derived key login uses, or matches a name prefix.
+     */
+    fun setUserFilter(role: String? = _userFilter.value.role, search: String = _userFilter.value.search) {
+        val next = FirestoreRepository.UserFilter(role = role, search = search)
+        if (next == _userFilter.value && (_users.value.isNotEmpty() || loadingUsers)) return
+        _userFilter.value = next
+        refreshUsers()
+    }
+
+    fun refreshUsers() {
+        viewModelScope.launch {
+            loadingUsers = true
+            val page = firestoreRepository.usersPage(_userFilter.value)
+            userCursor        = page.cursor
+            _users.value      = page.users
+            _endOfUsers.value = page.endReached
+            _usersLoaded.value = true
+            loadingUsers = false
+            refreshUserCounts()
+        }
+    }
+
+    /**
+     * Fetch the next page. Ignored while one is in flight or the end is reached,
+     * so the list can call this freely as the admin scrolls without stampeding.
+     */
+    fun loadMoreUsers() {
+        if (loadingUsers || _endOfUsers.value) return
+        val cursor = userCursor ?: return
+        viewModelScope.launch {
+            loadingUsers = true
+            val page = firestoreRepository.usersPage(_userFilter.value, cursor)
+            userCursor        = page.cursor ?: cursor
+            val seen = _users.value.map { it.uid }.toSet()
+            _users.value      = _users.value + page.users.filterNot { it.uid in seen }
+            _endOfUsers.value = page.endReached
+            loadingUsers = false
+        }
+    }
+
+    private val _userCounts = MutableStateFlow(FirestoreRepository.UserCounts())
+
+    private fun refreshUserCounts() {
+        viewModelScope.launch { _userCounts.value = firestoreRepository.userCounts() }
+    }
+
+    init {
+        // The listener this replaces started as soon as the dashboard collected
+        // it, so the Stats tab had its numbers whether or not the Users tab had
+        // ever been opened. Without this, an admin who goes straight to Stats
+        // waits on a spinner that never resolves.
+        refreshUsers()
+    }
 
     private val _salonsLoaded = MutableStateFlow(false)
     val allSalons: StateFlow<List<SalonDocument>> =
@@ -113,14 +195,17 @@ class AdminViewModel @Inject constructor(
         combine(_usersLoaded, _salonsLoaded) { u, s -> u && s }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    val stats: StateFlow<SystemStats> = combine(allUsers, allSalons) { users, salons ->
+    // Counted by the server rather than by counting a downloaded list. The salon
+    // total still comes from observeAllSalons, which is bounded by the number of
+    // salons on the platform rather than by the number of customers.
+    val stats: StateFlow<SystemStats> = combine(_userCounts, allSalons) { c, salons ->
         SystemStats(
-            totalUsers       = users.size,
-            providers        = users.count { it.role == "PROVIDER" },
-            customers        = users.count { it.role == "CUSTOMER" },
-            pendingApprovals = users.count { it.status == "PENDING" },
+            totalUsers       = c.total,
+            providers        = c.providers,
+            customers        = c.customers,
+            pendingApprovals = c.pending,
             totalSalons      = salons.size,
-            suspendedUsers   = users.count { it.status == "SUSPENDED" }
+            suspendedUsers   = c.suspended
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SystemStats())
 
@@ -136,10 +221,16 @@ class AdminViewModel @Inject constructor(
             .catch { emit(10.0) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 10.0)
 
-    /** Provider balances joined with provider display names + payout destination for the UI. */
+    /**
+     * Provider balances joined with provider display names + payout destination.
+     *
+     * The names are fetched for the providers actually in the ledger, rather
+     * than by holding every user on the platform in memory to look a few of
+     * them up. Same for payouts and refunds below.
+     */
     val providerBalances: StateFlow<List<ProviderBalance>> =
-        combine(firestoreRepository.observeProviderBalances(), allUsers) { balances, users ->
-            val userById = users.associateBy { it.uid }
+        firestoreRepository.observeProviderBalances().map { balances ->
+            val userById = firestoreRepository.usersByIds(balances.map { it.providerId })
             balances.map {
                 val u = userById[it.providerId]
                 it.copy(
@@ -153,8 +244,9 @@ class AdminViewModel @Inject constructor(
 
     /** Payout history joined with provider names, most recent first. */
     val payouts: StateFlow<List<PayoutDocument>> =
-        combine(firestoreRepository.observePayouts(), allUsers) { payouts, users ->
-            val nameById = users.associate { it.uid to it.name }
+        firestoreRepository.observePayouts().map { payouts ->
+            val nameById = firestoreRepository.usersByIds(payouts.map { it.providerId })
+                .mapValues { (_, u) -> u.name }
             payouts.map { it.copy(providerName = nameById[it.providerId] ?: it.providerId) }
         }
             .catch { emit(emptyList()) }
@@ -162,8 +254,11 @@ class AdminViewModel @Inject constructor(
 
     /** Refund requests joined with customer + salon names, most recent first. */
     private val refundRequestsJoined: StateFlow<List<com.safebeauty.app.data.firebase.RefundRequestDocument>> =
-        combine(firestoreRepository.observeRefundRequests(), allUsers, allSalons) { refunds, users, salons ->
-            val nameById  = users.associate { it.uid to it.name }
+        combine(firestoreRepository.observeRefundRequests(), allSalons) { refunds, salons ->
+            // combine's transform is itself a suspend function, so the lookup
+            // happens here rather than in an extra map stage.
+            val nameById  = firestoreRepository.usersByIds(refunds.map { it.customerId })
+                .mapValues { (_, u) -> u.name }
             val salonById = salons.associate { it.id to it.salonName }
             refunds.map {
                 it.copy(

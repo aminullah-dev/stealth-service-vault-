@@ -152,14 +152,14 @@ internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
                 AdminStatCard(
                     icon    = Icons.Default.Group,
                     label   = strings.statsTotalUsers,
-                    value   = "${stats.totalUsers}",
+                    value   = stats.totalUsers?.toString() ?: "—",
                     tint    = DeepRose,
                     modifier = Modifier.weight(1f)
                 )
                 AdminStatCard(
                     icon    = Icons.Default.QueryStats,
                     label   = strings.statsPendingApprovals,
-                    value   = "${stats.pendingApprovals}",
+                    value   = stats.pendingApprovals?.toString() ?: "—",
                     tint    = WarningOrange,
                     modifier = Modifier.weight(1f)
                 )
@@ -173,14 +173,14 @@ internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
                 AdminStatCard(
                     icon    = Icons.Default.CheckCircle,
                     label   = strings.statsProviders,
-                    value   = "${stats.providers}",
+                    value   = stats.providers?.toString() ?: "—",
                     tint    = AvailableGreen,
                     modifier = Modifier.weight(1f)
                 )
                 AdminStatCard(
                     icon    = Icons.Default.Person,
                     label   = strings.statsCustomers,
-                    value   = "${stats.customers}",
+                    value   = stats.customers?.toString() ?: "—",
                     tint    = RoseGold,
                     modifier = Modifier.weight(1f)
                 )
@@ -194,14 +194,14 @@ internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
                 AdminStatCard(
                     icon    = Icons.Default.Store,
                     label   = strings.totalSalons,
-                    value   = "${stats.totalSalons}",
+                    value   = stats.totalSalons?.toString() ?: "—",
                     tint    = DeepRose,
                     modifier = Modifier.weight(1f)
                 )
                 AdminStatCard(
                     icon    = Icons.Default.Block,
                     label   = strings.statsSuspended,
-                    value   = "${stats.suspendedUsers}",
+                    value   = stats.suspendedUsers?.toString() ?: "—",
                     tint    = WarningOrange,
                     modifier = Modifier.weight(1f)
                 )

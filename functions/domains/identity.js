@@ -544,7 +544,15 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
 
 // ── adminBackfillPhoneKeys ────────────────────────────────────────────────────
 //
-// Writes the phoneDigits lookup key onto accounts that predate it.
+// Writes the derived lookup keys — phoneDigits and nameKey — onto accounts that
+// predate them.
+//
+// deriveUserPhoneKey keeps both current from here on, but a trigger only fires
+// on a write: an account nobody has touched since the field was introduced
+// simply does not have it. For phoneDigits that meant a locked-out admin. For
+// nameKey it would mean an admin search that confidently returns nothing, which
+// is worse — a lockout announces itself, an empty result set looks like an
+// answer.
 //
 // Only needed for records whose phone field was never normalized — anything the
 // current app wrote is already found by an exact match on `phone`. Server-only
@@ -567,21 +575,33 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
   for (const d of snap.docs) {
     const data = d.data();
     const key  = phoneKey(data.phone);
-    if (!key) continue;
+    // Derived the same way as the trigger. Written even when empty, so that a
+    // nameless account still appears in a name-ordered admin list rather than
+    // being dropped by the orderBy.
+    const name = String(data.name || "").trim().toLowerCase();
 
-    if (seen.has(key)) {
-      collisions.push({ key, uids: [seen.get(key), d.id] });
-    } else {
-      seen.set(key, d.id);
+    const patch = {};
+    if (key && data.phoneDigits !== key) patch.phoneDigits = key;
+    if (data.nameKey !== name) patch.nameKey = name;
+
+    // Only a usable phone can collide. This used to `continue` here, which also
+    // skipped everything below it — so an account with an unreadable phone got
+    // no keys at all rather than the one key it could still have.
+    if (key) {
+      if (seen.has(key)) {
+        collisions.push({ key, uids: [seen.get(key), d.id] });
+      } else {
+        seen.set(key, d.id);
+      }
     }
 
-    if (data.phoneDigits !== key) {
-      await d.ref.update({ phoneDigits: key });
+    if (Object.keys(patch).length > 0) {
+      await d.ref.update(patch);
       written += 1;
     }
   }
 
-  await logAdminAction(me, "BACKFILL_PHONE_KEYS", {
+  await logAdminAction(me, "BACKFILL_USER_KEYS", {
     scanned: snap.size, written, collisions: collisions.length,
   });
   if (collisions.length) {
@@ -659,13 +679,34 @@ exports.deriveUserPhoneKey = onDocumentWritten(
     if (!after || !after.exists) return;
 
     const u = after.data() || {};
-    const want = phoneKey(u.phone);
-    if (!want) return;                       // too short to identify anyone
-    if (u.phoneDigits === want) return;      // unchanged — and this is what
-                                             // stops the write below from
-                                             // retriggering this function forever
 
-    await after.ref.update({ phoneDigits: want });
+    // Two derived keys, both written here for the same reason: a lookup value
+    // the client must not choose, kept in step with the field it comes from.
+    //
+    //   phoneDigits — how authenticateWithPassword finds an account
+    //   nameKey     — how the admin console searches for one
+    //
+    // nameKey is written even when it is empty. Firestore drops documents that
+    // lack the orderBy field, so a user with no name would be invisible in a
+    // name-ordered admin list — present in the count, absent from the page, and
+    // impossible to act on. The salon path learned this the same way (see
+    // deriveSalonFields and sortRating).
+    const wantPhone = phoneKey(u.phone);
+    const wantName  = String(u.name || "").trim().toLowerCase();
+
+    const patch = {};
+    if (wantPhone && u.phoneDigits !== wantPhone) patch.phoneDigits = wantPhone;
+    if (u.nameKey !== wantName) patch.nameKey = wantName;
+
+    // Nothing to derive. This is also what stops the update below from
+    // retriggering this function forever.
+    if (Object.keys(patch).length === 0) return;
+
+    await after.ref.update(patch);
+
+    // Only a phone change can create an ambiguous login.
+    if (!patch.phoneDigits) return;
+    const want = wantPhone;
 
     // Two accounts sharing a subscriber number makes login ambiguous for both:
     // whoever the index returns first wins, and the other person signs in to a
