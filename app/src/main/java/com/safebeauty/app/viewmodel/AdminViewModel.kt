@@ -254,7 +254,7 @@ class AdminViewModel @Inject constructor(
 
     /** Refund requests joined with customer + salon names, most recent first. */
     private val refundRequestsJoined: StateFlow<List<com.safebeauty.app.data.firebase.RefundRequestDocument>> =
-        combine(firestoreRepository.observeRefundRequests(), allSalons) { refunds, salons ->
+        combine(firestoreRepository.observePendingRefundRequests(), allSalons) { refunds, salons ->
             // combine's transform is itself a suspend function, so the lookup
             // happens here rather than in an extra map stage.
             val nameById  = firestoreRepository.usersByIds(refunds.map { it.customerId })
@@ -270,10 +270,9 @@ class AdminViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // The PENDING filter moved to the query, so this is now just the joined list.
     val pendingRefundRequests: StateFlow<List<com.safebeauty.app.data.firebase.RefundRequestDocument>> =
         refundRequestsJoined
-            .map { list -> list.filter { it.status == "PENDING" } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var commissionInput by mutableStateOf("")
     var commissionSaved by mutableStateOf(false)

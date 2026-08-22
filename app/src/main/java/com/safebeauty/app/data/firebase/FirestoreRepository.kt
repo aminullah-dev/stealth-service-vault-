@@ -89,6 +89,12 @@ class FirestoreRepository @Inject constructor(
     private val SALON_QUEUE          = 200L   // a salon's unconfirmed bookings
     private val SALON_PORTFOLIO      = 100L   // reviews, photos and offers per salon
     private val PROVIDER_PAYOUTS     = 100L   // a provider's payout history
+    private val ADMIN_QUEUE          = 200L   // things awaiting an admin decision
+    private val ADMIN_HISTORY        = 200L   // admin lists that are a record, not a queue
+    // provider_balances holds one document per provider, so it is bounded by how
+    // many salons the platform has rather than by how long it has been running.
+    // This is a backstop against that assumption being wrong, not a page.
+    private val PROVIDER_LEDGER      = 1000L
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -177,11 +183,12 @@ class FirestoreRepository @Inject constructor(
     fun observeKycPending(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("kycStatus", "PENDING")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -205,12 +212,15 @@ class FirestoreRepository @Inject constructor(
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("status", "PENDING")
+            // The role filter ran after the fact, so approving providers read
+            // every pending account of any kind.
+            .whereEqualTo("role", "PROVIDER")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                    ?.filter { it.role == "PROVIDER" }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -869,6 +879,13 @@ class FirestoreRepository @Inject constructor(
     fun observeActiveOffers(): Flow<List<OfferDocument>> = callbackFlow {
         val listener = offersCol
             .whereEqualTo("active", true)
+            // Expiry stays a client-side test: isLive treats expiresAt == 0 as
+            // "never expires", and Firestore cannot express that OR alongside
+            // the range it would need. What this bound risks is a salon losing
+            // its offer badge, not a customer losing money, so recency is the
+            // right thing to keep.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val now = System.currentTimeMillis()
@@ -1048,7 +1065,10 @@ class FirestoreRepository @Inject constructor(
     // ── Broadcasts ───────────────────────────────────────────────────────────
 
     fun observeBroadcasts(): Flow<List<BroadcastDocument>> = callbackFlow {
-        val listener = broadcastsCol.addSnapshotListener { snap, err ->
+        val listener = broadcastsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(BroadcastDocument::class.java)?.copy(id = it.id) }
@@ -1199,7 +1219,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live list of promo codes (admin-only read, enforced by rules), newest first. */
     fun observePromoCodes(): Flow<List<PromoDocument>> = callbackFlow {
-        val listener = promoCodesCol.addSnapshotListener { snap, err ->
+        val listener = promoCodesCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(PromoDocument::class.java) }
@@ -1214,12 +1237,13 @@ class FirestoreRepository @Inject constructor(
     fun observeFlaggedReports(): Flow<List<CustomerReportDocument>> = callbackFlow {
         val listener = db.collection("customer_reports")
             .whereEqualTo("flagged", true)
+            .whereEqualTo("status", "OPEN")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(CustomerReportDocument::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "OPEN" }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1256,12 +1280,18 @@ class FirestoreRepository @Inject constructor(
 
     /** Admin-only: live list of open support tickets, newest first. */
     fun observeOpenSupportTickets(): Flow<List<SupportTicket>> = callbackFlow {
-        val listener = supportTicketsCol.addSnapshotListener { snap, err ->
+        // Ordered by updatedAt, not createdAt: support_tickets has never had a
+        // createdAt, and ordering by a field the documents do not carry returns
+        // nothing at all — an admin would see an empty support queue with
+        // tickets sitting in it.
+        val listener = supportTicketsCol
+            .whereEqualTo("status", "OPEN")
+            .orderBy("updatedAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_QUEUE)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(SupportTicket::class.java)?.copy(id = it.id) }
-                ?.filter { it.status == "OPEN" }
-                ?.sortedByDescending { it.updatedAt }
                 ?: emptyList()
             trySend(list)
         }
@@ -1282,7 +1312,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live list of what the platform owes each provider, highest first. */
     fun observeProviderBalances(): Flow<List<ProviderBalance>> = callbackFlow {
-        val listener = providerBalancesCol.addSnapshotListener { snap, err ->
+        // Deliberately no orderBy. Sorting by owedAmount and taking the top N
+        // would drop the negative balances off the end — which is precisely the
+        // bug the comment below records fixing.
+        val listener = providerBalancesCol.limit(PROVIDER_LEDGER).addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(ProviderBalance::class.java) }
@@ -1325,7 +1358,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live payout history (most recent first). Admin reads all rows. */
     fun observePayouts(): Flow<List<PayoutDocument>> = callbackFlow {
-        val listener = payoutsCol.addSnapshotListener { snap, err ->
+        val listener = payoutsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
@@ -1356,12 +1392,24 @@ class FirestoreRepository @Inject constructor(
     }
 
     /** Live refund requests (most recent first). Admin reads all rows. */
-    fun observeRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
-        val listener = refundRequestsCol.addSnapshotListener { snap, err ->
+    /**
+     * Refund requests still awaiting an admin decision, oldest first.
+     *
+     * Renamed from observeRefundRequests, which read every refund ever made so
+     * the caller could filter for PENDING. Bounding that by recency would have
+     * hidden an old pending refund behind newer settled ones — and a pending
+     * refund an admin never sees is a customer's money that never comes back.
+     * Filtering on the server keeps the queue complete at any history length.
+     */
+    fun observePendingRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
+        val listener = refundRequestsCol
+            .whereEqualTo("status", "PENDING")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
-                ?.sortedByDescending { it.createdAt }
                 ?: emptyList()
             trySend(list)
         }
