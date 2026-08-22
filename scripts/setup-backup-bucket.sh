@@ -20,7 +20,7 @@ if [[ -z "$PROJECT" ]]; then
   exit 2
 fi
 
-BUCKET="gs://${PROJECT}-backups"
+BUCKET="gs://${PROJECT}-firestore-backups"
 NUMBER="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')"
 SA="${NUMBER}-compute@developer.gserviceaccount.com"
 
@@ -35,12 +35,22 @@ else
   echo "   bucket created"
 fi
 
-echo "── Granting export permissions to $SA"
+# Two accounts, for two different reasons. The function's runtime account needs
+# permission to ASK for an export. The Firestore service agent is what actually
+# writes the files, so the bucket grant must go to it — granting only the caller
+# produces "Service account does not have access to Google Cloud Storage file",
+# which reads like the caller's problem and is not.
+AGENT="service-${NUMBER}@gcp-sa-firestore.iam.gserviceaccount.com"
+
+echo "── Granting export permission to the caller: $SA"
 gcloud projects add-iam-policy-binding "$PROJECT" \
   --member="serviceAccount:${SA}" \
   --role=roles/datastore.importExportAdmin >/dev/null
-gcloud storage buckets add-iam-policy-binding "$BUCKET" \
-  --member="serviceAccount:${SA}" \
-  --role=roles/storage.admin >/dev/null
+
+echo "── Granting bucket access to the writer: $AGENT"
+for member in "serviceAccount:${SA}" "serviceAccount:${AGENT}"; do
+  gcloud storage buckets add-iam-policy-binding "$BUCKET" \
+    --member="$member" --role=roles/storage.admin >/dev/null
+done
 
 echo "── Done. scheduledFirestoreBackup can now export to $BUCKET"

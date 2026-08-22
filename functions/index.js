@@ -4297,7 +4297,13 @@ exports.cleanupRateLimits = onSchedule(
 // its own data into production's backup folder — quietly corrupting the one
 // artefact a real recovery depends on, and only discovered while trying to use
 // it. The bucket for each project is created by scripts/setup-backup-bucket.sh.
-const BACKUP_BUCKET = `gs://${process.env.GCLOUD_PROJECT || "safebeauty"}-backups`;
+// "-firestore-backups", not "-backups": gs://safebeauty-backups already exists
+// in an unrelated project (worktrack-prod), which is why every nightly export
+// failed with PERMISSION_DENIED and the bucket this code pointed at stayed empty
+// for the life of the project. Bucket names are a single global namespace, so a
+// plausible name being taken by someone else — including yourself, in another
+// project — is normal and silent.
+const BACKUP_BUCKET = `gs://${process.env.GCLOUD_PROJECT || "safebeauty"}-firestore-backups`;
 
 exports.scheduledFirestoreBackup = onSchedule(
   { schedule: "every day 02:00", timeZone: "Asia/Kabul", region: "us-central1" },
