@@ -32,6 +32,18 @@ if [[ -z "$PROJECT" || -z "$EMAIL" ]]; then
   exit 2
 fi
 
+# Two catch-all alerts that key off nothing anyone had to anticipate. Every
+# alert below them fires on a label chosen in advance, which means they only
+# ever catch failures someone already thought of. Three jobs in this project
+# were dead from the day they were written and none of the labelled alerts said
+# so, because a crash is not a labelled event.
+SCHEDULED_SERVICES="scheduledfirestorebackup|verifyfirestorebackup|pruneoldbackups|reconcileintegrity|normalizesalonsdaily|nudgeunconfirmedbookings|completepastappointments|sendbookingreminders|expireabandonedpayments|sendreengagementnudges|cleanupexpiredstories|cleanupratelimits"
+
+CATCH_ALL=(
+  "safebeauty_scheduled_job_error|A scheduled job failed|0|severity>=ERROR AND resource.type=\"cloud_run_revision\" AND resource.labels.service_name=~\"^(${SCHEDULED_SERVICES})\$\"|A background job logged an error. These run on a timer, rarely, and nothing else notices when one stops working."
+  "safebeauty_function_error|Function errors are spiking|10|severity>=ERROR AND resource.type=\"cloud_run_revision\"|More than ten function errors in ten minutes. A catch-all, because the labelled alerts only fire for failures someone anticipated."
+)
+
 # kind|human description|why it is worth waking someone
 ALERTS=(
   "BOOKING_FAILED|Booking failed|A customer tried to book and could not. This is lost revenue and a lost customer, one per event."
@@ -120,6 +132,49 @@ for entry in "${ALERTS[@]}"; do
   "alertStrategy": {
     "autoClose": "1800s"
   },
+  "notificationChannels": ["$CHANNEL"],
+  "enabled": true
+}
+JSON
+  gcloud alpha monitoring policies create --policy-from-file="$tmp" --project="$PROJECT" >/dev/null
+  rm -f "$tmp"
+  echo "   policy created"
+done
+
+for entry in "${CATCH_ALL[@]}"; do
+  IFS='|' read -r METRIC TITLE THRESHOLD FILTER WHY <<< "$entry"
+  echo "── $TITLE"
+
+  if gcloud logging metrics describe "$METRIC" --project="$PROJECT" >/dev/null 2>&1; then
+    echo "   metric exists"
+  else
+    gcloud logging metrics create "$METRIC" --project="$PROJECT" \
+      --description="$WHY" --log-filter="$FILTER" >/dev/null
+    echo "   metric created"
+  fi
+
+  if gcloud alpha monitoring policies list --project="$PROJECT" \
+       --filter="displayName='SafeBeauty: $TITLE'" --format='value(name)' 2>/dev/null | grep -q .; then
+    echo "   policy exists"
+    continue
+  fi
+
+  tmp="$(mktemp)"
+  cat > "$tmp" <<JSON
+{
+  "displayName": "SafeBeauty: $TITLE",
+  "documentation": { "content": "$WHY", "mimeType": "text/markdown" },
+  "combiner": "OR",
+  "conditions": [{
+    "displayName": "$TITLE",
+    "conditionThreshold": {
+      "filter": "metric.type=\"logging.googleapis.com/user/$METRIC\" AND resource.type = one_of(\"cloud_run_revision\",\"cloud_function\",\"global\")",
+      "comparison": "COMPARISON_GT", "thresholdValue": $THRESHOLD, "duration": "0s",
+      "aggregations": [{ "alignmentPeriod": "600s", "perSeriesAligner": "ALIGN_SUM", "crossSeriesReducer": "REDUCE_SUM" }],
+      "trigger": { "count": 1 }
+    }
+  }],
+  "alertStrategy": { "autoClose": "3600s" },
   "notificationChannels": ["$CHANNEL"],
   "enabled": true
 }
