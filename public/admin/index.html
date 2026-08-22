@@ -1640,11 +1640,14 @@ async function renderHealth(){
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Accounts created before phone numbers were normalized are found at sign-in by a slower
-          fallback. This writes their lookup key so every login is a single indexed read.
-          Safe to run repeatedly; reports any two accounts that share a number.
+          Accounts write two derived lookup keys: the phone key that resolves a sign-in to a
+          single indexed read, and the name key the user search matches on. A trigger keeps
+          both current, but it only fires on a write — an account nobody has touched since a
+          key was introduced simply does not have it, and is then unfindable by that key.
+          This fills in what is missing. Safe to run repeatedly; reports any two accounts
+          that share a number.
         </div>
-        <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Assign missing phone lookup keys</button>
+        <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Fill in missing lookup keys</button>
         <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
