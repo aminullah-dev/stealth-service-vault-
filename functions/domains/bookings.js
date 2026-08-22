@@ -840,10 +840,28 @@ exports.nudgeUnconfirmedBookings = onSchedule(
       const providerId = await providerFor(a.salonId);
       if (!providerId) {
         // The salon is gone, or the booking predates salons having owners.
-        // There is nobody to nudge, so it is reported rather than skipped in
-        // silence — an unactionable row that reappears in every sweep forever
-        // is how a report becomes noise and the next real finding gets missed.
-        orphaned.push({ appointmentId: d.id, salonId: a.salonId || "", salonName: a.salonName || "" });
+        // Nobody can be nudged, and nobody ever will be: this booking cannot be
+        // served, so it is closed rather than left PENDING forever in a
+        // customer's list.
+        //
+        // It is reported the FIRST time only. The comment that used to sit here
+        // said an unactionable row reappearing in every sweep is how a report
+        // becomes noise — and then this alerted hourly on two June rows whose
+        // salon will never exist, which is 48 emails a day teaching someone to
+        // ignore the channel that also carries payment failures. Alert on the
+        // transition, never on the state.
+        if (!a.orphanReported) {
+          orphaned.push({ appointmentId: d.id, salonId: a.salonId || "", salonName: a.salonName || "" });
+        }
+        await d.ref.update({
+          status:         "CANCELLED",
+          orphanReported: true,
+          cancelledAt:    Date.now(),
+        });
+        await logAppointmentEvent(
+          { ...a, status: "PENDING" }, d.id, "CANCELLED", null,
+          "Closed automatically: the salon no longer exists, so nobody can serve it"
+        );
         continue;
       }
       if (!byProvider.has(providerId)) byProvider.set(providerId, []);
@@ -851,7 +869,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
 
     if (orphaned.length) {
-      alertable("BOOKING_FAILED", "Pending bookings whose salon no longer exists", {
+      alertable("BOOKING_FAILED", "Bookings closed because their salon no longer exists", {
         count: orphaned.length, orphaned: orphaned.slice(0, 20),
       });
     }
