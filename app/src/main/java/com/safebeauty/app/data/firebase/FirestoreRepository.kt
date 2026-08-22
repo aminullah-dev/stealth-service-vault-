@@ -95,6 +95,9 @@ class FirestoreRepository @Inject constructor(
     // many salons the platform has rather than by how long it has been running.
     // This is a backstop against that assumption being wrong, not a page.
     private val PROVIDER_LEDGER      = 1000L
+    // Same reasoning for the salon directory: one document per business, so it
+    // grows with how many salons join, not with how long the platform runs.
+    private val SALON_DIRECTORY      = 1000L
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -236,8 +239,14 @@ class FirestoreRepository @Inject constructor(
      */
     fun observeAvailableSalons(): Flow<List<SalonDocument>> = callbackFlow {
         val scope = this
+        // Deliberately unordered and generously bounded. This is no longer the
+        // list anyone browses — salonPage does that — it is the local directory
+        // findSalon looks a booking's salon up in, and an ordering with a limit
+        // would decide which salons are findable. The bound is a backstop
+        // against the assumption that a salon directory stays small, not a page.
         val listener = salonsCol
             .whereEqualTo("isAvailable", true)
+            .limit(SALON_DIRECTORY)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     scope.launch {
@@ -789,15 +798,40 @@ class FirestoreRepository @Inject constructor(
      * user read only their own likes, so this is also the only shape of like
      * query a client can make — nobody can list who liked a salon's photo.
      */
-    fun observeMyLikes(userId: String): Flow<Set<String>> = callbackFlow {
-        if (userId.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
-        val listener = postLikesCol
-            .whereEqualTo("userId", userId)
-            .addSnapshotListener { snap, err ->
-                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
-                trySend(snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet())
-            }
-        awaitClose { listener.remove() }
+    /**
+     * Which of [postIds] this user has liked.
+     *
+     * Scoped to the posts on screen rather than to the user. It used to observe
+     * every like the account had ever made, which is the one listener here a
+     * limit could not fix: the result is a membership test, not a list, so
+     * truncating it does not shorten anything — it reports a liked post as
+     * unliked, draws an empty heart, and turns the next tap into a second like.
+     *
+     * The feed is a bounded page, so the answer only ever concerns that many
+     * posts. whereIn takes 30 values, so the ids are chunked and the union of
+     * the chunks is emitted; each chunk is its own listener and each is bounded
+     * by construction.
+     */
+    fun observeMyLikes(userId: String, postIds: List<String>): Flow<Set<String>> = callbackFlow {
+        val wanted = postIds.filter { it.isNotBlank() }.distinct()
+        if (userId.isBlank() || wanted.isEmpty()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+
+        val chunks = wanted.chunked(30)
+        val byChunk = arrayOfNulls<Set<String>>(chunks.size)
+        val listeners = chunks.mapIndexed { i, chunk ->
+            postLikesCol
+                .whereEqualTo("userId", userId)
+                .whereIn("postId", chunk)
+                .addSnapshotListener { snap, err ->
+                    byChunk[i] = if (err != null) emptySet()
+                                 else snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet()
+                    // Emit the union so far. A chunk that has not reported yet
+                    // contributes nothing, which shows an unfilled heart for a
+                    // moment rather than a wrong one.
+                    trySend(byChunk.filterNotNull().flatten().toSet())
+                }
+        }
+        awaitClose { listeners.forEach { it.remove() } }
     }
 
     suspend fun setPostLiked(postId: String, salonId: String, userId: String, liked: Boolean) {

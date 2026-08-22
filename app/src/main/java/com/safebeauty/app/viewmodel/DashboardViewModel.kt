@@ -301,43 +301,12 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    val filteredSalons: StateFlow<List<SalonDocument>> = combine(
-        combine(
-            _allAvailableSalons,
-            _selectedCategoryIndex,
-            _selectedNeighborhoodIndex,
-            favoriteIds,
-            _showFavoritesOnly
-        ) { salons, catIdx, hoodIdx, favorites, favOnly ->
-            val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
-            val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
-            salons.filter { salon ->
-                // `categories` is the server-derived canonical list. The old
-                // substring check is kept as a fallback rather than replaced:
-                // it compared an English key against whatever a salon typed, so
-                // a salon offering "ناخن" never matched "Nails" and every chip
-                // returned nothing. Keeping it means this is strictly better
-                // than before for a salon the backfill has not reached yet, and
-                // never worse.
-                val catMatch  = category == "All" ||
-                    salon.categories.contains(category) ||
-                    salon.services.any { it.contains(category, ignoreCase = true) }
-                // Same shape: districtKey when it has been derived, the raw
-                // stored value otherwise, so a legacy free-text district is no
-                // less findable than it is today.
-                val hoodMatch = neighborhood == "All Neighborhoods" ||
-                    salon.districtKey == neighborhood ||
-                    salon.district == neighborhood
-                val favMatch  = !favOnly || favorites.contains(salon.id)
-                catMatch && hoodMatch && favMatch
-            }
-        },
-        _searchQuery
-    ) { preFilt, query ->
-        if (query.isBlank()) preFilt
-        else preFilt.filter { it.salonName.contains(query, ignoreCase = true) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
+    // filteredSalons lived here: the whole salons collection, filtered on the
+    // device by category, neighbourhood, favourites and search. Server-side
+    // discovery replaced every one of those filters, and the UI switched to
+    // displayedSalons — but this was left behind, still subscribed. Nothing read
+    // it, so it was thirty-six lines whose only effect was to keep a listener on
+    // every salon alive.
     // ── Advanced filter + sort (rating / price / distance) ──────────────────────
     private val _customerLoc = MutableStateFlow<Pair<Double, Double>?>(null)
     val customerLoc: StateFlow<Pair<Double, Double>?> = _customerLoc
@@ -380,7 +349,7 @@ class DashboardViewModel @Inject constructor(
         s.pricePerService.values.filter { it > 0 }.minOrNull()
 
     /**
-     * The salon list actually shown: [filteredSalons] narrowed by the minimum
+     * The salon list actually shown: the loaded pages narrowed by the minimum
      * rating and maximum price, then ordered by the chosen sort (nearest / top
      * rated / cheapest). Salons missing the sort key fall to the end.
      */
@@ -441,7 +410,11 @@ class DashboardViewModel @Inject constructor(
     // Salons scored by how well they match the customer's booking history.
     // Requires ≥1 past appointment; shows up to 5 recommendations.
     val recommendedSalons: StateFlow<List<SalonDocument>> = combine(
-        _allAvailableSalons, myAppointments
+        // Recommends from the pages already loaded rather than from every salon
+        // on the platform. The scoring is a ranking of candidates, so a smaller
+        // candidate set changes which five come back, not whether the feature
+        // works — and it is the same set the customer is scrolling.
+        _pagedSalons, myAppointments
     ) { salons, appointments ->
         if (appointments.isEmpty()) return@combine emptyList()
         val serviceFreq   = appointments.groupingBy { it.serviceName }.eachCount()
