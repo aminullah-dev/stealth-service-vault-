@@ -81,8 +81,33 @@ def top_level_blocks(lines):
     return blocks
 
 
+def strip_noise(src):
+    """
+    Remove comments and string literals before looking for identifiers.
+
+    Without this, a name that is also an ordinary English word matches inside
+    prose — "content-type" in a header, or the word "content" in a comment —
+    and the domain gets an import for a module it never uses. Comments in this
+    codebase are long and deliberate, which makes the false-match rate high.
+    """
+    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)
+    src = re.sub(r"//[^\n]*", " ", src)
+    src = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', src)
+    src = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", src)
+    # Template literals are NOT stripped. `${HESAB_BASE_URL.value()}/payment` is
+    # executable code wearing a string's clothes, and removing it made the tool
+    # stop seeing a real dependency — the constant stayed behind while the code
+    # using it moved, which is a ReferenceError on the first checkout.
+    #
+    # The asymmetry decides this: a false positive costs one unused import, a
+    # false negative costs the payment path. So prose inside a template may
+    # still match, and that is the cheaper error.
+    return src
+
+
 def references(body, names):
-    return {n for n in names if re.search(r"\b%s\b" % re.escape(n), body)}
+    code = strip_noise(body)
+    return {n for n in names if re.search(r"\b%s\b" % re.escape(n), code)}
 
 
 def destructured_requires(src):
@@ -131,7 +156,13 @@ def main():
         print(f"already split (index.js only re-exports these): {already}")
         sys.exit(1)
 
-    helpers = [n for n, (k, _, _) in blocks.items() if k == "helper"]
+    # Anything bound by a require() is not a helper this domain could take with
+    # it — it is either a library (crypto) or wiring for an already-split domain.
+    # Both match `^const NAME =`, so without this they look movable, and the
+    # orphan check then reports them as missing from shared.js.
+    require_bindings = set(destructured_requires(src))
+    helpers = [n for n, (k, _, _) in blocks.items()
+               if k == "helper" and n not in require_bindings]
     all_exports = [n for n, (k, _, _) in blocks.items() if k == "export"]
     staying = [e for e in all_exports if e not in wanted]
 
@@ -172,11 +203,12 @@ def main():
     # Framework and library symbols this domain uses, grouped by their module.
     reqs = destructured_requires(src)
     domain_src = "\n\n".join(parts)
+    domain_code = strip_noise(domain_src)
     needed = {}
     for name, mod in reqs.items():
         if name in moving:
             continue
-        if re.search(r"\b%s\b" % re.escape(name), domain_src):
+        if re.search(r"\b%s\b" % re.escape(name), domain_code):
             needed.setdefault(mod, []).append(name)
 
     # Anything from shared.js comes from there, not from a second require of
@@ -190,13 +222,38 @@ def main():
         """
         return mod.replace('"./', '"../', 1) if mod.startswith('"./') else mod
 
+    # `const crypto = require("crypto")` binds the whole module; emitting it as
+    # `const { crypto } = require("crypto")` yields undefined.
+    whole = set(re.findall(r'^const (\w+)\s*=\s*require\(', src, re.M)) - set(
+        n for m2 in re.finditer(r'^const \{([^}]+)\}\s*=\s*require\(', src, re.M)
+        for n in re.findall(r"\w+", m2.group(1)))
+
     req_lines = []
     for mod in sorted(needed):
         names = sorted(n for n in needed[mod] if n not in SHARED)
-        if names:
-            req_lines.append(f"const {{ {', '.join(names)} }} = require({rebase(mod)});")
+        for n in [x for x in names if x in whole]:
+            req_lines.append(f"const {n} = require({rebase(mod)});")
+        rest = [x for x in names if x not in whole]
+        if rest:
+            req_lines.append(f"const {{ {', '.join(rest)} }} = require({rebase(mod)});")
 
-    shared_names = sorted((set(imports) | (SHARED & set(reqs))) & set(re.findall(r"\b(\w+)\b", domain_src)))
+    # Everything the domain still needs from outside must actually be IN
+    # shared.js. The first two domains only needed things that were, so this
+    # went unchecked: a helper that stays in index.js would have been imported
+    # from "../shared" anyway, and come back undefined at the first call — with
+    # the move reported as clean.
+    shared_src = open(os.path.join(ROOT, "functions", "shared.js"), encoding="utf-8").read()
+    m = re.search(r"module\.exports\s*=\s*\{(.*?)\};", shared_src, re.S)
+    shared_exports = set(re.findall(r"\b(\w+)\b", m.group(1))) if m else set()
+
+    orphans = sorted(n for n in imports if n not in shared_exports)
+    if orphans:
+        print("  *** these stay in index.js but the domain needs them ***")
+        print(f"      {orphans}")
+        print("      Move them to shared.js first, or keep their consumer in index.js.")
+        sys.exit(1)
+
+    shared_names = sorted((set(imports) | (SHARED & set(reqs))) & set(re.findall(r"\b(\w+)\b", domain_code)))
     if shared_names:
         req_lines.append(f'const {{ {", ".join(shared_names)} }} = require("../shared");')
 

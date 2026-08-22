@@ -14,6 +14,8 @@
 const { HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { isValidDocId } = require("./lib/validate");
+const { bookingCodeFromBytes } = require("./lib/booking");
+const crypto = require("crypto");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -213,7 +215,82 @@ async function logAppointmentEvent(appt, appointmentId, to, actor, reason) {
   }
 }
 
+// ── Booking references and checkout reservations ─────────────────────────────
+//
+// Both halves of the marketplace need these: payments mints a booking code and
+// hands back a reservation when a checkout fails, and bookings does the same
+// when a booking is cancelled. Leaving them beside either one would make the
+// other reach across a domain boundary for them.
+
+// Refund a checkout-time reservation (referral credit + one promo use) when a
+// reserved booking never durably completes — a HesabPay create/session failure,
+// a failed write, or an abandoned online payment that later expires. Only
+// payments written with `reserved:true` are ever routed here; legacy
+// spend-at-settlement payments are untouched. Best-effort with logged failures.
+async function refundReservation({ customerId, referralUsed, promoId }) {
+  const used = Number(referralUsed || 0);
+  if (used > 0 && customerId) {
+    await db.doc(`users/${customerId}`)
+      .set({ referralCredit: admin.firestore.FieldValue.increment(used) }, { merge: true })
+      .catch((e) => logger.error("refundReservation: referral", e));
+  }
+  if (promoId) {
+    await db.doc(`promo_codes/${promoId}`)
+      .set({ usedCount: admin.firestore.FieldValue.increment(-1) }, { merge: true })
+      .catch((e) => logger.error("refundReservation: promo", e));
+  }
+}
+
+// ── Booking codes and the appointment event trail ────────────────────────────
+//
+// A booking used to be identifiable only by its Firestore document id: twenty
+// random characters that nobody can read down a phone line. When a customer
+// rings to ask what happened to her appointment, the person answering needs
+// something she can say out loud, and a record of what actually happened to it.
+//
+// The alphabet and the normalizer live in lib/booking, which is unit-tested:
+// getting either wrong means two customers can hold the same reference, or a
+// correctly-read code fails to resolve.
+function randomBookingCode() {
+  return bookingCodeFromBytes(crypto.randomBytes(6));
+}
+
+/**
+ * Reserve a booking code nobody else holds.
+ *
+ * The reservation is a document create, which fails if the id is taken — so
+ * uniqueness is decided by Firestore rather than by a read-then-write that two
+ * simultaneous bookings could both pass. A code reserved by a booking that then
+ * fails to write is simply never used; that costs one tiny document, which is
+ * the cheaper end of the trade against ever issuing the same code twice.
+ */
+
+async function reserveBookingCode(attempts = 6) {
+  for (let i = 0; i < attempts; i++) {
+    const code = randomBookingCode();
+    try {
+      await db.doc(`booking_codes/${code}`).create({ createdAt: Date.now() });
+      return code;
+    } catch (e) {
+      if (i === attempts - 1) {
+        logger.error("reserveBookingCode: exhausted attempts", e);
+        throw new HttpsError("internal", "Could not allocate a booking reference.");
+      }
+    }
+  }
+}
+
+/**
+ * The shape of one entry in an appointment's history.
+ *
+ * Denormalizes salonId/customerId so the trail can be queried for "everything
+ * that happened to this salon's bookings" without joining back through the
+ * appointment, and the actor so the record still reads correctly after that
+ * person's name or role changes.
+ */
+
 module.exports = {
+  refundReservation, randomBookingCode, reserveBookingCode,
   admin, db, logger, alertable,
   assertDocId, resolveAppUser, cleanPhone,
   normalizeAfghanPhone, normalizePhone, assertAdmin,
