@@ -50,11 +50,13 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: functions/package-lock.json
-      # The Firestore emulator is a Java process.
+      # The Firestore emulator is a Java process, and firebase-tools 15 refuses
+      # anything before JDK 21. The Android job below still needs 17 for Gradle,
+      # so the two cannot share a version.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       - run: npm ci
         working-directory: functions
       # Runs the reservation suite against a real Firestore. This is the P1
@@ -102,10 +104,11 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: functions/package-lock.json
+      # JDK 21: firebase-tools 15 refuses anything older.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
       # Install BEFORE the emulator runs. This job used to call it first and
       # then install, which worked on a machine that already had firebase-tools
       # and nowhere else.
