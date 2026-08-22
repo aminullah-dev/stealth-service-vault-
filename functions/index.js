@@ -1078,6 +1078,233 @@ exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) =
 
 // ── hesabPayWebhook (HTTP) ────────────────────────────────────────────────────
 
+/**
+ * Settle one HesabPay payment, inside a transaction.
+ *
+ * Extracted from the webhook handler so the reconciler can run exactly the same
+ * settlement rather than a second implementation of it. Two implementations of
+ * how money settles is how they drift, and the one that drifts is discovered by
+ * a customer.
+ *
+ * The single value this needs to hand back besides its outcome -- the
+ * appointment transition to record once the transaction commits -- is written
+ * onto [ctx] rather than returned, so every `return "..."` below is the code
+ * that has been running in production, moved and not rewritten.
+ *
+ * @param {FirebaseFirestore.Transaction} tx
+ * @param {{paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId, apptEvent}} ctx
+ * @returns {Promise<"paid"|"failed"|"ignored"|"replay"|"stale"|"already_paid"|"not_found">}
+ */
+async function settlePaymentInTransaction(tx, ctx) {
+  const { paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId } = ctx;
+  // Re-read inside the transaction so two concurrent retries can't both
+  // pass the PAID check and double-credit the provider.
+  const freshSnap = await tx.get(paymentRef);
+  if (!freshSnap.exists) return "not_found";
+  const fresh = freshSnap.data();
+
+  // Idempotency — already settled.
+  if (fresh.status === "PAID") return "already_paid";
+
+  // A settleable payment is always still "PENDING". If it has already been
+  // moved to a terminal non-paid state (EXPIRED by the abandoned-payment
+  // sweep, FAILED, CANCELLED, REFUND_PENDING) a late webhook must NOT
+  // revive it — otherwise an expired booking whose slot was re-sold gets
+  // re-opened and the provider double-credited while the customer already
+  // had their reserved credit refunded. Ignore it (200, no-op).
+  if (fresh.status !== "PENDING") return "stale";
+
+  // Replay guard — a webhook settles exactly one payment, ever. Prefer the
+  // transaction_id; when the payload omits it (or it isn't path-safe), fall
+  // back to a hash of the signature so a captured (signature, timestamp)
+  // pair can't be replayed against a DIFFERENT payment. Previously the guard
+  // was skipped entirely with no transaction_id, so the only defense left
+  // was the same-payment status check — a replay aimed at another paymentId
+  // sailed through. The key is always present and path-safe now.
+  const replayKey = (transactionId && isValidDocId(transactionId))
+    ? transactionId
+    : "sig_" + crypto.createHash("sha256")
+        .update(String(signature) + "|" + String(transactionId)).digest("hex");
+  const webhookRef = db.doc(`processed_webhooks/${replayKey}`);
+  const seen = await tx.get(webhookRef);
+  if (seen.exists) return "replay";
+
+  if (paidSignal) {
+    // Gift-card payment: credit the recipient's wallet (referralCredit) so
+    // it auto-applies at their next checkout — no appointment to release.
+    // The status/replay guards above make this run exactly once.
+    if (fresh.type === "GIFT_CARD") {
+      tx.update(paymentRef, {
+        status: "PAID",
+        paidAt: Date.now(),
+        transactionId: transactionId || null,
+      });
+      tx.update(db.doc(`users/${fresh.recipientUid}`), {
+        referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+      });
+      if (fresh.giftCardId) {
+        tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "PAID", paidAt: Date.now() });
+      }
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: fresh.recipientUid,
+        type:        "GIFT_RECEIVED",
+        msgKey:      "GIFT_RECEIVED",
+        msgParams:   { amount: fresh.amount },
+        title:       "You received a gift card 🎁",
+        body:        `AFN ${fresh.amount} credit was added to your account.`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   fresh.giftCardId || "",
+      });
+      if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+      return "paid";
+    }
+
+    // Wallet top-up: credit the buyer's own wallet (referralCredit) so it
+    // auto-applies at their next checkout. No appointment to release. The
+    // status/replay guards above make this run exactly once.
+    if (fresh.type === "WALLET_TOPUP") {
+      tx.update(paymentRef, {
+        status: "PAID",
+        paidAt: Date.now(),
+        transactionId: transactionId || null,
+      });
+      tx.update(db.doc(`users/${fresh.buyerUid}`), {
+        referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+      });
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: fresh.buyerUid,
+        type:        "WALLET_TOPUP",
+        msgKey:      "WALLET_TOPUP",
+        msgParams:   { amount: fresh.amount },
+        title:       "Wallet topped up 👛",
+        body:        `AFN ${fresh.amount} was added to your wallet.`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   paymentId || "",
+      });
+      if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+      return "paid";
+    }
+
+    // Tip payment: the full amount is owed to the provider (no commission),
+    // paid out with their normal balance. No appointment to release.
+    if (fresh.type === "TIP") {
+      tx.update(paymentRef, {
+        status: "PAID",
+        paidAt: Date.now(),
+        transactionId: transactionId || null,
+      });
+      if (fresh.providerId) {
+        tx.set(
+          db.doc(`provider_balances/${fresh.providerId}`),
+          {
+            providerId: fresh.providerId,
+            owedAmount: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
+            updatedAt:  Date.now(),
+          },
+          { merge: true }
+        );
+        tx.set(db.collection("notifications").doc(), {
+          recipientId: fresh.providerId,
+          type:        "TIP_RECEIVED",
+          msgKey:      "TIP_RECEIVED",
+          msgParams:   { amount: fresh.amount },
+          title:       "You received a tip 💝",
+          body:        `A customer tipped you AFN ${fresh.amount}.`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   fresh.appointmentId || "",
+        });
+      }
+      if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+      return "paid";
+    }
+
+    tx.update(paymentRef, {
+      status: "PAID",
+      paidAt: Date.now(),
+      transactionId: transactionId || null,
+    });
+    // Release the appointment to the provider's pending queue.
+    tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
+    ctx.apptEvent = { id: fresh.appointmentId, to: "PENDING", reason: "Online payment received" };
+    // Track what the provider is owed (platform pays out separately).
+    // Guarded: an empty providerId would make db.doc("provider_balances/")
+    // throw synchronously, 500-ing every webhook retry and stranding the
+    // customer's PAID booking in AWAITING_PAYMENT forever.
+    if (fresh.providerId) {
+      tx.set(
+        db.doc(`provider_balances/${fresh.providerId}`),
+        {
+          providerId: fresh.providerId,
+          owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
+          updatedAt:  Date.now(),
+        },
+        { merge: true }
+      );
+    }
+    // Count the promo use and spend any referral credit. Reserved payments
+    // (reserved:true) already did this atomically at checkout, so settlement
+    // must NOT spend again — only legacy pre-reservation payments fall here,
+    // and the status/replay guards make even those apply exactly once.
+    if (!fresh.reserved && !fresh.promoCounted) {
+      tx.update(paymentRef, { promoCounted: true });
+      if (fresh.promoCode) {
+        tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
+          usedCount: admin.firestore.FieldValue.increment(1),
+        });
+      }
+      if (Number(fresh.referralUsed || 0) > 0 && fresh.customerId) {
+        tx.update(db.doc(`users/${fresh.customerId}`), {
+          referralCredit: admin.firestore.FieldValue.increment(-Number(fresh.referralUsed)),
+        });
+      }
+    }
+    // Notify the provider of the new (paid) booking.
+    if (fresh.providerId) {
+      tx.set(db.collection("notifications").doc(), {
+        recipientId: fresh.providerId,
+        type:        "NEW_BOOKING",
+        msgKey:      "NEW_BOOKING_PAID",
+        msgParams:   { service: fresh.serviceName || "", amount: fresh.amount },
+        title:       "New Paid Booking",
+        body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
+        isRead:      false,
+        createdAt:   Date.now(),
+        relatedId:   fresh.appointmentId,
+      });
+    }
+    if (webhookRef) {
+      tx.set(webhookRef, { paymentId, settledAt: Date.now() });
+    }
+    return "paid";
+  }
+
+  if (failSignal) {
+    tx.update(paymentRef, { status: "FAILED" });
+    // A reserved booking spent the customer's referral credit + a promo use
+    // up front and parked the appointment in AWAITING_PAYMENT. On an explicit
+    // payment failure we must release both, or the customer loses that money
+    // forever and the chair stays occupied by a dead booking (hasSlotConflict
+    // only skips CANCELLED). Cancel the appointment here (atomic with the
+    // FAILED write); the reservation refund runs just after the transaction.
+    if (fresh.appointmentId && !fresh.type) {
+      tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "CANCELLED" });
+      ctx.apptEvent = { id: fresh.appointmentId, to: "CANCELLED", reason: "Online payment failed" };
+    }
+    // Keep the linked gift-card doc in sync — otherwise it sits PENDING
+    // forever (the create-session rollback only covers pre-checkout errors).
+    if (fresh.type === "GIFT_CARD" && fresh.giftCardId) {
+      tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "FAILED" });
+    }
+    return "failed";
+  }
+
+  // Unknown/intermediate callback — leave the payment untouched.
+  return "ignored";
+}
+
 exports.hesabPayWebhook = onRequest(
   { secrets: [HESAB_API_KEY, HESAB_WEBHOOK_SECRET], region: "us-central1" },
   async (req, res) => {
@@ -1090,6 +1317,28 @@ exports.hesabPayWebhook = onRequest(
     const { signature, timestamp } = payload;
     if (!signature || !timestamp) {
       return res.status(400).send("Missing signature or timestamp");
+    }
+
+    // Freshness is checked locally BEFORE the remote verification call. Until
+    // now the entire question of whether a payload was recent was delegated to
+    // HesabPay, which means a captured (signature, timestamp) pair replayed a
+    // month later still cost a network round trip to reject — and if their
+    // endpoint ever stopped checking age, nothing here would notice.
+    //
+    // Generous window: clock skew between two servers is real, and a legitimate
+    // webhook retried after an outage is worth accepting.
+    const WEBHOOK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+    const sentAtMs = (() => {
+      const n = Number(timestamp);
+      if (!Number.isFinite(n)) return Date.parse(String(timestamp));
+      // Seconds or milliseconds, both seen in the wild.
+      return n > 1e12 ? n : n * 1000;
+    })();
+    if (Number.isFinite(sentAtMs) && Math.abs(Date.now() - sentAtMs) > WEBHOOK_MAX_AGE_MS) {
+      alertable("PAYMENT_FAILED", "Webhook rejected: timestamp outside the accepted window", {
+        timestamp: String(timestamp),
+      });
+      return res.status(401).send("Stale webhook");
     }
 
     // Verify the webhook signature before trusting the payload so a forged
@@ -1214,214 +1463,14 @@ exports.hesabPayWebhook = onRequest(
     let apptEventAfter = null;
 
     try {
-      const result = await db.runTransaction(async (tx) => {
-        // Re-read inside the transaction so two concurrent retries can't both
-        // pass the PAID check and double-credit the provider.
-        const freshSnap = await tx.get(paymentRef);
-        if (!freshSnap.exists) return "not_found";
-        const fresh = freshSnap.data();
-
-        // Idempotency — already settled.
-        if (fresh.status === "PAID") return "already_paid";
-
-        // A settleable payment is always still "PENDING". If it has already been
-        // moved to a terminal non-paid state (EXPIRED by the abandoned-payment
-        // sweep, FAILED, CANCELLED, REFUND_PENDING) a late webhook must NOT
-        // revive it — otherwise an expired booking whose slot was re-sold gets
-        // re-opened and the provider double-credited while the customer already
-        // had their reserved credit refunded. Ignore it (200, no-op).
-        if (fresh.status !== "PENDING") return "stale";
-
-        // Replay guard — a webhook settles exactly one payment, ever. Prefer the
-        // transaction_id; when the payload omits it (or it isn't path-safe), fall
-        // back to a hash of the signature so a captured (signature, timestamp)
-        // pair can't be replayed against a DIFFERENT payment. Previously the guard
-        // was skipped entirely with no transaction_id, so the only defense left
-        // was the same-payment status check — a replay aimed at another paymentId
-        // sailed through. The key is always present and path-safe now.
-        const replayKey = (transactionId && isValidDocId(transactionId))
-          ? transactionId
-          : "sig_" + crypto.createHash("sha256")
-              .update(String(signature) + "|" + String(transactionId)).digest("hex");
-        const webhookRef = db.doc(`processed_webhooks/${replayKey}`);
-        const seen = await tx.get(webhookRef);
-        if (seen.exists) return "replay";
-
-        if (paidSignal) {
-          // Gift-card payment: credit the recipient's wallet (referralCredit) so
-          // it auto-applies at their next checkout — no appointment to release.
-          // The status/replay guards above make this run exactly once.
-          if (fresh.type === "GIFT_CARD") {
-            tx.update(paymentRef, {
-              status: "PAID",
-              paidAt: Date.now(),
-              transactionId: transactionId || null,
-            });
-            tx.update(db.doc(`users/${fresh.recipientUid}`), {
-              referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
-            });
-            if (fresh.giftCardId) {
-              tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "PAID", paidAt: Date.now() });
-            }
-            tx.set(db.collection("notifications").doc(), {
-              recipientId: fresh.recipientUid,
-              type:        "GIFT_RECEIVED",
-              msgKey:      "GIFT_RECEIVED",
-              msgParams:   { amount: fresh.amount },
-              title:       "You received a gift card 🎁",
-              body:        `AFN ${fresh.amount} credit was added to your account.`,
-              isRead:      false,
-              createdAt:   Date.now(),
-              relatedId:   fresh.giftCardId || "",
-            });
-            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
-            return "paid";
-          }
-
-          // Wallet top-up: credit the buyer's own wallet (referralCredit) so it
-          // auto-applies at their next checkout. No appointment to release. The
-          // status/replay guards above make this run exactly once.
-          if (fresh.type === "WALLET_TOPUP") {
-            tx.update(paymentRef, {
-              status: "PAID",
-              paidAt: Date.now(),
-              transactionId: transactionId || null,
-            });
-            tx.update(db.doc(`users/${fresh.buyerUid}`), {
-              referralCredit: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
-            });
-            tx.set(db.collection("notifications").doc(), {
-              recipientId: fresh.buyerUid,
-              type:        "WALLET_TOPUP",
-              msgKey:      "WALLET_TOPUP",
-              msgParams:   { amount: fresh.amount },
-              title:       "Wallet topped up 👛",
-              body:        `AFN ${fresh.amount} was added to your wallet.`,
-              isRead:      false,
-              createdAt:   Date.now(),
-              relatedId:   paymentId || "",
-            });
-            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
-            return "paid";
-          }
-
-          // Tip payment: the full amount is owed to the provider (no commission),
-          // paid out with their normal balance. No appointment to release.
-          if (fresh.type === "TIP") {
-            tx.update(paymentRef, {
-              status: "PAID",
-              paidAt: Date.now(),
-              transactionId: transactionId || null,
-            });
-            if (fresh.providerId) {
-              tx.set(
-                db.doc(`provider_balances/${fresh.providerId}`),
-                {
-                  providerId: fresh.providerId,
-                  owedAmount: admin.firestore.FieldValue.increment(Number(fresh.amount || 0)),
-                  updatedAt:  Date.now(),
-                },
-                { merge: true }
-              );
-              tx.set(db.collection("notifications").doc(), {
-                recipientId: fresh.providerId,
-                type:        "TIP_RECEIVED",
-                msgKey:      "TIP_RECEIVED",
-                msgParams:   { amount: fresh.amount },
-                title:       "You received a tip 💝",
-                body:        `A customer tipped you AFN ${fresh.amount}.`,
-                isRead:      false,
-                createdAt:   Date.now(),
-                relatedId:   fresh.appointmentId || "",
-              });
-            }
-            if (webhookRef) tx.set(webhookRef, { paymentId, settledAt: Date.now() });
-            return "paid";
-          }
-
-          tx.update(paymentRef, {
-            status: "PAID",
-            paidAt: Date.now(),
-            transactionId: transactionId || null,
-          });
-          // Release the appointment to the provider's pending queue.
-          tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
-          apptEventAfter = { id: fresh.appointmentId, to: "PENDING", reason: "Online payment received" };
-          // Track what the provider is owed (platform pays out separately).
-          // Guarded: an empty providerId would make db.doc("provider_balances/")
-          // throw synchronously, 500-ing every webhook retry and stranding the
-          // customer's PAID booking in AWAITING_PAYMENT forever.
-          if (fresh.providerId) {
-            tx.set(
-              db.doc(`provider_balances/${fresh.providerId}`),
-              {
-                providerId: fresh.providerId,
-                owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
-                updatedAt:  Date.now(),
-              },
-              { merge: true }
-            );
-          }
-          // Count the promo use and spend any referral credit. Reserved payments
-          // (reserved:true) already did this atomically at checkout, so settlement
-          // must NOT spend again — only legacy pre-reservation payments fall here,
-          // and the status/replay guards make even those apply exactly once.
-          if (!fresh.reserved && !fresh.promoCounted) {
-            tx.update(paymentRef, { promoCounted: true });
-            if (fresh.promoCode) {
-              tx.update(db.doc(`promo_codes/${fresh.promoCode}`), {
-                usedCount: admin.firestore.FieldValue.increment(1),
-              });
-            }
-            if (Number(fresh.referralUsed || 0) > 0 && fresh.customerId) {
-              tx.update(db.doc(`users/${fresh.customerId}`), {
-                referralCredit: admin.firestore.FieldValue.increment(-Number(fresh.referralUsed)),
-              });
-            }
-          }
-          // Notify the provider of the new (paid) booking.
-          if (fresh.providerId) {
-            tx.set(db.collection("notifications").doc(), {
-              recipientId: fresh.providerId,
-              type:        "NEW_BOOKING",
-              msgKey:      "NEW_BOOKING_PAID",
-              msgParams:   { service: fresh.serviceName || "", amount: fresh.amount },
-              title:       "New Paid Booking",
-              body:        `${fresh.serviceName} — paid AFN ${fresh.amount}`,
-              isRead:      false,
-              createdAt:   Date.now(),
-              relatedId:   fresh.appointmentId,
-            });
-          }
-          if (webhookRef) {
-            tx.set(webhookRef, { paymentId, settledAt: Date.now() });
-          }
-          return "paid";
-        }
-
-        if (failSignal) {
-          tx.update(paymentRef, { status: "FAILED" });
-          // A reserved booking spent the customer's referral credit + a promo use
-          // up front and parked the appointment in AWAITING_PAYMENT. On an explicit
-          // payment failure we must release both, or the customer loses that money
-          // forever and the chair stays occupied by a dead booking (hasSlotConflict
-          // only skips CANCELLED). Cancel the appointment here (atomic with the
-          // FAILED write); the reservation refund runs just after the transaction.
-          if (fresh.appointmentId && !fresh.type) {
-            tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "CANCELLED" });
-            apptEventAfter = { id: fresh.appointmentId, to: "CANCELLED", reason: "Online payment failed" };
-          }
-          // Keep the linked gift-card doc in sync — otherwise it sits PENDING
-          // forever (the create-session rollback only covers pre-checkout errors).
-          if (fresh.type === "GIFT_CARD" && fresh.giftCardId) {
-            tx.update(db.doc(`gift_cards/${fresh.giftCardId}`), { status: "FAILED" });
-          }
-          return "failed";
-        }
-
-        // Unknown/intermediate callback — leave the payment untouched.
-        return "ignored";
-      });
+      // Same settlement the reconciler runs. ctx carries the one value the
+      // transaction produces besides its outcome.
+      const settleCtx = {
+        paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId,
+        apptEvent: null,
+      };
+      const result = await db.runTransaction((tx) => settlePaymentInTransaction(tx, settleCtx));
+      apptEventAfter = settleCtx.apptEvent;
 
       if (result === "not_found") return res.status(404).send("Payment not found");
       if (result === "replay")    return res.status(409).send("Duplicate transaction");
@@ -4068,6 +4117,130 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
     firedAt: Date.now(),
     expect: "A notification should arrive within about five minutes.",
   };
+});
+
+// ── Stuck payments: detection automatic, correction human ────────────────────
+//
+// The webhook verifies each payload by calling HesabPay. If that endpoint is
+// unreachable, every webhook is rejected: the money settles at HesabPay and the
+// booking never reaches the salon. The customer has paid for an appointment
+// nobody knows about.
+//
+// Repairing that automatically would mean asking HesabPay whether a given
+// payment succeeded, and this integration knows exactly two of their endpoints
+// -- create-session and verify-signature. There is no status endpoint here to
+// call, and guessing one against a payment provider is not a thing to do. So
+// the platform finds these, presents everything needed to check them against
+// the HesabPay dashboard, and a person decides. Invariant I-15.
+//
+// When a status endpoint is available, the automatic version calls exactly the
+// same settlement this does, and this screen becomes the fallback.
+
+const STUCK_PAYMENT_GRACE_MS = 30 * 60 * 1000;
+
+/** Payments that were started, never settled, and are past any live checkout. */
+exports.adminStuckPayments = onCall({ region: "us-central1" }, async (request) => {
+  await assertAdmin(request);
+  const cutoff = Date.now() - STUCK_PAYMENT_GRACE_MS;
+
+  const snap = await db.collection("payments")
+    .where("status", "==", "PENDING")
+    .where("createdAt", "<", cutoff)
+    .orderBy("createdAt", "desc")
+    .limit(50)
+    .get();
+
+  const rows = [];
+  for (const d of snap.docs) {
+    const p = d.data() || {};
+    // The appointment's state is what decides whether this matters: a customer
+    // waiting on a booking nobody has seen is the case worth acting on.
+    let appointment = null;
+    if (p.appointmentId) {
+      const a = await db.doc(`appointments/${p.appointmentId}`).get();
+      if (a.exists) appointment = { id: a.id, ...a.data() };
+    }
+    rows.push({
+      paymentId:     d.id,
+      amount:        Number(p.amount || 0),
+      currency:      p.currency || "AFN",
+      method:        p.method || "",
+      createdAt:     Number(p.createdAt || 0),
+      hesabSessionId: p.hesabSessionId || "",
+      customerId:    p.customerId || "",
+      salonId:       p.salonId || "",
+      serviceName:   p.serviceName || "",
+      appointmentId: p.appointmentId || "",
+      bookingCode:   (appointment && appointment.bookingCode) || "",
+      appointmentStatus: (appointment && appointment.status) || "",
+      customerName:  (appointment && appointment.customerName) || "",
+      customerPhone: (appointment && appointment.customerPhone) || "",
+    });
+  }
+  return { ok: true, graceMinutes: STUCK_PAYMENT_GRACE_MS / 60000, rows };
+});
+
+/**
+ * Settle a stuck payment, after a human has confirmed it really was paid.
+ *
+ * Runs settlePaymentInTransaction -- the same code the webhook runs, not a
+ * second implementation of it -- so every guard still applies: the replay key,
+ * the status re-read, the provider credit, the appointment transition. Settling
+ * one that was already settled is a no-op rather than a double credit.
+ */
+exports.adminSettleStuckPayment = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const paymentId = String(d.paymentId || "").trim();
+  const reference = String(d.transactionId || "").trim();
+
+  if (!isValidDocId(paymentId)) {
+    throw new HttpsError("invalid-argument", "A valid paymentId is required.");
+  }
+  if (!reference) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Enter the HesabPay transaction reference you verified, so the settlement is traceable to it."
+    );
+  }
+
+  const paymentRef = db.doc(`payments/${paymentId}`);
+  const before = await paymentRef.get();
+  if (!before.exists) throw new HttpsError("not-found", "No such payment.");
+
+  const ctx = {
+    paymentRef,
+    paidSignal: true,
+    failSignal: false,
+    // Recorded as the replay key, so settling the same reference twice -- from
+    // this screen or from a webhook that arrives late -- cannot credit twice.
+    transactionId: reference,
+    signature: `admin:${me.uid}`,
+    payload: { adminSettled: true, by: me.uid },
+    paymentId,
+    apptEvent: null,
+  };
+
+  const outcome = await db.runTransaction((tx) => settlePaymentInTransaction(tx, ctx));
+
+  if (ctx.apptEvent) {
+    const snap = await db.doc(`appointments/${ctx.apptEvent.id}`).get();
+    if (snap.exists) {
+      await logAppointmentEvent(
+        { ...snap.data(), status: "AWAITING_PAYMENT" },
+        ctx.apptEvent.id, ctx.apptEvent.to,
+        { uid: me.uid, role: "ADMIN", name: me.name },
+        `Settled by hand after verifying HesabPay reference ${reference}`
+      );
+    }
+  }
+
+  await logAdminAction(me, "SETTLE_STUCK_PAYMENT", {
+    paymentId, reference, outcome,
+    amount: Number((before.data() || {}).amount || 0),
+  });
+
+  return { ok: true, outcome };
 });
 
 // ── Demand signals ────────────────────────────────────────────────────────────

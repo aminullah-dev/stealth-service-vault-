@@ -486,6 +486,7 @@ const TABS = [
   { id:'booking',  label:'Booking',    icon:'🔎', render:renderBooking },
   { id:'health',   label:'Health',     icon:'🩺', render:renderHealth },
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
+  { id:'stuck',    label:'Stuck pay',  icon:'🧯', render:renderStuck },
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
   { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
@@ -1707,6 +1708,80 @@ async function renderHealth(){
   }
 }
 
+// ── Stuck payments ───────────────────────────────────────────────────────────
+//
+// A payment that started and never settled. Usually the customer simply closed
+// the checkout — but if HesabPay took the money and the webhook never arrived,
+// she has paid for an appointment the salon has never seen, and nothing else in
+// the system will notice.
+//
+// Settling is deliberately not automatic: this integration has no HesabPay
+// status endpoint to ask, so a person checks the reference on their dashboard
+// and confirms. The settlement itself runs the same code the webhook runs.
+async function renderStuck(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const { data } = await httpsCallable(fns,'adminStuckPayments')({});
+    const rows = data.rows || [];
+    const money = (n) => `${Number(n||0).toLocaleString()} AFN`;
+
+    $('view').innerHTML = `
+      <div class="section-title">Payments started but never settled (${rows.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        Older than ${data.graceMinutes} minutes. Most are customers who closed the checkout and owe nothing.
+        The ones that matter are those where HesabPay took the money and the webhook never arrived —
+        check the reference on your HesabPay dashboard before settling.
+        Settling runs exactly the same code a webhook does, so settling one twice cannot pay a salon twice.
+      </div>
+      ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr>
+          <th scope="col">Booking</th><th scope="col">Customer</th><th scope="col">Amount</th>
+          <th scope="col">Booking state</th><th scope="col">Started</th>
+          <th scope="col">HesabPay session</th><th scope="col"></th>
+        </tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td class="name">${esc(r.bookingCode || r.appointmentId || '—')}<div class="meta" style="color:var(--muted)">${esc(r.serviceName||'')}</div></td>
+          <td>${esc(r.customerName||'—')}<div class="meta" style="color:var(--muted)"><bdi dir="ltr">${esc(r.customerPhone||'')}</bdi></div></td>
+          <td>${money(r.amount)}</td>
+          <td>${r.appointmentStatus === 'AWAITING_PAYMENT'
+                 ? '<span class="pill bad">never reached the salon</span>'
+                 : `<span class="pill info">${esc(r.appointmentStatus||'—')}</span>`}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td class="meta" style="word-break:break-all">${esc(r.hesabSessionId||'—')}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--green)" data-settle="${esc(r.paymentId)}">Settle</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">Nothing stuck 🎉</div>`}
+      <div id="stuck-flash" class="mflash" style="margin-top:10px"></div>`;
+
+    $('view').querySelectorAll('[data-settle]').forEach(b => b.onclick = async () => {
+      const reference = prompt(
+        'Enter the HesabPay transaction reference you verified.\n\n' +
+        'It is recorded with the settlement, and used as the replay key so this ' +
+        'payment cannot be settled twice.'
+      );
+      if (!reference || !reference.trim()) return;
+      const btn = b, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Settling…';
+      try{
+        const { data } = await httpsCallable(fns,'adminSettleStuckPayment')({
+          paymentId: btn.dataset.settle, transactionId: reference.trim(),
+        });
+        $('stuck-flash').className = 'mflash ok';
+        $('stuck-flash').textContent = `Settlement result: ${data.outcome}.`;
+        setTimeout(renderStuck, 900);
+      }catch(err){
+        $('stuck-flash').className = 'mflash bad';
+        $('stuck-flash').textContent = fnError(err);
+        btn.disabled = false; btn.textContent = lbl;
+      }
+    });
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
 // ── Audit log (privileged admin actions) ──────────────────────────────────────
 const AUDIT_META = {
   GRANT_ADMIN:    { icon:'🛡️', cls:'ok'   },
@@ -1717,6 +1792,7 @@ const AUDIT_META = {
   GRANT_CREDIT:   { icon:'🎁', cls:'ok'   },
   CREATE_SALON:   { icon:'🏠', cls:'ok'   },
   POST_FOR_SALON: { icon:'📸', cls:'info' },
+  SETTLE_STUCK_PAYMENT: { icon:'🧯', cls:'warn' },
 };
 function describeAudit(a){
   const d = a.details || {};
@@ -1730,6 +1806,7 @@ function describeAudit(a){
     case 'GRANT_CREDIT':   return `Credit ${d.amount>0?'+':''}${esc(String(d.amount))} AFN to <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
     case 'CREATE_SALON':   return `Added the salon <b>${esc(d.salonName||'')}</b>${d.district?` in ${esc(d.district)}`:''} for <b>${who}</b>`;
     case 'POST_FOR_SALON': return `Published a ${d.kind==='STORY'?'story':'photo'} for <b>${esc(d.salonName||d.salonId||'')}</b>`;
+    case 'SETTLE_STUCK_PAYMENT': return `Settled a stuck payment of ${esc(String(d.amount||0))} AFN by hand — HesabPay ref <b>${esc(d.reference||'')}</b> (${esc(d.outcome||'')})`;
     default:               return esc(a.action || '');
   }
 }
