@@ -149,8 +149,13 @@ class ProviderViewModel @Inject constructor(
                     confirmed          = n("CONFIRMED") + n("COMPLETED"),
                     pending            = n("PENDING"),
                     cancelled          = n("CANCELLED"),
-                    byService          = stats.byService.mapValues { (_, v) -> v.toInt() },
-                    confirmedByService = stats.confirmedByService.mapValues { (_, v) -> v.toInt() }
+                    // Emptied buckets are dropped. Firestore's increment leaves a
+                    // key behind at zero once its last booking moves away, and a
+                    // service with no bookings is not a row in the breakdown.
+                    byService          = stats.byService.filterValues { it > 0L }
+                                              .mapValues { (_, v) -> v.toInt() },
+                    confirmedByService = stats.confirmedByService.filterValues { it > 0L }
+                                              .mapValues { (_, v) -> v.toInt() }
                 )
             }
         }
