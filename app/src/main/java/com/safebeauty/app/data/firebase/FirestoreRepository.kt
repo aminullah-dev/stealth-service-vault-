@@ -287,7 +287,12 @@ class FirestoreRepository @Inject constructor(
      * from a different query than the list is a number that is confidently wrong.
      */
     private fun salonQuery(filter: SalonFilter, order: SalonOrder): Query {
-        var q: Query = salonsCol
+        // Matches observeAvailableSalons, which this replaces. Dropping it would
+        // surface salons that have closed themselves to bookings — a salon the
+        // customer can find, tap and fail to book is worse than one she cannot
+        // find. Whether an unavailable salon should be discoverable at all is a
+        // product decision, not one to change silently while migrating.
+        var q: Query = salonsCol.whereEqualTo("isAvailable", true)
 
         if (filter.districtKey.isNotBlank()) {
             q = q.whereEqualTo("districtKey", filter.districtKey)
@@ -328,7 +333,14 @@ class FirestoreRepository @Inject constructor(
         return q.limit(SALON_PAGE_SIZE)
     }
 
-    /** One page of salons matching [filter], ordered by [order]. */
+    /**
+     * One page of salons matching [filter], ordered by [order].
+     *
+     * Falls back to the encrypted local cache when the query fails, because the
+     * listener this replaces did — losing that would mean a customer with no
+     * signal sees an empty list rather than the salons she saw yesterday. The
+     * fallback is a first page only: a cache cannot be paged through.
+     */
     suspend fun salonPage(
         filter: SalonFilter,
         order: SalonOrder = SalonOrder.RATING,
@@ -337,16 +349,35 @@ class FirestoreRepository @Inject constructor(
         var q = salonQuery(filter, order)
         if (after != null) q = q.startAfter(after)
 
-        val snap = q.get().await()
-        val list = snap.documents.mapNotNull {
-            it.toObject(SalonDocument::class.java)?.copy(id = it.id)
+        return runCatching {
+            val snap = q.get().await()
+            SalonPage(
+                salons = snap.documents.mapNotNull {
+                    it.toObject(SalonDocument::class.java)?.copy(id = it.id)
+                },
+                cursor = snap.documents.lastOrNull(),
+                endReached = snap.documents.size < SALON_PAGE_SIZE,
+            )
+        }.getOrElse { err ->
+            CrashReporter.recordNonFatal(err, "salonPage")
+            if (after != null) return@getOrElse SalonPage(emptyList(), null, true)
+            val cached = runCatching {
+                (salonCacheDao.observeAvailable().firstOrNull() ?: emptyList()).map { it.toDocument() }
+            }.getOrDefault(emptyList())
+            SalonPage(salons = cached, cursor = null, endReached = true)
         }
-        return SalonPage(
-            salons = list,
-            cursor = snap.documents.lastOrNull(),
-            endReached = snap.documents.size < SALON_PAGE_SIZE,
-        )
     }
+
+    /**
+     * One salon by id, for a "book again" on a salon that is not in the current
+     * page. The old lookup searched the fully-downloaded list, which paging
+     * makes unreliable in exactly the case that matters: an older booking.
+     */
+    suspend fun getSalonById(salonId: String): SalonDocument? =
+        runCatching {
+            salonsCol.document(salonId).get().await()
+                .toObject(SalonDocument::class.java)?.copy(id = salonId)
+        }.getOrNull()
 
     /**
      * How many salons match [filter], for the "N providers found" line.
@@ -355,7 +386,7 @@ class FirestoreRepository @Inject constructor(
      * and it has to exist at all because that number used to be the size of the
      * fully-downloaded list, which pagination makes wrong.
      */
-    suspend fun salonCount(filter: SalonFilter): Int =
+    suspend fun salonCount(filter: SalonFilter): Int? =
         runCatching {
             salonQuery(filter, SalonOrder.RATING)
                 .count()
@@ -363,7 +394,14 @@ class FirestoreRepository @Inject constructor(
                 .await()
                 .count
                 .toInt()
-        }.getOrDefault(0)
+        }.getOrElse {
+            // Null, not zero. Defaulting a failed count to 0 makes "we could not
+            // ask" indistinguishable from "there are none" — which is the exact
+            // failure mode this whole phase exists to remove, and I reintroduced
+            // it here. The caller shows no number rather than a wrong one.
+            CrashReporter.recordNonFatal(it, "salonCount")
+            null
+        }
 
     suspend fun createSalon(salon: SalonDocument): String {
         val ref = salonsCol.add(salon).await()

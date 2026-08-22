@@ -4165,6 +4165,45 @@ exports.deriveSalonFields = onDocumentWritten(
   }
 );
 
+// Runs the same derivation on a schedule, so existing salons are repaired
+// without anyone remembering to press a button.
+//
+// The customer's discovery queries order by sortRating or minPrice, and
+// Firestore returns NO documents that lack the ordering field — not documents
+// sorted last, none at all. That makes the backfill a hard dependency of the
+// read path rather than a nice-to-have, and a hard dependency that waits on a
+// human is the deploy step invariant I-12 exists to forbid.
+//
+// Idempotent, and cheap when there is nothing to do: it writes only where the
+// derived values differ from what is stored.
+exports.normalizeSalonsDaily = onSchedule(
+  { schedule: "every day 01:00", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const snap = await db.collection("salons").limit(500).get();
+    let updated = 0;
+    const review = [];
+
+    for (const d of snap.docs) {
+      const salon = d.data() || {};
+      const derived = deriveSalonDiscovery(salon);
+      if (!discoveryUpToDate(salon, derived)) {
+        await d.ref.update(storedDiscoveryFields(derived));
+        updated += 1;
+      }
+      if (derived.unmatchedServices.length || derived.districtCandidates.length) {
+        review.push({
+          salonId: d.id,
+          unmatchedServices: derived.unmatchedServices,
+          districtCandidates: derived.districtCandidates,
+        });
+      }
+    }
+
+    logger.log(`normalizeSalonsDaily: scanned ${snap.size}, updated ${updated}, ${review.length} need review`);
+    if (review.length) logger.warn("normalizeSalonsDaily: needs human review", { review: review.slice(0, 20) });
+  }
+);
+
 // ── adminNormalizeSalons ──────────────────────────────────────────────────────
 //
 // Backfills the derived fields for salons that predate them, and reports what it

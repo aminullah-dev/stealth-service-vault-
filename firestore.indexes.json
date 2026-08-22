@@ -167,6 +167,24 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sortRating",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "salons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "districtKey",
           "order": "ASCENDING"
         },
@@ -180,6 +198,10 @@
       "collectionGroup": "salons",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "categories",
           "arrayConfig": "CONTAINS"
@@ -195,6 +217,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "districtKey",
           "order": "ASCENDING"
         },
@@ -212,6 +238,24 @@
       "collectionGroup": "salons",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "minPrice",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "salons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "districtKey",
           "order": "ASCENDING"
@@ -227,6 +271,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "categories",
           "arrayConfig": "CONTAINS"
         },
@@ -240,6 +288,10 @@
       "collectionGroup": "salons",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "districtKey",
           "order": "ASCENDING"
@@ -258,6 +310,24 @@
       "collectionGroup": "salons",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nameKey",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "salons",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "districtKey",
           "order": "ASCENDING"
@@ -273,6 +343,10 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "categories",
           "arrayConfig": "CONTAINS"
         },
@@ -286,6 +360,10 @@
       "collectionGroup": "salons",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "isAvailable",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "districtKey",
           "order": "ASCENDING"

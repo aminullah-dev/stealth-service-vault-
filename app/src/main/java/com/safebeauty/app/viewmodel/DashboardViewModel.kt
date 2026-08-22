@@ -49,6 +49,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -114,7 +117,7 @@ sealed interface WalletUiState {
 /** How the customer's salon list is ordered. */
 enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -191,6 +194,86 @@ class DashboardViewModel @Inject constructor(
         firestoreRepository.observeAvailableSalons()
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    // ── Server-side, paginated salon discovery ────────────────────────────────
+    //
+    // The list used to be the whole salons collection, downloaded and then
+    // filtered and sorted on the device. Firestore does that work now, a page at
+    // a time. The pieces below are the state that a paged list needs and a
+    // fully-downloaded one did not: a cursor, an end marker, a loading flag, and
+    // a count that no longer comes from the list's own size.
+
+    private val _pagedSalons  = MutableStateFlow<List<SalonDocument>>(emptyList())
+    val pagedSalons: StateFlow<List<SalonDocument>> = _pagedSalons
+
+    /** How many salons match the current filters, server-counted. */
+    // Null means "not known", which is not the same as zero. A failed count
+    // rendered as 0 reads as "no salons here" — the invisible-empty failure this
+    // phase exists to remove.
+    private val _matchingCount = MutableStateFlow<Int?>(null)
+    val matchingCount: StateFlow<Int?> = _matchingCount
+
+    private val _loadingSalons = MutableStateFlow(false)
+    val loadingSalons: StateFlow<Boolean> = _loadingSalons
+
+    private val _endOfSalons = MutableStateFlow(false)
+    val endOfSalons: StateFlow<Boolean> = _endOfSalons
+
+    private var salonCursor: com.google.firebase.firestore.DocumentSnapshot? = null
+    private var salonLoadJob: kotlinx.coroutines.Job? = null
+
+    /** The filter the server should apply, from the current UI selections. */
+    private fun currentSalonFilter(): FirestoreRepository.SalonFilter {
+        val catIdx  = _selectedCategoryIndex.value
+        val hoodIdx = _selectedNeighborhoodIndex.value
+        return FirestoreRepository.SalonFilter(
+            districtKey = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "" }
+                .takeIf { hoodIdx > 0 } ?: "",
+            category    = CATEGORY_KEYS.getOrElse(catIdx) { "" }
+                .takeIf { catIdx > 0 } ?: "",
+            favoriteIds = if (_showFavoritesOnly.value) favoriteIds.value.toList() else emptyList(),
+            search      = _searchQuery.value,
+        )
+    }
+
+    private fun currentSalonOrder(): FirestoreRepository.SalonOrder = when (_sortMode.value) {
+        SalonSort.PRICE_LOW -> FirestoreRepository.SalonOrder.PRICE
+        // NEAREST cannot be a Firestore ordering — see displayedSalons. It reads
+        // a rating-ordered page and reorders it by distance on the device, which
+        // is honest for a page and would not be for a whole collection.
+        else -> FirestoreRepository.SalonOrder.RATING
+    }
+
+    /** Reload from the first page. Called whenever a filter or the sort changes. */
+    fun refreshSalons() {
+        salonLoadJob?.cancel()
+        salonLoadJob = viewModelScope.launch {
+            _loadingSalons.value = true
+            val filter = currentSalonFilter()
+            val page = firestoreRepository.salonPage(filter, currentSalonOrder(), after = null)
+            salonCursor        = page.cursor
+            _pagedSalons.value = page.salons
+            _endOfSalons.value = page.endReached
+            _matchingCount.value = firestoreRepository.salonCount(filter)
+            _loadingSalons.value = false
+        }
+    }
+
+    /** Append the next page. Ignored while one is already in flight or at the end. */
+    fun loadMoreSalons() {
+        if (_loadingSalons.value || _endOfSalons.value) return
+        val cursor = salonCursor ?: return
+        salonLoadJob = viewModelScope.launch {
+            _loadingSalons.value = true
+            val page = firestoreRepository.salonPage(currentSalonFilter(), currentSalonOrder(), after = cursor)
+            salonCursor        = page.cursor ?: cursor
+            // Guard against a duplicate landing twice if a refresh raced this.
+            val seen = _pagedSalons.value.map { it.id }.toSet()
+            _pagedSalons.value = _pagedSalons.value + page.salons.filterNot { it.id in seen }
+            _endOfSalons.value = page.endReached
+            _loadingSalons.value = false
+        }
+    }
 
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
         combine(
@@ -276,8 +359,20 @@ class DashboardViewModel @Inject constructor(
      * rated / cheapest). Salons missing the sort key fall to the end.
      */
     val displayedSalons: StateFlow<List<SalonDocument>> =
-        combine(filteredSalons, _customerLoc, _sortMode, _minRating, _maxPrice) {
+        combine(_pagedSalons, _customerLoc, _sortMode, _minRating, _maxPrice) {
                 salons, loc, sort, minR, maxP ->
+            // District, category, favourites, search and the primary ordering are
+            // applied by Firestore before this point. What remains here are the
+            // two slider refinements and the distance ordering.
+            //
+            // Doing those on the device is not the thing Q-2 forbids: the set is
+            // already a server-bounded page, so nothing extra is downloaded to
+            // filter it. Rating and price could each be a server range only when
+            // they match the sort field, and distance cannot be a Firestore
+            // ordering at all without geohashing — which is deferred, and would
+            // be meaningless today regardless, since one live salon has no
+            // coordinates and the other carries the emulator's default location
+            // in California.
             var list = salons
             if (minR > 0.0) list = list.filter { it.rating >= minR }
             if (maxP > 0)   list = list.filter { val mp = salonMinPrice(it); mp != null && mp <= maxP }
@@ -636,6 +731,30 @@ class DashboardViewModel @Inject constructor(
         private set
 
     init {
+        // Reload the first page whenever anything the SERVER filters on changes.
+        //
+        // Search is debounced: without it every keystroke is a query, and the
+        // results race — a slow response for "sha" can land after "shagh" and
+        // overwrite it. The other inputs are discrete taps and need no delay,
+        // which is why they are a separate collector rather than one debounced
+        // stream that would also make tapping a chip feel sluggish.
+        viewModelScope.launch {
+            combine(
+                _selectedCategoryIndex,
+                _selectedNeighborhoodIndex,
+                _showFavoritesOnly,
+                favoriteIds,
+                _sortMode,
+            ) { _, _, _, _, _ -> Unit }
+                .collect { refreshSalons() }
+        }
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(300)
+                .distinctUntilChanged()
+                .collect { refreshSalons() }
+        }
+
         // Check current connectivity state
         val caps = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
         _isOffline.value = caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -1032,9 +1151,29 @@ class DashboardViewModel @Inject constructor(
         bookingConfirmCashAmount = null
     }
 
-    /** Finds a salon in the full available list by id (used by "book again"). */
+    /**
+     * Finds a salon by id for "book again".
+     *
+     * Checks what is loaded first, then asks Firestore. The old version searched
+     * the fully-downloaded list, which paging makes unreliable in precisely the
+     * case this exists for: an older booking, whose salon is unlikely to be on
+     * the first page.
+     */
     fun findSalon(salonId: String): SalonDocument? =
-        _allAvailableSalons.value.firstOrNull { it.id == salonId }
+        _pagedSalons.value.firstOrNull { it.id == salonId }
+            ?: _allAvailableSalons.value.firstOrNull { it.id == salonId }
+
+    /** Fetches a salon that is not loaded, and adds it so the sheet can open. */
+    fun ensureSalonLoaded(salonId: String, onReady: (SalonDocument?) -> Unit) {
+        findSalon(salonId)?.let { onReady(it); return }
+        viewModelScope.launch {
+            val salon = firestoreRepository.getSalonById(salonId)
+            if (salon != null && _pagedSalons.value.none { it.id == salon.id }) {
+                _pagedSalons.value = _pagedSalons.value + salon
+            }
+            onReady(salon)
+        }
+    }
 
     /**
      * How many consecutive slots a booking of [serviceNames] occupies at [salon].

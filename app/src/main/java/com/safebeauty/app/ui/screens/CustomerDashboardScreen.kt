@@ -321,6 +321,8 @@ fun CustomerDashboardScreen(
     }
 
     val filteredSalons            by viewModel.displayedSalons.collectAsStateWithLifecycle()
+    val matchingCount             by viewModel.matchingCount.collectAsStateWithLifecycle()
+    val loadingSalons             by viewModel.loadingSalons.collectAsStateWithLifecycle()
     val sortMode                  by viewModel.sortMode.collectAsStateWithLifecycle()
     val minRating                 by viewModel.minRating.collectAsStateWithLifecycle()
     val maxPrice                  by viewModel.maxPrice.collectAsStateWithLifecycle()
@@ -737,8 +739,17 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = if (filteredSalons.isEmpty()) strings.noProvidersTitle
-                               else strings.providersFound(filteredSalons.size),
+                        // The server's count, not the loaded page's size. These
+                        // used to be the same number because the whole collection
+                        // was in memory; with paging, the page size would read as
+                        // "20 providers found" no matter how many there are.
+                        // No number at all when the count is unknown, rather
+                        // than a number that might be wrong.
+                        text = when (matchingCount) {
+                            null -> ""
+                            0    -> strings.noProvidersTitle
+                            else -> strings.providersFound(matchingCount!!)
+                        },
                         fontSize = 11.sp,
                         color    = RoseGold,
                         modifier = Modifier.weight(1f)
@@ -870,13 +881,22 @@ fun CustomerDashboardScreen(
                                             .padding(horizontal = 10.dp, vertical = 3.dp)
                                     ) {
                                         Text(
-                                            "${filteredSalons.size}",
+                                            "${matchingCount ?: filteredSalons.size}",
                                             color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                             }
-                            items(filteredSalons, key = { it.id }) { salon ->
+                            itemsIndexed(filteredSalons, key = { _, s -> s.id }) { index, salon ->
+                                // Fetch the next page a few cards before the end,
+                                // so scrolling does not stop to wait. loadMore
+                                // ignores the call while one is in flight or the
+                                // end is reached, so this cannot stampede.
+                                if (index >= filteredSalons.size - 4) {
+                                    LaunchedEffect(filteredSalons.size, index) {
+                                        viewModel.loadMoreSalons()
+                                    }
+                                }
                                 val distanceKm = customerLoc?.let { (la, lo) ->
                                     if (salon.hasLocation())
                                         com.safebeauty.app.util.LocationHelper.distanceKm(la, lo, salon.latitude, salon.longitude)
