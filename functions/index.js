@@ -43,6 +43,8 @@ const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
 const { isValidDocId } = require("./lib/validate");
 const { averageRating } = require("./lib/reviews");
 const { bookingCodeFromBytes, normalizeBookingCode } = require("./lib/booking");
+const { phoneKey } = require("./lib/phone");
+const { SlotTakenError, pendingWrites, commitBookingAtomically, slotConflictWindow } = require("./lib/reservation");
 
 // Reject a malformed / path-unsafe document id before it is interpolated into a
 // Firestore doc path — defense-in-depth: a value with a slash makes an
@@ -314,21 +316,32 @@ exports.createPaymentSession = onCall(
       resolvedStaffName = String(member.name || "");
     }
 
-    // Slot-conflict guard — reject a booking whose slots are already taken on the
-    // same chair (different staff = a different chair, so it books in parallel).
-    // This is a pre-write check rather than a full transaction because the online
-    // path then hands off to HesabPay; it catches the common collision, and the
-    // AWAITING_PAYMENT / PENDING rows it counts also reserve the slot against
-    // other bookers until they settle or expire (expireAbandonedPayments).
-    {
-      const slotMinutes = Number(salon.slotDurationMinutes) || 60;
-      const existingSnap = await db.collection("appointments")
+    // Slot-conflict guard, first pass.
+    //
+    // This used to read EVERY appointment the salon had ever had, with no date
+    // bound, on every booking attempt — so the platform's busiest and most
+    // valuable salons became its most expensive to book with, forever. The
+    // window below is what makes the cost constant: conflicts can only involve
+    // appointments near the requested time, so nothing else needs reading.
+    //
+    // This pass is an early rejection, not the guarantee. It runs before promo
+    // and referral credit are reserved, so the common collision fails without
+    // any reservation to unwind. The authoritative check runs inside the write
+    // transaction below, where it cannot race.
+    const slotMinutes = Number(salon.slotDurationMinutes) || 60;
+    const conflictWindow = slotConflictWindow(appointmentDate);
+
+    const readNearbyAppointments = async (reader) => {
+      const q = db.collection("appointments")
         .where("salonId", "==", salonId)
-        .get();
-      const existing = existingSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      if (hasSlotConflict(existing, appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
-        throw new HttpsError("failed-precondition", "That time slot is no longer available.", { reason: "SLOT_TAKEN" });
-      }
+        .where("appointmentDate", ">=", conflictWindow.start)
+        .where("appointmentDate", "<", conflictWindow.end);
+      const snap = await (reader ? reader.get(q) : q.get());
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    };
+
+    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
+      throw new HttpsError("failed-precondition", "That time slot is no longer available.", { reason: "SLOT_TAKEN" });
     }
 
     // Apply a promo code if one was entered (throws a clear error if invalid).
@@ -460,7 +473,7 @@ exports.createPaymentSession = onCall(
       const apptRef    = db.collection("appointments").doc();
       const paymentRef = db.collection("payments").doc();
       const bookingCode = await reserveBookingCode();
-      const batch = db.batch();
+      const batch = pendingWrites();
       batch.set(apptRef, {
         bookingCode,
         customerId:     uid,
@@ -535,7 +548,8 @@ exports.createPaymentSession = onCall(
         });
       }
       try {
-        await batch.commit();
+        await commitBookingAtomically(db, batch, readNearbyAppointments,
+          appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
         await logAppointmentEvent(
           { bookingCode, salonId, customerId: uid, status: "" },
           apptRef.id, "PENDING",
@@ -543,7 +557,13 @@ exports.createPaymentSession = onCall(
           "Booked, paying the salon in cash"
         );
       } catch (err) {
+        // The reservation is unwound either way: the promo use and referral credit
+        // were spent before the transaction ran, so losing the race must hand them
+        // back exactly as an internal failure does.
         await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
+        if (err instanceof SlotTakenError) {
+          throw new HttpsError("failed-precondition", err.message, { reason: err.reason });
+        }
         logger.error("createPaymentSession cash write failed", err);
         throw new HttpsError("internal", "Could not create the booking. Please try again.");
       }
@@ -568,7 +588,7 @@ exports.createPaymentSession = onCall(
     const apptRef    = db.collection("appointments").doc();
     const paymentRef = db.collection("payments").doc();
     const bookingCode = await reserveBookingCode();
-    const createBatch = db.batch();
+    const createBatch = pendingWrites();
     createBatch.set(apptRef, {
       bookingCode,
       customerId:    uid,
@@ -624,7 +644,8 @@ exports.createPaymentSession = onCall(
       createdAt:         Date.now(),
     });
     try {
-      await createBatch.commit();
+      await commitBookingAtomically(db, createBatch, readNearbyAppointments,
+        appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
       await logAppointmentEvent(
         { bookingCode, salonId, customerId: uid, status: "" },
         apptRef.id, "AWAITING_PAYMENT",
@@ -632,7 +653,13 @@ exports.createPaymentSession = onCall(
         "Booked, awaiting online payment"
       );
     } catch (err) {
+      // The reservation is unwound either way: the promo use and referral credit
+      // were spent before the transaction ran, so losing the race must hand them
+      // back exactly as an internal failure does.
       await refundReservation({ customerId: uid, referralUsed, promoId: promo.promoId });
+      if (err instanceof SlotTakenError) {
+        throw new HttpsError("failed-precondition", err.message, { reason: err.reason });
+      }
       logger.error("createPaymentSession online write failed", err);
       throw new HttpsError("internal", "Could not create the booking. Please try again.");
     }
@@ -1481,19 +1508,36 @@ exports.authenticateWithPassword = onCall({ region: "us-central1" }, async (requ
     return { mode: "INVALID" };
   }
 
-  // Match on trailing digits so a number stored as "0700..", "+93700..",
-  // "93700.." or a legacy un-normalized value all resolve to the same account.
-  const inDigits = phone.replace(/\D/g, "");
-  const matchable = (stored) => {
-    const s = String(stored || "").replace(/\D/g, "");
-    if (!s || !inDigits) return false;
-    const shorter = s.length <= inDigits.length ? s : inDigits;
-    const longer  = s.length <= inDigits.length ? inDigits : s;
-    return shorter.length >= 7 && longer.endsWith(shorter);
-  };
+  // Resolve the account with indexed lookups instead of reading the whole users
+  // collection and matching in JavaScript. That scan was correct and did not
+  // scale: at 100,000 users every sign-in read 100,000 documents, which is a
+  // cost problem, a latency ceiling, and — on an endpoint that by definition
+  // cannot require auth — a denial-of-service surface.
+  //
+  // Three bounded attempts, in descending order of how most accounts are stored:
+  //
+  //   1. the normalized form the app has written since PhoneUtils existed,
+  //   2. the raw string, for a record stored exactly as it was typed,
+  //   3. phoneDigits, the subscriber-tail key that adminBackfillPhoneKeys
+  //      writes onto older records whose phone field was never normalized.
+  //
+  // phoneDigits is written ONLY by the server. Registration is a client write,
+  // so a client-supplied login key would let one account claim another's key and
+  // lock its owner out — the password check would then run against the wrong
+  // record. Accounts created by the current app are always found by attempt 1,
+  // so the key is a recovery path for legacy records rather than the norm.
+  const attempts = [
+    ["phone",       normalizePhone(phone)],
+    ["phone",       phone],
+    ["phoneDigits", phoneKey(phone)],
+  ];
 
-  const snap = await db.collection("users").get();
-  const doc = snap.docs.find((dd) => matchable(dd.data().phone));
+  let doc = null;
+  for (const [field, value] of attempts) {
+    if (!value) continue;
+    const q = await db.collection("users").where(field, "==", value).limit(1).get();
+    if (!q.empty) { doc = q.docs[0]; break; }
+  }
   if (!doc) return { mode: "INVALID" };
 
   const u = doc.data();
@@ -3956,6 +4000,60 @@ exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (req
 
   await logAdminAction(me, "BACKFILL_CODES", { scanned: snap.size, assigned });
   return { ok: true, scanned: snap.size, assigned, done: snap.size < limit };
+});
+
+// ── adminBackfillPhoneKeys ────────────────────────────────────────────────────
+//
+// Writes the phoneDigits lookup key onto accounts that predate it.
+//
+// Only needed for records whose phone field was never normalized — anything the
+// current app wrote is already found by an exact match on `phone`. Server-only
+// by design: a client-supplied login key would let one account claim another's
+// and lock its owner out.
+//
+// Also reports collisions rather than silently picking a winner. Two accounts
+// sharing a subscriber key means login is ambiguous for that number, and that is
+// a fact a human needs to see, not something a backfill should paper over.
+exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+
+  const snap = await db.collection("users").orderBy("createdAt", "asc").limit(limit).get();
+
+  const seen = new Map();   // key -> first uid that claimed it
+  const collisions = [];
+  let written = 0;
+
+  for (const d of snap.docs) {
+    const data = d.data();
+    const key  = phoneKey(data.phone);
+    if (!key) continue;
+
+    if (seen.has(key)) {
+      collisions.push({ key, uids: [seen.get(key), d.id] });
+    } else {
+      seen.set(key, d.id);
+    }
+
+    if (data.phoneDigits !== key) {
+      await d.ref.update({ phoneDigits: key });
+      written += 1;
+    }
+  }
+
+  await logAdminAction(me, "BACKFILL_PHONE_KEYS", {
+    scanned: snap.size, written, collisions: collisions.length,
+  });
+  if (collisions.length) {
+    logger.error("adminBackfillPhoneKeys: duplicate phone keys", { collisions });
+  }
+  return {
+    ok: true,
+    scanned: snap.size,
+    written,
+    collisions,
+    done: snap.size < limit,
+  };
 });
 
 // ── adminSetUserStatus ────────────────────────────────────────────────────────

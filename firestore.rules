@@ -115,7 +115,9 @@ service cloud.firestore {
                  && request.resource.data.get('customerRatingCount', 0) == 0
                  && request.resource.data.get('noShowCount', 0) == 0
                  && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
-                 && request.resource.data.get('profileRewardClaimed', false) == false;
+                 && request.resource.data.get('profileRewardClaimed', false) == false
+                 // Nor may it seed the login lookup key — see the update rule.
+                 && request.resource.data.get('phoneDigits', '') == '';
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -199,7 +201,15 @@ service cloud.firestore {
                      && request.resource.data.get('suspended', false)
                           == resource.data.get('suspended', false)
                      && request.resource.data.get('suspendedReason', '')
-                          == resource.data.get('suspendedReason', ''));
+                          == resource.data.get('suspendedReason', '')
+                     // The login lookup key, written only by
+                     // adminBackfillPhoneKeys. authenticateWithPassword resolves
+                     // an account by this value, so a client that could write it
+                     // could claim another account's key and lock its owner out
+                     // — the password check would then run against the wrong
+                     // record.
+                     && request.resource.data.get('phoneDigits', '')
+                          == resource.data.get('phoneDigits', ''));
 
       allow delete: if isAdmin();
     }
