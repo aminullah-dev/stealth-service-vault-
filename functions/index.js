@@ -4119,6 +4119,94 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
   };
 });
 
+// ── adminDemandReport ─────────────────────────────────────────────────────────
+//
+// Which district wants which service, and whether there is anyone there to
+// serve it. This is the question the whole demand-capture exists to answer:
+// with two live salons and five hundred as the target, the binding constraint
+// is supply, and until now which salon to recruit next was a guess.
+//
+// Demand and supply are counted from different collections and joined here, so
+// the console does not have to know how either is stored. Signals carry no
+// identity, so everything below is genuinely aggregate — there is no per-person
+// view to accidentally build on top of it.
+exports.adminDemandReport = onCall({ region: "us-central1" }, async (request) => {
+  await assertAdmin(request);
+  const days = Math.min(90, Math.max(1, Number((request.data || {}).days || 30)));
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+
+  const signals = await db.collection("demand_signals")
+    .where("at", ">", since)
+    .orderBy("at", "desc")
+    .limit(2000)
+    .get();
+
+  // demand[districtKey][category] = { total, byKind }
+  const demand = new Map();
+  const bump = (district, category, kind) => {
+    const dk = district || "(unspecified)";
+    const ck = category || "(any)";
+    if (!demand.has(dk)) demand.set(dk, new Map());
+    const row = demand.get(dk);
+    if (!row.has(ck)) row.set(ck, { total: 0, byKind: {} });
+    const cell = row.get(ck);
+    cell.total += 1;
+    cell.byKind[kind] = (cell.byKind[kind] || 0) + 1;
+  };
+
+  signals.docs.forEach((d) => {
+    const s = d.data() || {};
+    bump(s.districtKey, s.category, s.kind || "UNKNOWN");
+  });
+
+  // Supply, from the derived fields the discovery queries already use, so the
+  // two halves of this report agree with what a customer actually sees.
+  const salons = await db.collection("salons").limit(500).get();
+  const supply = new Map();   // districtKey -> { total, byCategory }
+  salons.docs.forEach((d) => {
+    const s = d.data() || {};
+    if (s.isAvailable !== true) return;
+    const dk = s.districtKey || "(unspecified)";
+    if (!supply.has(dk)) supply.set(dk, { total: 0, byCategory: {} });
+    const row = supply.get(dk);
+    row.total += 1;
+    (Array.isArray(s.categories) ? s.categories : []).forEach((c) => {
+      row.byCategory[c] = (row.byCategory[c] || 0) + 1;
+    });
+  });
+
+  const rows = [];
+  for (const [districtKey, categories] of demand) {
+    for (const [category, cell] of categories) {
+      const sup = supply.get(districtKey);
+      const salonsHere = category === "(any)"
+        ? (sup ? sup.total : 0)
+        : (sup ? (sup.byCategory[category] || 0) : 0);
+      rows.push({
+        districtKey,
+        category,
+        demand: cell.total,
+        byKind: cell.byKind,
+        salons: salonsHere,
+        // The number that ranks recruitment: demand with nobody to serve it is
+        // worth more attention than demand a salon is already meeting.
+        unmet: salonsHere === 0 ? cell.total : 0,
+      });
+    }
+  }
+
+  rows.sort((a, b) => (b.unmet - a.unmet) || (b.demand - a.demand));
+
+  return {
+    ok: true,
+    days,
+    signalCount: signals.size,
+    truncated: signals.size >= 2000,
+    supplyByDistrict: [...supply].map(([districtKey, v]) => ({ districtKey, ...v })),
+    rows,
+  };
+});
+
 // ── Stuck payments: detection automatic, correction human ────────────────────
 //
 // The webhook verifies each payload by calling HesabPay. If that endpoint is
