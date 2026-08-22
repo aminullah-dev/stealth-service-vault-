@@ -1,0 +1,632 @@
+// identity — moved out of index.js, which had grown past 5,700 lines.
+//
+// Every export here is registered by index.js re-exporting this module,
+// so the deployed function set is unchanged by the move.
+
+const { phoneKey } = require("../lib/phone");
+const { assertAdmin, assertDocId, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
+const crypto = require("crypto");
+const { HttpsError, onCall } = require("firebase-functions/v2/https");
+const { admin, db, logger } = require("../shared");
+
+// Referral rewards (AFN). Both are granted when a referred user's identity is
+// verified (see reviewKyc): the new user gets a welcome credit, the friend who
+// invited them gets a referrer credit. Both are auto-applied at checkout.
+const REFERRAL_WELCOME_CREDIT  = 100;
+
+const REFERRAL_REFERRER_CREDIT = 100;
+
+// Constant-time string compare to avoid leaking match progress via timing.
+function hashesEqual(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+// NOTE: authenticateWithPin was removed. It was a pre-auth callable that hashed
+// a submitted numeric string against EVERY user's pinHash and, on a match,
+// returned that user's salt + firebaseEmail — a mass account-takeover oracle
+// (one unauthenticated request tested the whole user base, and password login
+// stores its hash in the same pinHash field). PINs are gone; the client only
+// uses authenticateWithPassword (which resolves ONE account by phone first).
+// Deleting the export removes the function on the next `firebase deploy
+// --only functions`.
+
+/**
+ * Password login, keyed by phone number (the app's login identifier now that
+ * PINs are gone). Unlike authenticateWithPin — which matched a numeric PIN
+ * against EVERY user — this resolves the ONE account for the given phone and
+ * checks its password hash, so two users sharing a password can never collide.
+ * Returns the same shape as authenticateWithPin: on success the client derives
+ * the auth password from (password + salt) and signs in; the hash never leaves
+ * the server. No auth required (this IS the pre-auth login step).
+ */
+
+exports.authenticateWithPassword = onCall({ region: "us-central1" }, async (request) => {
+  // Unauthenticated by necessity — this IS the login. Throttle both the caller
+  // and the targeted phone so an attacker can neither grind one account from
+  // many IPs nor sweep many accounts from one.
+  const _ip = callerIp(request);
+  const _phoneKey = normalizePhone(String((request.data || {}).phone || "").trim() || "unknown");
+  await enforceRateLimit(`login-ip:${_ip}`, 30, 15 * 60 * 1000);
+  await enforceRateLimit(`login-phone:${_phoneKey}`, 10, 15 * 60 * 1000);
+  const d = request.data || {};
+  const phone    = String(d.phone || "").trim();
+  const password = String(d.password || "");
+  if (!phone || !password) {
+    return { mode: "INVALID" };
+  }
+
+  // Resolve the account with indexed lookups instead of reading the whole users
+  // collection and matching in JavaScript. That scan was correct and did not
+  // scale: at 100,000 users every sign-in read 100,000 documents, which is a
+  // cost problem, a latency ceiling, and — on an endpoint that by definition
+  // cannot require auth — a denial-of-service surface.
+  //
+  // Three bounded attempts, in descending order of how most accounts are stored:
+  //
+  //   1. the normalized form the app has written since PhoneUtils existed,
+  //   2. the raw string, for a record stored exactly as it was typed,
+  //   3. phoneDigits, the subscriber-tail key that adminBackfillPhoneKeys
+  //      writes onto older records whose phone field was never normalized.
+  //
+  // phoneDigits is written ONLY by the server. Registration is a client write,
+  // so a client-supplied login key would let one account claim another's key and
+  // lock its owner out — the password check would then run against the wrong
+  // record. Accounts created by the current app are always found by attempt 1,
+  // so the key is a recovery path for legacy records rather than the norm.
+  const attempts = [
+    ["phone",       normalizePhone(phone)],
+    ["phone",       phone],
+    ["phoneDigits", phoneKey(phone)],
+  ];
+
+  let doc = null;
+  for (const [field, value] of attempts) {
+    if (!value) continue;
+    const q = await db.collection("users").where(field, "==", value).limit(1).get();
+    if (!q.empty) { doc = q.docs[0]; break; }
+  }
+  if (!doc) return { mode: "INVALID" };
+
+  const u = doc.data();
+  if (!u.pinHash || !u.salt) return { mode: "INVALID" };
+  if (!hashesEqual(pbkdf2Hash(password, u.salt), u.pinHash)) {
+    return { mode: "INVALID" };
+  }
+
+  return {
+    mode:            "REAL",
+    uid:             doc.id,
+    name:            u.name  || "",
+    role:            u.role  || "CUSTOMER",
+    status:          u.status || "",
+    rejectionReason: u.rejectionReason || "",
+    kycStatus:       u.kycStatus || "NONE",
+    firebaseEmail:   u.firebaseEmail || "",
+    salt:            u.salt,
+  };
+});
+
+/**
+ * Bridges the two identity schemes: Firebase Auth's uid (request.auth.uid,
+ * what firestore.rules' me() sees) and the app's own uid (the client-
+ * generated UUID that is the actual users/{uid} document ID — see
+ * RegisterViewModel). The client calls this right after firebaseAuth.signIn
+ * succeeds so security rules can resolve `me()` to the real app uid via this
+ * map. Verifies the claimed appUid actually belongs to the signed-in account
+ * (its firebaseEmail must match the auth token's email) before trusting it,
+ * so a client can't claim someone else's identity.
+ */
+
+exports.syncUidMap = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const appUid = String((request.data || {}).appUid || "");
+  if (!appUid) {
+    throw new HttpsError("invalid-argument", "appUid is required.");
+  }
+  const email = String(request.auth.token.email || "").toLowerCase();
+  if (!email) {
+    throw new HttpsError("failed-precondition", "No email on the auth token.");
+  }
+  const userSnap = await db.doc(`users/${appUid}`).get();
+  // Case-insensitive: older docs may store firebaseEmail as typed, while the
+  // auth token's email is always lowercase.
+  if (!userSnap.exists ||
+      String(userSnap.data().firebaseEmail || "").toLowerCase() !== email) {
+    throw new HttpsError("permission-denied", "appUid does not match the signed-in account.");
+  }
+  await db.doc(`uid_map/${request.auth.uid}`).set({
+    appUid,
+    updatedAt: Date.now(),
+  });
+  return { synced: true };
+});
+
+/**
+ * Updates the caller's OWN pinHash + salt (used by both Change-PIN and
+ * Forgot-PIN). Server-side because the Forgot-PIN flow signs in fresh and has
+ * no uid_map entry yet, so a direct client write can be denied by the rules'
+ * me() lookup AFTER the Firebase Auth password was already reset — leaving
+ * pinHash pointing at the old PIN and locking the account out entirely.
+ * resolveAppUser identifies the caller by their auth-token email (the same
+ * ownership the rules grant for direct writes) and also repopulates uid_map,
+ * so the session is fully usable right after a PIN reset.
+ */
+
+exports.updatePinHash = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const pinHash = String((request.data || {}).pinHash || "");
+  const salt    = String((request.data || {}).salt || "");
+  if (!pinHash || !salt) {
+    throw new HttpsError("invalid-argument", "pinHash and salt are required.");
+  }
+  const appUser = await resolveAppUser(request);
+  await db.doc(`users/${appUser.uid}`).update({ pinHash, salt });
+  return { updated: true };
+});
+
+/**
+ * Submits the caller's identity-verification (KYC) documents for admin review.
+ * The tazkira/selfie photos were already uploaded client-side to the private
+ * kyc/{uid}/ Storage path; only their URLs + the text fields are passed here.
+ * Server-side so kycStatus can't be self-set to APPROVED — the whole point of
+ * verification. Allowed only from NONE/REJECTED (can't resubmit while PENDING
+ * or overwrite an APPROVED verification).
+ */
+
+exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const d = request.data || {};
+  const tazkiraNumber   = String(d.tazkiraNumber || "").trim();
+  const addressProvince = String(d.addressProvince || "").trim();
+  const addressDetail   = String(d.addressDetail || "").trim();
+  const tazkiraPhotoUrl = String(d.tazkiraPhotoUrl || "").trim();
+  const selfiePhotoUrl  = String(d.selfiePhotoUrl || "").trim();
+  // Optional identity details (also editable later by the admin). Capped.
+  const birthYear         = String(d.birthYear || "").trim().slice(0, 40);
+  const tazkiraIssueDate  = String(d.tazkiraIssueDate || "").trim().slice(0, 40);
+  const tazkiraExpiryDate = String(d.tazkiraExpiryDate || "").trim().slice(0, 40);
+
+  if (!tazkiraNumber || !addressProvince || !addressDetail ||
+      !tazkiraPhotoUrl || !selfiePhotoUrl) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Tazkira number, address, and both photos are required."
+    );
+  }
+
+  const appUser = await resolveAppUser(request);
+  const current = appUser.kycStatus || "NONE";
+  if (current === "PENDING") {
+    throw new HttpsError("failed-precondition", "Your verification is already under review.");
+  }
+  if (current === "APPROVED") {
+    throw new HttpsError("failed-precondition", "You are already verified.");
+  }
+
+  await db.doc(`users/${appUser.uid}`).update({
+    kycStatus:          "PENDING",
+    kycRejectionReason: "",
+    tazkiraNumber,
+    birthYear,
+    tazkiraIssueDate,
+    tazkiraExpiryDate,
+    addressProvince,
+    addressDetail,
+    tazkiraPhotoUrl,
+    selfiePhotoUrl,
+  });
+  return { submitted: true };
+});
+
+/**
+ * Admin approves or rejects a user's KYC submission. Admin-only. On approval,
+ * kycStatus → APPROVED (unlocking booking for customers / go-live for
+ * providers); on rejection, → REJECTED with a reason the user sees so they can
+ * resubmit. Notifies the user either way.
+ */
+
+exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const reviewer = await resolveAppUser(request);
+  if (reviewer.role !== "ADMIN") {
+    throw new HttpsError("permission-denied", "Admins only.");
+  }
+
+  const d = request.data || {};
+  const targetUid = String(d.targetUid || "");
+  const approve   = d.approve === true;
+  const reason    = String(d.rejectionReason || "").trim();
+  if (!targetUid) {
+    throw new HttpsError("invalid-argument", "targetUid is required.");
+  }
+  assertDocId(targetUid, "targetUid");
+  if (!approve && !reason) {
+    throw new HttpsError("invalid-argument", "A rejection reason is required.");
+  }
+
+  const targetRef = db.doc(`users/${targetUid}`);
+  const targetSnap = await targetRef.get();
+  if (!targetSnap.exists) {
+    throw new HttpsError("not-found", "User not found.");
+  }
+
+  await targetRef.update({
+    kycStatus:          approve ? "APPROVED" : "REJECTED",
+    kycRejectionReason: approve ? "" : reason,
+  });
+
+  await db.collection("notifications").doc().set({
+    recipientId: targetUid,
+    type:        "SYSTEM",
+    title:       approve ? "Identity Verified" : "Verification Rejected",
+    body:        approve
+      ? "Your identity has been verified. You can now continue."
+      : `Your verification was rejected: ${reason}`,
+    isRead:      false,
+    createdAt:   Date.now(),
+    relatedId:   targetUid,
+  });
+
+  // ── Referral reward ──────────────────────────────────────────────────────────
+  // Rewards are granted here, at identity verification, rather than at
+  // registration — passing KYC needs a real tazkira + selfie + admin review, so
+  // this gates the reward against someone farming credit with fake accounts. The
+  // newly-verified user gets a welcome credit; the friend whose code they used
+  // gets a referrer credit. Runs once per user (guarded by referralRewarded).
+  if (approve) {
+    const target = targetSnap.data();
+    const referredBy = String(target.referredBy || "").trim().toUpperCase();
+    if (referredBy && target.referralRewarded !== true) {
+      try {
+        await db.runTransaction(async (tx) => {
+          const freshTarget = await tx.get(targetRef);
+          if (freshTarget.data().referralRewarded === true) return; // already done
+          const refQ = await tx.get(
+            db.collection("users").where("referralCode", "==", referredBy).limit(1)
+          );
+          // Mark rewarded regardless so a bad/self code can't be retried forever.
+          // The welcome credit is granted only when the matched referrer is a
+          // DIFFERENT user — a user whose referredBy equals their own code must
+          // not self-grant AFN at approval.
+          const referrerIsOther = !refQ.empty && refQ.docs[0].id !== targetUid;
+          tx.update(targetRef, {
+            referralRewarded: true,
+            referralCredit: admin.firestore.FieldValue.increment(
+              referrerIsOther ? REFERRAL_WELCOME_CREDIT : 0
+            ),
+          });
+          if (!refQ.empty && refQ.docs[0].id !== targetUid) {
+            const referrerRef = refQ.docs[0].ref;
+            tx.update(referrerRef, {
+              referralCredit: admin.firestore.FieldValue.increment(REFERRAL_REFERRER_CREDIT),
+            });
+            tx.set(db.collection("notifications").doc(), {
+              recipientId: refQ.docs[0].id,
+              type:        "SYSTEM",
+              msgKey:      "REFERRAL_REWARD",
+              msgParams:   { credit: REFERRAL_REFERRER_CREDIT },
+              title:       "Referral Reward",
+              body:        `A friend you invited just joined — you earned AFN ${REFERRAL_REFERRER_CREDIT} credit!`,
+              isRead:      false,
+              createdAt:   Date.now(),
+              relatedId:   targetUid,
+            });
+          }
+        });
+      } catch (err) {
+        logger.error("reviewKyc: referral reward failed (non-fatal)", err);
+      }
+    }
+  }
+
+  return { reviewed: true };
+});
+
+/**
+ * Creates a provider's salon at registration. Server-side because the salon's
+ * providerId must be authoritative (the app-level uid, not the Firebase Auth
+ * uid) and because at registration time the uid_map bridge isn't populated yet,
+ * so firestore.rules' me() can't resolve — a direct client write can't be
+ * verified. resolveAppUser looks the provider up by their auth-token email
+ * (their users/{uid} doc already exists at this point) and sets providerId to
+ * the real app uid. The salon starts hidden (isAvailable=false) and unverified
+ * until an admin approves the provider.
+ */
+
+exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+  const appUser = await resolveAppUser(request);
+  if (appUser.role !== "PROVIDER") {
+    throw new HttpsError("permission-denied", "Only providers can create a salon.");
+  }
+
+  const { salonName, district, services } = request.data || {};
+  if (!salonName || !district || !Array.isArray(services) || services.length === 0) {
+    throw new HttpsError(
+      "invalid-argument",
+      "salonName, district and at least one service are required."
+    );
+  }
+
+  // One salon per provider — return the existing one instead of duplicating
+  // (e.g. if the client retries after a dropped response).
+  const existing = await db.collection("salons")
+    .where("providerId", "==", appUser.uid).limit(1).get();
+  if (!existing.empty) {
+    return { salonId: existing.docs[0].id, alreadyExisted: true };
+  }
+
+  const ref = db.collection("salons").doc();
+  await ref.set({
+    providerId:          appUser.uid,
+    providerName:        appUser.name || "",
+    salonName:           String(salonName),
+    district:            String(district),
+    services:            services.map(String),
+    isAvailable:         false,   // hidden until an admin approves the provider
+    rating:              0,
+    workingHours:        [],
+    slotDurationMinutes: 60,
+    pricePerService:     {},
+    confirmedCount:      0,
+    isVerified:          false,
+  });
+  return { salonId: ref.id };
+});
+
+/**
+ * Pre-auth lookup of an account's Firebase Auth email by phone, for the
+ * password-reset flows (Forgot-PIN / Set-New-PIN). Returns ONLY the email
+ * fields — never pinHash/salt — so `users` reads can stay locked to owner/admin.
+ */
+
+// Resolves an account by phone (used by password recovery AND the registration
+// uniqueness check). Normalizes the input, and falls back to the raw string so
+// any legacy record still matches.
+exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request) => {
+  const raw = String((request.data || {}).phone || "").trim();
+  if (!raw) return { found: false };
+  // Throttle before touching the database: this endpoint is unauthenticated and
+  // answers "does this phone have an account?", which is exactly what an
+  // enumeration sweep wants. 20 lookups per IP per 10 minutes is far above any
+  // real signup/recovery flow and far below a useful sweep.
+  await enforceRateLimit(`lookup:${callerIp(request)}`, 20, 10 * 60 * 1000);
+  const phone = normalizePhone(raw);
+
+  let q = await db.collection("users").where("phone", "==", phone).limit(1).get();
+  if (q.empty && phone !== raw) {
+    q = await db.collection("users").where("phone", "==", raw).limit(1).get();
+  }
+  if (q.empty) return { found: false };
+
+  const doc = q.docs[0];
+  const u   = doc.data();
+  return {
+    found:         true,
+    uid:           doc.id,
+    firebaseEmail: u.firebaseEmail || "",
+    email:         u.email || "",
+  };
+});
+
+const LIVE_APPOINTMENT_STATUSES = ["AWAITING_PAYMENT", "PENDING", "CONFIRMED"];
+
+/** Commit a batch every 400 writes (Firestore's hard limit is 500). */
+
+async function flushIfFull(batch, count) {
+  if (count >= 400) { await batch.commit(); return { batch: db.batch(), count: 0 }; }
+  return { batch, count };
+}
+
+exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+
+  const user    = await resolveAppUser(request);
+  const uid     = user.uid;              // app-level id (users/{uid})
+  const authUid = request.auth.uid;      // Firebase Auth uid
+
+  // An admin deleting themselves could orphan the platform. Refuse — another
+  // admin must revoke the role first (revokeAdmin already blocks the last one).
+  if (user.role === "ADMIN") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Admin accounts can't be self-deleted. Have another admin revoke your admin role first."
+    );
+  }
+
+  const now = Date.now();
+  let batch = db.batch();
+  let count = 0;
+  const add = async (fn) => { fn(batch); count++; ({ batch, count } = await flushIfFull(batch, count)); };
+
+  // 1. Cancel every live appointment on both sides of the marketplace.
+  let cancelled = 0;
+  for (const field of ["customerId", "providerId"]) {
+    const snap = await db.collection("appointments")
+      .where(field, "==", uid)
+      .where("status", "in", LIVE_APPOINTMENT_STATUSES)
+      .get();
+    for (const d of snap.docs) {
+      await add((b) => b.update(d.ref, {
+        status: "CANCELLED",
+        cancelledAt: now,
+        cancelReason: "ACCOUNT_DELETED",
+      }));
+      cancelled++;
+    }
+  }
+
+  // 2. Strip personal fields from the financial records we keep.
+  const asCustomer = await db.collection("appointments").where("customerId", "==", uid).get();
+  for (const d of asCustomer.docs) {
+    await add((b) => b.update(d.ref, { customerName: "", customerPhone: "", notes: "" }));
+  }
+
+  // 3. Reviews stay (they inform other customers) but lose their author.
+  const reviews = await db.collection("reviews").where("customerId", "==", uid).get();
+  for (const d of reviews.docs) {
+    await add((b) => b.update(d.ref, { customerName: "" }));
+  }
+
+  // 4. Purely personal rows are deleted outright.
+  for (const [coll, field] of [
+    ["favorites",     "customerId"],
+    ["waitlist",      "customerId"],
+    ["notifications", "uid"],
+  ]) {
+    try {
+      const snap = await db.collection(coll).where(field, "==", uid).get();
+      for (const d of snap.docs) await add((b) => b.delete(d.ref));
+    } catch (e) {
+      logger.warn(`requestAccountDeletion: skipping ${coll}`, e);
+    }
+  }
+
+  // 5. A departing provider's salon must stop taking bookings.
+  const salons = await db.collection("salons").where("providerId", "==", uid).get();
+  for (const d of salons.docs) {
+    await add((b) => b.update(d.ref, { hidden: true, isVerified: false, deletedAt: now }));
+  }
+
+  // 6. The uid_map bridge (there may be several, one per Auth account used).
+  const maps = await db.collection("uid_map").where("appUid", "==", uid).get();
+  for (const d of maps.docs) await add((b) => b.delete(d.ref));
+  await add((b) => b.delete(db.doc(`uid_map/${authUid}`)));
+
+  // 7. The user document itself — the home of every remaining PII field
+  //    (name, phone, email, tazkira number, KYC photo URLs, fcmToken).
+  await add((b) => b.delete(db.doc(`users/${uid}`)));
+
+  if (count > 0) await batch.commit();
+
+  // 8. Private images. Best-effort: a Storage hiccup must not resurrect an
+  //    account whose Firestore identity is already gone.
+  for (const prefix of [`kyc/${uid}/`, `profile/${uid}/`, `reviews/${uid}/`]) {
+    try {
+      await admin.storage().bucket().deleteFiles({ prefix });
+    } catch (e) {
+      logger.warn(`requestAccountDeletion: storage cleanup failed for ${prefix}`, e);
+    }
+  }
+
+  // 9. Finally the credential itself. Last, so a failure above leaves the user
+  //    able to sign in and retry rather than locked out mid-deletion.
+  try {
+    await admin.auth().deleteUser(authUid);
+  } catch (e) {
+    logger.error("requestAccountDeletion: auth delete failed", e);
+    throw new HttpsError("internal", "Your data was removed but the sign-in could not be closed. Contact support.");
+  }
+
+  await db.collection("admin_audit").add({
+    adminUid: uid, adminName: "(self)", action: "DELETE_ACCOUNT",
+    details: { role: user.role || "", cancelledAppointments: cancelled, salonsHidden: salons.size },
+    createdAt: now,
+  });
+
+  logger.log(`requestAccountDeletion: deleted ${uid} (cancelled ${cancelled} appointment(s))`);
+  return { ok: true, cancelledAppointments: cancelled };
+});
+
+// ── adminBackfillPhoneKeys ────────────────────────────────────────────────────
+//
+// Writes the phoneDigits lookup key onto accounts that predate it.
+//
+// Only needed for records whose phone field was never normalized — anything the
+// current app wrote is already found by an exact match on `phone`. Server-only
+// by design: a client-supplied login key would let one account claim another's
+// and lock its owner out.
+//
+// Also reports collisions rather than silently picking a winner. Two accounts
+// sharing a subscriber key means login is ambiguous for that number, and that is
+// a fact a human needs to see, not something a backfill should paper over.
+exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+
+  const snap = await db.collection("users").orderBy("createdAt", "asc").limit(limit).get();
+
+  const seen = new Map();   // key -> first uid that claimed it
+  const collisions = [];
+  let written = 0;
+
+  for (const d of snap.docs) {
+    const data = d.data();
+    const key  = phoneKey(data.phone);
+    if (!key) continue;
+
+    if (seen.has(key)) {
+      collisions.push({ key, uids: [seen.get(key), d.id] });
+    } else {
+      seen.set(key, d.id);
+    }
+
+    if (data.phoneDigits !== key) {
+      await d.ref.update({ phoneDigits: key });
+      written += 1;
+    }
+  }
+
+  await logAdminAction(me, "BACKFILL_PHONE_KEYS", {
+    scanned: snap.size, written, collisions: collisions.length,
+  });
+  if (collisions.length) {
+    logger.error("adminBackfillPhoneKeys: duplicate phone keys", { collisions });
+  }
+  return {
+    ok: true,
+    scanned: snap.size,
+    written,
+    collisions,
+    done: snap.size < limit,
+  };
+});
+
+async function enforceRateLimit(key, max, windowMs) {
+  const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
+  const now = Date.now();
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const d = snap.exists ? snap.data() : null;
+      if (!d || now - (d.windowStart || 0) >= windowMs) {
+        tx.set(ref, { windowStart: now, count: 1, updatedAt: now });
+        return;
+      }
+      if ((d.count || 0) >= max) {
+        const retryInSec = Math.ceil((d.windowStart + windowMs - now) / 1000);
+        throw new HttpsError(
+          "resource-exhausted",
+          `Too many attempts. Please try again in ${retryInSec} second(s).`
+        );
+      }
+      tx.update(ref, { count: (d.count || 0) + 1, updatedAt: now });
+    });
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;   // the limit itself — propagate
+    logger.warn("enforceRateLimit failed open", e);
+  }
+}
+
+/** Best-effort caller IP for a v2 callable. */
+
+function callerIp(request) {
+  const r = request.rawRequest || {};
+  const fwd = (r.headers && (r.headers["x-forwarded-for"] || r.headers["X-Forwarded-For"])) || "";
+  return String(fwd).split(",")[0].trim() || r.ip || "unknown";
+}
+
+/** Purge stale rate-limit counters so the collection can't grow without bound. */

@@ -289,7 +289,23 @@ async function reserveBookingCode(attempts = 6) {
  * person's name or role changes.
  */
 
+// ── Password derivation ───────────────────────────────────────────────────────
+//
+// Both halves of account handling need this: signing in derives the hash to
+// compare, and an admin resetting a password or creating a salon derives the
+// one to store. One implementation, because two would eventually disagree about
+// the iteration count and lock people out of their own accounts.
+
+// Byte-for-byte mirror of the Android PinHasher: PBKDF2WithHmacSHA256, 65,536
+// iterations, 256-bit output, salt is Base64(NO_WRAP) bytes. Must match exactly
+// or every PIN verification fails.
+function pbkdf2Hash(pin, saltB64) {
+  const salt = Buffer.from(String(saltB64), "base64");
+  return crypto.pbkdf2Sync(String(pin), salt, 65536, 32, "sha256").toString("base64");
+}
+
 module.exports = {
+  pbkdf2Hash,
   refundReservation, randomBookingCode, reserveBookingCode,
   admin, db, logger, alertable,
   assertDocId, resolveAppUser, cleanPhone,
