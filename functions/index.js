@@ -5215,14 +5215,47 @@ exports.nudgeUnconfirmedBookings = onSchedule(
 
     // One notification per provider, however many bookings are waiting —
     // five separate pushes would read as noise and get the app muted.
+    //
+    // The provider is resolved through the salon, because an appointment does
+    // not carry providerId and never has. This job used to read a.providerId
+    // directly and skip anything without one, which is every appointment ever
+    // written — so the whole nudge, auto-cancel and refund flow had never run
+    // for a single booking since it was added. It exists precisely so a
+    // customer who has paid is not left waiting indefinitely on a salon that
+    // never answers, and that is the case it was silently not covering.
+    const providerBySalon = new Map();
+    const providerFor = async (salonId) => {
+      if (!salonId) return "";
+      if (providerBySalon.has(salonId)) return providerBySalon.get(salonId);
+      const snap = await db.doc(`salons/${salonId}`).get();
+      const pid = snap.exists ? String((snap.data() || {}).providerId || "") : "";
+      providerBySalon.set(salonId, pid);
+      return pid;
+    };
+
     const byProvider = new Map();
-    snap.docs.forEach((d) => {
+    const orphaned = [];
+    for (const d of snap.docs) {
       const a = d.data();
-      if (a.providerNudged) return;              // already chased this one
-      if (!a.providerId) return;
-      if (!byProvider.has(a.providerId)) byProvider.set(a.providerId, []);
-      byProvider.get(a.providerId).push(d);
-    });
+      if (a.providerNudged) continue;            // already chased this one
+      const providerId = await providerFor(a.salonId);
+      if (!providerId) {
+        // The salon is gone, or the booking predates salons having owners.
+        // There is nobody to nudge, so it is reported rather than skipped in
+        // silence — an unactionable row that reappears in every sweep forever
+        // is how a report becomes noise and the next real finding gets missed.
+        orphaned.push({ appointmentId: d.id, salonId: a.salonId || "", salonName: a.salonName || "" });
+        continue;
+      }
+      if (!byProvider.has(providerId)) byProvider.set(providerId, []);
+      byProvider.get(providerId).push(d);
+    }
+
+    if (orphaned.length) {
+      alertable("BOOKING_FAILED", "Pending bookings whose salon no longer exists", {
+        count: orphaned.length, orphaned: orphaned.slice(0, 20),
+      });
+    }
     if (byProvider.size === 0) return;
 
     const now = Date.now();
