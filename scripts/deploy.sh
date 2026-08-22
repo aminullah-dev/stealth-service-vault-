@@ -47,16 +47,26 @@ if [[ "$ALIAS" == "prod" ]]; then
 fi
 
 echo "── firebase deploy"
+# The exit code is captured rather than allowed to kill the script. A deploy can
+# fail on one function and still have changed 73 others, and the invoker check
+# below is the step that exists to stop a callable going live returning 403 —
+# skipping it exactly when a deploy went wrong is the opposite of what it is for.
+# The failure is not swallowed: it is re-raised at the end, after the check.
+DEPLOY_STATUS=0
 if [[ -n "$TARGETS" ]]; then
-  npx firebase deploy --project "$PROJECT" --only "$TARGETS"
+  npx firebase deploy --project "$PROJECT" --only "$TARGETS" || DEPLOY_STATUS=$?
 else
-  npx firebase deploy --project "$PROJECT"
+  npx firebase deploy --project "$PROJECT" || DEPLOY_STATUS=$?
+fi
+
+if [[ "$DEPLOY_STATUS" -ne 0 ]]; then
+  echo "── firebase deploy exited $DEPLOY_STATUS — continuing to the invoker check anyway" >&2
 fi
 
 # Only relevant when functions were part of this deploy.
 if [[ -n "$TARGETS" && "$TARGETS" != *"functions"* ]]; then
   echo "── Skipping invoker bindings (functions not in this deploy)"
-  exit 0
+  exit "$DEPLOY_STATUS"
 fi
 
 # Indexes drift when deploys use narrow --only targets, which most do. The drift
@@ -124,3 +134,9 @@ if [[ "$missing" -gt 0 ]]; then
 fi
 
 echo "── Done. $(echo "$CALLABLES" | wc -l | tr -d ' ') callables reachable."
+
+# Re-raise the deploy's own failure now that the safety check has run. A
+# transient IAM error on a scheduled function — which needs no public invoker —
+# looks exactly like this and is worth seeing, but it should not have hidden
+# whether the callables are reachable.
+exit "$DEPLOY_STATUS"
