@@ -7,6 +7,11 @@ name: Pull request
 #
 # Every job here runs without Firebase credentials — the emulator needs none —
 # so a fork or a fresh clone gets the same verdict.
+#
+# firebase-tools is a pinned devDependency rather than something the machine is
+# assumed to have. The first run of this workflow failed on exactly that: `npx
+# firebase` resolved locally because it was installed globally on one laptop,
+# and "could not determine executable to run" everywhere else.
 
 on:
   pull_request:
@@ -95,20 +100,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+      # Install BEFORE the emulator runs. This job used to call it first and
+      # then install, which worked on a machine that already had firebase-tools
+      # and nowhere else.
+      - run: npm ci
+        working-directory: functions
       # Starting the emulator compiles firestore.rules and storage.rules. A rule
       # that does not compile is not deployed — the previous deploy stays live —
       # so this catches a change that would otherwise look successful.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "echo rules compiled"
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: functions/package-lock.json
-      - run: npm ci
         working-directory: functions
       # Behavioural tests for the rules, not just a syntax check. The privacy
       # claim that demand signals carry no identity is enforced by hasOnly(); a
