@@ -1066,6 +1066,20 @@ function openUserModal(u, onChanged){
     </div>
 
     <div class="mgroup">
+      <div class="mglabel">Delete account</div>
+      <div class="meta" style="color:var(--muted);margin-bottom:9px">
+        For a duplicate registration or a test row — nothing else. An account with any
+        bookings, payments, reviews, reports or salons is refused: deleting it would leave
+        a salon holding an appointment with nobody to contact. Suspend those instead.
+        Recoverable for 7 days.
+      </div>
+      <div class="mrow">
+        <input id="m-delreason" class="field" placeholder="Reason (kept on the record)" />
+        <button class="btn-sm" id="m-delete" style="background:var(--red)">Delete</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
       <div class="mglabel">Full history</div>
       <button class="btn-sm" id="m-dossier" style="background:var(--surface);color:var(--deep)">Load bookings, reviews and reports</button>
       <div id="m-dossier-out" style="margin-top:10px"></div>
@@ -1085,6 +1099,28 @@ function openUserModal(u, onChanged){
   };
   if($('m-reinstate')) $('m-reinstate').onclick = async (e) => {
     if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:false }, e.target, 'm-flash', 'Reinstated ✓')) refresh();
+  };
+
+  $('m-delete').onclick = async (e) => {
+    const reason = $('m-delreason').value.trim();
+    if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A deletion needs a reason on the record.'; return; }
+    if(!confirm(`Delete ${u.name||u.id}?\n\nThis is for duplicates and test rows. It is refused if the account has any history, and it is recoverable for 7 days.`)) return;
+
+    const btn = e.target, lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    $('m-flash').className='mflash'; $('m-flash').textContent='';
+    try{
+      const { data } = await httpsCallable(fns,'adminDeleteUser')({ targetUid:u.id, reason });
+      $('m-flash').className='mflash ok';
+      $('m-flash').textContent = 'Deleted ✓' + (data.authRecordKept ? ' (sign-in record kept, harmless)' : '');
+      setTimeout(() => { hideModal(); if(onChanged) onChanged(); }, 900);
+    }catch(err){
+      // The refusals are the useful part of this feature, so show them in full
+      // rather than collapsing everything to "failed".
+      $('m-flash').className='mflash bad';
+      $('m-flash').textContent = fnError(err);
+      btn.disabled = false; btn.textContent = lbl;
+    }
   };
 
   $('m-dossier').onclick = async (e) => {

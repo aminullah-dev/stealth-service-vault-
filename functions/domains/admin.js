@@ -457,3 +457,104 @@ exports.adminUserDossier = onCall({ region: "us-central1" }, async (request) => 
  * made under [key] inside [windowMs]. Fails OPEN on infrastructure errors — a
  * Firestore hiccup must never lock legitimate users out of signing in.
  */
+
+
+// ── adminDeleteUser ───────────────────────────────────────────────────────────
+//
+// Removes an account that should never have existed — a duplicate
+// registration, a test row — and nothing else.
+//
+// Almost all of this function is refusals, and that is the point. Deleting a
+// user is the one admin action with no undo inside the app, and the damage it
+// does is not to the account: it is to everything that referenced it. An
+// appointment whose customer is gone still shows in a salon's calendar with a
+// name and a phone and nobody to contact. A review loses its author. A salon
+// loses its owner and becomes unmanageable.
+//
+// So an account with any history at all is refused, with the reason given, and
+// the admin is pointed at suspension instead — which stops someone acting
+// without destroying what they did.
+//
+// The Firebase Auth record is deliberately left behind. Firestore has
+// point-in-time recovery, so a wrongly deleted document can be restored for
+// seven days; Auth has no equivalent. An orphaned Auth shell can authenticate
+// and then fail to resolve a profile, which is recoverable. A deleted one is
+// not.
+exports.adminDeleteUser = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const d = request.data || {};
+  const targetUid = String(d.targetUid || "").trim();
+  const reason = String(d.reason || "").trim().slice(0, 300);
+
+  if (!isValidDocId(targetUid)) {
+    throw new HttpsError("invalid-argument", "A valid targetUid is required.");
+  }
+  if (!reason) {
+    throw new HttpsError("invalid-argument", "Deleting an account needs a reason on the record.");
+  }
+  if (targetUid === me.uid) {
+    throw new HttpsError("failed-precondition", "You cannot delete your own account from here.");
+  }
+
+  const ref = db.doc(`users/${targetUid}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "No such user.");
+  const target = snap.data() || {};
+
+  if (target.role === "ADMIN") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Remove admin access first. Deleting an administrator outright is never the quick fix it looks like."
+    );
+  }
+
+  // Anything that would be orphaned. Counted rather than read, so a long-lived
+  // account does not make this expensive.
+  const countOf = async (coll, field) =>
+    (await db.collection(coll).where(field, "==", targetUid).count().get()).data().count;
+
+  const [appointments, payments, reviews, salons, reports] = await Promise.all([
+    countOf("appointments", "customerId"),
+    countOf("payments", "customerId"),
+    countOf("reviews", "customerId"),
+    countOf("salons", "providerId"),
+    countOf("customer_reports", "customerId"),
+  ]);
+
+  const holds = { appointments, payments, reviews, salons, reports };
+  const blocking = Object.entries(holds).filter(([, n]) => n > 0);
+
+  if (blocking.length) {
+    throw new HttpsError(
+      "failed-precondition",
+      "This account has history and cannot be deleted: " +
+        blocking.map(([k, n]) => `${n} ${k}`).join(", ") +
+        ". Suspend it instead — that stops them acting without erasing what they did.",
+      { reason: "HAS_HISTORY", holds }
+    );
+  }
+
+  // Recorded before the delete, so the row survives even if what follows fails.
+  await logAdminAction(me, "DELETE_USER", {
+    targetUid,
+    targetName:    target.name || "",
+    phone:         target.phone || "",
+    firebaseEmail: target.firebaseEmail || "",
+    reason,
+    holds,
+  });
+
+  // uid_map is keyed by the Firebase Auth uid, so it has to be found by value.
+  const maps = await db.collection("uid_map").where("appUid", "==", targetUid).limit(10).get();
+  const batch = db.batch();
+  maps.docs.forEach((m) => batch.delete(m.ref));
+  batch.delete(ref);
+  await batch.commit();
+
+  logger.log(`adminDeleteUser: ${targetUid} removed by ${me.uid}`);
+  return {
+    ok: true,
+    deletedUidMaps: maps.size,
+    authRecordKept: target.firebaseEmail || "",
+  };
+});

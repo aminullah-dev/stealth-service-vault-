@@ -107,6 +107,7 @@ exports.adminGrantCredit           = admin_.adminGrantCredit;
 exports.adminCreateSalon           = admin_.adminCreateSalon;
 exports.adminSetUserStatus         = admin_.adminSetUserStatus;
 exports.adminUserDossier           = admin_.adminUserDossier;
+exports.adminDeleteUser            = admin_.adminDeleteUser;
 exports.adminTestAlert             = admin_.adminTestAlert;
 exports.resolveCustomerReport      = admin_.resolveCustomerReport;
 
