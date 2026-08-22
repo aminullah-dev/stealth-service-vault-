@@ -2988,48 +2988,120 @@ exports.pushOnBroadcastCreated = onDocumentCreated(
       }
     }
 
-    let q = db.collection("users");
+    // Paged rather than read-all. This used to load every matching user into one
+    // invocation and send 500 at a time in sequence -- which at 100,000 users is
+    // 100,000 reads and roughly two hundred sequential sends, comfortably past
+    // the function timeout. It would then stop halfway with no record of where,
+    // so the broadcast could be neither resumed nor safely retried: retrying
+    // would message everyone it had already reached a second time.
+    //
+    // Progress is recorded on the broadcast document, and resumeBroadcasts
+    // continues anything left unfinished. Invariant Q-4.
+    await event.data.ref.set({
+      sendState: "SENDING",
+      sentCount: 0,
+      startedAt: Date.now(),
+    }, { merge: true });
+
+    await deliverBroadcast(event.data.ref, b, districtOwners);
+  }
+);
+
+/** How many recipients one invocation will attempt before handing over. */
+const BROADCAST_PAGE = 500;
+const BROADCAST_MAX_PAGES_PER_RUN = 6;
+
+/**
+ * Send a broadcast from where it left off, and record how far it got.
+ *
+ * Bounded per invocation so it always finishes well inside the timeout, leaving
+ * a cursor rather than an unknown state. Called on creation and again by
+ * resumeBroadcasts until the state reaches DONE.
+ */
+async function deliverBroadcast(ref, b, districtOwners) {
+  const wantRole = String(b.targetRole || "").toUpperCase();
+  const wantLang = String(b.targetLang || "").toLowerCase();
+
+  const title = "SafeBeauty";
+  const body  = String(b.message);
+  const data  = { type: "BROADCAST", relatedId: "", notif_type: "BROADCAST", notif_related_id: "" };
+
+  let cursorId = String(b.sendCursor || "");
+  let sent     = Number(b.sentCount || 0);
+  let pages    = 0;
+
+  while (pages < BROADCAST_MAX_PAGES_PER_RUN) {
+    let q = db.collection("users").orderBy(admin.firestore.FieldPath.documentId());
     if (wantRole) q = q.where("role", "==", wantRole);
     if (wantLang) q = q.where("lang", "==", wantLang);
-    const usersSnap = await q.get();
+    if (cursorId) q = q.startAfter(cursorId);
 
-    const tokens = [];
-    usersSnap.forEach((doc) => {
-      if (districtOwners && !districtOwners.has(doc.id)) return;
-      const t = String(doc.data().fcmToken || "");
-      if (t) tokens.push(t);
-    });
-    if (tokens.length === 0) {
-      logger.log("pushOnBroadcastCreated: no recipients matched the filters");
+    const page = await q.limit(BROADCAST_PAGE).get();
+    if (page.empty) {
+      await ref.set({ sendState: "DONE", sentCount: sent, finishedAt: Date.now() }, { merge: true });
+      logger.log(`deliverBroadcast: finished, ${sent} device(s)`);
       return;
     }
 
-    const title = "SafeBeauty";
-    const body  = String(b.message);
-    const data  = {
-      type:             "BROADCAST",
-      relatedId:        "",
-      notif_type:       "BROADCAST",
-      notif_related_id: "",
-    };
+    const tokens = [];
+    page.docs.forEach((doc) => {
+      if (districtOwners && !districtOwners.has(doc.id)) return;
+      const t = String((doc.data() || {}).fcmToken || "");
+      if (t) tokens.push(t);
+    });
 
-    for (let i = 0; i < tokens.length; i += 500) {
-      const batch = tokens.slice(i, i + 500);
+    if (tokens.length) {
       try {
         await admin.messaging().sendEachForMulticast({
-          tokens: batch,
-          notification: { title, body },
-          data,
+          tokens, notification: { title, body }, data,
           android: { priority: "high" },
         });
+        sent += tokens.length;
       } catch (err) {
-        logger.warn("pushOnBroadcastCreated: batch send failed", {
-          error: String(err.message || err),
-        });
+        logger.warn("deliverBroadcast: batch send failed", { error: String(err.message || err) });
       }
     }
-    logger.log(`pushOnBroadcastCreated: sent to ${tokens.length} device(s)` +
-      ` [role=${wantRole || "any"} lang=${wantLang || "any"} district=${wantDistrict || "any"}]`);
+
+    cursorId = page.docs[page.docs.length - 1].id;
+    pages += 1;
+
+    // Written every page, not at the end: an invocation killed mid-run must
+    // leave behind where it actually got to.
+    await ref.set({ sendState: "SENDING", sentCount: sent, sendCursor: cursorId }, { merge: true });
+
+    if (page.size < BROADCAST_PAGE) {
+      await ref.set({ sendState: "DONE", sentCount: sent, finishedAt: Date.now() }, { merge: true });
+      logger.log(`deliverBroadcast: finished, ${sent} device(s)`);
+      return;
+    }
+  }
+
+  logger.log(`deliverBroadcast: paused after ${sent} device(s), will resume`);
+}
+
+// Continues any broadcast that did not finish in one invocation.
+exports.resumeBroadcasts = onSchedule(
+  { schedule: "every 5 minutes", region: "us-central1" },
+  async () => {
+    const stuck = await db.collection("broadcasts")
+      .where("sendState", "==", "SENDING")
+      .limit(3)
+      .get();
+    if (stuck.empty) return;
+
+    for (const doc of stuck.docs) {
+      const b = doc.data() || {};
+      // The district filter has to be rebuilt, since it is derived rather than
+      // stored on the broadcast.
+      let districtOwners = null;
+      const wantDistrict = String(b.targetDistrict || "");
+      if (wantDistrict) {
+        districtOwners = new Set();
+        const sSnap = await db.collection("salons").where("district", "==", wantDistrict).get();
+        sSnap.forEach((d) => { const pid = (d.data() || {}).providerId; if (pid) districtOwners.add(pid); });
+      }
+      await deliverBroadcast(doc.ref, b, districtOwners);
+    }
   }
 );
 
