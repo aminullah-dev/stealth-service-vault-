@@ -59,10 +59,25 @@ def top_level_blocks(lines):
     # block too, so two blocks overlap — and a move built on overlapping ranges
     # copies code without removing it, leaving the same function defined twice
     # with the later definition silently winning.
+    def trim_tail(end):
+        """
+        Give back trailing blanks and comments to whatever follows.
+
+        A section header or doc comment separated from its declaration by a
+        blank line is not picked up as that declaration's header, so it falls
+        into the PREVIOUS block's tail — and moving that block carries the
+        comment away from the code it describes and parks it above unrelated
+        code. A comment explaining one function sitting above another is worse
+        than no comment: it is confidently wrong.
+        """
+        while end > 0 and (lines[end - 1].strip() == "" or lines[end - 1].startswith("//")):
+            end -= 1
+        return end
+
     blocks = {}
     for idx, (start, name, kind) in enumerate(adjusted):
-        end = adjusted[idx + 1][0] if idx + 1 < len(adjusted) else len(lines)
-        blocks[name] = (kind, start, end)
+        raw_end = adjusted[idx + 1][0] if idx + 1 < len(adjusted) else len(lines)
+        blocks[name] = (kind, start, trim_tail(raw_end))
     return blocks
 
 
@@ -104,6 +119,16 @@ def main():
     missing = [w for w in wanted if w not in blocks or blocks[w][0] != "export"]
     if missing:
         print(f"not exports in index.js: {missing}")
+        sys.exit(1)
+
+    # A line like `exports.foo = domain.foo;` is index.js re-exporting an
+    # already-moved function, not a definition. Matching it as movable would
+    # carry the wiring out of index.js and leave the function undeployed —
+    # while the tool reported a clean move.
+    reexport = re.compile(r"^exports\.\w+\s*=\s*\w+\.\w+;\s*$")
+    already = [w for w in wanted if reexport.match(lines[blocks[w][1]].strip() or lines[blocks[w][1]])]
+    if already:
+        print(f"already split (index.js only re-exports these): {already}")
         sys.exit(1)
 
     helpers = [n for n, (k, _, _) in blocks.items() if k == "helper"]
@@ -157,11 +182,19 @@ def main():
     # Anything from shared.js comes from there, not from a second require of
     # firebase-admin — two initialisations is two Firestore handles.
     SHARED = {"admin", "db", "logger", "alertable"}
+    def rebase(mod):
+        """
+        A domain file sits one directory deeper than index.js, so every relative
+        require has to gain a level. Copying the path verbatim produces
+        MODULE_NOT_FOUND at load time — after the move looks successful.
+        """
+        return mod.replace('"./', '"../', 1) if mod.startswith('"./') else mod
+
     req_lines = []
     for mod in sorted(needed):
         names = sorted(n for n in needed[mod] if n not in SHARED)
         if names:
-            req_lines.append(f"const {{ {', '.join(names)} }} = require({mod});")
+            req_lines.append(f"const {{ {', '.join(names)} }} = require({rebase(mod)});")
 
     shared_names = sorted((set(imports) | (SHARED & set(reqs))) & set(re.findall(r"\b(\w+)\b", domain_src)))
     if shared_names:
