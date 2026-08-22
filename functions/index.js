@@ -73,6 +73,18 @@ const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
   default: "https://safebeauty.web.app",
 });
 
+// Kabul-local calendar day for a timestamp.
+//
+// The client writes requestedDate as device-local (Kabul, UTC+4:30) midnight
+// while this code runs in UTC, so comparing UTC midnight to Kabul midnight never
+// matched and the waitlist promotion silently never fired. Afghanistan has no
+// DST, so a fixed offset is exact.
+//
+// At module scope because two separate jobs now need it, and a copy in each is
+// how two definitions of "the same day" start disagreeing.
+const KABUL_OFFSET_MS = 4.5 * 3600 * 1000;
+const kabulDay = (ts) => Math.floor((Number(ts) + KABUL_OFFSET_MS) / 86400000);
+
 // Default commission if the platform_config doc is missing (percent).
 const DEFAULT_COMMISSION_PERCENT = 10;
 
@@ -2099,8 +2111,6 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
     // as device-local (Kabul, UTC+4:30) midnight while this code runs in UTC —
     // comparing UTC midnight to Kabul midnight never matched, so the promotion
     // silently never fired. Afghanistan has no DST, so a fixed offset is exact.
-    const KABUL_OFFSET_MS = 4.5 * 3600 * 1000;
-    const kabulDay = (ts) => Math.floor((Number(ts) + KABUL_OFFSET_MS) / 86400000);
     const wantedDay = kabulDay(result.appt.appointmentDate);
 
     const entries = await db.collection("waitlist")
@@ -2111,7 +2121,12 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
       .filter((w) => w.status === "WAITING" && kabulDay(w.requestedDate) === wantedDay)
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0];
     if (first) {
-      await db.doc(`waitlist/${first.id}`).update({ status: "SLOT_AVAILABLE" });
+      // offeredAt is what lets rotateWaitlistOffers age an unclaimed offer and
+      // pass it on. Without it the entry has no clock and the queue stalls.
+      await db.doc(`waitlist/${first.id}`).update({
+        status: "SLOT_AVAILABLE",
+        offeredAt: Date.now(),
+      });
       // Also tell the customer directly — the doc flip alone was invisible until
       // they happened to open the bookings sheet. The notifications trigger turns
       // this into an FCM push, and the Notification Center's Waitlist filter
@@ -4190,6 +4205,74 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
     expect: "A notification should arrive within about five minutes.",
   };
 });
+
+// ── rotateWaitlistOffers ──────────────────────────────────────────────────────
+//
+// When a slot frees, the first person waiting is told and given the chance to
+// book it. That is the right shape for a paid marketplace — booking on someone's
+// behalf would charge them for an appointment they never chose.
+//
+// But nothing ever moved the offer on. If that first person did not act, their
+// entry sat in SLOT_AVAILABLE permanently: they were never told again about a
+// later opening, and nobody behind them in the queue was told at all. One
+// unanswered notification stalled the whole waitlist for that salon, silently.
+//
+// So an unclaimed offer expires and passes to the next person. The window is
+// generous — these are women who may see the notification hours later — but it
+// is finite, because a queue that never advances is not a queue.
+const WAITLIST_OFFER_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+exports.rotateWaitlistOffers = onSchedule(
+  { schedule: "every 30 minutes", region: "us-central1" },
+  async () => {
+    const cutoff = Date.now() - WAITLIST_OFFER_WINDOW_MS;
+
+    const stale = await db.collection("waitlist")
+      .where("status", "==", "SLOT_AVAILABLE")
+      .where("offeredAt", "<", cutoff)
+      .limit(50)
+      .get();
+    if (stale.empty) return;
+
+    let passed = 0;
+    for (const doc of stale.docs) {
+      const w = doc.data() || {};
+      await doc.ref.update({ status: "EXPIRED", expiredAt: Date.now() });
+
+      // The next person still waiting for the same salon and the same day.
+      const queue = await db.collection("waitlist")
+        .where("salonId", "==", w.salonId || "")
+        .where("status", "==", "WAITING")
+        .limit(50)
+        .get();
+
+      const next = queue.docs
+        .map((d) => ({ id: d.id, ref: d.ref, ...d.data() }))
+        .filter((x) => kabulDay(x.requestedDate) === kabulDay(w.requestedDate))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))[0];
+
+      if (!next) continue;
+
+      await next.ref.update({ status: "SLOT_AVAILABLE", offeredAt: Date.now() });
+      if (next.customerId) {
+        await db.collection("notifications").add({
+          recipientId: next.customerId,
+          type:        "WAITLIST",
+          msgKey:      "WAITLIST_SLOT",
+          msgParams:   { salon: next.salonName || "A salon" },
+          title:       "A slot opened up 🎉",
+          body:        `${next.salonName || "A salon"} has a free slot on your waitlisted day — book it before it's gone!`,
+          isRead:      false,
+          createdAt:   Date.now(),
+          relatedId:   next.salonId || "",
+        });
+      }
+      passed += 1;
+    }
+
+    logger.log(`rotateWaitlistOffers: expired ${stale.size}, passed on ${passed}`);
+  }
+);
 
 // ── adminDemandReport ─────────────────────────────────────────────────────────
 //
