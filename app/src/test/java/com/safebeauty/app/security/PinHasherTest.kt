@@ -8,7 +8,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+// A plain Application: booting SafeBeautyApplication loads the SQLCipher native
+// library, which does not exist on the JVM. PBKDF2 needs no database.
+@Config(sdk = [33], application = android.app.Application::class)
 class PinHasherTest {
 
     private lateinit var pinHasher: PinHasher

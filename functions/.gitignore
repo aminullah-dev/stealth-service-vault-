@@ -5,4 +5,13 @@ node_modules/
 !.env.example
 *.log
 .firebase/
-package-lock.json
+# package-lock.json is deliberately NOT ignored. `npm ci` requires it, and
+# without it every install resolves whatever versions happen to be current —
+# so CI would test different code than production runs.
+
+# The two project env files hold no secrets — a vendor API base URL and this
+# app's own hosting URL — and a clean checkout cannot deploy without them, which
+# is a deploy step that lives outside the repository (specification 10.4). Real
+# secrets stay in Secret Manager via defineSecret and are never written here.
+!.env.safebeauty
+!.env.safebeauty-staging

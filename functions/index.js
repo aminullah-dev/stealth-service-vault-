@@ -4240,7 +4240,12 @@ exports.cleanupRateLimits = onSchedule(
 //     --member=serviceAccount:238802374530-compute@developer.gserviceaccount.com \
 //     --role=roles/storage.admin
 
-const BACKUP_BUCKET = "gs://safebeauty-backups";
+// Derived from the running project rather than hardcoded. With a staging
+// project deploying the same code, a fixed bucket meant staging would export
+// its own data into production's backup folder — quietly corrupting the one
+// artefact a real recovery depends on, and only discovered while trying to use
+// it. The bucket for each project is created by scripts/setup-backup-bucket.sh.
+const BACKUP_BUCKET = `gs://${process.env.GCLOUD_PROJECT || "safebeauty"}-backups`;
 
 exports.scheduledFirestoreBackup = onSchedule(
   { schedule: "every day 02:00", timeZone: "Asia/Kabul", region: "us-central1" },

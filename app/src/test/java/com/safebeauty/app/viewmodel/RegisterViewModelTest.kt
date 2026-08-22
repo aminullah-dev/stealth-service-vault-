@@ -14,6 +14,9 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.*
+import androidx.test.core.app.ApplicationProvider
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +26,10 @@ import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+// A plain Application: booting SafeBeautyApplication would load the SQLCipher
+// native library, which does not exist on the JVM and failed every test in this
+// file. These exercise form validation, which needs no database.
+@Config(sdk = [33], application = android.app.Application::class)
 class RegisterViewModelTest {
 
     @get:Rule
@@ -39,6 +45,20 @@ class RegisterViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        // The view model resolves FirebaseFunctions at construction, and the real
+        // Application that would normally initialize Firebase is bypassed above.
+        // Dummy options are enough: these tests exercise validation and never
+        // reach the network.
+        if (FirebaseApp.getApps(ApplicationProvider.getApplicationContext()).isEmpty()) {
+            FirebaseApp.initializeApp(
+                ApplicationProvider.getApplicationContext(),
+                FirebaseOptions.Builder()
+                    .setApplicationId("1:0:android:0")
+                    .setProjectId("safebeauty-unit-test")
+                    .setApiKey("unit-test")
+                    .build()
+            )
+        }
         viewModel = RegisterViewModel(mockRepo, mockAuth, mockHasher)
     }
 
@@ -66,8 +86,12 @@ class RegisterViewModelTest {
         viewModel.services    = listOf("Haircut")
     }
 
-    private fun errorMessage() =
-        (viewModel.state as? RegisterViewModel.RegisterState.Error)?.message
+    // Asserts on the reason enum rather than an English sentence. The screen owns
+    // the wording in three languages, so a test that pinned the English string
+    // failed the moment the message was translated -- which is what happened, and
+    // went unnoticed because nothing ran these tests.
+    private fun errorReason() =
+        (viewModel.state as? RegisterViewModel.RegisterState.Error)?.reason
 
     // ── Name validation ───────────────────────────────────────────────────────
 
@@ -75,8 +99,8 @@ class RegisterViewModelTest {
     fun `blank name produces error`() {
         fillValidCustomer()
         viewModel.name = "   "
-        viewModel.register()
-        assertEquals("Name is required", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.NAME_REQUIRED, errorReason())
     }
 
     // ── Phone validation ──────────────────────────────────────────────────────
@@ -85,8 +109,8 @@ class RegisterViewModelTest {
     fun `blank phone produces error`() {
         fillValidCustomer()
         viewModel.phone = ""
-        viewModel.register()
-        assertEquals("Phone number is required", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.PHONE_REQUIRED, errorReason())
     }
 
     // ── Email validation ──────────────────────────────────────────────────────
@@ -95,17 +119,17 @@ class RegisterViewModelTest {
     fun `invalid email produces error`() {
         fillValidCustomer()
         viewModel.email = "not-an-email"
-        viewModel.register()
-        assertEquals("Please enter a valid email address", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.EMAIL_INVALID, errorReason())
     }
 
     @Test
     fun `blank email is accepted (optional field)`() {
         fillValidCustomer()
         viewModel.email = ""
-        viewModel.register()
+        viewModel.startRegistration()
         // Blank email is valid — should not produce an email error
-        assertNotEquals("Please enter a valid email address", errorMessage())
+        assertNotEquals(RegisterViewModel.ErrorReason.EMAIL_INVALID, errorReason())
     }
 
     // ── Password validation ──────────────────────────────────────────────────
@@ -115,8 +139,8 @@ class RegisterViewModelTest {
         fillValidCustomer()
         viewModel.password        = "1234"
         viewModel.confirmPassword = "1234"
-        viewModel.register()
-        assertEquals("Password must be at least 6 characters", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.PIN_TOO_SHORT, errorReason())
     }
 
     @Test
@@ -124,8 +148,8 @@ class RegisterViewModelTest {
         fillValidCustomer()
         viewModel.password        = "142857"
         viewModel.confirmPassword = "142858"
-        viewModel.register()
-        assertEquals("Passwords do not match", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.PIN_MISMATCH, errorReason())
     }
 
     @Test
@@ -133,9 +157,9 @@ class RegisterViewModelTest {
         fillValidCustomer()
         viewModel.password        = "correcthorse"
         viewModel.confirmPassword = "correcthorse"
-        viewModel.register()
-        assertNotEquals("Password must be at least 6 characters", errorMessage())
-        assertNotEquals("Passwords do not match", errorMessage())
+        viewModel.startRegistration()
+        assertNotEquals(RegisterViewModel.ErrorReason.PIN_TOO_SHORT, errorReason())
+        assertNotEquals(RegisterViewModel.ErrorReason.PIN_MISMATCH, errorReason())
     }
 
     // ── Provider-specific validation ──────────────────────────────────────────
@@ -144,24 +168,24 @@ class RegisterViewModelTest {
     fun `provider without salon name produces error`() {
         fillValidProvider()
         viewModel.salonName = ""
-        viewModel.register()
-        assertEquals("Salon name is required", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.SALON_NAME_REQUIRED, errorReason())
     }
 
     @Test
     fun `provider without district produces error`() {
         fillValidProvider()
         viewModel.district = ""
-        viewModel.register()
-        assertEquals("District is required", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.DISTRICT_REQUIRED, errorReason())
     }
 
     @Test
     fun `provider without services produces error`() {
         fillValidProvider()
         viewModel.services = emptyList()
-        viewModel.register()
-        assertEquals("Add at least one service", errorMessage())
+        viewModel.startRegistration()
+        assertEquals(RegisterViewModel.ErrorReason.SERVICES_REQUIRED, errorReason())
     }
 
     // ── Service list management ───────────────────────────────────────────────
@@ -213,7 +237,7 @@ class RegisterViewModelTest {
         coEvery { mockRepo.createUser(any()) } returns Unit
 
         fillValidCustomer()
-        viewModel.register()
+        viewModel.startRegistration()
 
         assertTrue(
             viewModel.state is RegisterViewModel.RegisterState.CustomerSuccess ||
@@ -223,7 +247,7 @@ class RegisterViewModelTest {
 
     @Test
     fun `dismissState resets to Idle`() {
-        viewModel.register() // triggers an error (fields empty)
+        viewModel.startRegistration() // triggers an error (fields empty)
         viewModel.dismissState()
         assertEquals(RegisterViewModel.RegisterState.Idle, viewModel.state)
     }

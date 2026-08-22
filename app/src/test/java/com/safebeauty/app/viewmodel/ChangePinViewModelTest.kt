@@ -14,6 +14,9 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.*
+import androidx.test.core.app.ApplicationProvider
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +26,10 @@ import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+// A plain Application: booting SafeBeautyApplication would load the SQLCipher
+// native library, which does not exist on the JVM and failed every test in this
+// file. These exercise form validation, which needs no database.
+@Config(sdk = [33], application = android.app.Application::class)
 class ChangePinViewModelTest {
 
     @get:Rule
@@ -40,6 +46,20 @@ class ChangePinViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        // The view model resolves FirebaseFunctions at construction, and the real
+        // Application that would normally initialize Firebase is bypassed above.
+        // Dummy options are enough: these tests exercise validation and never
+        // reach the network.
+        if (FirebaseApp.getApps(ApplicationProvider.getApplicationContext()).isEmpty()) {
+            FirebaseApp.initializeApp(
+                ApplicationProvider.getApplicationContext(),
+                FirebaseOptions.Builder()
+                    .setApplicationId("1:0:android:0")
+                    .setProjectId("safebeauty-unit-test")
+                    .setApiKey("unit-test")
+                    .build()
+            )
+        }
         val savedState = SavedStateHandle(mapOf("userId" to "uid-001"))
         viewModel = ChangePinViewModel(savedState, mockRepo, mockAuth, mockHasher, mockContext)
     }
