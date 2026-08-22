@@ -241,7 +241,18 @@ service cloud.firestore {
                      && request.resource.data.get('confirmedCount', 0)
                           == resource.data.get('confirmedCount', 0)
                      && request.resource.data.get('rating', 0)
-                          == resource.data.get('rating', 0));
+                          == resource.data.get('rating', 0)
+                     // Discovery fields, derived by deriveSalonFields from what
+                     // the salon actually typed into `services` and `district`.
+                     // A salon that could write these directly could file itself
+                     // under every category and every neighbourhood, which is
+                     // exactly what ranking and filtering exist to prevent.
+                     // Editing services/district is still free — the trigger
+                     // re-derives from them.
+                     && request.resource.data.get('categories', [])
+                          == resource.data.get('categories', [])
+                     && request.resource.data.get('districtKey', '')
+                          == resource.data.get('districtKey', ''));
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());

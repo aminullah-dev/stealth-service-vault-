@@ -1618,7 +1618,44 @@ async function renderHealth(){
         </div>
         <button class="btn-sm" id="h-drill" style="background:var(--surface);color:var(--deep)">Send a test alert</button>
         <div id="h-drillflash" class="mflash" style="margin-top:8px"></div>
+      </div>
+      <div class="card-pad" style="margin-top:10px">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Category and neighbourhood filters compare against fields derived from what each salon
+          typed. Until a salon has them, its chips match nothing — a customer searching for nails
+          sees "no providers found" while a nail salon sits on the previous screen.
+          Anything that cannot be resolved confidently is listed below for you to decide, never guessed.
+        </div>
+        <button class="btn-sm" id="h-normalize" style="background:var(--rose)">Derive salon filter fields</button>
+        <div id="h-normflash" class="mflash" style="margin-top:8px"></div>
+        <div id="h-normout" style="margin-top:8px"></div>
       </div>`;
+
+    $('h-normalize').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminNormalizeSalons')({ limit: 300 });
+        $('h-normflash').className = 'mflash ok';
+        $('h-normflash').textContent =
+          `Scanned ${data.scanned}, updated ${data.updated}.` + (data.done ? ' All done.' : ' Run again to continue.');
+        const rows = data.needsReview || [];
+        $('h-normout').innerHTML = rows.length ? `
+          <div class="mglabel" style="margin-top:6px">Needs your decision (${rows.length})</div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th scope="col">Salon</th><th scope="col">Unrecognised services</th><th scope="col">District</th></tr></thead>
+            <tbody>` + rows.map(r => `<tr>
+              <td class="name">${esc(r.salonName||r.salonId)}</td>
+              <td>${(r.unmatchedServices||[]).map(esc).join(', ') || '—'}</td>
+              <td>${(r.districtCandidates||[]).length
+                    ? esc(r.district) + ' → ' + (r.districtCandidates||[]).map(esc).join(' or ')
+                    : '—'}</td>
+            </tr>`).join('') + `</tbody></table></div>` : '';
+      }catch(err){
+        $('h-normflash').className = 'mflash bad';
+        $('h-normflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
 
     $('h-drill').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;

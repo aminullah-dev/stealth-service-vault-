@@ -203,9 +203,21 @@ class DashboardViewModel @Inject constructor(
             val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
             val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
             salons.filter { salon ->
+                // `categories` is the server-derived canonical list. The old
+                // substring check is kept as a fallback rather than replaced:
+                // it compared an English key against whatever a salon typed, so
+                // a salon offering "ناخن" never matched "Nails" and every chip
+                // returned nothing. Keeping it means this is strictly better
+                // than before for a salon the backfill has not reached yet, and
+                // never worse.
                 val catMatch  = category == "All" ||
+                    salon.categories.contains(category) ||
                     salon.services.any { it.contains(category, ignoreCase = true) }
+                // Same shape: districtKey when it has been derived, the raw
+                // stored value otherwise, so a legacy free-text district is no
+                // less findable than it is today.
                 val hoodMatch = neighborhood == "All Neighborhoods" ||
+                    salon.districtKey == neighborhood ||
                     salon.district == neighborhood
                 val favMatch  = !favOnly || favorites.contains(salon.id)
                 catMatch && hoodMatch && favMatch

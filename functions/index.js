@@ -44,6 +44,8 @@ const { isValidDocId } = require("./lib/validate");
 const { averageRating } = require("./lib/reviews");
 const { bookingCodeFromBytes, normalizeBookingCode } = require("./lib/booking");
 const { phoneKey } = require("./lib/phone");
+const { categoriesFor } = require("./lib/categories");
+const { normalizeDistrict } = require("./lib/areas");
 const { SlotTakenError, pendingWrites, commitBookingAtomically, slotConflictWindow } = require("./lib/reservation");
 
 // Reject a malformed / path-unsafe document id before it is interpolated into a
@@ -4051,6 +4053,135 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
     ok: true,
     firedAt: Date.now(),
     expect: "A notification should arrive within about five minutes.",
+  };
+});
+
+// ── Salon discovery fields ────────────────────────────────────────────────────
+//
+// The customer app filters salons by category and neighbourhood. Both filters
+// have been broken since they were written, because nothing ever connected what
+// a salon types to what the filter looks for:
+//
+//   services  is free text ("ناخن"), the chip compares an English key ("Nails")
+//   district  is free text on older salons, the filter wants a canonical key
+//
+// Neither failure is visible. Both look exactly like a filter working correctly
+// on an empty result, and a customer concludes there are no nail salons in
+// Kabul while one sits on the previous screen offering nails.
+//
+// These derived fields are what the server can actually index and query:
+//
+//   categories   string[]  canonical category keys, from lib/categories
+//   districtKey  string    canonical area key, from lib/areas ("" when unresolved)
+//
+// The originals are never overwritten. `services` and `district` remain exactly
+// what the salon entered, so nothing here can lose data a salon typed, and the
+// derivation can be changed and re-run.
+
+/** What the derived fields should be for a salon, given what it stores. */
+function deriveSalonDiscovery(salon) {
+  const { categories, unmatched } = categoriesFor(salon && salon.services);
+  const area = normalizeDistrict(salon && salon.district);
+  return {
+    categories,
+    districtKey: area.key || "",
+    // Not stored — returned so the caller can report what a human needs to look at.
+    unmatchedServices: unmatched,
+    districtCandidates: area.candidates || [],
+  };
+}
+
+/** True when the stored derived fields already equal the freshly derived ones. */
+function discoveryUpToDate(salon, derived) {
+  const stored = Array.isArray(salon.categories) ? salon.categories : [];
+  return stored.length === derived.categories.length
+      && stored.every((c, i) => c === derived.categories[i])
+      && (salon.districtKey || "") === derived.districtKey;
+}
+
+// Keeps the derived fields correct as salons edit themselves, so the backfill is
+// a one-time repair rather than a permanent chore.
+//
+// This writes back to the document it is triggered by, which re-triggers it once.
+// The up-to-date check is what stops that being a loop: the second invocation
+// finds nothing to change and returns.
+exports.deriveSalonFields = onDocumentWritten(
+  { document: "salons/{salonId}", region: "us-central1" },
+  async (event) => {
+    const after = event.data && event.data.after;
+    if (!after || !after.exists) return;
+
+    const salon = after.data() || {};
+    const derived = deriveSalonDiscovery(salon);
+    if (discoveryUpToDate(salon, derived)) return;
+
+    await after.ref.update({
+      categories:  derived.categories,
+      districtKey: derived.districtKey,
+    });
+
+    if (derived.unmatchedServices.length || derived.districtCandidates.length) {
+      logger.warn("deriveSalonFields: needs human review", {
+        salonId: event.params.salonId,
+        unmatchedServices: derived.unmatchedServices,
+        districtCandidates: derived.districtCandidates,
+      });
+    }
+  }
+);
+
+// ── adminNormalizeSalons ──────────────────────────────────────────────────────
+//
+// Backfills the derived fields for salons that predate them, and reports what it
+// could not resolve.
+//
+// The report is the valuable half. A service it cannot categorise means the
+// vocabulary needs a synonym; a district with two candidates means a human must
+// choose. Neither is guessed: filing a salon under a category it does not serve,
+// or in a neighbourhood it is not in, is worse than leaving it unfiltered,
+// because the customer only finds out by turning up.
+exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+
+  const snap = await db.collection("salons").orderBy("createdAt", "asc").limit(limit).get();
+
+  let updated = 0;
+  const needsReview = [];
+
+  for (const d of snap.docs) {
+    const salon = d.data() || {};
+    const derived = deriveSalonDiscovery(salon);
+
+    if (!discoveryUpToDate(salon, derived)) {
+      await d.ref.update({
+        categories:  derived.categories,
+        districtKey: derived.districtKey,
+      });
+      updated += 1;
+    }
+
+    if (derived.unmatchedServices.length || derived.districtCandidates.length) {
+      needsReview.push({
+        salonId:   d.id,
+        salonName: salon.salonName || "",
+        district:  salon.district || "",
+        unmatchedServices:  derived.unmatchedServices,
+        districtCandidates: derived.districtCandidates,
+      });
+    }
+  }
+
+  await logAdminAction(me, "NORMALIZE_SALONS", {
+    scanned: snap.size, updated, needsReview: needsReview.length,
+  });
+
+  return {
+    ok: true,
+    scanned: snap.size,
+    updated,
+    needsReview,
+    done: snap.size < limit,
   };
 });
 

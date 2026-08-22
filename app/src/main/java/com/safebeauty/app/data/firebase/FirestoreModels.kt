@@ -157,6 +157,12 @@ data class SalonDocument(
     val providerName: String = "",
     val salonName: String = "",
     val district: String = "",
+    // Derived server-side by deriveSalonFields from `district` and `services`,
+    // and frozen against client writes. These are what the category and
+    // neighbourhood filters can actually match on: `district` is free text on
+    // older salons, and `services` is free text on all of them.
+    val districtKey: String = "",
+    val categories: List<String> = emptyList(),
     val services: List<String> = emptyList(),
     // Staff who work here. Empty = a solo salon (the classic single-chair case);
     // the booking flow only shows a staff picker when this has active members.
