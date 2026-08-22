@@ -208,7 +208,20 @@ def main():
     for name, mod in reqs.items():
         if name in moving:
             continue
-        if re.search(r"\b%s\b" % re.escape(name), domain_code):
+        # A bare word match is not a use. `payments: rows(paySnap)` is an object
+        # property key and `x.payments` is a member access; neither refers to a
+        # module. Emitting a require for them adds a cross-domain dependency
+        # that is not real — and a cycle waiting to happen.
+        #
+        # Applied only here, to the import list. The helper-dependency walk
+        # above stays deliberately generous: a spurious import is untidy, a
+        # missed one is a ReferenceError.
+        uses = [
+            m for m in re.finditer(r"\b%s\b" % re.escape(name), domain_code)
+            if not (m.start() > 0 and domain_code[m.start() - 1] == ".")
+            and not re.match(r"\s*:", domain_code[m.end():m.end() + 4])
+        ]
+        if uses:
             needed.setdefault(mod, []).append(name)
 
     # Anything from shared.js comes from there, not from a second require of
