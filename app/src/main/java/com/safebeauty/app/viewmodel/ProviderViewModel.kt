@@ -243,7 +243,7 @@ class ProviderViewModel @Inject constructor(
     var newServiceDraft  by mutableStateOf("")
     var showSaveSuccess  by mutableStateOf(false)
     var showSaveError    by mutableStateOf(false)
-    var lockTriggered    by mutableStateOf(false)
+    var signOutTriggered    by mutableStateOf(false)
     var editWorkingHours by mutableStateOf<List<WorkingHours>>(emptyList())
         private set
     var editSlotDuration by mutableStateOf(60)
@@ -545,12 +545,12 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
-    fun triggerLock() {
-        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Provider locked vault") }
-        lockTriggered = true
+    fun signOut() {
+        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Provider signed out") }
+        signOutTriggered = true
     }
 
-    fun resetLockTrigger() { lockTriggered = false }
+    fun resetSignOut() { signOutTriggered = false }
 
     // ── Two-way ratings: provider rates / reports a customer ──────────────────
 

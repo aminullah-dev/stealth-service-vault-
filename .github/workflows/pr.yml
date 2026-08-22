@@ -1,0 +1,170 @@
+name: Pull request
+
+# The gate that P2 exists to create: nothing merges without the tests that
+# already existed having actually run. Before this, 118 backend tests ran only
+# when someone remembered, and 41 Android tests had been failing to compile for
+# long enough that nobody knew they were there.
+#
+# Every job here runs without Firebase credentials — the emulator needs none —
+# so a fork or a fresh clone gets the same verdict.
+#
+# firebase-tools is a pinned devDependency rather than something the machine is
+# assumed to have. The first run of this workflow failed on exactly that: `npx
+# firebase` resolved locally because it was installed globally on one laptop,
+# and "could not determine executable to run" everywhere else.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, "claude/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+        working-directory: functions
+      - run: npm test
+        working-directory: functions
+
+  concurrency-guarantee:
+    name: Money and slots cannot go wrong
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      # The Firestore emulator is a Java process, and firebase-tools 15 refuses
+      # anything before JDK 21. The Android job below still needs 17 for Gradle,
+      # so the two cannot share a version.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: npm ci
+        working-directory: functions
+      # Runs the reservation suite against a real Firestore. This is the P1
+      # guarantee: two simultaneous bookings for one slot, repeatedly, must
+      # produce exactly one winner. It is a separate job because it is the one
+      # check whose failure means the platform can double-book a customer.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:emulator:inner"
+        working-directory: functions
+      # The settlement path: whether a provider is credited, whether a booking
+      # reaches the salon, and whether a webhook replayed twice pays twice. It
+      # runs the production function, not a reimplementation, so what passes
+      # here is what the webhook and the manual settle path both run.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:settlement:inner"
+        working-directory: functions
+
+  android:
+    name: Android unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - run: chmod +x ./gradlew
+      # A debug build needs a Maps key placeholder; local.properties is
+      # gitignored, so CI supplies an obviously-fake one. Nothing here calls Maps.
+      - run: echo "MAPS_API_KEY=ci-placeholder-not-a-real-key" >> local.properties
+      - run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: android-test-report
+          path: app/build/reports/tests/testDebugUnitTest/
+
+  rules:
+    name: Security rules compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      # JDK 21: firebase-tools 15 refuses anything older.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      # Install BEFORE the emulator runs. This job used to call it first and
+      # then install, which worked on a machine that already had firebase-tools
+      # and nowhere else.
+      - run: npm ci
+        working-directory: functions
+      # Starting the emulator compiles firestore.rules and storage.rules. A rule
+      # that does not compile is not deployed — the previous deploy stays live —
+      # so this catches a change that would otherwise look successful.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "echo rules compiled"
+        working-directory: functions
+      # Behavioural tests for the rules, not just a syntax check. The privacy
+      # claim that demand signals carry no identity is enforced by hasOnly(); a
+      # claim about behaviour has to be tested or it is a comment that was true
+      # on the day it was written.
+      - run: npm run test:rules
+        working-directory: functions
+
+  secrets:
+    name: No secrets committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Invariant I-13. Keystores and service-account keys are gitignored today;
+      # a single careless commit reverses that permanently, and git history
+      # cannot be un-published.
+      - name: Scan tracked files
+        run: |
+          set -euo pipefail
+          fail=0
+
+          # Signing material and server credentials. These are the things that
+          # cannot be un-published once committed — invariant I-13.
+          if git ls-files | grep -iE '\.(jks|keystore|p12|pfx)$|keystore\.properties$|service-account.*\.json$'; then
+            echo "::error::A signing key or service-account credential is tracked by git."
+            fail=1
+          fi
+
+          if git ls-files -z | xargs -0 grep -lE 'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' 2>/dev/null; then
+            echo "::error::A private key block is committed."
+            fail=1
+          fi
+
+          # Deliberately NOT flagged: google-services.json and the Firebase web
+          # config in public/. A Firebase client API key is an identifier, not a
+          # secret — it ships inside every APK and every page, and anyone can
+          # extract it. What protects the data is firestore.rules, not the key
+          # being hidden. Treating it as a secret would train everyone to ignore
+          # this job.
+          #
+          # The real server secrets — the HesabPay key and webhook secret — are
+          # held in Secret Manager via defineSecret and never appear in the tree.
+          # This checks that stays true.
+          if git ls-files -z | xargs -0 grep -lE 'HESAB_API_KEY\s*=\s*["'"'"'][A-Za-z0-9]' 2>/dev/null; then
+            echo "::error::A HesabPay credential appears to be hardcoded."
+            fail=1
+          fi
+
+          if [ "$fail" -eq 0 ]; then echo "Clean."; fi
+          exit "$fail"

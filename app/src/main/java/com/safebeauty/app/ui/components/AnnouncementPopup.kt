@@ -24,6 +24,7 @@ import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.ui.theme.TextStrong
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.util.AnnouncementPrefs
 
@@ -57,7 +58,7 @@ fun AnnouncementPopup(broadcasts: List<BroadcastDocument>) {
             onDismissRequest = dismiss,
             icon  = { Icon(Icons.Default.Campaign, null, tint = RoseGold, modifier = Modifier.size(38.dp)) },
             title = { Text(strings.announcementTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-            text  = { Text(b.message, fontSize = 14.sp, color = Color(0xFF555555)) },
+            text  = { Text(b.message, fontSize = 14.sp, color = TextStrong) },
             confirmButton = {
                 Button(onClick = dismiss, colors = ButtonDefaults.buttonColors(containerColor = RoseGold)) {
                     Text(strings.ok, color = Color.White)

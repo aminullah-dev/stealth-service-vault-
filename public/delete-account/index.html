@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeBeauty — حذف حساب / Delete account</title>
+<style>
+  :root{
+    --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --red:#C0392B;
+    --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
+    --bg1:#FFF7FB; --bg2:#FDEAF3; --card:#ffffff;
+    --ink:#3f3237; --muted:#9c8890; --line:#EFD5E1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --deep:#F6D9E1; --plum:#F0C6D2;
+      --bg1:#17100f; --bg2:#1e1216; --card:#241820;
+      --ink:#F1E6EB; --muted:#B79AA5; --line:#3a2831;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0;
+    font-family:system-ui,'Segoe UI',Tahoma,sans-serif}
+  body{min-height:100vh;background:linear-gradient(160deg,var(--bg1),var(--bg2));
+    color:var(--ink);padding:24px 16px;line-height:1.8}
+  .wrap{max-width:640px;margin:0 auto}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;
+    padding:28px 24px;box-shadow:0 12px 40px rgba(139,58,71,.10);margin-bottom:16px}
+  .logo{width:56px;height:56px;border-radius:17px;background:var(--grad);
+    display:flex;align-items:center;justify-content:center;font-size:27px;
+    color:#fff;margin:0 auto 14px}
+  h1{font-size:21px;text-align:center;color:var(--deep);margin-bottom:6px}
+  .sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:22px}
+  h2{font-size:16px;color:var(--deep);margin:20px 0 8px}
+  p,li{font-size:14.5px}
+  ul{padding-inline-start:22px;margin:8px 0}
+  li{margin-bottom:5px}
+  .steps{counter-reset:s;list-style:none;padding:0}
+  .steps li{counter-increment:s;position:relative;padding-inline-start:34px;margin-bottom:10px}
+  .steps li::before{content:counter(s);position:absolute;inset-inline-start:0;top:2px;
+    width:24px;height:24px;border-radius:50%;background:var(--grad);color:#fff;
+    font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .note{background:rgba(192,57,43,.09);border:1px solid rgba(192,57,43,.22);
+    border-radius:12px;padding:12px 14px;font-size:13.5px;margin-top:14px}
+  .mail{display:inline-block;margin-top:6px;color:var(--rose);font-weight:700;
+    text-decoration:none;word-break:break-all}
+  .lang-bar{display:flex;gap:8px;justify-content:center;margin-bottom:18px;flex-wrap:wrap}
+  .lang-bar button{padding:8px 18px;border:0;border-radius:20px;cursor:pointer;
+    background:rgba(183,110,121,.14);color:var(--deep);font-size:13.5px;font-weight:700}
+  .lang-bar button.active{background:var(--grad);color:#fff}
+  .lang{display:none}
+  .lang.visible{display:block}
+  [lang="en"]{direction:ltr;text-align:left}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="logo">&#10048;</div>
+    <h1>SafeBeauty</h1>
+    <div class="sub">حذف حساب &middot; د حساب ړنګول &middot; Delete account</div>
+
+    <div class="lang-bar">
+      <button data-lang="fa" class="active">دری</button>
+      <button data-lang="ps">پښتو</button>
+      <button data-lang="en">English</button>
+    </div>
+
+    <!-- ── DARI ────────────────────────────────────────────────────────── -->
+    <div class="lang lang-fa visible" lang="fa" dir="rtl">
+      <h2>حذف حساب از داخل اپ</h2>
+      <ol class="steps">
+        <li>اپ SafeBeauty را باز کنید و وارد حساب خود شوید.</li>
+        <li>به بخش <strong>پشتیبانی</strong> بروید.</li>
+        <li>در پایین صفحه روی <strong>حذف حساب من</strong> ضربه بزنید.</li>
+        <li>پیام هشدار را بخوانید و تأیید کنید.</li>
+      </ol>
+
+      <h2>چه چیزی حذف می‌شود</h2>
+      <ul>
+        <li>نام، شماره تلفن و ایمیل شما</li>
+        <li>مدارک تأیید هویت (تذکره، سلفی، آدرس، سال تولد)</li>
+        <li>عکس پروفایل و عکس‌هایی که بارگذاری کرده‌اید</li>
+        <li>علاقه‌مندی‌ها، لیست انتظار و اعلان‌های شما</li>
+        <li>حساب ورود شما (دیگر نمی‌توانید وارد شوید)</li>
+      </ul>
+
+      <h2>چه چیزی باقی می‌ماند</h2>
+      <p>
+        سوابق رزرو و پرداخت به‌صورت <strong>بی‌نام</strong> نگهداری می‌شوند —
+        یعنی نام و شماره تلفن شما از آن‌ها پاک می‌شود، اما خود سابقه برای دفاتر
+        حسابداری سالن‌ها و الزامات مالی باقی می‌ماند. نظرهایی که نوشته‌اید
+        بدون نام شما باقی می‌مانند.
+      </p>
+      <p>نوبت‌های آینده‌ی شما هنگام حذف به‌صورت خودکار لغو می‌شوند.</p>
+
+      <div class="note">
+        این عمل <strong>قابل بازگشت نیست</strong>. اگر به اپ دسترسی ندارید،
+        از آدرس ایمیل ثبت‌شده‌ی خود برای ما بنویسید و درخواست حذف بدهید:
+        <a class="mail" href="mailto:Aminhashemi979@gmail.com?subject=Account%20deletion%20request">Aminhashemi979@gmail.com</a>
+        <br />ما ظرف ۳۰ روز درخواست را رسیدگی می‌کنیم.
+      </div>
+    </div>
+
+    <!-- ── PASHTO ──────────────────────────────────────────────────────── -->
+    <div class="lang lang-ps" lang="ps" dir="rtl">
+      <h2>د اپ له لارې د حساب ړنګول</h2>
+      <ol class="steps">
+        <li>د SafeBeauty اپ پرانیزئ او خپل حساب ته ننوځئ.</li>
+        <li><strong>ملاتړ</strong> برخې ته لاړ شئ.</li>
+        <li>د پاڼې په پای کې <strong>زما حساب ړنګ کړئ</strong> ووهئ.</li>
+        <li>خبرتیا ولولئ او تایید یې کړئ.</li>
+      </ol>
+
+      <h2>څه ړنګیږي</h2>
+      <ul>
+        <li>ستاسو نوم، د تلیفون شمېره او بریښنالیک</li>
+        <li>د پیژندنې تایید سندونه (تذکره، سیلفي، پته، د زیږیدنې کال)</li>
+        <li>د پروفایل عکس او هغه عکسونه چې پورته کړي دي</li>
+        <li>خوښې، د انتظار لیست او ستاسو خبرتیاوې</li>
+        <li>ستاسو د ننوتلو حساب (نور نه شئ ننوتلی)</li>
+      </ul>
+
+      <h2>څه پاتې کیږي</h2>
+      <p>
+        د بکینګ او تادیاتو ریکارډونه په <strong>بې‌نامه</strong> بڼه ساتل کیږي —
+        ستاسو نوم او د تلیفون شمېره ترې لرې کیږي، خو پخپله ریکارډ د سالونونو د
+        حساب کتاب او مالي اړتیاوو لپاره پاتې کیږي. هغه نظرونه چې لیکلي دي ستاسو
+        د نوم پرته پاتې کیږي.
+      </p>
+      <p>ستاسو راتلونکي نوبتونه د ړنګولو پر مهال په اتوماتيک ډول لغوه کیږي.</p>
+
+      <div class="note">
+        دا کار <strong>د بیرته راګرځولو وړ نه دی</strong>. که اپ ته لاسرسی نه
+        لرئ، له خپلې ثبت شوې بریښنالیک پتې څخه موږ ته ولیکئ:
+        <a class="mail" href="mailto:Aminhashemi979@gmail.com?subject=Account%20deletion%20request">Aminhashemi979@gmail.com</a>
+        <br />موږ به ستاسو غوښتنه په ۳۰ ورځو کې وګورو.
+      </div>
+    </div>
+
+    <!-- ── ENGLISH ─────────────────────────────────────────────────────── -->
+    <div class="lang lang-en" lang="en" dir="ltr">
+      <h2>Delete your account from the app</h2>
+      <ol class="steps">
+        <li>Open the SafeBeauty app and sign in.</li>
+        <li>Go to <strong>Support</strong>.</li>
+        <li>Tap <strong>Delete my account</strong> at the bottom of the page.</li>
+        <li>Read the warning and confirm.</li>
+      </ol>
+
+      <h2>What is deleted</h2>
+      <ul>
+        <li>Your name, phone number and email address</li>
+        <li>Identity verification data (tazkira, selfie, address, year of birth)</li>
+        <li>Your profile photo and any photos you uploaded</li>
+        <li>Your favourites, waitlist entries and notifications</li>
+        <li>Your sign-in account — you will no longer be able to log in</li>
+      </ul>
+
+      <h2>What is kept</h2>
+      <p>
+        Booking and payment records are retained in <strong>anonymised</strong>
+        form: your name and phone number are stripped from them, but the record
+        itself remains for the salons' accounting and for financial compliance.
+        Reviews you wrote remain without your name attached.
+      </p>
+      <p>Any upcoming bookings are cancelled automatically as part of deletion.</p>
+
+      <div class="note">
+        This action <strong>cannot be undone</strong>. If you can no longer access
+        the app, email us from your registered address to request deletion:
+        <a class="mail" href="mailto:Aminhashemi979@gmail.com?subject=Account%20deletion%20request">Aminhashemi979@gmail.com</a>
+        <br />We action requests within 30 days.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.lang-bar button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var code = b.dataset.lang;
+      document.querySelectorAll('.lang-bar button').forEach(function (x) {
+        x.classList.toggle('active', x === b);
+      });
+      document.querySelectorAll('.lang').forEach(function (d) {
+        d.classList.toggle('visible', d.classList.contains('lang-' + code));
+      });
+      document.documentElement.lang = code;
+      document.documentElement.dir = (code === 'en') ? 'ltr' : 'rtl';
+    });
+  });
+</script>
+</body>
+</html>

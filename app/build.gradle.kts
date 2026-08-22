@@ -18,6 +18,16 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) load(keystorePropsFile.inputStream())
 }
 
+// Google Maps API key. Lives in local.properties (gitignored) and is injected
+// into the manifest as a placeholder, so the key never appears in source or in
+// git — only in the built APK, where it is protected by the package + SHA-1
+// restriction set on the key in Google Cloud Console.
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) load(f.inputStream())
+}
+val mapsApiKey: String = (localProps.getProperty("MAPS_API_KEY") ?: "").trim()
+
 // The official Google Play upload key. The release build is verified against this
 // fingerprint (see the verifyReleaseSigningKey task at the bottom of this file) so a
 // stray or wrong keystore can never produce a bundle that Play would reject — we
@@ -46,19 +56,24 @@ fun releaseCertSha1(file: java.io.File, storePass: String, alias: String): Strin
 
 android {
     namespace = "com.safebeauty.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.security.stealthapp"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 10
-        versionName = "1.6"
+        targetSdk = 36
+        versionCode = 14
+        versionName = "1.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
+
+        // Consumed by the com.google.android.geo.API_KEY meta-data in the
+        // manifest. Empty when local.properties has no key: the app still builds
+        // and runs, the map simply renders blank tiles.
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     signingConfigs {
@@ -157,8 +172,11 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
-    // SQLCipher — physical disk encryption for Room
-    implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+    // SQLCipher — physical disk encryption for Room. The `sqlcipher-android`
+    // artifact (4.6.0+) ships 16 KB-page-aligned native libs, required by Google
+    // Play for apps targeting SDK 35+. Same `net.sqlcipher.*` API as the old
+    // `android-database-sqlcipher`, so no code change beyond the coordinate.
+    implementation("net.zetetic:sqlcipher-android:4.6.1")
     implementation("androidx.sqlite:sqlite:2.4.0")
 
     // Hilt
@@ -184,6 +202,13 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics-ktx")
     implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-functions-ktx")
+
+    // Google Maps in Compose — shows verified salons as pins. Map loads through
+    // the Maps SDK for Android are not billed, and the app never calls the
+    // metered APIs (Directions/Places): tapping "directions" hands off to
+    // whatever maps app the user already has via a geo: URI.
+    implementation("com.google.maps.android:maps-compose:4.3.3")
+    implementation("com.google.android.gms:play-services-maps:19.0.0")
 
     // Coil — URL-based image loading in Compose (replaces in-memory Base64 bitmaps)
     implementation("io.coil-kt:coil-compose:2.6.0")

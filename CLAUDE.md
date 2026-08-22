@@ -14,9 +14,12 @@ backend for everything.
 - `public/` — Firebase Hosting: `admin/index.html` (self‑contained admin
   console), `provider/index.html` (self‑contained salon‑owner console — same
   design system/auth as admin, but PROVIDER‑role only), `provider-app/index.html`
-  (trilingual download page for the salon desktop installers), `privacy.html`,
+  (trilingual download page for the salon desktop installers), `reset/index.html`
+  (trilingual password-reset page — the custom Firebase Auth action URL; it does
+  the PBKDF2 derivation and syncs pinHash/salt via `updatePinHash`, see
+  DEPLOY.md), `privacy.html`,
   `terms.html`, `payment/`. `cleanUrls` serves them at `/admin`, `/provider`,
-  `/provider-app`. The salon installers are built + published to a public GitHub
+  `/provider-app`, `/reset`. The salon installers are built + published to a public GitHub
   Release (tag `salon-desktop`) by `.github/workflows/salon-desktop.yml`; the
   download page links to those release assets by stable filename.
 - `desktop/` — Electron wrapper that opens the hosted admin console (`/admin`)
@@ -79,6 +82,12 @@ silently hit "permission denied".
   brace/paren balance and 4× string counts for Kotlin/AppStrings. There's no
   Android SDK in the Claude environment, so the app can't be compiled here —
   check imports and balance carefully; the user builds on their Mac.
+- **Marketing/social images** (Instagram posts, stories, banners): deliver
+  exactly ONE image per language — Dari gets the LIGHT (cream) variant, Pashto
+  gets the DARK (deep-rose) variant. Don't produce both color variants per
+  language. Build them as HTML (Vazirmatn font, brand rose/gold palette) and
+  render with the pre-installed headless Chromium; post 1080×1350, story
+  1080×1920.
 
 ## Git
 - Work on branch `claude/stealth-android-vault-4zr1d3`. Commit + push each

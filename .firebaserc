@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "safebeauty"
+    "default": "safebeauty",
+    "prod": "safebeauty",
+    "staging": "safebeauty-staging"
   }
 }

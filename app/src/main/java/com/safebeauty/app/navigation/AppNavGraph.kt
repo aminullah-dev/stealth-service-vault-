@@ -27,6 +27,8 @@ import com.safebeauty.app.ui.screens.OnboardingScreen
 import com.safebeauty.app.ui.screens.ProviderDashboardScreen
 import com.safebeauty.app.ui.screens.RegisterScreen
 import com.safebeauty.app.ui.screens.SetNewPinScreen
+import com.safebeauty.app.ui.screens.FeedScreen
+import com.safebeauty.app.ui.screens.SalonMapScreen
 import com.safebeauty.app.ui.screens.SupportScreen
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.StringResources
@@ -73,7 +75,15 @@ sealed class Screen(val route: String) {
             myName: String,
             otherName: String,
             active: Boolean = true
-        ) = "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(myName)}/${Uri.encode(otherName)}?active=$active"
+        ): String {
+            // Names ride in path segments; Uri.encode("") yields an empty segment
+            // that matches no destination → navigate() throws. Display names can be
+            // blank while the user/salon doc is still loading, so coerce to a
+            // non-empty placeholder to keep navigation crash-safe.
+            val safeMyName    = myName.ifBlank { "—" }
+            val safeOtherName = otherName.ifBlank { "—" }
+            return "chat/${Uri.encode(conversationId)}/${Uri.encode(myUserId)}/${Uri.encode(safeMyName)}/${Uri.encode(safeOtherName)}?active=$active"
+        }
     }
     object Notifications : Screen("notifications/{userId}") {
         fun build(userId: String) = "notifications/$userId"
@@ -82,6 +92,15 @@ sealed class Screen(val route: String) {
         fun build(userId: String) = "kyc/$userId"
     }
     object Support : Screen("support")
+    object Feed : Screen("feed/{userId}?story={story}") {
+        // The optional story lets a ring tapped on the dashboard land on that
+        // exact announcement instead of dropping the customer at the top of
+        // Discover to hunt for it again.
+        fun build(userId: String, storyId: String = "") = "feed/$userId?story=$storyId"
+    }
+    object SalonMap : Screen("salonMap/{userId}") {
+        fun build(userId: String) = "salonMap/$userId"
+    }
 }
 
 // ── Nav graph ─────────────────────────────────────────────────────────────────
@@ -133,7 +152,7 @@ fun AppNavGraph(
             }
         }
 
-        val lockAndReturn: () -> Unit = {
+        val returnToLogin: () -> Unit = {
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Login.route) { inclusive = false }
                 launchSingleTop = true
@@ -223,7 +242,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 CustomerDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }
@@ -233,7 +252,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 ProviderDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }
@@ -243,7 +262,7 @@ fun AppNavGraph(
                 arguments = listOf(navArgument("userId") { type = NavType.StringType })
             ) {
                 AdminDashboardScreen(
-                    onLockTriggered = lockAndReturn,
+                    onSignOut = returnToLogin,
                     onNavigate      = { route -> navController.navigate(route) }
                 )
             }
@@ -303,7 +322,59 @@ fun AppNavGraph(
             }
 
             composable(Screen.Support.route) {
-                SupportScreen(onBack = { navController.popBackStack() })
+                SupportScreen(
+                    onBack = { navController.popBackStack() },
+                    // The account no longer exists — clear the whole back stack so
+                    // no signed-in screen is reachable behind the login page.
+                    onAccountDeleted = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+
+            composable(
+                route     = Screen.Feed.route,
+                arguments = listOf(
+                    navArgument("userId") { type = NavType.StringType },
+                    navArgument("story")  { type = NavType.StringType; defaultValue = "" },
+                )
+            ) {
+                // Discover leads somewhere: tapping through to a salon returns to
+                // the dashboard with that salon active, so the detail sheet opens
+                // on exactly the salon whose work caught the customer's eye.
+                val dashVm: com.safebeauty.app.viewmodel.DashboardViewModel = hiltViewModel()
+                FeedScreen(
+                    initialStoryId = it.arguments?.getString("story").orEmpty(),
+                    onBack      = { navController.popBackStack() },
+                    onOpenSalon = { salonId ->
+                        dashVm.setActiveSalon(salonId)
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(
+                route     = Screen.SalonMap.route,
+                arguments = listOf(navArgument("userId") { type = NavType.StringType })
+            ) {
+                // DashboardViewModel resolves customerId from the route's userId,
+                // so the map route must carry it too — without the argument the
+                // ViewModel's checkNotNull fails and the screen crashes on open.
+                // Using the same ViewModel means the map shows exactly the salons
+                // the browse list already loaded: same filters, no second fetch.
+                val dashVm: com.safebeauty.app.viewmodel.DashboardViewModel = hiltViewModel()
+                val salons by dashVm.displayedSalons.collectAsStateWithLifecycle()
+                SalonMapScreen(
+                    salons = salons,
+                    onBack = { navController.popBackStack() },
+                    onBook = { salon ->
+                        dashVm.setActiveSalon(salon.id)
+                        navController.popBackStack()
+                    }
+                )
             }
         }
     }

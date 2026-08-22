@@ -157,6 +157,12 @@ data class SalonDocument(
     val providerName: String = "",
     val salonName: String = "",
     val district: String = "",
+    // Derived server-side by deriveSalonFields from `district` and `services`,
+    // and frozen against client writes. These are what the category and
+    // neighbourhood filters can actually match on: `district` is free text on
+    // older salons, and `services` is free text on all of them.
+    val districtKey: String = "",
+    val categories: List<String> = emptyList(),
     val services: List<String> = emptyList(),
     // Staff who work here. Empty = a solo salon (the classic single-chair case);
     // the booking flow only shows a staff picker when this has active members.
@@ -220,6 +226,9 @@ fun SalonDocument.badge(): SalonBadge = when {
 
 data class AppointmentDocument(
     val id: String = "",                    // Firestore document ID
+    // The short reference a customer can read down a phone line ("SB-4C7GHJ").
+    // Minted server-side at booking; blank on bookings that predate it.
+    val bookingCode: String = "",
     val customerId: String = "",
     val customerName: String = "",
     val customerPhone: String = "",
@@ -294,6 +303,65 @@ data class GalleryImageDocument(
     val imageUrl: String = "",              // Firebase Storage download URL (preferred)
     val storagePath: String = "",           // Storage path used to delete the file
     val createdAt: Long = 0L
+)
+
+/**
+ * One post in the social discovery feed — a before/after or sample-work photo a
+ * salon shares. Followers (favoriters) are notified server-side when it's created
+ * (pushPostToFollowers). Stored in its own `salon_posts` collection.
+ */
+data class SalonPostDocument(
+    val id: String = "",
+    val salonId: String = "",
+    val providerId: String = "",
+    val salonName: String = "",
+    val imageUrl: String = "",
+    val storagePath: String = "",
+    val caption: String = "",
+    val createdAt: Long = 0L,
+    // Maintained by the countPostLike / countPostComment triggers, never by a
+    // client — salon_posts allows no client update at all.
+    val likeCount: Int = 0,
+    val commentCount: Int = 0
+)
+
+/**
+ * One comment under a Discover post.
+ *
+ * [authorName] is denormalized so a thread renders without a user lookup per
+ * row; the security rules check it against the author's own user document on
+ * write, so it cannot be signed with somebody else's name.
+ */
+data class PostCommentDocument(
+    val id: String = "",
+    val postId: String = "",
+    val salonId: String = "",
+    val userId: String = "",
+    val authorName: String = "",
+    val text: String = "",
+    val createdAt: Long = 0L
+)
+
+/**
+ * A salon's 24-hour story — "two chairs free this afternoon".
+ *
+ * Deliberately its own collection rather than a short-lived OfferDocument:
+ * offers are gated behind identity verification for customers, and an empty
+ * chair needs to reach exactly the people who have not verified yet. Stories
+ * carry no discount and no money, so they need no gate.
+ *
+ * [expiresAt] is written by the author, not inferred at read time, so a story's
+ * lifetime survives clock differences between devices.
+ */
+data class StoryDocument(
+    val id: String = "",
+    val salonId: String = "",
+    val salonName: String = "",
+    val text: String = "",                  // the announcement itself
+    val imageUrl: String = "",              // optional
+    val storagePath: String = "",           // for deletion
+    val createdAt: Long = 0L,
+    val expiresAt: Long = 0L                // createdAt + 24h
 )
 
 data class BroadcastDocument(

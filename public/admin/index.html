@@ -14,6 +14,9 @@
     /* brand accents (shared by both themes) */
     --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
     --gold:#D4A853; --green:#3fa14a; --red:#C0392B;
+    /* status TEXT inks — tuned to pass WCAG 4.5:1 on their tinted pill/flash
+       backgrounds in each theme (the raw accent colors above fail as text) */
+    --ok-ink:#256b2e; --warn-ink:#77571a; --bad-ink:#a93226;
     --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
     /* light surfaces */
     --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
@@ -27,6 +30,7 @@
   }
   :root[data-theme="dark"]{
     --deep:#F6D9E1; --plum:#F0C6D2; --blush:#4d2f39;
+    --ok-ink:#7dd087; --warn-ink:#e6c47a; --bad-ink:#f0958a;
     --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
     --panel:rgba(40,27,33,.62); --panel-solid:#241820;
     --card:#241820; --surface:#2c1e26; --petal:#38262f; --lilac:#3a2a3f; --cream:#221820;
@@ -77,7 +81,7 @@
   .btn-sm:hover{opacity:.92;transform:translateY(-1px)}
   .btn-sm:active{transform:none}
   .btn-sm:disabled{opacity:.55}
-  .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+  .err{color:var(--bad-ink);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
 
   /* ── Shell ─────────────────────────────────────────────────────── */
   #app{height:100vh;display:flex;overflow:hidden}
@@ -132,7 +136,7 @@
   }
   .row.ticket{padding-right:16px}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
-  .badge.dot{background:rgba(192,57,43,.14);color:var(--red)}
+  .badge.dot{background:rgba(192,57,43,.14);color:var(--bad-ink)}
   .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600}
   .section-title{font-size:11px;color:var(--rose);font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin:4px 0 13px}
 
@@ -148,14 +152,14 @@
   .tbl tbody tr:hover{background:var(--hover)}
   .tbl .name{font-weight:700;color:var(--deep)}
   .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
-  .pill.ok{background:rgba(63,161,74,.16);color:#3fa14a}
-  .pill.warn{background:rgba(212,168,83,.22);color:var(--gold)}
-  .pill.bad{background:rgba(192,57,43,.15);color:#e06c5e}
+  .pill.ok{background:rgba(63,161,74,.16);color:var(--ok-ink)}
+  .pill.warn{background:rgba(212,168,83,.22);color:var(--warn-ink)}
+  .pill.bad{background:rgba(192,57,43,.15);color:var(--bad-ink)}
   .pill.info{background:var(--surface);color:var(--rose)}
 
   /* ── Forms / flash ─────────────────────────────────────────────── */
   textarea.field{min-height:110px;resize:vertical;line-height:1.55}
-  .flash{background:rgba(63,161,74,.14);color:#3fa14a;border-radius:12px;padding:11px 15px;font-size:12.5px;
+  .flash{background:rgba(63,161,74,.14);color:var(--ok-ink);border-radius:12px;padding:11px 15px;font-size:12.5px;
     margin-bottom:12px;font-weight:700;border:1px solid rgba(63,161,74,.2)}
 
   /* ── Support chat ──────────────────────────────────────────────── */
@@ -185,23 +189,47 @@
   .modal .mgroup{border-top:1px solid var(--line);padding:15px 0 4px;margin-top:6px}
   .modal .mglabel{font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
   .modal .field{margin-bottom:9px}
-  .modal .mrow{display:flex;gap:8px}
+  /* Side-by-side field pair. Defined globally (not only inside .modal) because
+     the Salons and Admins tabs use it on the page too; when it was modal-scoped
+     those fields silently stacked into one column. Wraps on narrow screens. */
+  .mrow{display:flex;gap:8px;flex-wrap:wrap}
+  .mrow .field{flex:1 1 200px;margin-bottom:9px}
+  .modal .mrow{flex-wrap:nowrap}
   .modal .mrow .field{flex:1;margin-bottom:0}
   .mflash{font-size:12.5px;font-weight:700;margin:2px 0 8px;min-height:16px}
-  .mflash.ok{color:#3fa14a}
-  .mflash.bad{color:var(--red)}
+  .mflash.ok{color:var(--ok-ink)}
+  .mflash.bad{color:var(--bad-ink)}
   .modal .mclose{margin-top:16px;width:100%;background:var(--surface);color:var(--deep)}
+
+  /* ── Accessibility ─────────────────────────────────────────────── */
+  .navitem:focus-visible,.btn:focus-visible,.btn-sm:focus-visible,
+  .theme-toggle:focus-visible,.pw-toggle:focus-visible,.ticket:focus-visible{
+    outline:2px solid var(--rose);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+
+  /* ── Password show/hide (login) ────────────────────────────────── */
+  .pw-wrap{position:relative;margin-bottom:11px}
+  .pw-wrap .field{margin-bottom:0;padding-inline-end:44px}
+  .pw-toggle{position:absolute;inset-inline-end:8px;top:50%;transform:translateY(-50%);
+    background:transparent;color:var(--muted);font-size:15px;padding:5px 7px;border-radius:9px;line-height:1}
+  .pw-toggle:hover{background:var(--petal)}
 
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
-    .sidebar{width:100%;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;
+    /* Brand + footer buttons share the top line; the nav drops to its own
+       full-width line below and scrolls horizontally, so all 12 tabs stay
+       reachable instead of being crushed into a sliver beside Sign out. */
+    .sidebar{width:100%;flex-flow:row wrap;align-items:center;gap:8px;padding:10px 12px;
       border-right:none;border-bottom:1px solid var(--line)}
-    .sidebar .brand{white-space:nowrap}
+    .sidebar .brand{white-space:nowrap;margin-right:auto}
     .who2{display:none}
-    .nav{flex-direction:row;flex:1;gap:4px}
-    .navitem{width:auto;white-space:nowrap;padding:8px 11px}
-    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row}
+    .nav{order:3;flex:1 0 100%;flex-direction:row;gap:4px;overflow-x:auto;
+      -webkit-overflow-scrolling:touch;padding-bottom:2px}
+    .navitem{width:auto;white-space:nowrap;padding:8px 11px;flex:0 0 auto}
+    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row;gap:8px}
     .theme-toggle{width:auto;padding:9px 11px}
     main{padding:18px 16px 44px}
     .topbar{padding:14px 18px;font-size:16px}
@@ -237,7 +265,11 @@
     <h1>SafeBeauty</h1>
     <div class="sub">Admin Console</div>
     <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
-    <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="pw-wrap">
+      <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+      <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false"
+        onclick="var i=document.getElementById('lw'),s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';this.setAttribute('aria-pressed',s);i.focus()">👁</button>
+    </div>
     <button id="lbtn" class="btn">Sign in</button>
     <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
@@ -281,10 +313,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc, doc,
-         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer }
+         setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, getCountFromServer, documentId }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
@@ -298,6 +332,7 @@ const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db   = getFirestore(app);
 const fns  = getFunctions(app, 'us-central1');
+const storage = getStorage(app);
 
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
 function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
@@ -346,6 +381,21 @@ function hideModal(){ const m=$('modal'); m.classList.add('hidden'); m.innerHTML
 $('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('modal').classList.contains('hidden')) hideModal(); });
 
+/** Firebase surfaces unhandled/transport failures as bare code strings
+ *  ("internal", "unavailable", …). Map those to human messages; real typed
+ *  HttpsError messages from our own functions pass through untouched. */
+function fnError(e){
+  const raw = String((e && e.message) || 'Failed.');
+  const map = {
+    'internal':          'Server error — please try again in a moment. If it keeps happening, tell the developer (the function may need redeploying).',
+    'unavailable':       'Network problem — check your connection and try again.',
+    'deadline-exceeded': 'The server took too long to respond — try again.',
+    'unauthenticated':   'Your session has expired — sign out and back in.',
+    'not-found':         'That server function was not found — the backend may need redeploying.',
+  };
+  return map[raw.toLowerCase()] || raw;
+}
+
 /** Call an admin Cloud Function, showing a busy/result state on [btn] and a
  *  message in the [flashId] element. Returns true on success. */
 async function callFn(name, payload, btn, flashId, okMsg){
@@ -358,7 +408,7 @@ async function callFn(name, payload, btn, flashId, okMsg){
     if(flash){ flash.className='mflash ok'; flash.textContent = okMsg || 'Done ✓'; }
     return true;
   }catch(e){
-    const msg = (e && e.message) ? e.message : 'Failed.';
+    const msg = fnError(e);
     if(flash){ flash.className='mflash bad'; flash.textContent = msg; }
     else alert(msg);
     return false;
@@ -432,7 +482,12 @@ const TABS = [
   { id:'kyc',      label:'KYC',        icon:'🪪', render:renderKyc },
   { id:'users',    label:'Users',      icon:'👥', render:renderUsers },
   { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
+  { id:'content',  label:'Content',    icon:'📸', render:renderContent },
+  { id:'demand',   label:'Demand',     icon:'📈', render:renderDemand },
+  { id:'booking',  label:'Booking',    icon:'🔎', render:renderBooking },
+  { id:'health',   label:'Health',     icon:'🩺', render:renderHealth },
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
+  { id:'stuck',    label:'Stuck pay',  icon:'🧯', render:renderStuck },
   { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
   { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
@@ -451,6 +506,7 @@ function enterApp(){
   TABS.forEach(t => {
     const b = document.createElement('button');
     b.className = 'navitem' + (t.id===activeTab?' active':'');
+    if(t.id===activeTab) b.setAttribute('aria-current','page');
     b.innerHTML = `<span class="ico">${t.icon}</span><span>${t.label}</span>`;
     b.onclick = () => selectTab(t.id);
     nav.appendChild(b);
@@ -461,7 +517,11 @@ function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
   const tab = TABS.find(t=>t.id===id);
-  [...$('nav').children].forEach((b,i) => b.classList.toggle('active', TABS[i].id===id));
+  [...$('nav').children].forEach((b,i) => {
+    const on = TABS[i].id===id;
+    b.classList.toggle('active', on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   $('topbar').textContent = tab.label;
   $('view').innerHTML = '<div class="empty">Loading…</div>';
   tab.render();
@@ -470,23 +530,26 @@ function selectTab(id){
 // ── Stats ────────────────────────────────────────────────────────────────────
 async function renderStats(){
   try{
-    const [usersSnap, salonsSnap, apptCount] = await Promise.all([
-      getDocs(collection(db,'users')),
-      getDocs(collection(db,'salons')),
-      getCountFromServer(collection(db,'appointments')).catch(()=>null),
-    ]);
-    let providers=0, customers=0, pending=0, suspended=0, kycPending=0;
-    usersSnap.forEach(d => { const u=d.data();
-      if(u.role==='PROVIDER') providers++;
-      if(u.role==='CUSTOMER') customers++;
-      if(u.status==='PENDING') pending++;
-      if(u.status==='SUSPENDED') suspended++;
-      if(u.kycStatus==='PENDING') kycPending++;
-    });
-    const appts = apptCount ? apptCount.data().count : '—';
+    // Counted server-side. The old version downloaded every user document just
+    // to tally six numbers, so opening the dashboard cost one read per user —
+    // fine at 20 users, ruinous at 20,000. getCountFromServer bills a fraction
+    // of a read regardless of collection size.
+    const users = collection(db,'users');
+    const countOf = (q) => getCountFromServer(q).then(r => r.data().count).catch(() => '—');
+    const [total, providers, customers, pending, suspended, kycPending, salonCount, appts] =
+      await Promise.all([
+        countOf(users),
+        countOf(query(users, where('role','==','PROVIDER'))),
+        countOf(query(users, where('role','==','CUSTOMER'))),
+        countOf(query(users, where('status','==','PENDING'))),
+        countOf(query(users, where('status','==','SUSPENDED'))),
+        countOf(query(users, where('kycStatus','==','PENDING'))),
+        countOf(collection(db,'salons')),
+        countOf(collection(db,'appointments')),
+      ]);
     const cards = [
-      ['👥','Total users', usersSnap.size], ['💇','Providers', providers], ['🧑','Customers', customers],
-      ['🏠','Salons', salonsSnap.size], ['📅','Appointments', appts],
+      ['👥','Total users', total], ['💇','Providers', providers], ['🧑','Customers', customers],
+      ['🏠','Salons', salonCount], ['📅','Appointments', appts],
       ['⏳','Pending approvals', pending], ['🪪','KYC pending', kycPending], ['🚫','Suspended', suspended],
     ];
     $('view').innerHTML =
@@ -497,25 +560,102 @@ async function renderStats(){
 }
 
 // ── Announcements ──────────────────────────────────────────────────────────────
+// Ready-made announcement templates (Dari + Pashto — one message reaches every
+// user, so each is bilingual). Picking one fills the box; the admin can still
+// edit before sending.
+const ANNOUNCE_TEMPLATES = [
+  { label: 'Welcome',
+    text: 'به سیف‌بیوتی خوش آمدید! نزدیک‌ترین سالن‌های زیباییِ معتبر را ببینید و به‌آسانی نوبت بگیرید. 🌸\nسیف‌بیوتي ته ښه راغلاست! نږدې معتبر د ښکلا سالونونه وګورئ او په اسانۍ نوبت واخلئ. 🌸' },
+  { label: 'New offers & deals',
+    text: 'پیشنهادهای ویژه‌ی این هفته رسید! برای دیدن تخفیف‌های سالن‌ها اپ را باز کنید.\nد دې اونۍ ځانګړي وړاندیزونه راغلل! د سالونونو تخفیفونه لیدو لپاره اپ پرانیزئ.' },
+  { label: 'Verify identity reminder',
+    text: 'هویت خود را تأیید کنید تا به تخفیف‌ها و پیشنهادهای ویژه دسترسی پیدا کنید.\nخپله پیژندنه تصدیق کړئ ترڅو تخفیفونو او ځانګړو وړاندیزونو ته لاسرسی ومومئ.' },
+  { label: 'New salons added',
+    text: 'سالن‌های جدید در منطقه‌ی شما اضافه شدند — همین حالا ببینید و نوبت بگیرید!\nستاسو په سیمه کې نوي سالونونه اضافه شول — همدا اوس یې وګورئ او نوبت واخلئ!' },
+  { label: 'Eid greeting',
+    text: 'عید شما مبارک! از طرف تیم سیف‌بیوتی برایتان روزهای زیبا و شاد آرزومندیم. 🌙\nستاسو اختر مبارک! د سیف‌بیوتي ټیم د ښکلو او خوښیو ورځو هیله کوي. 🌙' },
+  { label: 'App update available',
+    text: 'نسخه‌ی جدید اپ آماده است. برای تجربه‌ی بهتر، از گوگل‌پلی به‌روزرسانی کنید.\nد اپ نوې نسخه چمتو ده. د ښه تجربې لپاره، له ګوګل پلی نه یې تازه کړئ.' },
+  { label: 'Nowruz greeting',
+    text: 'نوروزتان پیروز و سالِ نو مبارک! سالِ زیبایی‌تان را با سیف‌بیوتی آغاز کنید. 🌷\nنوی کال او نوروز مو مبارک! خپل ښکلی کال د سیف‌بیوتي سره پیل کړئ. 🌷' },
+  { label: 'Ramadan greeting',
+    text: 'ماهِ مبارکِ رمضان بر شما مبارک باد. اوقاتِ کاریِ برخی سالن‌ها ممکن است تغییر کند. 🌙\nد مبارکې روژې میاشت مو مبارکه. د ځینو سالونونو د کار وختونه ممکن بدل شي. 🌙' },
+  { label: 'Safety & trusted salons',
+    text: 'امنیتِ شما مهم است — همه‌ی سالن‌ها پیش از نمایش تأیید و بررسی می‌شوند. با خیالِ راحت نوبت بگیرید. 🔒\nستاسو خوندیتوب مهم دی — ټول سالونونه له ښودلو مخکې تصدیق او څارل کیږي. په ډاډ سره نوبت واخلئ. 🔒' },
+  { label: 'Rate your experience',
+    text: 'از خدماتِ اخیر راضی بودید؟ با ثبتِ نظر و امتیاز به سالن‌ها و دیگر کاربران کمک کنید. ⭐\nد وروستیو خدماتو څخه راضي وئ؟ د نظر او امتیاز په ورکولو سره د سالونونو او نورو کاروونکو سره مرسته وکړئ. ⭐' },
+];
+
 function renderAnnounce(){
   $('view').innerHTML = `
     <div class="section-title">Send an announcement</div>
     <div class="card" style="padding:18px;max-width:560px">
       <div id="aflash"></div>
-      <textarea id="amsg" class="field" placeholder="Your message to all users…"></textarea>
-      <button id="asend" class="btn">Send to everyone</button>
-      <div class="meta" style="margin-top:10px">Delivered as a push notification and shown in-app.</div>
+      <select id="atmpl" class="field" style="margin-bottom:10px">
+        <option value="">Insert a template…</option>
+        ${ANNOUNCE_TEMPLATES.map((t,i)=>`<option value="${i}">${esc(t.label)}</option>`).join('')}
+      </select>
+      <textarea id="amsg" class="field" dir="auto" placeholder="Your message to all users…"></textarea>
+      <div class="mglabel" style="margin-top:4px">Audience</div>
+      <div class="mrow">
+        <select id="a-role" class="field">
+          <option value="">Everyone</option>
+          <option value="CUSTOMER">Customers only</option>
+          <option value="PROVIDER">Salon owners only</option>
+        </select>
+        <select id="a-lang" class="field">
+          <option value="">Any language</option>
+          <option value="fa">Dari readers</option>
+          <option value="ps">Pashto readers</option>
+          <option value="en">English readers</option>
+        </select>
+      </div>
+      <select id="a-district" class="field">
+        <option value="">Any district (salon owners only)</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
+      </select>
+      <button id="asend" class="btn">Send</button>
+      <div class="meta" style="margin-top:10px">
+        Delivered as a push notification and shown in-app. Leave the filters on
+        their defaults to reach everyone. A district filter matches salon owners
+        by their salon's district, so it has no effect on customers.
+      </div>
     </div>`;
+  // The button says who it will actually reach — a targeted send that still
+  // reads "Send to everyone" is how an admin blasts the wrong audience.
+  const audienceLabel = () => {
+    const r = $('a-role').value, l = $('a-lang').value, d = $('a-district').value;
+    if(!r && !l && !d) return 'Send to everyone';
+    const who = r === 'CUSTOMER' ? 'customers' : r === 'PROVIDER' ? 'salon owners' : 'users';
+    const bits = [];
+    if(l) bits.push({fa:'Dari',ps:'Pashto',en:'English'}[l] + '-reading');
+    if(d) bits.push('in ' + d);
+    return `Send to ${bits.length ? bits.join(' ') + ' ' : ''}${who}`;
+  };
+  ['a-role','a-lang','a-district'].forEach(id =>
+    $(id).addEventListener('change', () => { $('asend').textContent = audienceLabel(); }));
+
+  $('atmpl').onchange = () => {
+    const i = $('atmpl').value;
+    if(i === '') return;
+    $('amsg').value = ANNOUNCE_TEMPLATES[i].text;
+    $('atmpl').value = '';   // reset so the same template can be re-picked
+    $('amsg').focus();
+  };
   $('asend').onclick = async () => {
     const msg = $('amsg').value.trim();
     if(!msg) return;
     $('asend').disabled = true; $('asend').textContent = 'Sending…';
     try{
-      await addDoc(collection(db,'broadcasts'), { message: msg, sentBy:'admin', createdAt: Date.now() });
+      await addDoc(collection(db,'broadcasts'), {
+        message: msg, sentBy:'admin', createdAt: Date.now(),
+        targetRole:     $('a-role').value,
+        targetLang:     $('a-lang').value,
+        targetDistrict: $('a-district').value,
+      });
       $('amsg').value = '';
       $('aflash').innerHTML = `<div class="flash">Announcement sent ✓</div>`;
     }catch(e){ $('aflash').innerHTML = `<div class="err">${esc(e.message)}</div>`; }
-    finally{ $('asend').disabled=false; $('asend').textContent='Send to everyone'; }
+    finally{ $('asend').disabled=false; $('asend').textContent=audienceLabel(); }
   };
 }
 
@@ -528,7 +668,7 @@ function renderApprovals(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Joined</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Joined</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -558,7 +698,7 @@ function renderKyc(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -602,12 +742,15 @@ function renderSupport(){
     if(!el) return;
     if(!rows.length){ el.innerHTML = `<div class="empty">No open support requests</div>`; return; }
     el.innerHTML = rows.map(t => `
-      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
+      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" role="button" tabindex="0" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
         <h3>${t.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(t.userName||t.userId)}</h3>
         <div class="meta">${esc(t.userRole||'')}${t.relatedInfo?' · '+esc(t.relatedInfo):''}</div>
         <div class="meta">${fmtDate(t.updatedAt)}</div>
       </div>`).join('');
-    el.querySelectorAll('.ticket').forEach(r => r.onclick = () => openChat(r.dataset.uid, r.dataset.name));
+    el.querySelectorAll('.ticket').forEach(r => {
+      r.onclick = () => openChat(r.dataset.uid, r.dataset.name);
+      r.onkeydown = e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); r.click(); } };
+    });
   }, err => { const el=$('tickets'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
 }
 
@@ -803,11 +946,20 @@ async function openTemplates(targetInputId){
 // ── Users ──────────────────────────────────────────────────────────────────────
 async function renderUsers(){
   try{
-    const snap = await getDocs(collection(db,'users'));
+    // Newest 300 rather than the entire collection. The list is browsed and
+    // searched by eye; an admin who needs an older account uses the phone/name
+    // search, which is what the Manage flow is driven by anyway.
+    const USER_PAGE = 300;
+    const snap = await getDocs(query(collection(db,'users'), orderBy('createdAt','desc'), limit(USER_PAGE)));
     const users = []; snap.forEach(d => users.push({ id:d.id, ...d.data() }));
-    users.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    $('view').innerHTML = `<div class="section-title">All users (${users.length})</div>
-      <input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
+    // Say so when the list is capped. A console that silently shows a subset is
+    // worse than one that shows fewer rows and admits it.
+    const capped = users.length === USER_PAGE;
+    $('view').innerHTML = `<div class="section-title">All users (${users.length}${capped?'+':''})</div>` +
+      (capped ? `<div class="meta" style="color:var(--warn-ink);margin-bottom:10px">
+         Showing the ${USER_PAGE} newest accounts. Older accounts are not listed here —
+         use the Manage flow on the Admins tab to reach one by phone number.</div>` : '') +
+      `<input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
     const setStatus = async (uid, status) => {
       try{ await updateDoc(doc(db,'users',uid), { status });
@@ -818,7 +970,7 @@ async function renderUsers(){
       const t = term.trim().toLowerCase();
       const rows = users.filter(u => !t || (u.name||'').toLowerCase().includes(t) || (u.phone||'').includes(t));
       $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Status</th><th>KYC</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">KYC</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -899,11 +1051,109 @@ function openUserModal(u, onChanged){
       ${adminBtn}
     </div>
 
+    <div class="mgroup">
+      <div class="mglabel">Account standing</div>
+      ${u.suspended
+        ? `<div class="meta" style="color:var(--bad-ink);margin-bottom:9px">
+             Suspended${u.suspendedReason?` — ${esc(u.suspendedReason)}`:''}. They can still sign in and
+             read their history; what is blocked is booking, confirming and rating.
+           </div>
+           <button class="btn-sm" id="m-reinstate" style="background:var(--green)">Reinstate account</button>`
+        : `<div class="mrow">
+             <input id="m-susreason" class="field" placeholder="Reason (kept on the record)" />
+             <button class="btn-sm" id="m-suspend" style="background:var(--red)">Suspend</button>
+           </div>`}
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Delete account</div>
+      <div class="meta" style="color:var(--muted);margin-bottom:9px">
+        For a duplicate registration or a test row — nothing else. An account with any
+        bookings, payments, reviews, reports or salons is refused: deleting it would leave
+        a salon holding an appointment with nobody to contact. Suspend those instead.
+        Recoverable for 7 days.
+      </div>
+      <div class="mrow">
+        <input id="m-delreason" class="field" placeholder="Reason (kept on the record)" />
+        <button class="btn-sm" id="m-delete" style="background:var(--red)">Delete</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
+      <div class="mglabel">Full history</div>
+      <button class="btn-sm" id="m-dossier" style="background:var(--surface);color:var(--deep)">Load bookings, reviews and reports</button>
+      <div id="m-dossier-out" style="margin-top:10px"></div>
+    </div>
+
     <button class="btn-sm mclose" id="m-close">Close</button>
   `);
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 700); };
   $('m-close').onclick = hideModal;
+
+  if($('m-suspend')) $('m-suspend').onclick = async (e) => {
+    const reason = $('m-susreason').value.trim();
+    if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A suspension needs a reason on the record.'; return; }
+    if(!confirm(`Suspend ${u.name||u.id}? They keep access to their own history and to support.`)) return;
+    if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:true, reason }, e.target, 'm-flash', 'Suspended ✓')) refresh();
+  };
+  if($('m-reinstate')) $('m-reinstate').onclick = async (e) => {
+    if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:false }, e.target, 'm-flash', 'Reinstated ✓')) refresh();
+  };
+
+  $('m-delete').onclick = async (e) => {
+    const reason = $('m-delreason').value.trim();
+    if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A deletion needs a reason on the record.'; return; }
+    if(!confirm(`Delete ${u.name||u.id}?\n\nThis is for duplicates and test rows. It is refused if the account has any history, and it is recoverable for 7 days.`)) return;
+
+    const btn = e.target, lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    $('m-flash').className='mflash'; $('m-flash').textContent='';
+    try{
+      const { data } = await httpsCallable(fns,'adminDeleteUser')({ targetUid:u.id, reason });
+      $('m-flash').className='mflash ok';
+      $('m-flash').textContent = 'Deleted ✓' + (data.authRecordKept ? ' (sign-in record kept, harmless)' : '');
+      setTimeout(() => { hideModal(); if(onChanged) onChanged(); }, 900);
+    }catch(err){
+      // The refusals are the useful part of this feature, so show them in full
+      // rather than collapsing everything to "failed".
+      $('m-flash').className='mflash bad';
+      $('m-flash').textContent = fnError(err);
+      btn.disabled = false; btn.textContent = lbl;
+    }
+  };
+
+  $('m-dossier').onclick = async (e) => {
+    const btn = e.target, lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Loading…';
+    try{
+      const salonId = (u.salons && u.salons[0]) || '';
+      const { data } = await httpsCallable(fns,'adminUserDossier')({ targetUid:u.id, salonId });
+      const b = data.bookings||[], r = data.reviews||[], rep = data.reports||[];
+      const list = (rows, body, empty) => rows.length
+        ? `<div class="tbl-wrap"><table class="tbl"><tbody>${rows.map(body).join('')}</tbody></table></div>`
+        : `<div class="meta" style="color:var(--muted)">${empty}</div>`;
+      $('m-dossier-out').innerHTML = `
+        <div class="mglabel" style="margin-top:4px">Bookings (${b.length})</div>
+        ${list(b, x => `<tr>
+            <td class="name">${esc(x.bookingCode||x.id)}</td>
+            <td>${esc(x.salonName||'—')}</td>
+            <td><span class="pill ${STATUS_PILL[x.status]||'info'}">${esc(x.status||'')}</span></td>
+            <td>${fmtDate(x.appointmentDate)}</td>
+          </tr>`, 'No bookings')}
+        <div class="mglabel" style="margin-top:12px">Reviews written (${r.length})</div>
+        ${list(r, x => `<tr><td>★ ${Number(x.rating||0)}</td><td>${esc(x.comment||'—')}</td></tr>`, 'None')}
+        <div class="mglabel" style="margin-top:12px">Reported by salons (${rep.length})</div>
+        ${list(rep, x => `<tr>
+            <td>${x.noShow?'<span class="pill bad">no-show</span>':'★ '+Number(x.rating||0)}</td>
+            <td>${esc(x.comment||'—')}</td><td>${fmtDate(x.createdAt)}</td>
+          </tr>`, 'None — nothing has been reported about this account')}
+        ${data.balance ? `<div class="mglabel" style="margin-top:12px">Salon balance</div>
+          <div class="meta">${Number(data.balance.owed||0).toLocaleString()} AFN owed</div>` : ''}`;
+    }catch(err){
+      $('m-dossier-out').innerHTML = `<div class="meta" style="color:var(--bad-ink)">${esc(fnError(err))}</div>`;
+    }finally{ btn.disabled = false; btn.textContent = lbl; }
+  };
 
   $('m-pwbtn').onclick = async (e) => {
     const pw = $('m-pw').value.trim();
@@ -941,9 +1191,10 @@ function openUserModal(u, onChanged){
 // ── Admins ───────────────────────────────────────────────────────────────────
 async function renderAdmins(){
   try{
-    const snap = await getDocs(collection(db,'users'));
+    // Ask for admins, don't download everyone and filter in the browser.
+    const snap = await getDocs(query(collection(db,'users'), where('role','==','ADMIN')));
     const all = []; snap.forEach(d => all.push({ id:d.id, ...d.data() }));
-    const admins = all.filter(u => u.role==='ADMIN').sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+    const admins = all.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     $('view').innerHTML = `
       <div class="section-title">Add an administrator</div>
       <div class="card" style="padding:16px;max-width:460px;margin-bottom:22px">
@@ -957,7 +1208,7 @@ async function renderAdmins(){
       </div>
       <div class="section-title">Current admins (${admins.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Name</th><th>Phone</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
         <tbody>${admins.map(a=>`<tr>
           <td class="name">${esc(a.name||a.id)}</td>
           <td>${esc(a.phone||'—')}</td>
@@ -981,7 +1232,13 @@ async function renderAdmins(){
         const res = await httpsCallable(fns,'lookupAccountByPhone')({ phone });
         const m = res.data || {};
         if(!m.found){ found.innerHTML = `<div class="mflash bad">No account with that phone.</div>`; return; }
-        const u = all.find(x=>x.id===m.uid) || { id:m.uid, name:'', role:'' };
+        // Fetch the one user we're about to promote. `all` holds only admins now,
+        // so it can never contain the non-admin we are looking for.
+        let u = { id:m.uid, name:'', role:'' };
+        try{
+          const uSnap = await getDoc(doc(db,'users',m.uid));
+          if(uSnap.exists()) u = { id:uSnap.id, ...uSnap.data() };
+        }catch(_){}
         if(u.role==='ADMIN'){ found.innerHTML = `<div class="mflash ok">${esc(u.name||u.id)} is already an admin.</div>`; return; }
         found.innerHTML = `<div class="row" style="margin:0"><h3>${esc(u.name||u.id)}</h3>
           <div class="meta">${esc(u.role||'—')} · ${esc(u.phone||phone)}</div>
@@ -989,26 +1246,90 @@ async function renderAdmins(){
         $('agrant').onclick = async (e) => {
           if(await callFn('grantAdmin', { targetUid:m.uid }, e.target, 'aflash2', 'Granted ✓')) setTimeout(renderAdmins, 700);
         };
-      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(e.message)}</div>`; }
+      }catch(e){ found.innerHTML = `<div class="mflash bad">${esc(fnError(e))}</div>`; }
     };
     $('aphone').addEventListener('keydown', e => { if(e.key==='Enter') $('afind').click(); });
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+
+/** Fetch just the user docs whose ids are in [ids], keyed by id. Firestore caps
+ *  an `in` filter at 30 values, so this chunks. Used instead of downloading the
+ *  whole users collection to resolve a handful of owner names. */
+async function fetchUsersByIds(ids){
+  const unique = [...new Set(ids.filter(Boolean))];
+  const out = {};
+  for(let i=0;i<unique.length;i+=30){
+    const chunk = unique.slice(i,i+30);
+    const snap = await getDocs(query(collection(db,'users'), where(documentId(),'in',chunk)));
+    snap.forEach(d => out[d.id] = { id:d.id, ...d.data() });
+  }
+  return out;
+}
+
 // ── Salons ─────────────────────────────────────────────────────────────────────
 async function renderSalons(){
   try{
-    const [salonSnap, userSnap] = await Promise.all([
-      getDocs(collection(db,'salons')),
-      getDocs(collection(db,'users')),
-    ]);
+    const salonSnap = await getDocs(collection(db,'salons'));
     const salons = []; salonSnap.forEach(d => salons.push({ id:d.id, ...d.data() }));
-    const owners = {}; userSnap.forEach(d => owners[d.id] = { id:d.id, ...d.data() });
-    if(!salons.length){ $('view').innerHTML = `<div class="empty">No salons yet</div>`; return; }
+    // Only the owners of these salons — not every user on the platform.
+    const owners = await fetchUsersByIds(salons.map(s => s.providerId));
     salons.sort((a,b)=>(a.salonName||'').localeCompare(b.salonName||''));
-    $('view').innerHTML = `<div class="section-title">Salons (${salons.length})</div>
+    // Admin-side salon onboarding. Salon owners in Kabul are signed up in person,
+    // so the admin needs to create the owner's account and their salon together;
+    // waiting for self-registration would leave the marketplace empty.
+    $('view').innerHTML = `
+      <div class="section-title">Add a salon</div>
+      <div class="card" style="padding:16px;max-width:560px;margin-bottom:22px">
+        <div id="nsflash" class="mflash"></div>
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Creates the owner's provider account and their salon. Give the owner the
+          phone number and password below so they can sign in.
+        </div>
+        <div class="mrow">
+          <input id="ns-owner" class="field" placeholder="Owner full name" />
+          <input id="ns-phone" class="field" placeholder="Owner phone (+93…)" />
+        </div>
+        <div class="mrow">
+          <input id="ns-pass" class="field" placeholder="Temporary password (min 6)" />
+          <select id="ns-district" class="field">
+            <option value="">District…</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
+          </select>
+        </div>
+        <input id="ns-salon" class="field" placeholder="Salon name" />
+        <input id="ns-services" class="field" placeholder="Services, comma separated (e.g. Hair, Makeup, Nails)" />
+        <button id="ns-create" class="btn" style="margin-top:6px">Create salon</button>
+      </div>
+      <div class="section-title">Salons (${salons.length})</div>
       <input id="ssearch" class="field" placeholder="Search salon, district or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="slist"></div>`;
+
+    $('ns-create').onclick = async (e) => {
+      const services = $('ns-services').value.split(',').map(x=>x.trim()).filter(Boolean);
+      const payload = {
+        ownerName: $('ns-owner').value.trim(),
+        phone:     $('ns-phone').value.trim(),
+        password:  $('ns-pass').value,
+        salonName: $('ns-salon').value.trim(),
+        district:  $('ns-district').value,
+        services,
+      };
+      if(!payload.ownerName || !payload.phone || !payload.salonName || !payload.district || !services.length){
+        $('nsflash').className='mflash bad';
+        $('nsflash').textContent='Fill in owner name, phone, salon name, district and at least one service.';
+        return;
+      }
+      if(payload.password.length < 6){
+        $('nsflash').className='mflash bad';
+        $('nsflash').textContent='Password must be at least 6 characters.';
+        return;
+      }
+      if(await callFn('adminCreateSalon', payload, e.target, 'nsflash', 'Salon created ✓')){
+        ['ns-owner','ns-phone','ns-pass','ns-salon','ns-services'].forEach(id => $(id).value='');
+        $('ns-district').value='';
+        setTimeout(renderSalons, 800);
+      }
+    };
     const verify = async (id, v) => {
       try{ await updateDoc(doc(db,'salons',id), { isVerified:v });
         const s = salons.find(x=>x.id===id); if(s) s.isVerified = v; draw($('ssearch').value); }
@@ -1021,7 +1342,7 @@ async function renderSalons(){
         return !t || (s.salonName||'').toLowerCase().includes(t) || (s.district||'').toLowerCase().includes(t) || (o.phone||'').includes(t);
       });
       $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Salon</th><th>District</th><th>Owner phone</th><th>Rating</th><th>KYC</th><th>Verified</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Salon</th><th scope="col">District</th><th scope="col">Owner phone</th><th scope="col">Rating</th><th scope="col">KYC</th><th scope="col">Verified</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(s => { const o = owners[s.providerId] || {}; return `<tr>
           <td class="name">${esc(s.salonName||s.id)}</td>
           <td>${esc(s.district||'—')}</td>
@@ -1048,6 +1369,520 @@ async function renderSalons(){
   }catch(e){ $('view').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+// ── Content (what customers actually see) ────────────────────────────────────
+//
+// Everything published into Discover, in one place, with a way to take any of it
+// down. Until this tab existed the platform could publish but not moderate: an
+// abusive comment or a photo posted in bad faith could only be removed from the
+// Firestore console, which is not a tool anyone should need at 9pm.
+//
+// Comments come first deliberately. Photos are posted by salons the admin has
+// vetted; comments are written by anyone with an account, so that is where
+// something is most likely to need removing, and burying it under two other
+// sections would cost time when it matters.
+async function renderContent(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const [cSnap, pSnap, sSnap] = await Promise.all([
+      getDocs(query(collection(db,'post_comments'), orderBy('createdAt','desc'), limit(100))),
+      getDocs(query(collection(db,'salon_posts'),   orderBy('createdAt','desc'), limit(60))),
+      getDocs(collection(db,'salon_stories')),
+    ]);
+    const comments = cSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const posts    = pSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const stories  = sSnap.docs.map(d=>({id:d.id,...d.data()}))
+                          .filter(x => (x.expiresAt||0) > Date.now())
+                          .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+    const seeded = (x) => x.createdByAdmin ? ' <span class="pill info">by admin</span>' : '';
+    const hoursLeft = (ms) => {
+      const h = Math.floor(((ms||0) - Date.now())/3600000);
+      return h < 1 ? '<1h' : h + 'h';
+    };
+
+    $('view').innerHTML = `
+      <div class="section-title">Comments (${comments.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        The 100 most recent across the platform. Removing one does not notify its author.
+      </div>
+      ${comments.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Author</th><th scope="col">Comment</th><th scope="col">Salon</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <tbody>` + comments.map(c => `<tr>
+          <td class="name">${esc(c.authorName||'—')}</td>
+          <td>${esc(c.text||'')}</td>
+          <td>${esc(c.salonId||'—')}</td>
+          <td>${fmtDate(c.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-delc="${esc(c.id)}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No comments yet</div>`}
+
+      <div class="section-title" style="margin-top:26px">Live stories (${stories.length})</div>
+      ${stories.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Salon</th><th scope="col">Announcement</th><th scope="col">Left</th><th scope="col"></th></tr></thead>
+        <tbody>` + stories.map(x => `<tr>
+          <td class="name">${esc(x.salonName||x.salonId||'—')}${seeded(x)}</td>
+          <td>${esc(x.text||'')}</td>
+          <td>${hoursLeft(x.expiresAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-dels="${esc(x.id)}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No story running</div>`}
+
+      <div class="section-title" style="margin-top:26px">Posts (${posts.length})</div>
+      ${posts.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Photo</th><th scope="col">Salon</th><th scope="col">Caption</th><th scope="col">❤</th><th scope="col">💬</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <tbody>` + posts.map(p => `<tr>
+          <td><img src="${esc(p.imageUrl||'')}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:9px;border:1px solid var(--line)"/></td>
+          <td class="name">${esc(p.salonName||p.salonId||'—')}${seeded(p)}</td>
+          <td>${esc(p.caption||'—')}</td>
+          <td>${Number(p.likeCount||0)}</td>
+          <td>${Number(p.commentCount||0)}</td>
+          <td>${fmtDate(p.createdAt)}</td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)"
+                data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">Remove</button></td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No posts yet</div>`}
+    `;
+
+    const after = (fn) => async (btn) => {
+      btn.disabled = true; const lbl = btn.textContent; btn.textContent = 'Removing…';
+      try{ await fn(); await renderContent(); }
+      catch(e){ alert(e.message||String(e)); btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('view').querySelectorAll('[data-delc]').forEach(b => b.onclick = () => {
+      if(confirm('Remove this comment?')) after(() => deleteDoc(doc(db,'post_comments', b.dataset.delc)))(b);
+    });
+    $('view').querySelectorAll('[data-dels]').forEach(b => b.onclick = () => {
+      if(confirm('Remove this story?')) after(() => deleteDoc(doc(db,'salon_stories', b.dataset.dels)))(b);
+    });
+    $('view').querySelectorAll('[data-delp]').forEach(b => b.onclick = () => {
+      if(!confirm('Remove this photo? Its likes and comments go with it.')) return;
+      after(async () => {
+        // cleanupDeletedPost collects the likes and comments; the image is the
+        // only part that does not belong to Firestore.
+        await deleteDoc(doc(db,'salon_posts', b.dataset.delp));
+        if(b.dataset.path){ try{ await deleteObject(sref(storage, b.dataset.path)); }catch(_){} }
+      })(b);
+    });
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
+// ── Booking lookup (one reference, the whole story) ──────────────────────────
+//
+// The first thing a support call needs: a customer reads her SB- code, and this
+// shows what was booked, what was paid, and every state the booking has been
+// through with who moved it and why. Before this existed the only answer to
+// "why was my appointment cancelled" was a guess.
+const STATUS_PILL = {
+  AWAITING_PAYMENT: 'warn', PENDING: 'info', CONFIRMED: 'ok',
+  COMPLETED: 'ok', CANCELLED: 'bad',
+};
+
+function renderBooking(){
+  $('view').innerHTML = `
+    <div class="section-title">Find a booking</div>
+    <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+      Enter the reference the customer reads out (SB-4C7GHJ), or a booking's document id.
+      Case, spaces and a missing prefix are all fine.
+    </div>
+    <div class="mrow" style="max-width:520px">
+      <input id="bk-code" class="field" placeholder="SB-4C7GHJ" autocomplete="off" />
+      <button class="btn-sm" id="bk-go" style="background:var(--rose)">Look up</button>
+    </div>
+    <div id="bk-flash" class="mflash"></div>
+    <div id="bk-out"></div>`;
+
+  const run = async () => {
+    const code = $('bk-code').value.trim();
+    if(!code){ return; }
+    const btn = $('bk-go'), lbl = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Looking…';
+    $('bk-flash').className = 'mflash'; $('bk-flash').textContent = '';
+    $('bk-out').innerHTML = '';
+    try{
+      const { data } = await httpsCallable(fns,'adminLookupBooking')({ code });
+      paintBooking(data);
+    }catch(e){
+      $('bk-flash').className = 'mflash bad';
+      $('bk-flash').textContent = fnError(e);
+    }finally{ btn.disabled = false; btn.textContent = lbl; }
+  };
+  $('bk-go').onclick = run;
+  $('bk-code').onkeydown = (e) => { if(e.key === 'Enter') run(); };
+  $('bk-code').focus();
+}
+
+function paintBooking(d){
+  const a = d.appointment || {};
+  const money = (n) => `${Number(n||0).toLocaleString()} AFN`;
+  const pill  = (st) => `<span class="pill ${STATUS_PILL[st]||'info'}">${esc(st||'—')}</span>`;
+
+  const rowsOrEmpty = (rows, head, body, empty) => rows.length
+    ? `<div class="tbl-wrap"><table class="tbl"><thead><tr>${head}</tr></thead><tbody>${rows.map(body).join('')}</tbody></table></div>`
+    : `<div class="empty">${empty}</div>`;
+
+  $('bk-out').innerHTML = `
+    <div class="card-pad" style="margin-top:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
+        <span style="font-size:19px;font-weight:800;letter-spacing:.5px;color:var(--deep)">${esc(a.bookingCode||a.id)}</span>
+        ${pill(a.status)}
+        ${a.paymentMethod === 'CASH' ? '<span class="pill info">Cash</span>' : '<span class="pill info">Online</span>'}
+        ${a.customerReported ? '<span class="pill warn">Customer reported</span>' : ''}
+      </div>
+      <div class="meta" style="color:var(--muted);line-height:1.9">
+        <b>${esc(a.serviceName||'—')}</b> at <b>${esc(a.salonName||'—')}</b>${a.staffName?` with ${esc(a.staffName)}`:''}<br/>
+        Customer: ${esc(a.customerName||'—')} · <bdi dir="ltr">${esc(a.customerPhone||'—')}</bdi><br/>
+        Appointment: ${fmtDate(a.appointmentDate)} · Booked: ${fmtDate(a.createdAt)}<br/>
+        ${a.notes?`Note: “${esc(a.notes)}”`:''}
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:22px">History (${(d.events||[]).length})</div>
+    ${rowsOrEmpty(d.events||[],
+      '<th scope="col">When</th><th scope="col">From</th><th scope="col">To</th><th scope="col">By</th><th scope="col">Why</th>',
+      (e) => `<tr>
+        <td>${fmtDate(e.at)}</td>
+        <td>${e.from?pill(e.from):'—'}</td>
+        <td>${pill(e.to)}</td>
+        <td class="name">${esc(e.actorName||e.actorRole||'system')}<div class="meta" style="color:var(--muted)">${esc(e.actorRole||'')}</div></td>
+        <td>${esc(e.reason||'—')}</td>
+      </tr>`,
+      'No history recorded — this booking predates the event trail.')}
+
+    <div class="section-title" style="margin-top:22px">Payments (${(d.payments||[]).length})</div>
+    ${rowsOrEmpty(d.payments||[],
+      '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Method</th><th scope="col">When</th>',
+      (p) => `<tr><td>${money(p.amount)}</td><td>${esc(p.status||'—')}</td><td>${esc(p.method||p.paymentMethod||'—')}</td><td>${fmtDate(p.createdAt)}</td></tr>`,
+      'No payment row')}
+
+    ${(d.refunds||[]).length ? `<div class="section-title" style="margin-top:22px">Refunds (${d.refunds.length})</div>` +
+      rowsOrEmpty(d.refunds,
+        '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">When</th>',
+        (r) => `<tr><td>${money(r.amount)}</td><td>${esc(r.status||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
+
+    ${(d.reports||[]).length ? `<div class="section-title" style="margin-top:22px">Behaviour reports (${d.reports.length})</div>` +
+      rowsOrEmpty(d.reports,
+        '<th scope="col">Rating</th><th scope="col">No-show</th><th scope="col">Comment</th><th scope="col">When</th>',
+        (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?'<span class="pill bad">yes</span>':'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
+
+    ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">Review</div>` +
+      rowsOrEmpty(d.reviews,
+        '<th scope="col">Rating</th><th scope="col">Comment</th><th scope="col">Salon reply</th>',
+        (r) => `<tr><td>★ ${Number(r.rating||0)}</td><td>${esc(r.comment||'—')}</td><td>${esc(r.providerReply||'—')}</td></tr>`, '') : ''}
+  `;
+}
+
+// ── Health (what the platform found wrong with itself overnight) ─────────────
+//
+// reconcileIntegrity writes its findings every night; without somewhere to read
+// them they are just a log line nobody opens. Backup state sits here too,
+// because "is there a backup" and "is anything broken" are the same question
+// asked at the same moment.
+async function renderHealth(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const [alertSnap, backupSnap] = await Promise.all([
+      getDocs(query(collection(db,'system_alerts'), orderBy('ranAt','desc'), limit(1))),
+      getDocs(query(collection(db,'system_backups'), orderBy('startedAt','desc'), limit(14))),
+    ]);
+    const latest  = alertSnap.empty ? null : alertSnap.docs[0].data();
+    const backups = backupSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+    const findings = (latest && latest.findings) || [];
+    const sev = { critical:'bad', warn:'warn' };
+    const lastGood = backups.find(b => b.state === 'DONE');
+    const ageH = lastGood ? Math.floor((Date.now() - Number(lastGood.finishedAt||0))/3600000) : null;
+
+    $('view').innerHTML = `
+      <div class="section-title">Backups</div>
+      <div class="card-pad" style="margin-bottom:8px">
+        ${lastGood
+          ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">Last verified ${ageH}h ago</span>
+             <span class="meta" style="margin-inline-start:10px;color:var(--muted)">${esc(lastGood.id)} → ${esc(lastGood.outputUri||'')}</span>`
+          : `<span class="pill bad">No verified backup on record</span>`}
+      </div>
+      ${backups.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Day</th><th scope="col">State</th><th scope="col">Started</th><th scope="col">Finished</th><th scope="col">Error</th></tr></thead>
+        <tbody>` + backups.map(b => `<tr>
+          <td class="name">${esc(b.id)}</td>
+          <td><span class="pill ${b.state==='DONE'?'ok':b.state==='FAILED'?'bad':b.state==='PRUNED'?'info':'warn'}">${esc(b.state||'—')}</span></td>
+          <td>${fmtDate(b.startedAt)}</td>
+          <td>${b.finishedAt?fmtDate(b.finishedAt):'—'}</td>
+          <td>${esc(b.error||'—')}</td>
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No backup has run yet</div>`}
+
+      <div class="section-title" style="margin-top:26px">
+        Integrity ${latest ? `— last checked ${fmtDate(latest.ranAt)}` : ''}
+      </div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        Found by the nightly sweep. Nothing here has been changed automatically — each one is a
+        disagreement between two records that a person should decide about.
+      </div>
+      ${!latest ? `<div class="empty">The nightly check has not run yet</div>`
+        : findings.length === 0 ? `<div class="empty">Nothing out of place 🎉</div>`
+        : `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">Severity</th><th scope="col">Kind</th><th scope="col">Reference</th><th scope="col">Detail</th></tr></thead>
+        <tbody>` + findings.map(f => `<tr>
+          <td><span class="pill ${sev[f.severity]||'info'}">${esc(f.severity||'')}</span></td>
+          <td class="name">${esc(f.kind||'')}</td>
+          <td>${esc(f.ref||'')}</td>
+          <td>${esc(f.detail||'')}</td>
+        </tr>`).join('') + `</tbody></table></div>
+        ${latest.truncated ? `<div class="meta" style="color:var(--muted);margin-top:8px">Only the first 200 findings are stored.</div>` : ''}`}
+
+      <div class="section-title" style="margin-top:26px">Maintenance</div>
+      <div class="card-pad">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Bookings made before references existed have none, so support cannot look them up.
+          Safe to run repeatedly — it only touches bookings that still have no code.
+        </div>
+        <button class="btn-sm" id="h-backfill" style="background:var(--rose)">Assign missing booking references</button>
+        <div id="h-flash" class="mflash" style="margin-top:8px"></div>
+      </div>
+      <div class="card-pad" style="margin-top:10px">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Accounts created before phone numbers were normalized are found at sign-in by a slower
+          fallback. This writes their lookup key so every login is a single indexed read.
+          Safe to run repeatedly; reports any two accounts that share a number.
+        </div>
+        <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Assign missing phone lookup keys</button>
+        <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
+      </div>
+      <div class="card-pad" style="margin-top:10px">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Sends a deliberate test alert through the whole chain — log, metric, policy, email.
+          Monitoring that has never fired is monitoring nobody knows works, and the moment you
+          find out is the moment you needed it. Worth running every few months.
+          Touches no data, and says it is a drill.
+        </div>
+        <button class="btn-sm" id="h-drill" style="background:var(--surface);color:var(--deep)">Send a test alert</button>
+        <div id="h-drillflash" class="mflash" style="margin-top:8px"></div>
+      </div>
+      <div class="card-pad" style="margin-top:10px">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Category and neighbourhood filters compare against fields derived from what each salon
+          typed. Until a salon has them, its chips match nothing — a customer searching for nails
+          sees "no providers found" while a nail salon sits on the previous screen.
+          Anything that cannot be resolved confidently is listed below for you to decide, never guessed.
+        </div>
+        <button class="btn-sm" id="h-normalize" style="background:var(--rose)">Derive salon filter fields</button>
+        <div id="h-normflash" class="mflash" style="margin-top:8px"></div>
+        <div id="h-normout" style="margin-top:8px"></div>
+      </div>`;
+
+    $('h-normalize').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminNormalizeSalons')({ limit: 300 });
+        $('h-normflash').className = 'mflash ok';
+        $('h-normflash').textContent =
+          `Scanned ${data.scanned}, updated ${data.updated}.` + (data.done ? ' All done.' : ' Run again to continue.');
+        const rows = data.needsReview || [];
+        $('h-normout').innerHTML = rows.length ? `
+          <div class="mglabel" style="margin-top:6px">Needs your decision (${rows.length})</div>
+          <div class="tbl-wrap"><table class="tbl">
+            <thead><tr><th scope="col">Salon</th><th scope="col">Unrecognised services</th><th scope="col">District</th></tr></thead>
+            <tbody>` + rows.map(r => `<tr>
+              <td class="name">${esc(r.salonName||r.salonId)}</td>
+              <td>${(r.unmatchedServices||[]).map(esc).join(', ') || '—'}</td>
+              <td>${(r.districtCandidates||[]).length
+                    ? esc(r.district) + ' → ' + (r.districtCandidates||[]).map(esc).join(' or ')
+                    : '—'}</td>
+            </tr>`).join('') + `</tbody></table></div>` : '';
+      }catch(err){
+        $('h-normflash').className = 'mflash bad';
+        $('h-normflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('h-drill').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try{
+        await httpsCallable(fns,'adminTestAlert')({ note: 'Fired from the admin console' });
+        $('h-drillflash').className = 'mflash ok';
+        $('h-drillflash').textContent =
+          'Test alert sent. A notification should arrive within about five minutes. ' +
+          'If nothing arrives, the notification channel is probably still unverified.';
+      }catch(err){
+        $('h-drillflash').className = 'mflash bad';
+        $('h-drillflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('h-phonekeys').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminBackfillPhoneKeys')({ limit: 300 });
+        const dup = (data.collisions||[]).length;
+        $('h-pkflash').className = 'mflash ' + (dup ? 'bad' : 'ok');
+        $('h-pkflash').textContent =
+          `Scanned ${data.scanned}, wrote ${data.written}.` +
+          (data.done ? ' All done.' : ' Run again to continue.') +
+          (dup ? ` ${dup} number(s) claimed by more than one account — check the logs.` : '');
+      }catch(err){
+        $('h-pkflash').className = 'mflash bad';
+        $('h-pkflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('h-backfill').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminBackfillBookingCodes')({ limit: 200 });
+        $('h-flash').className = 'mflash ok';
+        $('h-flash').textContent = `Scanned ${data.scanned}, assigned ${data.assigned}.` +
+          (data.done ? ' All done.' : ' Run again to continue.');
+      }catch(err){
+        $('h-flash').className = 'mflash bad';
+        $('h-flash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
+// ── Stuck payments ───────────────────────────────────────────────────────────
+//
+// A payment that started and never settled. Usually the customer simply closed
+// the checkout — but if HesabPay took the money and the webhook never arrived,
+// she has paid for an appointment the salon has never seen, and nothing else in
+// the system will notice.
+//
+// Settling is deliberately not automatic: this integration has no HesabPay
+// status endpoint to ask, so a person checks the reference on their dashboard
+// and confirms. The settlement itself runs the same code the webhook runs.
+async function renderStuck(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const { data } = await httpsCallable(fns,'adminStuckPayments')({});
+    const rows = data.rows || [];
+    const money = (n) => `${Number(n||0).toLocaleString()} AFN`;
+
+    $('view').innerHTML = `
+      <div class="section-title">Payments started but never settled (${rows.length})</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        Older than ${data.graceMinutes} minutes. Most are customers who closed the checkout and owe nothing.
+        The ones that matter are those where HesabPay took the money and the webhook never arrived —
+        check the reference on your HesabPay dashboard before settling.
+        Settling runs exactly the same code a webhook does, so settling one twice cannot pay a salon twice.
+      </div>
+      ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr>
+          <th scope="col">Booking</th><th scope="col">Customer</th><th scope="col">Amount</th>
+          <th scope="col">Booking state</th><th scope="col">Started</th>
+          <th scope="col">HesabPay session</th><th scope="col"></th>
+        </tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td class="name">${esc(r.bookingCode || r.appointmentId || '—')}<div class="meta" style="color:var(--muted)">${esc(r.serviceName||'')}</div></td>
+          <td>${esc(r.customerName||'—')}<div class="meta" style="color:var(--muted)"><bdi dir="ltr">${esc(r.customerPhone||'')}</bdi></div></td>
+          <td>${money(r.amount)}</td>
+          <td>${r.appointmentStatus === 'AWAITING_PAYMENT'
+                 ? '<span class="pill bad">never reached the salon</span>'
+                 : `<span class="pill info">${esc(r.appointmentStatus||'—')}</span>`}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td class="meta" style="word-break:break-all">${esc(r.hesabSessionId||'—')}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--green)" data-settle="${esc(r.paymentId)}">Settle</button>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">Nothing stuck 🎉</div>`}
+      <div id="stuck-flash" class="mflash" style="margin-top:10px"></div>`;
+
+    $('view').querySelectorAll('[data-settle]').forEach(b => b.onclick = async () => {
+      const reference = prompt(
+        'Enter the HesabPay transaction reference you verified.\n\n' +
+        'It is recorded with the settlement, and used as the replay key so this ' +
+        'payment cannot be settled twice.'
+      );
+      if (!reference || !reference.trim()) return;
+      const btn = b, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Settling…';
+      try{
+        const { data } = await httpsCallable(fns,'adminSettleStuckPayment')({
+          paymentId: btn.dataset.settle, transactionId: reference.trim(),
+        });
+        $('stuck-flash').className = 'mflash ok';
+        $('stuck-flash').textContent = `Settlement result: ${data.outcome}.`;
+        setTimeout(renderStuck, 900);
+      }catch(err){
+        $('stuck-flash').className = 'mflash bad';
+        $('stuck-flash').textContent = fnError(err);
+        btn.disabled = false; btn.textContent = lbl;
+      }
+    });
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
+// ── Demand ───────────────────────────────────────────────────────────────────
+//
+// What customers looked for and did not get, against what the platform can
+// actually serve. With two live salons and five hundred as the target, which
+// salon to recruit next is the question that matters most, and it was a guess.
+//
+// These signals carry no identity — see the demand_signals rules — so this is
+// aggregate by construction, not by convention.
+async function renderDemand(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const { data } = await httpsCallable(fns,'adminDemandReport')({ days: 30 });
+    const rows = data.rows || [];
+    const unmet = rows.filter(r => r.unmet > 0);
+
+    const kindLabel = { NO_RESULTS:'searched, found nothing', SLOT_TAKEN:'slot already taken', CHECKOUT_ABANDONED:'checkout abandoned' };
+    const kinds = (byKind) => Object.entries(byKind||{})
+      .map(([k,v]) => `${v} ${esc(kindLabel[k]||k)}`).join(' · ') || '—';
+
+    $('view').innerHTML = `
+      <div class="section-title">Where demand exceeds supply — last ${data.days} days</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
+        Built from ${data.signalCount} signal${data.signalCount===1?'':'s'}.
+        These take weeks to become useful — capture started recently, so a thin report now is expected, not broken.
+        ${data.truncated ? 'Only the most recent 2000 signals were read.' : ''}
+      </div>
+
+      ${unmet.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">District</th><th scope="col">Category</th><th scope="col">Times wanted</th><th scope="col">Salons serving it</th><th scope="col">Made up of</th></tr></thead>
+        <tbody>` + unmet.map(r => `<tr>
+          <td class="name">${esc(r.districtKey)}</td>
+          <td>${esc(r.category)}</td>
+          <td><b>${r.demand}</b></td>
+          <td><span class="pill bad">none</span></td>
+          <td class="meta">${kinds(r.byKind)}</td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">No demand yet that nobody can serve</div>`}
+
+      <div class="section-title" style="margin-top:26px">All recorded demand</div>
+      ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">District</th><th scope="col">Category</th><th scope="col">Times wanted</th><th scope="col">Salons</th><th scope="col">Made up of</th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td class="name">${esc(r.districtKey)}</td>
+          <td>${esc(r.category)}</td>
+          <td>${r.demand}</td>
+          <td>${r.salons === 0 ? '<span class="pill bad">0</span>' : r.salons}</td>
+          <td class="meta">${kinds(r.byKind)}</td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">Nothing recorded yet</div>`}
+
+      <div class="section-title" style="margin-top:26px">Supply by district</div>
+      ${(data.supplyByDistrict||[]).length ? `<div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">District</th><th scope="col">Bookable salons</th><th scope="col">Categories covered</th></tr></thead>
+        <tbody>` + data.supplyByDistrict.map(s => `<tr>
+          <td class="name">${esc(s.districtKey)}</td>
+          <td>${s.total}</td>
+          <td class="meta">${Object.entries(s.byCategory||{}).map(([c,n])=>`${esc(c)} ${n}`).join(' · ') || '—'}</td>
+        </tr>`).join('') + `</tbody></table></div>`
+        : `<div class="empty">No bookable salons</div>`}`;
+  }catch(e){
+    $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
+  }
+}
+
 // ── Audit log (privileged admin actions) ──────────────────────────────────────
 const AUDIT_META = {
   GRANT_ADMIN:    { icon:'🛡️', cls:'ok'   },
@@ -1056,6 +1891,9 @@ const AUDIT_META = {
   UPDATE_USER:    { icon:'✏️', cls:'info' },
   ADJUST_BALANCE: { icon:'💰', cls:'warn' },
   GRANT_CREDIT:   { icon:'🎁', cls:'ok'   },
+  CREATE_SALON:   { icon:'🏠', cls:'ok'   },
+  POST_FOR_SALON: { icon:'📸', cls:'info' },
+  SETTLE_STUCK_PAYMENT: { icon:'🧯', cls:'warn' },
 };
 function describeAudit(a){
   const d = a.details || {};
@@ -1067,6 +1905,9 @@ function describeAudit(a){
     case 'UPDATE_USER':    return `Edited <b>${who}</b> — ${esc(Object.keys(d.updates||{}).join(', ') || 'profile')}`;
     case 'ADJUST_BALANCE': return `Balance ${d.delta>0?'+':''}${esc(String(d.delta))} AFN for <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
     case 'GRANT_CREDIT':   return `Credit ${d.amount>0?'+':''}${esc(String(d.amount))} AFN to <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    case 'CREATE_SALON':   return `Added the salon <b>${esc(d.salonName||'')}</b>${d.district?` in ${esc(d.district)}`:''} for <b>${who}</b>`;
+    case 'POST_FOR_SALON': return `Published a ${d.kind==='STORY'?'story':'photo'} for <b>${esc(d.salonName||d.salonId||'')}</b>`;
+    case 'SETTLE_STUCK_PAYMENT': return `Settled a stuck payment of ${esc(String(d.amount||0))} AFN by hand — HesabPay ref <b>${esc(d.reference||'')}</b> (${esc(d.outcome||'')})`;
     default:               return esc(a.action || '');
   }
 }
@@ -1078,7 +1919,7 @@ async function renderAudit(){
     $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>When</th><th>By</th><th>Action</th></tr></thead>
+        <thead><tr><th scope="col">When</th><th scope="col">By</th><th scope="col">Action</th></tr></thead>
         <tbody>` + rows.map(a => {
           const m = AUDIT_META[a.action] || { icon:'•', cls:'info' };
           return `<tr>
@@ -1142,6 +1983,25 @@ async function openSalonModal(salon, onChanged){
     </div>
 
     <div class="mgroup">
+      <div class="mglabel">Publish for this salon</div>
+      <div class="meta" style="color:var(--muted);margin-bottom:9px">
+        Seeds Discover while the owner is still finding their feet. Published under
+        the salon's name and recorded in the audit log — only with their consent.
+      </div>
+      <div class="mrow">
+        <input id="s-story" class="field" maxlength="200" placeholder="Story — e.g. two chairs free this afternoon (24h)" />
+        <button class="btn-sm" id="s-story-go" style="background:var(--rose)">Post story</button>
+      </div>
+      <!-- Three controls, and a file input is naturally wide: .modal .mrow is
+           nowrap, which would crush them onto one line on a narrow screen. -->
+      <div class="mrow" style="margin-top:8px;flex-wrap:wrap">
+        <input id="s-photo" class="field" type="file" accept="image/jpeg,image/png,image/webp" />
+        <input id="s-caption" class="field" maxlength="300" placeholder="Caption (optional)" />
+        <button class="btn-sm" id="s-photo-go" style="background:var(--rose)">Share photo</button>
+      </div>
+    </div>
+
+    <div class="mgroup">
       <div class="mglabel">Actions</div>
       <div class="mrow" style="flex-wrap:wrap">
         <button class="btn-sm" id="s-verify" style="background:${salon.isVerified?'var(--muted)':'var(--green)'}">${salon.isVerified?'Unverify salon':'Verify salon'}</button>
@@ -1160,24 +2020,74 @@ async function openSalonModal(salon, onChanged){
   const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
   $('s-close').onclick = hideModal;
 
+  $('s-story-go').onclick = async (e) => {
+    const text = $('s-story').value.trim();
+    if(!text){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Write the story text first.'; return; }
+    if(await callFn('adminPostForSalon', { salonId: salon.id, kind:'STORY', text }, e.target, 's-flash', 'Story posted ✓')){
+      $('s-story').value = '';
+    }
+  };
+
+  $('s-photo-go').onclick = async (e) => {
+    const file = ($('s-photo').files || [])[0];
+    if(!file){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Choose a photo first.'; return; }
+    // Mirror storage.rules/isValidImage, so an oversized file fails here with a
+    // readable message instead of as an opaque upload rejection.
+    if(file.size >= 2*1024*1024){ $('s-flash').className='mflash bad'; $('s-flash').textContent='Photo must be under 2 MB.'; return; }
+
+    const btn = e.target, label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Uploading…';
+    $('s-flash').className='mflash'; $('s-flash').textContent='';
+    try{
+      // The id is minted here so the Storage path and the document agree; the
+      // callable re-derives the same path and rejects any mismatch.
+      const postId = doc(collection(db,'salon_posts')).id;
+      const path   = `salon_posts/${salon.id}/${postId}.jpg`;
+      await uploadBytes(sref(storage, path), file, { contentType: file.type });
+      const imageUrl = await getDownloadURL(sref(storage, path));
+      btn.textContent = label;
+      const ok = await callFn('adminPostForSalon', {
+        salonId: salon.id, kind:'POST', postId, imageUrl, storagePath: path,
+        caption: $('s-caption').value.trim(),
+      }, btn, 's-flash', 'Photo published ✓');
+      if(ok){ $('s-photo').value = ''; $('s-caption').value = ''; }
+    }catch(err){
+      $('s-flash').className='mflash bad';
+      $('s-flash').textContent = 'Upload failed: ' + (err.message || String(err));
+    }finally{
+      btn.disabled = false; btn.textContent = label;
+    }
+  };
+
   $('s-save').onclick = async (e) => {
+    // Only send fields that actually changed and aren't blank — sending an empty
+    // phone made adminUpdateUser normalize "" → "+93" and throw, wiping the other
+    // edits. And do the salon-doc (district) write only AFTER the owner callable
+    // succeeds, so a rejected save doesn't leave a half-applied change.
+    const payload = { targetUid: salon.providerId };
+    const setIf = (id, key, orig) => { const v = $(id).value.trim(); if(v && v !== (orig||'')) payload[key] = v; };
+    setIf('s-name','name',owner.name);
+    setIf('s-phone','phone',owner.phone);
+    setIf('s-tazkira','tazkiraNumber',owner.tazkiraNumber);
+    setIf('s-birth','birthYear',owner.birthYear);
+    setIf('s-issue','tazkiraIssueDate',owner.tazkiraIssueDate);
+    setIf('s-expiry','tazkiraExpiryDate',owner.tazkiraExpiryDate);
+    setIf('s-prov','addressProvince',owner.addressProvince);
+    setIf('s-addr','addressDetail',owner.addressDetail);
     const dist = $('s-district').value.trim();
-    if(dist !== (salon.district||'')){
+    const distChanged = dist !== (salon.district||'');
+    const hasUserChanges = Object.keys(payload).length > 1;
+    if(!hasUserChanges && !distChanged){ $('s-flash').className='mflash'; $('s-flash').textContent='No changes.'; return; }
+    if(hasUserChanges){
+      const ok = await callFn('adminUpdateUser', payload, e.target, 's-flash', 'Saved ✓');
+      if(!ok) return;
+    }
+    if(distChanged){
       try{ await updateDoc(doc(db,'salons',salon.id), { district: dist }); }
       catch(err){ $('s-flash').className='mflash bad'; $('s-flash').textContent=err.message; return; }
+      $('s-flash').className='mflash ok'; $('s-flash').textContent='Saved ✓';
     }
-    const ok = await callFn('adminUpdateUser', {
-      targetUid: salon.providerId,
-      name: $('s-name').value.trim(),
-      phone: $('s-phone').value.trim(),
-      tazkiraNumber: $('s-tazkira').value.trim(),
-      birthYear: $('s-birth').value.trim(),
-      tazkiraIssueDate: $('s-issue').value.trim(),
-      tazkiraExpiryDate: $('s-expiry').value.trim(),
-      addressProvince: $('s-prov').value.trim(),
-      addressDetail: $('s-addr').value.trim(),
-    }, e.target, 's-flash', 'Saved ✓');
-    if(ok) refresh();
+    refresh();
   };
   $('s-verify').onclick = async (e) => {
     const next = !salon.isVerified;
@@ -1240,21 +2150,29 @@ async function renderFinance(){
 
   // Balances + names
   try{
-    const [balSnap, uSnap] = await Promise.all([
-      getDocs(collection(db,'provider_balances')), getDocs(collection(db,'users'))
-    ]);
-    const names = {}; uSnap.forEach(d => names[d.id] = d.data().name || d.id);
+    const balSnap = await getDocs(collection(db,'provider_balances'));
+    const balIds = []; balSnap.forEach(d => balIds.push(d.id));
+    // Only the providers that actually have a balance row.
+    const balUsers = await fetchUsersByIds(balIds);
+    const names = {}; Object.values(balUsers).forEach(u => names[u.id] = u.name || u.id);
     const bals = [];
-    balSnap.forEach(d => { const b=d.data(); if((b.owedAmount||0) > 0) bals.push({ ...b, name: names[b.providerId]||b.providerId }); });
+    // Keep every non-zero balance. Positive = platform owes the provider (payout);
+    // negative = the provider owes the platform (cash-booking commission debt) —
+    // previously dropped, so cash commission receivables were invisible here.
+    balSnap.forEach(d => { const b=d.data(); if((b.owedAmount||0) !== 0) bals.push({ ...b, name: names[b.providerId]||b.providerId }); });
     bals.sort((a,b)=>(b.owedAmount||0)-(a.owedAmount||0));
     const bel = $('balances');
     const drawBal = () => {
       bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Provider</th><th>Owed</th><th></th></tr></thead><tbody>` +
-        bals.map((b,i)=>`<tr>
+        <thead><tr><th scope="col">Provider</th><th scope="col">Balance</th><th scope="col"></th></tr></thead><tbody>` +
+        bals.map((b,i)=> (b.owedAmount||0) > 0 ? `<tr>
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></td>
+        </tr>` : `<tr>
+          <td class="name">${esc(b.name)}</td>
+          <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">owes platform</span></td>
+          <td></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">Nothing owed 🎉</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
         const b = bals[+btn.dataset.pay];
@@ -1275,7 +2193,7 @@ async function renderFinance(){
     const rel = $('refunds');
     const drawRef = () => {
       rel.innerHTML = refunds.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Amount</th><th>To</th><th>Date</th><th></th></tr></thead><tbody>` +
+        <thead><tr><th scope="col">Amount</th><th scope="col">To</th><th scope="col">Date</th><th scope="col"></th></tr></thead><tbody>` +
         refunds.map((r,i)=>`<tr>
           <td class="name">${AFN(r.amount)}</td>
           <td>${esc(r.cust)}</td>
@@ -1328,7 +2246,7 @@ function renderPromo(){
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     const el = $('plist'); if(!el) return;
     el.innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Code</th><th>Discount</th><th>Used</th><th>Status</th><th></th></tr></thead><tbody>` +
+      <thead><tr><th scope="col">Code</th><th scope="col">Discount</th><th scope="col">Used</th><th scope="col">Status</th><th scope="col"></th></tr></thead><tbody>` +
       rows.map(p => `<tr>
         <td class="name">${esc(p.code||p.id)}</td>
         <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
@@ -1350,7 +2268,7 @@ function renderReports(){
     if(!rows.length){ $('view').innerHTML = `<div class="empty">No flagged reports 🎉</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Customer</th><th>Salon</th><th>Rating</th><th>Flag</th><th>Date</th><th></th></tr></thead>
+        <thead><tr><th scope="col">Customer</th><th scope="col">Salon</th><th scope="col">Rating</th><th scope="col">Flag</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(r => `<tr>
           <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
           <td>${esc(r.salonName||'—')}</td>

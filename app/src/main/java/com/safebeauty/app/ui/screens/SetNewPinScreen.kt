@@ -178,9 +178,17 @@ fun SetNewPinScreen(
                                 colors               = fieldColors
                             )
 
-                            if (viewModel.state is SetNewPinViewModel.State.Error) {
+                            (viewModel.state as? SetNewPinViewModel.State.Error)?.let { err ->
+                                val message = when (err.reason) {
+                                    SetNewPinViewModel.ErrorReason.PHONE_REQUIRED -> strings.forgotPinPhoneRequired
+                                    SetNewPinViewModel.ErrorReason.PIN_REQUIRED   -> strings.setNewPinPinRequired
+                                    SetNewPinViewModel.ErrorReason.PIN_TOO_SHORT  -> strings.pinTooShort
+                                    SetNewPinViewModel.ErrorReason.PIN_MISMATCH   -> strings.setNewPinMismatch
+                                    SetNewPinViewModel.ErrorReason.NOT_FOUND      -> strings.forgotPinNotFound
+                                    SetNewPinViewModel.ErrorReason.RESET_FAILED   -> strings.setNewPinInvalidLink
+                                }
                                 Text(
-                                    (viewModel.state as SetNewPinViewModel.State.Error).message,
+                                    message,
                                     fontSize = 12.sp,
                                     color    = DangerRed
                                 )

@@ -19,12 +19,17 @@ class ForgotPinViewModel @Inject constructor(
 
     private val functions = FirebaseFunctions.getInstance()
 
+    // The reason an attempt failed. The screen maps each to a localized string
+    // (LocalStrings) — the ViewModel must never hold a user-facing English literal,
+    // or the error renders in English inside an otherwise Dari/Pashto screen.
+    enum class ErrorReason { PHONE_REQUIRED, NOT_FOUND, SEND_FAILED }
+
     sealed class State {
         object Idle      : State()
         object Loading   : State()
         object EmailSent : State()
         object NoEmail   : State()
-        data class Error(val message: String) : State()
+        data class Error(val reason: ErrorReason) : State()
     }
 
     var phone by mutableStateOf("")
@@ -35,7 +40,7 @@ class ForgotPinViewModel @Inject constructor(
 
     fun sendResetLink() {
         val p = phone.trim()
-        if (p.isBlank()) { state = State.Error("Phone number is required"); return }
+        if (p.isBlank()) { state = State.Error(ErrorReason.PHONE_REQUIRED); return }
 
         viewModelScope.launch {
             state = State.Loading
@@ -48,7 +53,7 @@ class ForgotPinViewModel @Inject constructor(
                 @Suppress("UNCHECKED_CAST")
                 val map = result.getData() as? Map<String, Any?> ?: emptyMap()
                 if (map["found"] != true) {
-                    state = State.Error("No account found for this phone number")
+                    state = State.Error(ErrorReason.NOT_FOUND)
                     return@runCatching
                 }
 
@@ -63,9 +68,9 @@ class ForgotPinViewModel @Inject constructor(
 
                 auth.sendPasswordResetEmail(firebaseEmail).getOrThrow()
                 state = State.EmailSent
-            }.onFailure { e ->
+            }.onFailure {
                 if (state == State.Loading) {
-                    state = State.Error(e.message ?: "Could not send reset link. Try again.")
+                    state = State.Error(ErrorReason.SEND_FAILED)
                 }
             }
         }

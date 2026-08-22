@@ -31,6 +31,7 @@ import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.WorkingHours
+import com.safebeauty.app.util.Analytics
 import com.safebeauty.app.util.CrashReporter
 import java.util.Calendar
 import com.safebeauty.app.data.repository.FavoritesRepository
@@ -48,6 +49,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -101,10 +105,19 @@ sealed interface TipUiState {
     data class Failed(val message: String) : TipUiState
 }
 
+/** Wallet top-up flow (add AFN credit to your own wallet via HesabPay). */
+sealed interface WalletUiState {
+    data object Idle : WalletUiState
+    data object Creating : WalletUiState
+    data class OpenCheckout(val url: String) : WalletUiState
+    data object Done : WalletUiState                        // own wallet credited
+    data class Failed(val message: String) : WalletUiState
+}
+
 /** How the customer's salon list is ordered. */
 enum class SalonSort { RECOMMENDED, NEAREST, TOP_RATED, PRICE_LOW }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, kotlinx.coroutines.FlowPreview::class)
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -154,6 +167,18 @@ class DashboardViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    /**
+     * Live 24-hour salon announcements, for the ring row on the dashboard.
+     *
+     * Also streamed by FeedViewModel for Discover. A free chair this afternoon
+     * expires on its own and is worth more to both sides than anything else on
+     * the screen, so it belongs on the first screen rather than one tap deep.
+     */
+    val stories: StateFlow<List<com.safebeauty.app.data.firebase.StoryDocument>> =
+        firestoreRepository.observeStories()
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     var reviewThanksShown by mutableStateOf(false)
         private set
 
@@ -170,6 +195,112 @@ class DashboardViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    // ── Server-side, paginated salon discovery ────────────────────────────────
+    //
+    // The list used to be the whole salons collection, downloaded and then
+    // filtered and sorted on the device. Firestore does that work now, a page at
+    // a time. The pieces below are the state that a paged list needs and a
+    // fully-downloaded one did not: a cursor, an end marker, a loading flag, and
+    // a count that no longer comes from the list's own size.
+
+    private val _pagedSalons  = MutableStateFlow<List<SalonDocument>>(emptyList())
+    val pagedSalons: StateFlow<List<SalonDocument>> = _pagedSalons
+
+    /** How many salons match the current filters, server-counted. */
+    // Null means "not known", which is not the same as zero. A failed count
+    // rendered as 0 reads as "no salons here" — the invisible-empty failure this
+    // phase exists to remove.
+    private val _matchingCount = MutableStateFlow<Int?>(null)
+    val matchingCount: StateFlow<Int?> = _matchingCount
+
+    private val _loadingSalons = MutableStateFlow(false)
+    val loadingSalons: StateFlow<Boolean> = _loadingSalons
+
+    private val _endOfSalons = MutableStateFlow(false)
+    val endOfSalons: StateFlow<Boolean> = _endOfSalons
+
+    private var salonCursor: com.google.firebase.firestore.DocumentSnapshot? = null
+    private var salonLoadJob: kotlinx.coroutines.Job? = null
+
+    /** The filter the server should apply, from the current UI selections. */
+    private fun currentSalonFilter(): FirestoreRepository.SalonFilter {
+        val catIdx  = _selectedCategoryIndex.value
+        val hoodIdx = _selectedNeighborhoodIndex.value
+        return FirestoreRepository.SalonFilter(
+            districtKey = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "" }
+                .takeIf { hoodIdx > 0 } ?: "",
+            category    = CATEGORY_KEYS.getOrElse(catIdx) { "" }
+                .takeIf { catIdx > 0 } ?: "",
+            favoriteIds = if (_showFavoritesOnly.value) favoriteIds.value.toList() else emptyList(),
+            search      = _searchQuery.value,
+        )
+    }
+
+    private fun currentSalonOrder(): FirestoreRepository.SalonOrder = when (_sortMode.value) {
+        SalonSort.PRICE_LOW -> FirestoreRepository.SalonOrder.PRICE
+        // NEAREST cannot be a Firestore ordering — see displayedSalons. It reads
+        // a rating-ordered page and reorders it by distance on the device, which
+        // is honest for a page and would not be for a whole collection.
+        else -> FirestoreRepository.SalonOrder.RATING
+    }
+
+    /** Reload from the first page. Called whenever a filter or the sort changes. */
+    fun refreshSalons() {
+        salonLoadJob?.cancel()
+        salonLoadJob = viewModelScope.launch {
+            _loadingSalons.value = true
+            val filter = currentSalonFilter()
+            val page = firestoreRepository.salonPage(filter, currentSalonOrder(), after = null)
+            salonCursor        = page.cursor
+            _pagedSalons.value = page.salons
+            _endOfSalons.value = page.endReached
+            _matchingCount.value = firestoreRepository.salonCount(filter)
+            _loadingSalons.value = false
+
+            // An empty result with a filter applied is the platform failing to
+            // serve someone who told it exactly what she wanted. Recorded so
+            // supply decisions stop being guesses — see demand_signals.
+            //
+            // Only when a filter is actually narrowing: an empty unfiltered list
+            // means the platform has no salons at all, which is already known and
+            // would otherwise write a signal on every cold start.
+            val narrowed = filter.districtKey.isNotBlank() ||
+                filter.category.isNotBlank() ||
+                filter.search.isNotBlank()
+            if (narrowed && page.salons.isEmpty()) {
+                val signature = "${filter.districtKey}|${filter.category}|${filter.search}"
+                // One signal per distinct combination per session. Without this,
+                // typing a name that matches nothing writes a row per keystroke.
+                if (reportedEmptySearches.add(signature)) {
+                    firestoreRepository.recordNoResults(
+                        districtKey = filter.districtKey,
+                        category    = filter.category,
+                        lang        = languageRepository.language.value.name.lowercase(),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Filter combinations already reported empty, so each is recorded once. */
+    private val reportedEmptySearches = mutableSetOf<String>()
+
+    /** Append the next page. Ignored while one is already in flight or at the end. */
+    fun loadMoreSalons() {
+        if (_loadingSalons.value || _endOfSalons.value) return
+        val cursor = salonCursor ?: return
+        salonLoadJob = viewModelScope.launch {
+            _loadingSalons.value = true
+            val page = firestoreRepository.salonPage(currentSalonFilter(), currentSalonOrder(), after = cursor)
+            salonCursor        = page.cursor ?: cursor
+            // Guard against a duplicate landing twice if a refresh raced this.
+            val seen = _pagedSalons.value.map { it.id }.toSet()
+            _pagedSalons.value = _pagedSalons.value + page.salons.filterNot { it.id in seen }
+            _endOfSalons.value = page.endReached
+            _loadingSalons.value = false
+        }
+    }
+
     val filteredSalons: StateFlow<List<SalonDocument>> = combine(
         combine(
             _allAvailableSalons,
@@ -181,9 +312,21 @@ class DashboardViewModel @Inject constructor(
             val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
             val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
             salons.filter { salon ->
+                // `categories` is the server-derived canonical list. The old
+                // substring check is kept as a fallback rather than replaced:
+                // it compared an English key against whatever a salon typed, so
+                // a salon offering "ناخن" never matched "Nails" and every chip
+                // returned nothing. Keeping it means this is strictly better
+                // than before for a salon the backfill has not reached yet, and
+                // never worse.
                 val catMatch  = category == "All" ||
+                    salon.categories.contains(category) ||
                     salon.services.any { it.contains(category, ignoreCase = true) }
+                // Same shape: districtKey when it has been derived, the raw
+                // stored value otherwise, so a legacy free-text district is no
+                // less findable than it is today.
                 val hoodMatch = neighborhood == "All Neighborhoods" ||
+                    salon.districtKey == neighborhood ||
                     salon.district == neighborhood
                 val favMatch  = !favOnly || favorites.contains(salon.id)
                 catMatch && hoodMatch && favMatch
@@ -216,6 +359,22 @@ class DashboardViewModel @Inject constructor(
         _maxPrice.value  = 0
     }
 
+    /**
+     * Clears EVERY narrowing control, not just the ones in the filter sheet.
+     * resetFilters() leaves category, neighbourhood, search text and the
+     * favourites toggle untouched, so a customer who filtered themselves into an
+     * empty list with "Makeup" + "District 5" would still see nothing after
+     * resetting. This is what the empty state offers, so it has to undo
+     * everything that could have emptied the list.
+     */
+    fun clearAllFilters() {
+        resetFilters()
+        _selectedCategoryIndex.value     = 0
+        _selectedNeighborhoodIndex.value = 0
+        _searchQuery.value               = ""
+        _showFavoritesOnly.value         = false
+    }
+
     /** The cheapest priced service at a salon (null if none priced). */
     private fun salonMinPrice(s: SalonDocument): Int? =
         s.pricePerService.values.filter { it > 0 }.minOrNull()
@@ -226,8 +385,20 @@ class DashboardViewModel @Inject constructor(
      * rated / cheapest). Salons missing the sort key fall to the end.
      */
     val displayedSalons: StateFlow<List<SalonDocument>> =
-        combine(filteredSalons, _customerLoc, _sortMode, _minRating, _maxPrice) {
+        combine(_pagedSalons, _customerLoc, _sortMode, _minRating, _maxPrice) {
                 salons, loc, sort, minR, maxP ->
+            // District, category, favourites, search and the primary ordering are
+            // applied by Firestore before this point. What remains here are the
+            // two slider refinements and the distance ordering.
+            //
+            // Doing those on the device is not the thing Q-2 forbids: the set is
+            // already a server-bounded page, so nothing extra is downloaded to
+            // filter it. Rating and price could each be a server range only when
+            // they match the sort field, and distance cannot be a Firestore
+            // ordering at all without geohashing — which is deferred, and would
+            // be meaningless today regardless, since one live salon has no
+            // coordinates and the other carries the emulator's default location
+            // in California.
             var list = salons
             if (minR > 0.0) list = list.filter { it.rating >= minR }
             if (maxP > 0)   list = list.filter { val mp = salonMinPrice(it); mp != null && mp <= maxP }
@@ -380,6 +551,13 @@ class DashboardViewModel @Inject constructor(
     var giftState by mutableStateOf<GiftUiState>(GiftUiState.Idle)
         private set
 
+    // One shared poller for the gift/tip/wallet checkouts. observePaymentStatus is
+    // a never-completing callbackFlow, so without cancelling it a dismissed dialog
+    // leaves a live Firestore listener that later flips the (already reset) dialog
+    // state — e.g. the server EXPIRES the abandoned payment → the stale collector
+    // shows "failed" over a fresh, successful attempt. Reset cancels it.
+    private var moneyOutPollJob: kotlinx.coroutines.Job? = null
+
     /**
      * Buys a gift card for [phone]. On success the UI opens the returned HesabPay
      * URL; we then poll the payment until the webhook flips it to PAID (which
@@ -388,7 +566,8 @@ class DashboardViewModel @Inject constructor(
      */
     fun sendGiftCard(phone: String, amount: Long, message: String) {
         giftState = GiftUiState.Creating
-        viewModelScope.launch {
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
             paymentRepository.createGiftCard(phone, amount, message)
                 .onSuccess { session ->
                     if (session.checkoutUrl.isBlank()) {
@@ -406,7 +585,7 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun resetGift() { giftState = GiftUiState.Idle }
+    fun resetGift() { moneyOutPollJob?.cancel(); giftState = GiftUiState.Idle }
 
     var tipState by mutableStateOf<TipUiState>(TipUiState.Idle)
         private set
@@ -418,7 +597,8 @@ class DashboardViewModel @Inject constructor(
      */
     fun sendTip(appointmentId: String, amount: Long) {
         tipState = TipUiState.Creating
-        viewModelScope.launch {
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
             paymentRepository.sendTip(appointmentId, amount)
                 .onSuccess { session ->
                     if (session.checkoutUrl.isBlank()) {
@@ -436,7 +616,39 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun resetTip() { tipState = TipUiState.Idle }
+    fun resetTip() { moneyOutPollJob?.cancel(); tipState = TipUiState.Idle }
+
+    // ── Wallet top-up flow ──────────────────────────────────────────────────────
+    var walletState by mutableStateOf<WalletUiState>(WalletUiState.Idle)
+        private set
+
+    /**
+     * Tops up the caller's own wallet by [amount] AFN. On success the UI opens the
+     * returned HesabPay URL; we then poll the payment until the webhook flips it to
+     * PAID (which credits referralCredit server-side) and report [WalletUiState.Done].
+     */
+    fun topUpWallet(amount: Long) {
+        walletState = WalletUiState.Creating
+        moneyOutPollJob?.cancel()
+        moneyOutPollJob = viewModelScope.launch {
+            paymentRepository.topUpWallet(amount)
+                .onSuccess { session ->
+                    if (session.checkoutUrl.isBlank()) {
+                        walletState = WalletUiState.Failed("no_url"); return@onSuccess
+                    }
+                    walletState = WalletUiState.OpenCheckout(session.checkoutUrl)
+                    paymentRepository.observePaymentStatus(session.paymentId).collect { st ->
+                        when (st) {
+                            "PAID"   -> walletState = WalletUiState.Done
+                            "FAILED" -> walletState = WalletUiState.Failed("payment_failed")
+                        }
+                    }
+                }
+                .onFailure { e -> walletState = WalletUiState.Failed(e.message ?: "topup_failed") }
+        }
+    }
+
+    fun resetWallet() { moneyOutPollJob?.cancel(); walletState = WalletUiState.Idle }
 
     private var paymentStatusJob: kotlinx.coroutines.Job? = null
 
@@ -476,7 +688,7 @@ class DashboardViewModel @Inject constructor(
         promoChecking = false
     }
 
-    var lockTriggered by mutableStateOf(false)
+    var signOutTriggered by mutableStateOf(false)
         private set
 
     var cancelFailed by mutableStateOf(false)
@@ -492,8 +704,14 @@ class DashboardViewModel @Inject constructor(
     // apart from a genuine "NONE".
     val kycStatus: StateFlow<String?> =
         firestoreRepository.observeUser(customerId)
-            // Widened to String? so the catch below can emit null ("unknown").
-            .map { it?.kycStatus ?: ("NONE" as String?) }
+            // Map to the doc's kycStatus (a loaded UserDocument always has one —
+            // it defaults to "NONE"). Crucially we do NOT coerce a null DOC into
+            // "NONE": observeUser emits null on a snapshot error (e.g. a transient
+            // permission-denied right after login, before the uid_map bridge
+            // resolves), and treating that as a definitive "NONE" would wrongly
+            // lock deals for — and bounce to KYC — an already-verified customer.
+            // null therefore means "unknown", which the gates fail open on.
+            .map { it?.kycStatus }
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -539,6 +757,30 @@ class DashboardViewModel @Inject constructor(
         private set
 
     init {
+        // Reload the first page whenever anything the SERVER filters on changes.
+        //
+        // Search is debounced: without it every keystroke is a query, and the
+        // results race — a slow response for "sha" can land after "shagh" and
+        // overwrite it. The other inputs are discrete taps and need no delay,
+        // which is why they are a separate collector rather than one debounced
+        // stream that would also make tapping a chip feel sluggish.
+        viewModelScope.launch {
+            combine(
+                _selectedCategoryIndex,
+                _selectedNeighborhoodIndex,
+                _showFavoritesOnly,
+                favoriteIds,
+                _sortMode,
+            ) { _, _, _, _, _ -> Unit }
+                .collect { refreshSalons() }
+        }
+        viewModelScope.launch {
+            _searchQuery
+                .debounce(300)
+                .distinctUntilChanged()
+                .collect { refreshSalons() }
+        }
+
         // Check current connectivity state
         val caps = connectivityManager.getNetworkCapabilities(connectivityManager.activeNetwork)
         _isOffline.value = caps == null || !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -736,6 +978,7 @@ class DashboardViewModel @Inject constructor(
     }
 
     fun submitReview(
+        appointmentId: String,
         salonId: String,
         rating: Int,
         comment: String,
@@ -744,25 +987,22 @@ class DashboardViewModel @Inject constructor(
         if (rating < 1) return
         viewModelScope.launch {
             runCatching {
-                // Reserve the review id first so photos can be stored under
-                // reviews/{uid}/{id}/ before the review doc is written.
+                // Reserve an id purely for the photo storage path (reviews/{uid}/{id}/);
+                // the review doc itself is created server-side by submitReview.
                 val reviewId = firestoreRepository.newReviewId()
                 val imageUrls = photos.take(3).mapIndexedNotNull { index, bytes ->
                     runCatching {
                         storageRepository.uploadReviewImage(customerId, reviewId, index, bytes)
                     }.getOrNull()
                 }
-                firestoreRepository.addReview(
-                    ReviewDocument(
-                        id           = reviewId,
-                        salonId      = salonId,
-                        customerId   = customerId,
-                        customerName = _currentUserName.value,
-                        rating       = rating,
-                        comment      = comment.trim(),
-                        createdAt    = System.currentTimeMillis(),
-                        imageUrls    = imageUrls
-                    )
+                // Server-side create: binds the review to this served appointment
+                // and blocks a second review of the same booking.
+                firestoreRepository.submitReview(
+                    appointmentId = appointmentId,
+                    salonId       = salonId,
+                    rating        = rating,
+                    comment       = comment.trim(),
+                    imageUrls     = imageUrls
                 )
                 vaultRepository.log(
                     "REVIEW_SUBMITTED",
@@ -841,6 +1081,13 @@ class DashboardViewModel @Inject constructor(
         staffId: String = "",
         packageId: String = ""
     ) {
+        // Funnel step 3: the moment of intent, logged before the network call so
+        // it counts even when checkout then fails.
+        Analytics.bookingStarted(
+            salonId      = salon.id,
+            serviceCount = serviceNames.size,
+            cash         = paymentMethod == "CASH",
+        )
         checkout = CheckoutUiState.Creating
         // Remember the attempt so a rejection can be retried (see the recovery
         // methods below) instead of forcing the user to start over.
@@ -930,9 +1177,29 @@ class DashboardViewModel @Inject constructor(
         bookingConfirmCashAmount = null
     }
 
-    /** Finds a salon in the full available list by id (used by "book again"). */
+    /**
+     * Finds a salon by id for "book again".
+     *
+     * Checks what is loaded first, then asks Firestore. The old version searched
+     * the fully-downloaded list, which paging makes unreliable in precisely the
+     * case this exists for: an older booking, whose salon is unlikely to be on
+     * the first page.
+     */
     fun findSalon(salonId: String): SalonDocument? =
-        _allAvailableSalons.value.firstOrNull { it.id == salonId }
+        _pagedSalons.value.firstOrNull { it.id == salonId }
+            ?: _allAvailableSalons.value.firstOrNull { it.id == salonId }
+
+    /** Fetches a salon that is not loaded, and adds it so the sheet can open. */
+    fun ensureSalonLoaded(salonId: String, onReady: (SalonDocument?) -> Unit) {
+        findSalon(salonId)?.let { onReady(it); return }
+        viewModelScope.launch {
+            val salon = firestoreRepository.getSalonById(salonId)
+            if (salon != null && _pagedSalons.value.none { it.id == salon.id }) {
+                _pagedSalons.value = _pagedSalons.value + salon
+            }
+            onReady(salon)
+        }
+    }
 
     /**
      * How many consecutive slots a booking of [serviceNames] occupies at [salon].
@@ -1058,10 +1325,10 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    fun triggerLock() {
-        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer locked vault") }
-        lockTriggered = true
+    fun signOut() {
+        viewModelScope.launch { vaultRepository.log("VAULT_LOCK", "Customer signed out") }
+        signOutTriggered = true
     }
 
-    fun resetLockTrigger() { lockTriggered = false }
+    fun resetSignOut() { signOutTriggered = false }
 }

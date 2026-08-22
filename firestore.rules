@@ -115,7 +115,9 @@ service cloud.firestore {
                  && request.resource.data.get('customerRatingCount', 0) == 0
                  && request.resource.data.get('noShowCount', 0) == 0
                  && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
-                 && request.resource.data.get('profileRewardClaimed', false) == false;
+                 && request.resource.data.get('profileRewardClaimed', false) == false
+                 // Nor may it seed the login lookup key — see the update rule.
+                 && request.resource.data.get('phoneDigits', '') == '';
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -192,7 +194,22 @@ service cloud.firestore {
                      // server-side at registration, so a self-edit could shadow
                      // another account's login resolution. Frozen post-signup.
                      && request.resource.data.get('phone', '')
-                          == resource.data.get('phone', ''));
+                          == resource.data.get('phone', '')
+                     // Set only by adminSetUserStatus. A suspension a user can
+                     // lift is not a suspension, and the acting callables read
+                     // this flag to decide whether to refuse.
+                     && request.resource.data.get('suspended', false)
+                          == resource.data.get('suspended', false)
+                     && request.resource.data.get('suspendedReason', '')
+                          == resource.data.get('suspendedReason', '')
+                     // The login lookup key, written only by
+                     // adminBackfillPhoneKeys. authenticateWithPassword resolves
+                     // an account by this value, so a client that could write it
+                     // could claim another account's key and lock its owner out
+                     // — the password check would then run against the wrong
+                     // record.
+                     && request.resource.data.get('phoneDigits', '')
+                          == resource.data.get('phoneDigits', ''));
 
       allow delete: if isAdmin();
     }
@@ -224,7 +241,24 @@ service cloud.firestore {
                      && request.resource.data.get('confirmedCount', 0)
                           == resource.data.get('confirmedCount', 0)
                      && request.resource.data.get('rating', 0)
-                          == resource.data.get('rating', 0));
+                          == resource.data.get('rating', 0)
+                     // Discovery fields, derived by deriveSalonFields from what
+                     // the salon actually typed into `services` and `district`.
+                     // A salon that could write these directly could file itself
+                     // under every category and every neighbourhood, which is
+                     // exactly what ranking and filtering exist to prevent.
+                     // Editing services/district is still free — the trigger
+                     // re-derives from them.
+                     && request.resource.data.get('categories', [])
+                          == resource.data.get('categories', [])
+                     && request.resource.data.get('districtKey', '')
+                          == resource.data.get('districtKey', '')
+                     // How dependably this salon answers its bookings, counted
+                     // by measureSalonReliability from what it actually did. A
+                     // salon that could write its own record would write a
+                     // perfect one.
+                     && request.resource.data.get('reliability', {})
+                          == resource.data.get('reliability', {}));
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());
@@ -287,9 +321,12 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
 
-      // Customers submit reviews for themselves.
-      allow create: if isCustomer() && isApproved()
-                 && request.resource.data.customerId == me();
+      // Reviews are created ONLY server-side via the submitReview callable, which
+      // binds each review to a real, served appointment the caller owns (one per
+      // booking). A direct client create is refused — otherwise a customer could
+      // script unlimited reviews to farm loyalty points into wallet credit (real
+      // money) and forge salon ratings.
+      allow create: if false;
 
       // Provider may only add/edit their reply (no other fields may change).
       allow update: if (ownsThisSalon(resource.data.salonId)
@@ -329,6 +366,153 @@ service cloud.firestore {
                  && request.resource.data.salonId == resource.data.salonId;
 
       allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── salon_posts ──────────────────────────────────────────────────────────────
+    // The social discovery feed: before/after & sample-work photos a salon shares.
+    // Publicly readable to signed-in users (the feed); only the owning provider
+    // posts, and only the owner or an admin can delete. Followers (favoriters) are
+    // notified via the pushPostToFollowers trigger. Same ownership model as the
+    // gallery; posts are immutable once created.
+    match /salon_posts/{postId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── salon_stories ────────────────────────────────────────────────────────────
+    // A salon's 24-hour announcement ("two chairs free this afternoon"). Same
+    // ownership model as salon_posts. Readable by any signed-in user — unlike
+    // offers, stories are NOT gated behind identity verification, because an
+    // empty chair needs to reach the customers who have not verified yet.
+    // Immutable once written: a story is a moment, and editing one after people
+    // have acted on it would let a salon rewrite what it promised.
+    match /salon_stories/{storyId} {
+      allow read: if isSignedIn();
+
+      allow create: if isProvider() && isApproved()
+                 && ownsThisSalon(request.resource.data.salonId);
+
+      allow update: if false;
+
+      allow delete: if ownsThisSalon(resource.data.salonId) || isAdmin();
+    }
+
+    // ── appointment_events ───────────────────────────────────────────────────────
+    // The history of one booking: who moved it to which state, when, and why.
+    //
+    // Written only by the Cloud Functions that perform the transitions (the
+    // Admin SDK bypasses these rules), so there is no client create path at all
+    // — a trail a client can append to is not evidence of anything.
+    //
+    // Readable by the two parties to the booking and by an admin. A customer
+    // asking why her appointment was cancelled deserves the answer without
+    // going through support.
+    match /appointment_events/{eventId} {
+      allow read: if isSignedIn()
+               && (resource.data.customerId == me()
+                   || ownsThisSalon(resource.data.salonId)
+                   || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // ── booking_codes ────────────────────────────────────────────────────────────
+    // One empty document per issued booking reference. It exists only so that
+    // creating it fails when the code is taken, which is what makes a code
+    // unique without a read-then-write two bookings could both pass.
+    //
+    // Never read by a client: a readable list of live codes would let anyone
+    // guess their way to other people's bookings through adminLookupBooking's
+    // input space.
+    match /booking_codes/{code} {
+      allow read, create, update, delete: if false;
+    }
+
+    // ── demand_signals ───────────────────────────────────────────────────────────
+    // What customers looked for and did not get: an empty search, a slot that
+    // was already taken, a checkout abandoned. It is the data that answers
+    // "which salon should we recruit next", and it takes weeks to become useful,
+    // which is why capture starts now and the analysis comes later.
+    //
+    // Deliberately carries NO identity. Not a customer id, not a hash of one.
+    // The question is how much demand a district has for a service, and that is
+    // answerable in aggregate — while a per-person record of what a woman in
+    // Kabul searched for is exactly the kind of trail this platform should not
+    // be accumulating. Nothing downstream needs it, so nothing writes it.
+    //
+    // Write-only from the client: a customer may append, and may not read the
+    // collection back. A readable demand log would let anyone reconstruct which
+    // neighbourhoods are searching for what, which is competitive intelligence
+    // at best and a targeting list at worst.
+    match /demand_signals/{signalId} {
+      allow read: if isAdmin();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.keys().hasOnly(
+                      ['kind', 'districtKey', 'category', 'serviceName', 'salonId', 'lang', 'at'])
+                 && request.resource.data.kind in ['NO_RESULTS', 'SLOT_TAKEN', 'CHECKOUT_ABANDONED']
+                 && request.resource.data.at is int
+                 // No identity fields, enforced rather than trusted: hasOnly
+                 // above already refuses any key not on the list, so a future
+                 // client cannot start attaching a uid without this rule failing.
+                 && request.resource.data.get('districtKey', '').size() <= 64
+                 && request.resource.data.get('category', '').size() <= 32
+                 && request.resource.data.get('serviceName', '').size() <= 120;
+
+      // Immutable and undeletable by clients. A signal that can be edited or
+      // removed is not evidence of anything.
+      allow update, delete: if false;
+    }
+
+    // ── post_likes ───────────────────────────────────────────────────────────────
+    // The document id is "{postId}_{userId}", which makes a second like from the
+    // same person impossible to write rather than merely discouraged.
+    //
+    // A liker's identity is deliberately not public. What a salon needs is the
+    // count, and the count lives on the post itself, maintained by a trigger
+    // running with the Admin SDK — so it cannot be inflated from a client, and
+    // no client can list who liked a particular photo. A user reads only their
+    // own likes, which is exactly enough to draw the heart filled.
+    match /post_likes/{likeId} {
+      allow read: if isSignedIn() && resource.data.userId == me();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.userId == me()
+                 && likeId == request.resource.data.postId + '_' + me();
+
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.userId == me();
+    }
+
+    // ── post_comments ────────────────────────────────────────────────────────────
+    // Public, like the reviews a salon already carries, and signed with the same
+    // stored name. The name is checked against the author's own user document so
+    // a comment cannot be signed with somebody else's.
+    match /post_comments/{commentId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.userId == me()
+                 && request.resource.data.authorName == myData().name
+                 && request.resource.data.text is string
+                 && request.resource.data.text.size() > 0
+                 && request.resource.data.text.size() <= 300;
+
+      // Immutable, for the same reason a story is: editing a comment after
+      // people have read or answered it rewrites a conversation they saw.
+      allow update: if false;
+
+      // The author can retract their own; the salon moderates the thread under
+      // its own photo; the admin moderates anything.
+      allow delete: if isSignedIn()
+                 && (resource.data.userId == me()
+                     || ownsThisSalon(resource.data.salonId)
+                     || isAdmin());
     }
 
     // ── favorites ────────────────────────────────────────────────────────────────
@@ -496,6 +680,16 @@ service cloud.firestore {
       allow read:  if isSignedIn()
                && (resource.data.providerId == me() || isAdmin());
       allow write: if false;
+    }
+
+    // ── rate_limits ──────────────────────────────────────────────────────────────
+    // Abuse counters for the two pre-login callables (phone lookup, password
+    // login). Server-only: a client that could read these would learn how close
+    // it is to the limit, and one that could write them could reset its own
+    // counter and defeat the throttle entirely. Unmatched paths are denied by
+    // default, but this is stated explicitly so the intent survives future edits.
+    match /rate_limits/{key} {
+      allow read, write: if false;
     }
   }
 }

@@ -5,50 +5,76 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-
-// Built from the raw palette fields (NOT the @Composable colour getters, which
-// can't be read here) so the two Material schemes stay in sync with Palette.
-private val LightColorScheme = lightColorScheme(
-    primary          = LightPalette.roseGold,
-    onPrimary        = LightPalette.onPrimaryWhite,
-    primaryContainer = LightPalette.blushPink,
-    secondary        = LightPalette.softPurple,
-    tertiary         = LightPalette.warmGold,
-    background       = LightPalette.elegantCream,
-    surface          = LightPalette.dashboardSurface,
-    onBackground     = LightPalette.deepRose,
-    onSurface        = LightPalette.deepRose,
-)
-
-private val DarkColorScheme = darkColorScheme(
-    primary          = DarkPalette.roseGold,
-    onPrimary        = DarkPalette.onPrimaryWhite,
-    primaryContainer = DarkPalette.blushPink,
-    secondary        = DarkPalette.softPurple,
-    tertiary         = DarkPalette.warmGold,
-    background       = DarkPalette.elegantCream,
-    surface          = DarkPalette.dashboardSurface,
-    onBackground     = DarkPalette.deepRose,
-    onSurface        = DarkPalette.deepRose,
-)
+import androidx.compose.runtime.remember
 
 /**
- * Applied at the app root (MainActivity), and re-applied by a few screens that
- * wrap their own content. [darkTheme] selects the palette that every screen's
- * colour references resolve against (see Color.kt), so the whole app flips with a
- * single flag. It defaults to INHERITING the current theme, so a nested
- * `DashboardTheme { … }` keeps whatever the root set (dark or light) instead of
- * forcing light; the root passes an explicit value from the device/user setting.
- * Outside any theme (e.g. @Preview) LocalPalette defaults to light.
+ * Builds the Material scheme from whichever [Palette] is active.
+ *
+ * It used to be two constants built from the two palettes at file scope. With a
+ * second colour family that would have meant four hand-maintained copies of the
+ * same nine mappings, and a fifth the day another family is added — so the
+ * mapping is expressed once and applied to whatever palette it is handed.
+ */
+private fun schemeFor(p: Palette) = if (p.isDark) {
+    darkColorScheme(
+        primary          = p.roseGold,
+        onPrimary        = p.onPrimaryWhite,
+        primaryContainer = p.blushPink,
+        secondary        = p.softPurple,
+        tertiary         = p.warmGold,
+        background       = p.elegantCream,
+        surface          = p.dashboardSurface,
+        onBackground     = p.deepRose,
+        onSurface        = p.deepRose,
+    )
+} else {
+    lightColorScheme(
+        primary          = p.roseGold,
+        onPrimary        = p.onPrimaryWhite,
+        primaryContainer = p.blushPink,
+        secondary        = p.softPurple,
+        tertiary         = p.warmGold,
+        background       = p.elegantCream,
+        surface          = p.dashboardSurface,
+        onBackground     = p.deepRose,
+        onSurface        = p.deepRose,
+    )
+}
+
+/** The four palettes, as brand × mode. */
+fun paletteFor(brand: AppBrand, dark: Boolean): Palette = when (brand) {
+    AppBrand.ROSE     -> if (dark) RoseDarkPalette else RoseLightPalette
+    AppBrand.LAVENDER -> if (dark) LavenderDarkPalette else LavenderLightPalette
+    AppBrand.SAGE     -> if (dark) SageDarkPalette else SageLightPalette
+    AppBrand.OCEAN    -> if (dark) OceanDarkPalette else OceanLightPalette
+    AppBrand.HONEY    -> if (dark) HoneyDarkPalette else HoneyLightPalette
+    AppBrand.MAROON   -> if (dark) MaroonDarkPalette else MaroonLightPalette
+}
+
+/**
+ * Applied at the app root (MainActivity), and re-applied by the screens that
+ * wrap their own content. [darkTheme] and [brand] select the palette that every
+ * colour reference in the app resolves against (see Color.kt), so the whole app
+ * changes with two flags.
+ *
+ * Both parameters default to INHERITING the palette already in scope, which is
+ * why the ~27 nested `DashboardTheme { … }` calls need no arguments and did not
+ * change when the second colour family was added: brand travels inside the
+ * palette itself. The root passes explicit values from the user's settings.
+ * Outside any theme (e.g. @Preview) LocalPalette defaults to rose light.
  */
 @Composable
 fun DashboardTheme(
     darkTheme: Boolean = LocalPalette.current.isDark,
+    brand: AppBrand = LocalPalette.current.brand,
     content: @Composable () -> Unit
 ) {
-    val palette     = if (darkTheme) DarkPalette else LightPalette
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    CompositionLocalProvider(LocalPalette provides palette) {
+    val palette     = paletteFor(brand, darkTheme)
+    val colorScheme = remember(palette) { schemeFor(palette) }
+    CompositionLocalProvider(
+        LocalPalette provides palette,
+        LocalReducedMotion provides rememberReducedMotion(),
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography  = DashboardTypography,

@@ -15,7 +15,7 @@ import com.safebeauty.app.data.db.entities.Message
 import com.safebeauty.app.data.db.entities.SalonCacheEntity
 import com.safebeauty.app.data.db.entities.SecureLog
 import com.safebeauty.app.security.DatabaseKeyManager
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 // v4: Added SalonCacheEntity for offline browsing.
 // v5: Added FavoriteSalonEntity for device-local saved salons.
@@ -36,8 +36,13 @@ abstract class AppDatabase : RoomDatabase() {
         private const val DB_NAME = "vault_encrypted.db"
 
         fun create(context: Context, keyManager: DatabaseKeyManager): AppDatabase {
+            // Unlike the old android-database-sqlcipher, the sqlcipher-android
+            // artifact does not self-load its native library — do it explicitly
+            // before opening the DB. loadLibrary is idempotent, so a repeat call
+            // is a safe no-op.
+            System.loadLibrary("sqlcipher")
             val passphrase = keyManager.getOrCreatePassphrase()
-            val factory    = SupportFactory(passphrase)
+            val factory    = SupportOpenHelperFactory(passphrase)
 
             return Room.databaseBuilder(
                 context.applicationContext,

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>SafeBeauty — بازنشانی رمز</title>
+<style>
+  :root{
+    --rose:#C48B9F; --deep:#8E4A5E; --bg:#FBF6F7; --card:#FFFFFF; --text:#3D2B31;
+    --muted:#8a707a; --muted2:#9b8791; --line:#EFE3E7; --green:#2E9E6B; --red:#C0392B;
+    --grad:linear-gradient(135deg,#C48B9F,#8E4A5E);
+  }
+  :root[data-theme="dark"]{
+    --bg:#1E1418; --card:#2A1D23; --text:#F2E7EB; --muted:#C4A9B3; --muted2:#A38B96;
+    --line:#3D2B33; --green:#4FBF8F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,'Segoe UI',Tahoma,sans-serif}
+  body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:30px 26px;max-width:400px;width:100%;box-shadow:0 12px 40px rgba(142,74,94,.12)}
+  .logo{width:54px;height:54px;border-radius:16px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px}
+  h1{font-size:19px;text-align:center;color:var(--deep);margin-bottom:6px}
+  :root[data-theme="dark"] h1{color:var(--rose)}
+  .sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:20px;line-height:1.7}
+  .field{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:transparent;color:var(--text);font-size:15px;margin-bottom:12px;outline:none;direction:ltr;text-align:center}
+  .field:focus{border-color:var(--rose)}
+  .btn{width:100%;padding:13px;border:0;border-radius:12px;background:var(--grad);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+  .btn:disabled{opacity:.55;cursor:default}
+  .err{color:var(--red);font-size:13px;text-align:center;margin:10px 0 0;min-height:18px;line-height:1.6}
+  .ok-wrap{text-align:center;display:none}
+  .ok-icon{font-size:44px;margin-bottom:10px}
+  .ok-msg{font-size:14px;color:var(--text);line-height:1.9}
+  .langs{display:flex;gap:8px;justify-content:center;margin-bottom:18px}
+  .lang{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer}
+  .lang.on{background:var(--grad);color:#fff;border-color:transparent}
+</style>
+<script>
+  // Resolve theme before first paint (same convention as the consoles).
+  (function(){ try{
+    var t = localStorage.getItem('sb-theme');
+    if(!t) t = (matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t;
+  }catch(_){} })();
+</script>
+</head>
+<body>
+<div class="card">
+  <div class="langs">
+    <button class="lang" data-l="fa">دری</button>
+    <button class="lang" data-l="ps">پښتو</button>
+    <button class="lang" data-l="en">English</button>
+  </div>
+  <div class="logo">💄</div>
+  <div id="form-wrap">
+    <h1 id="t-title"></h1>
+    <p class="sub" id="t-sub"></p>
+    <input class="field" type="password" id="pw"  autocomplete="new-password" />
+    <input class="field" type="password" id="pw2" autocomplete="new-password" />
+    <button class="btn" id="go"></button>
+    <p class="err" id="err"></p>
+  </div>
+  <div class="ok-wrap" id="ok-wrap">
+    <div class="ok-icon">✅</div>
+    <h1 id="t-done"></h1>
+    <p class="ok-msg" id="t-done-sub"></p>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, verifyPasswordResetCode, confirmPasswordReset, signInWithEmailAndPassword, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFunctions, httpsCallable }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBZG_ltbYVsaZkPyGQ_NozOQvo3JeuO2mQ",
+  authDomain: "safebeauty.firebaseapp.com",
+  projectId: "safebeauty",
+  storageBucket: "safebeauty.firebasestorage.app",
+  messagingSenderId: "238802374530",
+  appId: "1:238802374530:android:f2617130bc9a9644b3c99b"
+};
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const fns  = getFunctions(app, 'us-central1');
+
+// ── i18n ────────────────────────────────────────────────────────────────────
+const STR = {
+  title:   {en:'Set a new password', fa:'رمز جدید بگذارید', ps:'نوی پټنوم کېږدئ'},
+  sub:     {en:'Choose a new password for your SafeBeauty account, then sign in inside the app.', fa:'برای حساب SafeBeauty خود رمز جدید انتخاب کنید، سپس در اپ وارد شوید.', ps:'د خپل SafeBeauty حساب لپاره نوی پټنوم وټاکئ، بیا په اپ کې ننوځئ.'},
+  pw:      {en:'New password', fa:'رمز جدید', ps:'نوی پټنوم'},
+  pw2:     {en:'Repeat new password', fa:'تکرار رمز جدید', ps:'نوی پټنوم بیا ولیکئ'},
+  go:      {en:'Save new password', fa:'ذخیره رمز جدید', ps:'نوی پټنوم خوندي کړئ'},
+  working: {en:'Saving…', fa:'در حال ذخیره…', ps:'خوندي کېږي…'},
+  errShort:{en:'Password must be at least 4 characters.', fa:'رمز باید حداقل ۴ حرف باشد.', ps:'پټنوم باید لږ تر لږه ۴ توري وي.'},
+  errMatch:{en:'Passwords do not match.', fa:'رمزها یکسان نیستند.', ps:'پټنومونه سره سمون نه خوري.'},
+  errLink: {en:'This link is invalid or has expired. Request a new reset email from the app.', fa:'این لینک نامعتبر یا منقضی شده است. از داخل اپ دوباره ایمیل بازنشانی بخواهید.', ps:'دا لینک ناسم یا ختم شوی دی. له اپ څخه بیا د بیا تنظیم ایمیل وغواړئ.'},
+  errGen:  {en:'Something went wrong. Please try again.', fa:'مشکلی پیش آمد. دوباره تلاش کنید.', ps:'ستونزه رامنځته شوه. بیا هڅه وکړئ.'},
+  done:    {en:'Password changed ✓', fa:'رمز تغییر کرد ✓', ps:'پټنوم بدل شو ✓'},
+  doneSub: {en:'Open the SafeBeauty app and sign in with your phone number and the new password.', fa:'اپ SafeBeauty را باز کنید و با شماره تلفن و رمز جدید وارد شوید.', ps:'د SafeBeauty اپ خلاص کړئ او د خپل تلیفون شمېرې او نوي پټنوم سره ننوځئ.'},
+};
+let lang = localStorage.getItem('sb-reset-lang') || 'fa';
+const $ = (id) => document.getElementById(id);
+const t = (k) => (STR[k] && (STR[k][lang] || STR[k].en)) || k;
+function paint(){
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = (lang === 'en') ? 'ltr' : 'rtl';
+  document.querySelectorAll('.lang').forEach(b => b.classList.toggle('on', b.dataset.l === lang));
+  $('t-title').textContent = t('title'); $('t-sub').textContent = t('sub');
+  $('pw').placeholder = t('pw'); $('pw2').placeholder = t('pw2');
+  $('go').textContent = t('go');
+  $('t-done').textContent = t('done'); $('t-done-sub').textContent = t('doneSub');
+}
+document.querySelectorAll('.lang').forEach(b => b.onclick = () => {
+  lang = b.dataset.l; localStorage.setItem('sb-reset-lang', lang); paint();
+});
+paint();
+
+// ── PBKDF2 — mirrors PinHasher exactly (65 536 iters, SHA-256, 256-bit, b64) ─
+function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i); return u; }
+function bytesToB64(b){ let s=''; for(const x of b) s+=String.fromCharCode(x); return btoa(s); }
+async function pbkdf2(text, saltB64){
+  const key  = await crypto.subtle.importKey('raw', new TextEncoder().encode(text), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:b64ToBytes(saltB64), iterations:65536, hash:'SHA-256' }, key, 256);
+  return bytesToB64(new Uint8Array(bits));
+}
+const genSalt = () => bytesToB64(crypto.getRandomValues(new Uint8Array(16)));
+
+// ── Reset flow ──────────────────────────────────────────────────────────────
+// This page is the custom action URL for Firebase's password-reset email. It
+// exists because the app's real Firebase Auth password is DERIVED
+// (pbkdf2("AUTH:"+pw, salt)) — Firebase's default hosted reset page would store
+// the raw password and permanently lock the account out of the app. Here we:
+//   verify the oobCode → confirm the reset with a derived password (fresh salt)
+//   → sign in → persist the matching pinHash+salt via the updatePinHash callable.
+const params  = new URLSearchParams(location.search);
+const oobCode = params.get('oobCode') || '';
+const mode    = params.get('mode') || 'resetPassword';
+
+if (!oobCode || mode !== 'resetPassword') {
+  $('err').textContent = t('errLink');
+  $('go').disabled = true;
+}
+
+// Once confirmPasswordReset succeeds the oobCode is CONSUMED — if a later step
+// (sign-in / updatePinHash) fails on a flaky connection, a retry must NOT redo
+// the verify/confirm steps (they'd throw invalid-action-code and strand the
+// account with a stale pinHash). `pending` remembers the derived credentials so
+// a retry resumes exactly where it failed.
+let pending = null; // { email, salt, authPw, pinHash }
+
+$('go').onclick = async () => {
+  const pw  = $('pw').value;
+  const pw2 = $('pw2').value;
+  $('err').textContent = '';
+  if (!pending) {
+    if (pw.length < 4)  { $('err').textContent = t('errShort'); return; }
+    if (pw !== pw2)     { $('err').textContent = t('errMatch'); return; }
+  }
+  $('go').disabled = true; $('go').textContent = t('working');
+  try {
+    if (!pending) {
+      const email   = await verifyPasswordResetCode(auth, oobCode);
+      const salt    = genSalt();
+      const authPw  = await pbkdf2('AUTH:' + pw, salt);
+      const pinHash = await pbkdf2(pw, salt);
+      await confirmPasswordReset(auth, oobCode, authPw);
+      pending = { email, salt, authPw, pinHash };
+    }
+    // Sign in with the just-set derived password so updatePinHash can verify
+    // ownership (it resolves the caller by auth-token email server-side).
+    await signInWithEmailAndPassword(auth, pending.email, pending.authPw);
+    await httpsCallable(fns, 'updatePinHash')({ pinHash: pending.pinHash, salt: pending.salt });
+    await signOut(auth);
+    document.getElementById('form-wrap').style.display = 'none';
+    document.getElementById('ok-wrap').style.display = 'block';
+  } catch (e) {
+    const code = (e && e.code) || '';
+    $('err').textContent =
+      (code.includes('invalid-action-code') || code.includes('expired-action-code'))
+        ? t('errLink') : t('errGen');
+    $('go').disabled = false; $('go').textContent = t('go');
+  }
+};
+</script>
+</body>
+</html>

@@ -94,9 +94,6 @@ import android.content.ContextWrapper
 import androidx.fragment.app.FragmentActivity
 import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
 import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -114,55 +111,6 @@ fun RegisterScreen(
     val currentLanguage by langVm.language.collectAsStateWithLifecycle()
     var showLangPicker  by remember { mutableStateOf(false) }
     val context         = LocalContext.current
-
-    // ── SMS OTP phone verification (step 2 of registration) ───────────────────
-    var verificationId by remember { mutableStateOf<String?>(null) }
-    var otpCode        by remember { mutableStateOf("") }
-    var otpError       by remember { mutableStateOf<String?>(null) }
-    var otpSending     by remember { mutableStateOf(false) }
-
-    val otpCallbacks = remember {
-        object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-            override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-                // Instant / auto-retrieval on the same device — no typing needed.
-                otpSending = false
-                viewModel.completeRegistration(credential)
-            }
-            override fun onVerificationFailed(e: FirebaseException) {
-                otpSending = false
-                otpError = e.localizedMessage ?: "Verification failed"
-            }
-            override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
-                verificationId = id
-                otpSending = false
-            }
-        }
-    }
-
-    fun sendOtp() {
-        val activity = context.findRegisterActivity() ?: return
-        otpError = null
-        otpSending = true
-        val options = PhoneAuthOptions.newBuilder(FirebaseAuth.getInstance())
-            .setPhoneNumber(PhoneUtils.normalizeForLogin(viewModel.phone))
-            .setTimeout(60L, TimeUnit.SECONDS)
-            .setActivity(activity)
-            .setCallbacks(otpCallbacks)
-            .build()
-        PhoneAuthProvider.verifyPhoneNumber(options)
-    }
-
-    // Fire the SMS once when step 1 (validation + uniqueness) succeeds, and clear
-    // the OTP scratch state whenever we return to the idle form.
-    LaunchedEffect(viewModel.state) {
-        val s = viewModel.state
-        if (s is RegisterViewModel.RegisterState.AwaitingOtp && verificationId == null && !otpSending) {
-            sendOtp()
-        }
-        if (s is RegisterViewModel.RegisterState.Idle) {
-            verificationId = null; otpCode = ""; otpError = null; otpSending = false
-        }
-    }
 
     fun openUrl(url: String) {
         runCatching {
@@ -450,50 +398,6 @@ fun RegisterScreen(
 
         // ── Success / error dialogs ───────────────────────────────────────────
         when (val s = viewModel.state) {
-            is RegisterViewModel.RegisterState.AwaitingOtp -> {
-                AlertDialog(
-                    onDismissRequest = { viewModel.dismissState() },
-                    title = { Text(strings.otpTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text = {
-                        Column {
-                            Text(strings.otpSubtitle, fontSize = 13.sp, color = TextStrong)
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value           = otpCode,
-                                onValueChange   = { v -> if (v.length <= 6 && v.all(Char::isDigit)) otpCode = v },
-                                label           = { Text(strings.otpHint) },
-                                singleLine      = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier        = Modifier.fillMaxWidth()
-                            )
-                            if (otpSending) {
-                                Spacer(Modifier.height(8.dp))
-                                Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
-                            }
-                            otpError?.let {
-                                Spacer(Modifier.height(8.dp))
-                                Text(it, fontSize = 12.sp, color = DangerRed)
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(
-                            enabled = otpCode.length == 6 && verificationId != null,
-                            onClick = {
-                                val id = verificationId ?: return@Button
-                                viewModel.completeRegistration(PhoneAuthProvider.getCredential(id, otpCode))
-                            },
-                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                        ) { Text(strings.otpVerify, color = Color.White) }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.dismissState() }) {
-                            Text(strings.cancel, color = RoseGold)
-                        }
-                    },
-                    containerColor = ElegantCream
-                )
-            }
             is RegisterViewModel.RegisterState.CustomerSuccess -> {
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState(); onBack() },
@@ -529,10 +433,24 @@ fun RegisterScreen(
                 )
             }
             is RegisterViewModel.RegisterState.Error -> {
+                val message = when (s.reason) {
+                    RegisterViewModel.ErrorReason.NAME_REQUIRED       -> strings.regNameRequired
+                    RegisterViewModel.ErrorReason.PHONE_REQUIRED      -> strings.forgotPinPhoneRequired
+                    RegisterViewModel.ErrorReason.PHONE_INVALID       -> strings.regPhoneInvalid
+                    RegisterViewModel.ErrorReason.EMAIL_INVALID       -> strings.regEmailInvalid
+                    RegisterViewModel.ErrorReason.PIN_TOO_SHORT       -> strings.pinTooShort
+                    RegisterViewModel.ErrorReason.PIN_MISMATCH        -> strings.setNewPinMismatch
+                    RegisterViewModel.ErrorReason.SALON_NAME_REQUIRED -> strings.regSalonNameRequired
+                    RegisterViewModel.ErrorReason.DISTRICT_REQUIRED   -> strings.regDistrictRequired
+                    RegisterViewModel.ErrorReason.SERVICES_REQUIRED   -> strings.regServicesRequired
+                    RegisterViewModel.ErrorReason.PHONE_CHECK_FAILED  -> strings.regPhoneCheckFailed
+                    RegisterViewModel.ErrorReason.PHONE_EXISTS        -> strings.regPhoneExists
+                    RegisterViewModel.ErrorReason.REGISTRATION_FAILED -> strings.regFailed
+                }
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState() },
                     title = { Text(strings.pleaseCheckTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
-                    text  = { Text(s.message, fontSize = 14.sp, color = TextStrong) },
+                    text  = { Text(message, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
                         TextButton(onClick = { viewModel.dismissState() }) {
                             Text(strings.ok, color = RoseGold)

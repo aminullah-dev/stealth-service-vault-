@@ -1,10 +1,19 @@
 package com.safebeauty.app.data.firebase
 
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.storage.StorageMetadata
 import com.safebeauty.app.util.CrashReporter
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
+
+// All uploads are compressed JPEGs written to *.jpg paths. Firebase Storage
+// leaves the object's contentType as application/octet-stream when putBytes is
+// called without metadata, which storage.rules' isValidImage() (contentType
+// must match image/(jpeg|png|webp)) then REJECTS — silently breaking every
+// KYC/profile/review upload. Setting it explicitly keeps uploads rule-valid.
+private val JPEG_METADATA: StorageMetadata =
+    StorageMetadata.Builder().setContentType("image/jpeg").build()
 
 /**
  * Handles all Firebase Storage uploads and deletes for the app.
@@ -29,7 +38,7 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadUserPhoto(uid: String, bytes: ByteArray): String {
         val ref = storage.reference.child("profile_photos/$uid.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 
@@ -41,7 +50,7 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadGalleryImage(salonId: String, docId: String, bytes: ByteArray): String {
         val ref = storage.reference.child("salon_gallery/$salonId/$docId.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 
@@ -54,7 +63,7 @@ class StorageRepository @Inject constructor() {
         // Path scoped to the uploader's app uid — storage.rules only lets a user
         // write under reviews/{their own uid}/… (prevents cross-user upload spam).
         val ref = storage.reference.child("reviews/$uid/$reviewId/$index.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 
@@ -64,7 +73,7 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadStaffPhoto(salonId: String, staffId: String, index: Int, bytes: ByteArray): String {
         val ref = storage.reference.child("staff_portfolio/$salonId/${staffId}_$index.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 
@@ -75,7 +84,7 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadKycTazkira(uid: String, bytes: ByteArray): String {
         val ref = storage.reference.child("kyc/$uid/tazkira.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 
@@ -85,7 +94,7 @@ class StorageRepository @Inject constructor() {
      */
     suspend fun uploadKycSelfie(uid: String, bytes: ByteArray): String {
         val ref = storage.reference.child("kyc/$uid/selfie.jpg")
-        ref.putBytes(bytes).await()
+        ref.putBytes(bytes, JPEG_METADATA).await()
         return ref.downloadUrl.await().toString()
     }
 

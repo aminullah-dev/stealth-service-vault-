@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Store
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -111,6 +111,8 @@ import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -121,17 +123,20 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit = {},
     viewModel: AdminViewModel = hiltViewModel(),
     langVm: LanguageViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
+
+    // Prompt for notification permission (Android 13+) so admins get pushes too.
+    com.safebeauty.app.ui.components.RequestNotificationPermission()
 
     val strings          = LocalStrings.current
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
@@ -151,6 +156,7 @@ fun AdminDashboardScreen(
     val kycPending       by viewModel.kycPending.collectAsStateWithLifecycle()
     val kycLoaded        by viewModel.kycLoaded.collectAsStateWithLifecycle()
     var showLangPicker   by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
     var selectedTab      by remember { mutableIntStateOf(0) }
 
     val flaggedReports   by viewModel.flaggedReports.collectAsStateWithLifecycle()
@@ -194,11 +200,14 @@ fun AdminDashboardScreen(
                         IconButton(onClick = { onNavigate(Screen.Support.route) }) {
                             Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
                         }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = RoseGold)
+                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
+                        IconButton(onClick = { viewModel.signOut() }) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = strings.signOut, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -247,6 +256,16 @@ fun AdminDashboardScreen(
                     9 -> SupportTab(supportTickets, viewModel, onNavigate)
                 }
             }
+        }
+
+        if (showThemePicker) {
+            val themeVm: ThemeViewModel = hiltViewModel()
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
+            )
         }
 
         if (showLangPicker) {

@@ -1,6 +1,10 @@
 package com.safebeauty.app.data.firebase
 
+import com.google.firebase.firestore.AggregateSource
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
@@ -15,17 +19,22 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * All live queries use AT MOST a single equality filter and then do any
- * remaining filtering/sorting in memory. This deliberately avoids Firestore
- * composite indexes — combining a where-filter with an orderBy on a different
- * field requires a pre-built composite index, and a missing index surfaces as
- * a FAILED_PRECONDITION error inside the snapshot listener. The collections in
- * this app are small, so in-memory sorting is negligible and removes a whole
- * class of runtime crashes.
+ * Listeners emit an empty result on error (instead of closing the flow), so a
+ * transient permission/network error can never propagate up through stateIn and
+ * crash the app.
  *
- * Listeners also emit an empty result on error (instead of closing the flow),
- * so a transient permission/network error can never propagate up through
- * stateIn and crash the app.
+ * This file used to say that every live query deliberately used at most one
+ * equality filter and did the rest in memory, to avoid composite indexes and
+ * the FAILED_PRECONDITION a missing one produces. That was a reasonable trade
+ * while the collections were small, and it stopped being one: it meant the app
+ * downloaded the entire salon collection on every open, and it is structurally
+ * why there was no ranking — nothing can rank a list the device has already
+ * sorted by name.
+ *
+ * Salon discovery is now server-side, paginated and indexed (see salonPage).
+ * The indexes it needs are committed in firestore.indexes.json alongside the
+ * queries, which is what makes the old objection no longer apply: an index that
+ * ships with its query cannot be the one that is missing.
  */
 @Singleton
 class FirestoreRepository @Inject constructor(
@@ -42,6 +51,14 @@ class FirestoreRepository @Inject constructor(
     private val reviewsCol      = db.collection("reviews")
     private val broadcastsCol   = db.collection("broadcasts")
     private val galleryCol      = db.collection("salon_gallery")
+    private val postsCol        = db.collection("salon_posts")
+    private val storiesCol      = db.collection("salon_stories")
+    private val postLikesCol    = db.collection("post_likes")
+    private val postCommentsCol = db.collection("post_comments")
+    // How many Discover tiles to fetch. A grid shows ~9 per screen, so 100
+    // is several screens of scrolling before anyone notices an edge.
+    private val FEED_PAGE_SIZE  = 100L
+    private val COMMENT_PAGE_SIZE = 200L
     private val offersCol       = db.collection("salon_offers")
     private val waitlistCol      = db.collection("waitlist")
     private val notificationsCol = db.collection("notifications")
@@ -155,6 +172,16 @@ class FirestoreRepository @Inject constructor(
         runCatching { usersCol.document(uid).update("fcmToken", token).await() }
     }
 
+    /**
+     * Records the language this user reads, so server-sent notifications can be
+     * written in it. Without this the Cloud Functions have no way to know, and
+     * every push falls back to Dari. Best-effort: a failure here must never
+     * block sign-in.
+     */
+    suspend fun updateLanguage(uid: String, lang: String) {
+        runCatching { usersCol.document(uid).update("lang", lang).await() }
+    }
+
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("status", "PENDING")
@@ -221,6 +248,184 @@ class FirestoreRepository @Inject constructor(
             trySend(list)
         }
         awaitClose { listener.remove() }
+    }
+
+    // ── Server-side salon discovery ───────────────────────────────────────────
+    //
+    // observeAllSalons above attaches a live listener to the entire salons
+    // collection, downloads it, then sorts and filters on the device. At 500
+    // salons that is 500 reads on every app open plus a fan-out to every
+    // connected client on every salon edit — and it is structurally why there is
+    // no ranking: nothing can rank a list the device already sorted by name.
+    //
+    // These read a bounded page with the filters applied by Firestore. They are
+    // one-shot rather than listeners: a page that silently reshuffles under the
+    // customer's thumb while they are reading it is not an improvement, and the
+    // list refreshes on pull or on filter change.
+
+    /** How the customer's list is ordered. Mirrors SalonSort in the view model. */
+    enum class SalonOrder { RATING, PRICE, NAME }
+
+    data class SalonFilter(
+        val districtKey: String = "",      // "" = every neighbourhood
+        val category: String = "",         // "" = every category
+        val favoriteIds: List<String> = emptyList(),  // non-empty = favourites only
+        val search: String = "",           // prefix match on the salon name
+    )
+
+    data class SalonPage(
+        val salons: List<SalonDocument>,
+        val cursor: DocumentSnapshot?,     // pass back as `after` for the next page
+        val endReached: Boolean,
+    )
+
+    private val SALON_PAGE_SIZE = 20L
+
+    /**
+     * Build the query for a filter. Kept in one place so the paged read and the
+     * count can never disagree about what "matching" means — a count derived
+     * from a different query than the list is a number that is confidently wrong.
+     */
+    private fun salonQuery(filter: SalonFilter, order: SalonOrder): Query {
+        // Matches observeAvailableSalons, which this replaces. Dropping it would
+        // surface salons that have closed themselves to bookings — a salon the
+        // customer can find, tap and fail to book is worse than one she cannot
+        // find. Whether an unavailable salon should be discoverable at all is a
+        // product decision, not one to change silently while migrating.
+        var q: Query = salonsCol.whereEqualTo("isAvailable", true)
+
+        if (filter.districtKey.isNotBlank()) {
+            q = q.whereEqualTo("districtKey", filter.districtKey)
+        }
+        if (filter.category.isNotBlank()) {
+            q = q.whereArrayContains("categories", filter.category)
+        }
+        if (filter.favoriteIds.isNotEmpty()) {
+            // whereIn takes at most 30 values. A customer with more favourites
+            // than that gets the first 30 here and the rest filtered in the view
+            // model, rather than an exception.
+            q = q.whereIn(FieldPath.documentId(), filter.favoriteIds.take(30))
+        }
+
+        val search = filter.search.trim().lowercase()
+        if (search.isNotEmpty()) {
+            // Firestore cannot match a substring. A range on the normalized name
+            // gives prefix search, which covers typing the start of a name; \uf8ff
+            // is the highest code point, so it bounds the range at "anything
+            // starting with this". Mid-word search is not possible here without
+            // an external search service, which the architecture deliberately
+            // excludes.
+            q = q.orderBy("nameKey")
+                .startAt(search)
+                .endAt(search + "\uf8ff")
+            return q.limit(SALON_PAGE_SIZE)
+        }
+
+        q = when (order) {
+            // sortRating and minPrice are written by deriveSalonFields on every
+            // salon, never inherited — Firestore drops documents that lack the
+            // orderBy field, so an unrated or unpriced salon would vanish from a
+            // sorted list rather than appear at the end of it.
+            SalonOrder.RATING -> q.orderBy("sortRating", Query.Direction.DESCENDING)
+            SalonOrder.PRICE  -> q.orderBy("minPrice", Query.Direction.ASCENDING)
+            SalonOrder.NAME   -> q.orderBy("nameKey", Query.Direction.ASCENDING)
+        }
+        return q.limit(SALON_PAGE_SIZE)
+    }
+
+    /**
+     * One page of salons matching [filter], ordered by [order].
+     *
+     * Falls back to the encrypted local cache when the query fails, because the
+     * listener this replaces did — losing that would mean a customer with no
+     * signal sees an empty list rather than the salons she saw yesterday. The
+     * fallback is a first page only: a cache cannot be paged through.
+     */
+    suspend fun salonPage(
+        filter: SalonFilter,
+        order: SalonOrder = SalonOrder.RATING,
+        after: DocumentSnapshot? = null,
+    ): SalonPage {
+        var q = salonQuery(filter, order)
+        if (after != null) q = q.startAfter(after)
+
+        return runCatching {
+            val snap = q.get().await()
+            SalonPage(
+                salons = snap.documents.mapNotNull {
+                    it.toObject(SalonDocument::class.java)?.copy(id = it.id)
+                },
+                cursor = snap.documents.lastOrNull(),
+                endReached = snap.documents.size < SALON_PAGE_SIZE,
+            )
+        }.getOrElse { err ->
+            CrashReporter.recordNonFatal(err, "salonPage")
+            if (after != null) return@getOrElse SalonPage(emptyList(), null, true)
+            val cached = runCatching {
+                (salonCacheDao.observeAvailable().firstOrNull() ?: emptyList()).map { it.toDocument() }
+            }.getOrDefault(emptyList())
+            SalonPage(salons = cached, cursor = null, endReached = true)
+        }
+    }
+
+    /**
+     * One salon by id, for a "book again" on a salon that is not in the current
+     * page. The old lookup searched the fully-downloaded list, which paging
+     * makes unreliable in exactly the case that matters: an older booking.
+     */
+    suspend fun getSalonById(salonId: String): SalonDocument? =
+        runCatching {
+            salonsCol.document(salonId).get().await()
+                .toObject(SalonDocument::class.java)?.copy(id = salonId)
+        }.getOrNull()
+
+    /**
+     * How many salons match [filter], for the "N providers found" line.
+     *
+     * An aggregation query, so it costs a fraction of reading the documents —
+     * and it has to exist at all because that number used to be the size of the
+     * fully-downloaded list, which pagination makes wrong.
+     */
+    suspend fun salonCount(filter: SalonFilter): Int? =
+        runCatching {
+            salonQuery(filter, SalonOrder.RATING)
+                .count()
+                .get(AggregateSource.SERVER)
+                .await()
+                .count
+                .toInt()
+        }.getOrElse {
+            // Null, not zero. Defaulting a failed count to 0 makes "we could not
+            // ask" indistinguishable from "there are none" — which is the exact
+            // failure mode this whole phase exists to remove, and I reintroduced
+            // it here. The caller shows no number rather than a wrong one.
+            CrashReporter.recordNonFatal(it, "salonCount")
+            null
+        }
+
+    /**
+     * Record that a search or filter combination found nothing.
+     *
+     * No identity is attached — see the demand_signals rules. What matters is
+     * that a district wanted a category and the platform had nothing to offer;
+     * who asked is neither needed nor recorded.
+     *
+     * Best-effort: a customer's search must not fail because analytics did.
+     */
+    suspend fun recordNoResults(districtKey: String, category: String, lang: String) {
+        runCatching {
+            db.collection("demand_signals").add(
+                mapOf(
+                    "kind"        to "NO_RESULTS",
+                    "districtKey" to districtKey,
+                    "category"    to category,
+                    "serviceName" to "",
+                    "salonId"     to "",
+                    "lang"        to lang,
+                    "at"          to System.currentTimeMillis(),
+                )
+            ).await()
+        }
     }
 
     suspend fun createSalon(salon: SalonDocument): String {
@@ -352,19 +557,56 @@ class FirestoreRepository @Inject constructor(
 
     // ── Chat ──────────────────────────────────────────────────────────────────
 
+    // A conversation between one customer and one salon has no natural end, and
+    // this used to load all of it on every open — unbounded, re-read in full on
+    // every new message, and sorted on the device. A pair who have talked for a
+    // year would pay for that year every time either of them opened the thread.
+    private val CHAT_WINDOW = 50L
+
+    /**
+     * The most recent [CHAT_WINDOW] messages, oldest-first for display.
+     *
+     * Still a live listener, because a chat that does not update as the other
+     * person types is not a chat — but now over a bounded window, so its cost
+     * does not grow with the length of the relationship. Older messages are
+     * fetched on demand by [olderMessages].
+     */
     fun observeConversation(conversationId: String): Flow<List<ChatMessage>> = callbackFlow {
         val listener = chatCol
             .whereEqualTo("conversationId", conversationId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(CHAT_WINDOW)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
-                    ?.sortedBy { it.timestamp }
+                    ?.reversed()          // newest-first from Firestore, oldest-first on screen
                     ?: emptyList()
                 trySend(list)
             }
         awaitClose { listener.remove() }
     }
+
+    /**
+     * The page of messages immediately before [beforeTimestamp], oldest-first.
+     *
+     * A one-shot read: history does not change, so there is nothing to listen to.
+     */
+    suspend fun olderMessages(conversationId: String, beforeTimestamp: Long): List<ChatMessage> =
+        runCatching {
+            chatCol
+                .whereEqualTo("conversationId", conversationId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .whereLessThan("timestamp", beforeTimestamp)
+                .limit(CHAT_WINDOW)
+                .get().await()
+                .documents
+                .mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
+                .reversed()
+        }.getOrElse {
+            CrashReporter.recordNonFatal(it, "olderMessages")
+            emptyList()
+        }
 
     suspend fun sendChatMessage(message: ChatMessage) {
         chatCol.add(message).await()
@@ -397,19 +639,31 @@ class FirestoreRepository @Inject constructor(
     fun newReviewId(): String = reviewsCol.document().id
 
     /**
-     * Adds a review. Writing the review doc is the only client write now — the
-     * salon's average rating is recomputed server-side (awardReviewPoints trigger)
-     * so a provider can't forge it; `rating` is frozen against client writes in
-     * firestore.rules. When [review.id] is set (photo reviews reserve it via
-     * [newReviewId]) the doc is written at that ID; otherwise Firestore
-     * auto-generates one.
+     * Submits a review through the server-side submitReview callable — the only
+     * path that can create a review now. The callable binds the review to a real,
+     * served appointment the caller owns (one review per booking) and writes the
+     * doc with the Admin SDK; direct client creates are refused in firestore.rules
+     * to stop review-farming (points → wallet credit) and rating forgery. Photos
+     * are uploaded first (client-side, under reviews/{uid}/…) and their URLs
+     * passed in. Throws if the backend rejects (not your booking / already
+     * reviewed / not yet served).
      */
-    suspend fun addReview(review: ReviewDocument) {
-        if (review.id.isNotBlank()) {
-            reviewsCol.document(review.id).set(review).await()
-        } else {
-            reviewsCol.add(review).await()
-        }
+    suspend fun submitReview(
+        appointmentId: String,
+        salonId: String,
+        rating: Int,
+        comment: String,
+        imageUrls: List<String>
+    ) {
+        functions.getHttpsCallable("submitReview").call(
+            hashMapOf(
+                "appointmentId" to appointmentId,
+                "salonId"       to salonId,
+                "rating"        to rating,
+                "comment"       to comment,
+                "imageUrls"     to imageUrls
+            )
+        ).await()
     }
 
     // ── Salon gallery (portfolio photos) ─────────────────────────────────────
@@ -430,6 +684,119 @@ class FirestoreRepository @Inject constructor(
 
     /** Reserves a new Firestore document ID so the Storage path can be pre-computed. */
     fun newGalleryDocId(): String = galleryCol.document().id
+
+    // ── Social discovery feed (salon_posts) ─────────────────────────────────────
+
+    /**
+     * Live stories across every salon, newest first.
+     *
+     * Expiry is filtered client-side against expiresAt rather than queried,
+     * because a range filter here would need a composite index and the set is
+     * tiny by construction — nothing survives more than a day.
+     */
+    fun observeStories(): Flow<List<StoryDocument>> = callbackFlow {
+        val listener = storiesCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(60)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val now = System.currentTimeMillis()
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(StoryDocument::class.java)?.copy(id = it.id) }
+                    ?.filter { it.expiresAt > now }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * The global Discover feed: the newest salon posts across the whole platform.
+     *
+     * Ordered and capped SERVER-side. It previously attached a listener to the
+     * whole collection and took the first 100 after they arrived, so the display
+     * was capped but the download was not — every open of Discover pulled every
+     * post ever published, and kept paying for each one on every change.
+     */
+    fun observeFeed(): Flow<List<SalonPostDocument>> = callbackFlow {
+        val listener = postsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(FEED_PAGE_SIZE)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(SalonPostDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    // ── Likes and comments on Discover posts ─────────────────────────────────
+    //
+    // The like id is "{postId}_{userId}", so liking twice is not a thing the
+    // client has to guard against — the second write lands on the same document.
+
+    private fun likeId(postId: String, userId: String) = "${postId}_$userId"
+
+    /**
+     * The ids of every post [userId] has liked.
+     *
+     * One query for the whole grid rather than a read per tile. The rules let a
+     * user read only their own likes, so this is also the only shape of like
+     * query a client can make — nobody can list who liked a salon's photo.
+     */
+    fun observeMyLikes(userId: String): Flow<Set<String>> = callbackFlow {
+        if (userId.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+        val listener = postLikesCol
+            .whereEqualTo("userId", userId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
+                trySend(snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet())
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun setPostLiked(postId: String, salonId: String, userId: String, liked: Boolean) {
+        if (postId.isBlank() || userId.isBlank()) return
+        val ref = postLikesCol.document(likeId(postId, userId))
+        if (liked) {
+            ref.set(mapOf(
+                "postId"    to postId,
+                "salonId"   to salonId,
+                "userId"    to userId,
+                "createdAt" to System.currentTimeMillis(),
+            )).await()
+        } else {
+            ref.delete().await()
+        }
+    }
+
+    /** A post's comments, oldest first — a thread reads top to bottom. */
+    fun observeComments(postId: String): Flow<List<PostCommentDocument>> = callbackFlow {
+        if (postId.isBlank()) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
+        val listener = postCommentsCol
+            .whereEqualTo("postId", postId)
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(COMMENT_PAGE_SIZE)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                trySend(snap?.documents
+                    ?.mapNotNull { it.toObject(PostCommentDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList())
+            }
+        awaitClose { listener.remove() }
+    }
+
+    suspend fun addComment(comment: PostCommentDocument) {
+        val ref = postCommentsCol.document()
+        ref.set(comment.copy(id = ref.id)).await()
+    }
+
+    suspend fun deleteComment(commentId: String) {
+        if (commentId.isBlank()) return
+        postCommentsCol.document(commentId).delete().await()
+    }
 
     suspend fun addGalleryImage(image: GalleryImageDocument) {
         val id = image.id.ifBlank { galleryCol.document().id }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.OpenInNew
@@ -37,6 +38,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -47,6 +53,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DashboardTheme
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.safebeauty.app.viewmodel.DeleteAccountViewModel
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
@@ -60,9 +71,14 @@ private const val PRIVACY_URL = "https://safebeauty.web.app/privacy"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SupportScreen(onBack: () -> Unit) {
+fun SupportScreen(
+    onBack: () -> Unit,
+    onAccountDeleted: () -> Unit = {},
+    deleteVm: DeleteAccountViewModel = hiltViewModel()
+) {
     val strings = LocalStrings.current
     val context = LocalContext.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     fun emailUs() {
         val intent = Intent(Intent.ACTION_SENDTO).apply {
@@ -137,7 +153,7 @@ fun SupportScreen(onBack: () -> Unit) {
                     ) {
                         Icon(Icons.Default.Email, null, tint = RoseGold, modifier = Modifier.size(24.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Email", fontSize = 11.sp, color = RoseGold)
+                            Text(strings.supportEmailTitle, fontSize = 11.sp, color = RoseGold)
                             Text(SUPPORT_EMAIL, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
                         }
                     }
@@ -191,9 +207,75 @@ fun SupportScreen(onBack: () -> Unit) {
                             label = strings.legalPrivacyLabel,
                             onClick = { openUrl(PRIVACY_URL) }
                         )
+                        // Google Play requires an in-app account-deletion path for
+                        // any app that creates accounts in-app. Tinted danger-red
+                        // and confirmation-gated so it can't be hit by accident.
+                        LegalLinkRow(
+                            icon    = Icons.Default.DeleteForever,
+                            label   = strings.deleteAccountTitle,
+                            tint    = DangerRed,
+                            onClick = { showDeleteConfirm = true }
+                        )
                     }
                 }
             }
+        }
+
+        // ── Account deletion ──────────────────────────────────────────────────
+        // Two gates before anything is destroyed: this dialog states exactly what
+        // will happen, and the confirm button is the red one.
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                icon  = { Icon(Icons.Default.DeleteForever, null, tint = DangerRed) },
+                title = { Text(strings.deleteAccountTitle, fontWeight = FontWeight.Bold, color = DangerRed) },
+                text  = { Text(strings.deleteAccountWarning, fontSize = 14.sp, color = TextStrong) },
+                confirmButton = {
+                    Button(
+                        onClick = { showDeleteConfirm = false; deleteVm.deleteAccount() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = DangerRed)
+                    ) { Text(strings.deleteAccountConfirm, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        when (deleteVm.state) {
+            is DeleteAccountViewModel.State.Deleted -> {
+                // The Auth account is gone; leaving the user on a signed-in screen
+                // would only produce permission errors, so we send them to Login.
+                AlertDialog(
+                    onDismissRequest = { },
+                    title = { Text(strings.deleteAccountTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                    text  = { Text(strings.deleteAccountSuccess, fontSize = 14.sp, color = TextStrong) },
+                    confirmButton = {
+                        Button(
+                            onClick = { deleteVm.dismissState(); onAccountDeleted() },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.ok, color = Color.White) }
+                    },
+                    containerColor = ElegantCream
+                )
+            }
+            is DeleteAccountViewModel.State.Failed -> {
+                AlertDialog(
+                    onDismissRequest = { deleteVm.dismissState() },
+                    title = { Text(strings.deleteAccountTitle, fontWeight = FontWeight.Bold, color = DangerRed) },
+                    text  = { Text(strings.deleteAccountFailed, fontSize = 14.sp, color = TextStrong) },
+                    confirmButton = {
+                        TextButton(onClick = { deleteVm.dismissState() }) {
+                            Text(strings.ok, color = RoseGold)
+                        }
+                    },
+                    containerColor = ElegantCream
+                )
+            }
+            else -> Unit
         }
     }
 }
@@ -202,8 +284,12 @@ fun SupportScreen(onBack: () -> Unit) {
 private fun LegalLinkRow(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    // Destructive rows (account deletion) tint themselves red and drop the
+    // external-link glyph, since they act in-app rather than opening a page.
+    tint: Color = RoseGold
 ) {
+    val destructive = tint != RoseGold
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -212,8 +298,16 @@ private fun LegalLinkRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(icon, null, tint = RoseGold, modifier = Modifier.size(22.dp))
-        Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = DeepRose, modifier = Modifier.weight(1f))
-        Icon(Icons.Default.OpenInNew, null, tint = TextFaint, modifier = Modifier.size(16.dp))
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        Text(
+            label,
+            fontSize   = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color      = if (destructive) tint else DeepRose,
+            modifier   = Modifier.weight(1f)
+        )
+        if (!destructive) {
+            Icon(Icons.Default.OpenInNew, null, tint = TextFaint, modifier = Modifier.size(16.dp))
+        }
     }
 }

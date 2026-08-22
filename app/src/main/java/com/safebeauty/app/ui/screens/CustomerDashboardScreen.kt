@@ -8,6 +8,10 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +52,9 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -149,6 +156,9 @@ import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
 import com.safebeauty.app.data.firebase.badge
 import com.safebeauty.app.navigation.Screen
+import com.safebeauty.app.ui.theme.AppBrand
+import com.safebeauty.app.ui.theme.LocalPalette
+import com.safebeauty.app.ui.theme.paletteFor
 import com.safebeauty.app.ui.theme.AppLanguage
 import com.safebeauty.app.ui.theme.AvailableGreen
 import com.safebeauty.app.ui.theme.BlushPink
@@ -160,6 +170,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.ui.theme.motionTween
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -170,16 +181,21 @@ import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.safebeauty.app.util.ratingLabel
+import com.safebeauty.app.util.Analytics
 import com.safebeauty.app.util.AnnouncementPrefs
 import com.safebeauty.app.util.ImageUtils
 import com.safebeauty.app.util.NotificationHelper
 import com.safebeauty.app.viewmodel.CheckoutUiState
 import com.safebeauty.app.viewmodel.GiftUiState
 import com.safebeauty.app.viewmodel.TipUiState
+import com.safebeauty.app.viewmodel.WalletUiState
 import com.safebeauty.app.viewmodel.SalonSort
 import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -193,6 +209,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoLibrary
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -208,7 +225,9 @@ internal val avatarGradients = listOf(
 )
 
 internal fun avatarGradient(name: String): Pair<Color, Color> =
-    avatarGradients[name.first().lowercaseChar().code % avatarGradients.size]
+    // firstOrNull guards a blank salon/user name — .first() would crash the whole
+    // browse list on one empty-named doc.
+    avatarGradients[(name.firstOrNull() ?: '?').lowercaseChar().code % avatarGradients.size]
 
 // One guest in a group / event booking (bride + companions). Each guest gets
 // their own services; the whole party is booked as a single appointment and the
@@ -232,12 +251,13 @@ private data class BookingIntent(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun CustomerDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit           = {},
     viewModel: DashboardViewModel          = hiltViewModel(),
     langVm: LanguageViewModel              = hiltViewModel(),
     exportVm: ExportViewModel              = hiltViewModel(),
     changePinVm: ChangePinViewModel        = hiltViewModel(),
+    themeVm: ThemeViewModel                = hiltViewModel(),
     notifVm: NotificationCenterViewModel   = hiltViewModel()
 ) {
     val strings     = LocalStrings.current
@@ -279,10 +299,10 @@ fun CustomerDashboardScreen(
         }
     }
 
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
 
@@ -301,6 +321,8 @@ fun CustomerDashboardScreen(
     }
 
     val filteredSalons            by viewModel.displayedSalons.collectAsStateWithLifecycle()
+    val matchingCount             by viewModel.matchingCount.collectAsStateWithLifecycle()
+    val loadingSalons             by viewModel.loadingSalons.collectAsStateWithLifecycle()
     val sortMode                  by viewModel.sortMode.collectAsStateWithLifecycle()
     val minRating                 by viewModel.minRating.collectAsStateWithLifecycle()
     val maxPrice                  by viewModel.maxPrice.collectAsStateWithLifecycle()
@@ -320,6 +342,12 @@ fun CustomerDashboardScreen(
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
     val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
     val offerSalonIds             by viewModel.offerSalonIds.collectAsStateWithLifecycle()
+    // Identity gate: deals & special offers are a verified-customer perk, shown
+    // only once KYC is APPROVED. While the status is still loading (null) we lock
+    // nothing yet, so a verified customer never sees the lock flash.
+    val kycStatusValue            by viewModel.kycStatus.collectAsStateWithLifecycle()
+    val dealsUnlocked = kycStatusValue == "APPROVED"
+    val dealsLocked   = kycStatusValue != null && kycStatusValue != "APPROVED"
     val selectedCategoryIndex     by viewModel.selectedCategoryIndex.collectAsStateWithLifecycle()
     val selectedNeighborhoodIndex by viewModel.selectedNeighborhoodIndex.collectAsStateWithLifecycle()
     val isOffline                 by viewModel.isOffline.collectAsStateWithLifecycle()
@@ -328,7 +356,14 @@ fun CustomerDashboardScreen(
     val favoriteIds               by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val showFavoritesOnly         by viewModel.showFavoritesOnly.collectAsStateWithLifecycle()
     val broadcasts                by viewModel.broadcasts.collectAsStateWithLifecycle()
+    val stories                   by viewModel.stories.collectAsStateWithLifecycle()
     val searchQuery               by viewModel.searchQuery.collectAsStateWithLifecycle()
+
+    // Funnel step 1. Keyed on the result set so it fires once per distinct view
+    // rather than on every recomposition.
+    LaunchedEffect(filteredSalons.size, filtersActive, searchQuery) {
+        Analytics.salonListViewed(filteredSalons.size, filtersActive || searchQuery.isNotBlank())
+    }
 
     val categoryLabels = listOf(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
@@ -346,6 +381,16 @@ fun CustomerDashboardScreen(
     var showLangPicker       by remember { mutableStateOf(false) }
     var showProfileSheet     by remember { mutableStateOf(false) }
     var showSalonDetail      by remember { mutableStateOf<SalonDocument?>(null) }
+    // Shown INSTEAD of starting a booking when the account isn't verified yet.
+    // Asking at the end — after services, slot, notes and guests are entered —
+    // meant discarding all of it, which is the worst possible moment.
+    var showKycNotice        by remember { mutableStateOf(false) }
+    var showThemePicker      by remember { mutableStateOf(false) }
+    // Funnel step 2. Watching the state rather than each opener means every path
+    // into the detail sheet is counted, including ones added later.
+    LaunchedEffect(showSalonDetail?.id) {
+        showSalonDetail?.let { Analytics.salonOpened(it.id) }
+    }
     val sheetState           = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Location permission for "sort by nearest" — requested only when the user
@@ -382,6 +427,8 @@ fun CustomerDashboardScreen(
     var giftAmount     by remember { mutableStateOf("") }
     var giftMessage    by remember { mutableStateOf("") }
     // Loyalty redeem dialog.
+    var showWalletDialog by remember { mutableStateOf(false) }
+    var walletAmount     by remember { mutableStateOf("") }
     var showRedeemDialog by remember { mutableStateOf(false) }
     var showDatePicker    by remember { mutableStateOf(false) }
     var showSlotPicker    by remember { mutableStateOf(false) }
@@ -403,6 +450,7 @@ fun CustomerDashboardScreen(
     val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
     val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
     var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
+    var showOverflow        by remember { mutableStateOf(false) }
     var tipTarget           by remember { mutableStateOf<AppointmentDocument?>(null) }
 
     DashboardTheme {
@@ -427,6 +475,11 @@ fun CustomerDashboardScreen(
                         }
                     },
                     actions = {
+                        // Seven unlabeled icons crowded the bar and squeezed the
+                        // title. Only notifications earns a permanent slot — it
+                        // carries an unread badge. The rest are occasional, and a
+                        // named menu makes them MORE discoverable than a row of
+                        // mystery glyphs was.
                         val unreadCount by notifVm.unreadCount.collectAsStateWithLifecycle()
                         IconButton(onClick = { onNavigate(Screen.Notifications.build(viewModel.customerId)) }) {
                             BadgedBox(badge = {
@@ -439,21 +492,44 @@ fun CustomerDashboardScreen(
                                 Icon(Icons.Default.Notifications, strings.notificationCenterTitle, tint = RoseGold)
                             }
                         }
-                        IconButton(
-                            onClick  = { exportVm.export() },
-                            enabled  = exportVm.phase != ExportPhase.WORKING
-                        ) {
-                            Icon(
-                                Icons.Default.Download,
-                                contentDescription = strings.exportTitle,
-                                tint               = RoseGold
-                            )
-                        }
-                        IconButton(onClick = { showLangPicker = true }) {
-                            Icon(Icons.Default.Language, strings.languagePickerTitle, tint = DeepRose)
-                        }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, strings.lock, tint = DeepRose)
+                        Box {
+                            IconButton(onClick = { showOverflow = true }) {
+                                Icon(Icons.Default.MoreVert, strings.menuMore, tint = DeepRose)
+                            }
+                            DropdownMenu(
+                                expanded         = showOverflow,
+                                onDismissRequest = { showOverflow = false }
+                            ) {
+                                @Composable
+                                fun item(
+                                    icon: androidx.compose.ui.graphics.vector.ImageVector,
+                                    label: String,
+                                    enabled: Boolean = true,
+                                    onClick: () -> Unit
+                                ) = DropdownMenuItem(
+                                    text        = { Text(label, color = DeepRose, fontSize = 14.sp) },
+                                    leadingIcon = { Icon(icon, null, tint = RoseGold) },
+                                    enabled     = enabled,
+                                    onClick     = { showOverflow = false; onClick() }
+                                )
+                                item(Icons.Default.Map, strings.mapTitle) {
+                                    onNavigate(Screen.SalonMap.build(viewModel.customerId))
+                                }
+                                item(Icons.Default.SupportAgent, strings.tabSupport) {
+                                    onNavigate(Screen.Support.route)
+                                }
+                                item(Icons.Default.Palette, strings.menuTheme) { showThemePicker = true }
+                                item(Icons.Default.Language, strings.languagePickerTitle) { showLangPicker = true }
+                                item(
+                                    Icons.Default.Download,
+                                    strings.exportTitle,
+                                    enabled = exportVm.phase != ExportPhase.WORKING
+                                ) { exportVm.export() }
+                                HorizontalDivider()
+                                item(Icons.AutoMirrored.Filled.Logout, strings.signOut) {
+                                    viewModel.signOut()
+                                }
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -461,10 +537,18 @@ fun CustomerDashboardScreen(
             },
             bottomBar = {
                 // Primary navigation moved off the cramped top-bar icon row into a
-                // labeled bottom tab bar. Explore is the persistent content;
+                // labeled bottom tab bar. Salons is the persistent content;
                 // Bookings/Profile open their sheets, Favorites toggles the filter
-                // (so its selected state reflects showFavoritesOnly), Support opens
-                // its own screen.
+                // (so its selected state reflects showFavoritesOnly), Discover
+                // opens its own screen.
+                //
+                // Discover took the fifth slot from Support. Discover is where a
+                // customer decides which salon to book -- the reason to open the
+                // app at all -- and it had been sitting in the overflow menu,
+                // which is no place for a primary destination. Support is a
+                // utility reached once in a while, and the menu now carries
+                // labels, so it is easier to find there than an unlabeled icon
+                // ever was here.
                 NavigationBar(containerColor = DashboardSurface, tonalElevation = 0.dp) {
                     val itemColors = NavigationBarItemDefaults.colors(
                         selectedIconColor   = DeepRose,
@@ -513,9 +597,9 @@ fun CustomerDashboardScreen(
                     )
                     NavigationBarItem(
                         selected = false,
-                        onClick  = { onNavigate(Screen.Support.route) },
-                        icon     = { Icon(Icons.Default.SupportAgent, null) },
-                        label    = { Text(strings.tabSupport, fontSize = 11.sp) },
+                        onClick  = { onNavigate(Screen.Feed.build(viewModel.customerId)) },
+                        icon     = { Icon(Icons.Default.PhotoLibrary, null) },
+                        label    = { Text(strings.feedTitle, fontSize = 11.sp) },
                         colors   = itemColors
                     )
                 }
@@ -529,7 +613,11 @@ fun CustomerDashboardScreen(
             ) {
 
                 // ── Offline banner ────────────────────────────────────────────
-                AnimatedVisibility(visible = isOffline) {
+                AnimatedVisibility(
+                    visible = isOffline,
+                    enter   = fadeIn(motionTween()) + expandVertically(motionTween()),
+                    exit    = fadeOut(motionTween()) + shrinkVertically(motionTween()),
+                ) {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier         = Modifier
@@ -551,6 +639,20 @@ fun CustomerDashboardScreen(
                     BroadcastBanner(broadcasts = broadcasts)
                 }
 
+                // ── Today's free chairs ───────────────────────────────────────
+                // These used to live only inside Discover, one tap away. A story
+                // says "two chairs free this afternoon" and deletes itself in 24
+                // hours -- of everything on this screen it is the item with the
+                // shortest shelf life, so hiding it behind a tap wasted most of
+                // what it was worth. Tapping a ring opens that exact story in
+                // Discover rather than dropping the customer at the top of it.
+                if (stories.isNotEmpty()) {
+                    StoryRow(
+                        stories = stories,
+                        onOpen  = { onNavigate(Screen.Feed.build(viewModel.customerId, it.id)) }
+                    )
+                }
+
                 // ── Search bar ────────────────────────────────────────────────
                 androidx.compose.material3.OutlinedTextField(
                     value         = searchQuery,
@@ -561,8 +663,8 @@ fun CustomerDashboardScreen(
                     },
                     trailingIcon  = if (searchQuery.isNotBlank()) {
                         {
-                            IconButton(onClick = { viewModel.setSearchQuery("") }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.CheckCircle, null, tint = ChipInactive, modifier = Modifier.size(18.dp))
+                            IconButton(onClick = { viewModel.setSearchQuery("") }, modifier = Modifier.size(44.dp)) {
+                                Icon(Icons.Default.CheckCircle, strings.clearSearch, tint = ChipInactive, modifier = Modifier.size(18.dp))
                             }
                         }
                     } else null,
@@ -637,8 +739,17 @@ fun CustomerDashboardScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = if (filteredSalons.isEmpty()) strings.noProvidersTitle
-                               else strings.providersFound(filteredSalons.size),
+                        // The server's count, not the loaded page's size. These
+                        // used to be the same number because the whole collection
+                        // was in memory; with paging, the page size would read as
+                        // "20 providers found" no matter how many there are.
+                        // No number at all when the count is unknown, rather
+                        // than a number that might be wrong.
+                        text = when (matchingCount) {
+                            null -> ""
+                            0    -> strings.noProvidersTitle
+                            else -> strings.providersFound(matchingCount!!)
+                        },
                         fontSize = 11.sp,
                         color    = RoseGold,
                         modifier = Modifier.weight(1f)
@@ -672,9 +783,12 @@ fun CustomerDashboardScreen(
                 // the fold; now they scroll away and the list gets the full height.
                 // The search/filter header above stays pinned.
                 if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
+                    val narrowing = filtersActive || showFavoritesOnly || searchQuery.isNotBlank() ||
+                    selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                     SalonEmptyState(
-                        favoritesOnly = showFavoritesOnly,
-                        modifier      = Modifier.fillMaxSize()
+                        favoritesOnly  = showFavoritesOnly,
+                        modifier       = Modifier.fillMaxSize(),
+                        onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                     )
                 } else {
                     val listState = rememberLazyListState()
@@ -706,22 +820,37 @@ fun CustomerDashboardScreen(
                         }
                         if (activeOffers.isNotEmpty() && searchQuery.isBlank()) {
                             item(key = "deals") {
-                                DealsStrip(
-                                    offers  = activeOffers,
-                                    onOpen  = { salonId ->
-                                        viewModel.findSalon(salonId)?.let { salon ->
-                                            showSalonDetail = salon
-                                            viewModel.setActiveSalon(salon.id)
+                                if (dealsUnlocked) {
+                                    DealsStrip(
+                                        offers  = activeOffers,
+                                        onOpen  = { salonId ->
+                                            viewModel.findSalon(salonId)?.let { salon ->
+                                                showSalonDetail = salon
+                                                viewModel.setActiveSalon(salon.id)
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                } else if (dealsLocked) {
+                                    // Unverified customers see the deals exist but must
+                                    // verify their identity to unlock them — the nudge.
+                                    LockedDealsTeaser(
+                                        count    = activeOffers.size,
+                                        onUnlock = { onNavigate(Screen.Kyc.build(viewModel.customerId)) }
+                                    )
+                                }
                             }
                         }
                         if (filteredSalons.isEmpty()) {
                             item(key = "empty") {
+                                // The common case: recommendations or deals still have
+                                // content, so only the filtered list came up empty.
+                                val narrowing = filtersActive || showFavoritesOnly ||
+                                    searchQuery.isNotBlank() ||
+                                    selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                                 SalonEmptyState(
-                                    favoritesOnly = showFavoritesOnly,
-                                    modifier      = Modifier.fillParentMaxWidth().padding(vertical = 40.dp)
+                                    favoritesOnly  = showFavoritesOnly,
+                                    modifier       = Modifier.fillParentMaxWidth().padding(vertical = 40.dp),
+                                    onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                                 )
                             }
                         } else {
@@ -752,13 +881,22 @@ fun CustomerDashboardScreen(
                                             .padding(horizontal = 10.dp, vertical = 3.dp)
                                     ) {
                                         Text(
-                                            "${filteredSalons.size}",
+                                            "${matchingCount ?: filteredSalons.size}",
                                             color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                             }
-                            items(filteredSalons, key = { it.id }) { salon ->
+                            itemsIndexed(filteredSalons, key = { _, s -> s.id }) { index, salon ->
+                                // Fetch the next page a few cards before the end,
+                                // so scrolling does not stop to wait. loadMore
+                                // ignores the call while one is in flight or the
+                                // end is reached, so this cannot stampede.
+                                if (index >= filteredSalons.size - 4) {
+                                    LaunchedEffect(filteredSalons.size, index) {
+                                        viewModel.loadMoreSalons()
+                                    }
+                                }
                                 val distanceKm = customerLoc?.let { (la, lo) ->
                                     if (salon.hasLocation())
                                         com.safebeauty.app.util.LocationHelper.distanceKm(la, lo, salon.latitude, salon.longitude)
@@ -769,7 +907,7 @@ fun CustomerDashboardScreen(
                                     modifier         = Modifier.padding(horizontal = 16.dp),
                                     isFavorite       = favoriteIds.contains(salon.id),
                                     distanceKm       = distanceKm,
-                                    hasOffer         = offerSalonIds.contains(salon.id),
+                                    hasOffer         = dealsUnlocked && offerSalonIds.contains(salon.id),
                                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                                     onBook           = { showSalonDetail = salon; viewModel.setActiveSalon(salon.id) }
                                 )
@@ -803,6 +941,36 @@ fun CustomerDashboardScreen(
         }
 
         // ── Language picker dialog ────────────────────────────────────────────
+        if (showKycNotice) {
+            AlertDialog(
+                onDismissRequest = { showKycNotice = false },
+                icon  = { Icon(Icons.Default.Lock, null, tint = RoseGold) },
+                title = { Text(strings.kycBeforeBookingTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text  = { Text(strings.kycBeforeBookingText, fontSize = 14.sp, color = TextStrong) },
+                confirmButton = {
+                    Button(
+                        onClick = { showKycNotice = false; onNavigate(Screen.Kyc.build(viewModel.customerId)) },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.kycVerifyNow, color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showKycNotice = false }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        if (showThemePicker) {
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
+            )
+        }
+
         if (showLangPicker) {
             LanguagePickerDialog(
                 current  = langVm.language.value,
@@ -833,6 +1001,11 @@ fun CustomerDashboardScreen(
                         onPhotoSelected = { bytes -> pendingPhotoBytes = bytes },
                         isUploadingPhoto = viewModel.isUploadingPhoto,
                         appointments    = myAppointments
+                    )
+                    WalletCard(
+                        credit   = referralCredit,
+                        modifier = Modifier.padding(horizontal = 24.dp).padding(bottom = 12.dp),
+                        onTopUp  = { showWalletDialog = true }
                     )
                     LoyaltyCard(
                         points   = loyaltyPoints,
@@ -1080,7 +1253,7 @@ fun CustomerDashboardScreen(
                                 }
                                 Text("%,d AFN".format(subtotal), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepRose)
                                 IconButton(onClick = { partyGuests.removeAt(index) }) {
-                                    Icon(Icons.Default.Close, contentDescription = null, tint = RoseGold, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Close, contentDescription = strings.remove, tint = RoseGold, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -1215,7 +1388,7 @@ fun CustomerDashboardScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                         when (giftState) {
-                            is GiftUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                            is GiftUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
                             is GiftUiState.Sent     -> Text(strings.giftSent, fontSize = 12.sp, color = AvailableGreen)
                             is GiftUiState.Failed   -> Text(strings.giftFailed, fontSize = 12.sp, color = DangerRed)
                             else                    -> {}
@@ -1239,6 +1412,76 @@ fun CustomerDashboardScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showGiftDialog = false; viewModel.resetGift() }) {
+                        Text(strings.cancel, color = RoseGold)
+                    }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
+        // ── Wallet top-up dialog ──────────────────────────────────────────────
+        if (showWalletDialog) {
+            val walletState = viewModel.walletState
+            val walletCtx   = LocalContext.current
+            // Open the HesabPay page as soon as the session is created.
+            LaunchedEffect(walletState) {
+                if (walletState is WalletUiState.OpenCheckout) {
+                    runCatching {
+                        walletCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(walletState.url)))
+                    }
+                }
+            }
+            AlertDialog(
+                onDismissRequest = { showWalletDialog = false; viewModel.resetWallet() },
+                title = { Text(strings.walletTopUpTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(strings.walletTopUpHint, fontSize = 13.sp, color = TextStrong)
+                        // Quick-pick amounts.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(200L, 500L, 1000L).forEach { preset ->
+                                OutlinedButton(
+                                    onClick = { walletAmount = preset.toString() },
+                                    shape   = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    border  = androidx.compose.foundation.BorderStroke(1.dp, RoseGold),
+                                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                                ) { Text("%,d".format(preset), fontSize = 13.sp) }
+                            }
+                        }
+                        OutlinedTextField(
+                            value = walletAmount,
+                            onValueChange = { v -> if (v.length <= 6 && v.all(Char::isDigit)) walletAmount = v },
+                            label = { Text(strings.walletTopUpAmount, fontSize = 13.sp) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        when (walletState) {
+                            is WalletUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
+                            is WalletUiState.Done     -> Text(strings.walletTopUpDone, fontSize = 12.sp, color = AvailableGreen)
+                            is WalletUiState.Failed   -> Text(strings.walletTopUpFailed, fontSize = 12.sp, color = DangerRed)
+                            else                      -> {}
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (walletState is WalletUiState.Done) {
+                        Button(
+                            onClick = { showWalletDialog = false; viewModel.resetWallet(); walletAmount = "" },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.goToApp, color = Color.White) }
+                    } else {
+                        val amt = walletAmount.toLongOrNull() ?: 0L
+                        Button(
+                            enabled = amt > 0 && walletState !is WalletUiState.Creating,
+                            onClick = { viewModel.topUpWallet(amt) },
+                            colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                        ) { Text(strings.walletTopUpAction, color = Color.White) }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWalletDialog = false; viewModel.resetWallet() }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },
@@ -1588,10 +1831,12 @@ fun CustomerDashboardScreen(
                         onClick = {
                             // Identity must be verified before a customer can book.
                             if (viewModel.needsKycBeforeBooking()) {
+                                // Safety net only — the flow is normally stopped
+                                // before any of this is entered (see showKycNotice).
+                                // The draft is deliberately KEPT so that returning
+                                // from verification lands the user back on a filled
+                                // booking instead of an empty one.
                                 showNotesDialog = false
-                                bookingIntent   = null
-                                viewModel.clearPromo()
-                                viewModel.clearSlots()
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
                                 val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
@@ -1614,6 +1859,9 @@ fun CustomerDashboardScreen(
                         showNotesDialog = false
                         pendingSlotMs   = 0L
                         bookingNotes    = ""
+                        partyNote       = ""
+                        partyGuests.clear()
+                        guestNameInput  = ""
                         paymentMethod   = "ONLINE"
                         bookingIntent   = null
                         viewModel.clearPromo()
@@ -1693,6 +1941,7 @@ fun CustomerDashboardScreen(
                 }
 
                 is CheckoutUiState.Failed -> {
+                    LaunchedEffect(Unit) { Analytics.bookingFailed(state.message) }
                     // The message field now carries the server's reason code, so
                     // we can explain exactly what went wrong AND offer the recovery
                     // that saves the user from re-entering the whole booking.
@@ -1757,12 +2006,14 @@ fun CustomerDashboardScreen(
                 }
 
                 is CheckoutUiState.Paid -> {
+                    LaunchedEffect(Unit) { Analytics.bookingCompleted(cash = false) }
                     // Reset checkout; the booking-confirmation dialog (driven by
                     // bookingConfirmSalonName) shows the success message.
                     LaunchedEffect(Unit) { viewModel.cancelCheckout() }
                 }
 
                 is CheckoutUiState.CashConfirmed -> {
+                    LaunchedEffect(Unit) { Analytics.bookingCompleted(cash = true) }
                     // Same as Paid — the booking-confirmation dialog (driven by
                     // bookingConfirmSalonName / bookingConfirmCashAmount) shows
                     // the "bring cash" success message.
@@ -1847,7 +2098,13 @@ fun CustomerDashboardScreen(
                         // Nearest needs a location; request it if we don't have one
                         // yet (the launcher sets NEAREST once granted).
                         if (mode == SalonSort.NEAREST && !viewModel.hasCustomerLocation()) {
-                            locationPermLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                            // COARSE is deliberate: this only sorts salons by
+                            // distance, where city-block accuracy is ample. Asking
+                            // a customer for precise location to rank a list would
+                            // take more than the feature needs. (The provider side
+                            // still requests FINE — pinning a salon's own map
+                            // location genuinely requires it.)
+                            locationPermLauncher.launch(android.Manifest.permission.ACCESS_COARSE_LOCATION)
                         } else {
                             viewModel.setSortMode(mode)
                         }
@@ -2006,7 +2263,7 @@ fun CustomerDashboardScreen(
             ReviewDialog(
                 salonName = appt.salonName,
                 onSubmit  = { rating, comment, photos ->
-                    viewModel.submitReview(appt.salonId, rating, comment, photos)
+                    viewModel.submitReview(appt.id, appt.salonId, rating, comment, photos)
                     reviewTarget = null
                 },
                 onDismiss = { reviewTarget = null }
@@ -2038,14 +2295,20 @@ fun CustomerDashboardScreen(
                     salon            = salon,
                     reviews          = reviewsForSalon,
                     gallery          = galleryForSalon,
-                    offers           = offersForSalon,
+                    // Special offers are a verified-customer perk (see deals gate).
+                    offers           = if (dealsUnlocked) offersForSalon else emptyList(),
                     isFavorite       = favoriteIds.contains(salon.id),
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
-                        showSalonDetail   = null
-                        selectedServices.clear()
-                        bookingIntent     = BookingIntent(salon, emptyList())
-                        showServiceDialog = true
+                        if (viewModel.needsKycBeforeBooking()) {
+                            showSalonDetail = null
+                            showKycNotice   = true
+                        } else {
+                            showSalonDetail   = null
+                            selectedServices.clear()
+                            bookingIntent     = BookingIntent(salon, emptyList())
+                            showServiceDialog = true
+                        }
                     },
                     onBookPackage = { pkg ->
                         // Package services are fixed — skip service selection and go
@@ -2281,7 +2544,7 @@ private fun TipDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 when (tipState) {
-                    is TipUiState.Creating -> Text(strings.otpSending, fontSize = 12.sp, color = RoseGold)
+                    is TipUiState.Creating -> Text(strings.paymentPreparing, fontSize = 12.sp, color = RoseGold)
                     is TipUiState.Sent     -> Text(strings.tipSent, fontSize = 12.sp, color = AvailableGreen)
                     is TipUiState.Failed   -> Text(strings.tipFailed, fontSize = 12.sp, color = DangerRed)
                     else -> {}
@@ -2433,7 +2696,7 @@ private fun SalonCard(
                             )
                     ) {
                         Text(
-                            text       = salon.salonName.first().toString(),
+                            text       = salon.salonName.firstOrNull()?.toString() ?: "?",
                             fontSize   = 26.sp,
                             fontWeight = FontWeight.Bold,
                             color      = Color.White
@@ -2502,9 +2765,9 @@ private fun SalonCard(
                 ) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(48.dp)) {
                     Icon(
                         imageVector        = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = strings.favorites,
@@ -2757,10 +3020,10 @@ private fun RecommendedSalonCard(
                     overflow   = TextOverflow.Ellipsis,
                     modifier   = Modifier.weight(1f)
                 )
-                IconButton(onClick = onToggleFav, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = onToggleFav, modifier = Modifier.size(48.dp)) {
                     Icon(
                         if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        null,
+                        contentDescription = strings.favorites,
                         tint     = if (isFavorite) DeepRose else ChipInactive,
                         modifier = Modifier.size(14.dp)
                     )
@@ -2773,7 +3036,7 @@ private fun RecommendedSalonCard(
             if (salon.rating > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(11.dp))
-                    Text("%.1f".format(salon.rating), fontSize = 10.sp, color = UnavailableGrey)
+                    Text(ratingLabel(salon.rating, strings), fontSize = 10.sp, color = UnavailableGrey)
                 }
             }
             Button(
@@ -2792,7 +3055,14 @@ private fun RecommendedSalonCard(
 // ── Empty state ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier = Modifier) {
+private fun SalonEmptyState(
+    favoritesOnly: Boolean = false,
+    modifier: Modifier = Modifier,
+    // Non-null when something the user chose is narrowing the list. Without a way
+    // back, an over-filtered search is a dead end: the customer has to work out on
+    // their own which of category, neighbourhood, search or favourites emptied it.
+    onClearFilters: (() -> Unit)? = null,
+) {
     val strings = LocalStrings.current
     Box(contentAlignment = Alignment.Center, modifier = modifier.padding(40.dp)) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2825,6 +3095,16 @@ private fun SalonEmptyState(favoritesOnly: Boolean = false, modifier: Modifier =
                 color     = TextFaint,
                 textAlign = TextAlign.Center
             )
+            if (onClearFilters != null) {
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = onClearFilters,
+                    shape   = RoundedCornerShape(14.dp),
+                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                ) {
+                    Text(strings.showAllSalons, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                }
+            }
         }
     }
 }
@@ -3004,6 +3284,72 @@ private fun DealsStrip(
     }
 }
 
+/**
+ * Shown in place of [DealsStrip] for customers who haven't verified their identity.
+ * It reveals that live deals exist (the count) but keeps them locked behind KYC —
+ * the whole card taps through to the verification screen. Purely a UI nudge; the
+ * server already gates booking on verification regardless.
+ */
+@Composable
+private fun LockedDealsTeaser(count: Int, onUnlock: () -> Unit) {
+    val strings = LocalStrings.current
+    Column(modifier = Modifier.padding(bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+            Icon(Icons.Default.LocalOffer, null, tint = DeepRose, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(strings.dealsTitle, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
+        }
+        ElevatedCard(
+            shape     = RoundedCornerShape(16.dp),
+            colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+            modifier  = Modifier
+                .fillMaxWidth()
+                .clickable { onUnlock() }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(DeepRose.copy(alpha = 0.10f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Lock, null, tint = DeepRose, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        strings.dealsLockedTitle(count),
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 14.sp,
+                        color      = DeepRose
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        strings.dealsLockedBody,
+                        fontSize   = 12.sp,
+                        color      = TextMuted,
+                        lineHeight = 17.sp
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RoseGold)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(strings.dealsLockedCta, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
 // ── Referral card (invite friends, earn credit) ───────────────────────────────
 
 @Composable
@@ -3043,6 +3389,105 @@ fun LanguagePickerDialog(
         dismissButton  = {
             TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) }
         },
+        containerColor = ElegantCream
+    )
+}
+
+/**
+ * Colour-family picker.
+ *
+ * Each option is previewed with a swatch drawn from that family's own palette
+ * rather than the one currently applied — the whole decision is "which of these
+ * do I like", so the choices have to look like themselves while you choose.
+ */
+@Composable
+fun ThemePickerDialog(
+    current: AppBrand,
+    onPick: (AppBrand) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val strings = LocalStrings.current
+    val isDark  = LocalPalette.current.isDark
+    val label: (AppBrand) -> String = { brand ->
+        when (brand) {
+            AppBrand.ROSE     -> strings.themeRose
+            AppBrand.LAVENDER -> strings.themeLavender
+            AppBrand.SAGE     -> strings.themeSage
+            AppBrand.OCEAN    -> strings.themeOcean
+            AppBrand.HONEY    -> strings.themeHoney
+            AppBrand.MAROON   -> strings.themeMaroon
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(strings.themePickerTitle, fontWeight = FontWeight.Bold, color = DeepRose, fontSize = 15.sp)
+        },
+        text = {
+            // Two columns of swatches rather than a stack of full-width rows.
+            // Six families made the stacked list taller than the dialog, and the
+            // choice is made by looking at colour, not by reading names — so the
+            // colours should all be visible at once, without scrolling.
+            //
+            // Built from Rows rather than LazyVerticalGrid: an AlertDialog measures
+            // its content with an unbounded height, which a lazy grid cannot handle.
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppBrand.entries.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { brand ->
+                            // Preview in the mode the user is actually in, so the
+                            // swatch matches what applying it will look like.
+                            val preview  = paletteFor(brand, isDark)
+                            val selected = brand == current
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (selected) preview.blushPink else preview.dashboardSurface)
+                                    .border(
+                                        width = if (selected) 2.dp else 1.dp,
+                                        color = if (selected) preview.roseGold else preview.cardBorder,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable { onPick(brand) }
+                                    .padding(vertical = 14.dp, horizontal = 8.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Brush.linearGradient(preview.brandRose))
+                                    )
+                                    if (selected) {
+                                        Icon(
+                                            Icons.Default.CheckCircle, null,
+                                            tint = preview.onPrimaryWhite,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text       = label(brand),
+                                    fontSize   = 13.sp,
+                                    color      = preview.deepRose,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines   = 1,
+                                    overflow   = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        // An odd number of families must not stretch the last one
+                        // across the full width.
+                        repeat(2 - pair.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        },
+        confirmButton  = {},
+        dismissButton  = { TextButton(onClick = onDismiss) { Text(strings.cancel, color = RoseGold) } },
         containerColor = ElegantCream
     )
 }

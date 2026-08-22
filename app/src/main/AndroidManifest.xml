@@ -23,6 +23,7 @@
     <application
         android:name=".SafeBeautyApplication"
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
@@ -33,6 +34,26 @@
         android:theme="@style/Theme.SafeBeauty"
         android:usesCleartextTraffic="false"
         tools:targetApi="31">
+
+
+        <!-- Google Maps. The value comes from MAPS_API_KEY in local.properties via
+             a manifest placeholder, so the key is never committed. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
+
+        <!-- FCM renders "notification" payloads itself when the app is
+             backgrounded, so onMessageReceived never runs on that path. Without
+             these two, those pushes fall back to @mipmap/ic_launcher (an opaque
+             square, which the status bar flattens to a white block) and to FCM's
+             fallback channel, losing the high-importance heads-up behaviour
+             configured in NotificationHelper. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="channel_bookings" />
 
         <activity
             android:name=".ui.MainActivity"

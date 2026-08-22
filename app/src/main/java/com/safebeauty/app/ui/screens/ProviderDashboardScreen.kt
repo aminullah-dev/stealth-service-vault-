@@ -51,7 +51,7 @@ import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.SupportAgent
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import android.app.TimePickerDialog
@@ -138,6 +138,8 @@ import com.safebeauty.app.ui.theme.TextStrong
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.WarningOrange
+import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -165,18 +167,21 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderDashboardScreen(
-    onLockTriggered: () -> Unit,
+    onSignOut: () -> Unit,
     onNavigate: (String) -> Unit         = {},
     viewModel: ProviderViewModel         = hiltViewModel(),
     langVm: LanguageViewModel            = hiltViewModel(),
     notifVm: NotificationCenterViewModel = hiltViewModel()
 ) {
-    LaunchedEffect(viewModel.lockTriggered) {
-        if (viewModel.lockTriggered) {
-            viewModel.resetLockTrigger()
-            onLockTriggered()
+    LaunchedEffect(viewModel.signOutTriggered) {
+        if (viewModel.signOutTriggered) {
+            viewModel.resetSignOut()
+            onSignOut()
         }
     }
+
+    // Providers rely on new-booking pushes most — prompt for notifications too.
+    com.safebeauty.app.ui.components.RequestNotificationPermission()
 
     val strings             = LocalStrings.current
     val currentLanguage     by langVm.language.collectAsStateWithLifecycle()
@@ -189,6 +194,7 @@ fun ProviderDashboardScreen(
     val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
     var selectedTab         by remember { mutableIntStateOf(0) }
     var showLangPicker      by remember { mutableStateOf(false) }
+    var showThemePicker by remember { mutableStateOf(false) }
 
     val salonName = salon?.salonName ?: "My Salon"
 
@@ -228,11 +234,14 @@ fun ProviderDashboardScreen(
                         IconButton(onClick = { onNavigate(Screen.Support.route) }) {
                             Icon(Icons.Default.SupportAgent, contentDescription = strings.supportTitle, tint = RoseGold)
                         }
+                        IconButton(onClick = { showThemePicker = true }) {
+                            Icon(Icons.Default.Palette, contentDescription = strings.themePickerTitle, tint = RoseGold)
+                        }
                         IconButton(onClick = { showLangPicker = true }) {
                             Icon(Icons.Default.Language, contentDescription = null, tint = RoseGold)
                         }
-                        IconButton(onClick = { viewModel.triggerLock() }) {
-                            Icon(Icons.Default.Lock, contentDescription = strings.lock, tint = DeepRose)
+                        IconButton(onClick = { viewModel.signOut() }) {
+                            Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = strings.signOut, tint = DeepRose)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
@@ -447,6 +456,16 @@ fun ProviderDashboardScreen(
 
         // ── Admin announcement popup (one-time per broadcast) ─────────────────
         com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
+
+        if (showThemePicker) {
+            val themeVm: ThemeViewModel = hiltViewModel()
+            val brand by themeVm.brand.collectAsStateWithLifecycle()
+            ThemePickerDialog(
+                current   = brand,
+                onPick    = { themeVm.setBrand(it); showThemePicker = false },
+                onDismiss = { showThemePicker = false }
+            )
+        }
 
         if (showLangPicker) {
             LanguagePickerDialog(

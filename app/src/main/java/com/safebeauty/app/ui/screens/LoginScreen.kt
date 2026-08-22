@@ -1,6 +1,7 @@
 package com.safebeauty.app.ui.screens
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -73,6 +74,7 @@ import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
+import com.safebeauty.app.ui.theme.LocalReducedMotion
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
@@ -207,7 +209,10 @@ fun LoginScreen(
 
             // ── Logo ──────────────────────────────────────────────────────────
             val logoAlpha = remember { Animatable(0f) }
-            LaunchedEffect(Unit) { logoAlpha.animateTo(1f, animationSpec = tween(700)) }
+            val reducedMotion = LocalReducedMotion.current
+            LaunchedEffect(Unit) {
+                logoAlpha.animateTo(1f, animationSpec = if (reducedMotion) snap() else tween(700))
+            }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier

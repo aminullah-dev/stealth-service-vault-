@@ -201,14 +201,23 @@
       <li><strong>Loyalty points</strong> — earned automatically per confirmed booking</li>
       <li><strong>Waitlist entries</strong> — if you join a salon's waitlist</li>
       <li><strong>Photos you upload</strong> — profile, salon gallery, and review photos</li>
-      <li><strong>Approximate location</strong> — only when you use it, to show salon
-          distance and directions</li>
+      <li><strong>Email address</strong> — optional; used for password recovery and
+          shared with HesabPay when you pay online</li>
+      <li><strong>Location</strong> — only when you choose to use it. Approximate
+          location when customers sort salons by distance; precise location only
+          when a salon owner pins their own salon on the map</li>
+      <li><strong>Crash and diagnostic logs</strong> — collected automatically via
+          Firebase Crashlytics so we can fix faults; never sold or used for ads</li>
     </ul>
     <p>
-      For providers, we additionally store: salon name, district, services offered,
-      working hours, service prices, staff, gallery photos, and — for identity
-      verification (KYC) — your tazkira (national ID) number and your tazkira and
-      selfie photos.
+      <strong>Identity verification (KYC) applies to all users</strong>, not only
+      salon owners: customers must verify before their first booking, and salon
+      owners before their salon goes live. For this we collect your tazkira
+      (national ID) number, your tazkira and selfie photos, your province and
+      address, your year of birth, and the tazkira issue and expiry dates. These
+      are stored in a private area readable only by you and our administrators.
+      For providers we additionally store: salon name, district, services offered,
+      working hours, service prices, staff and gallery photos.
     </p>
     <p>
       Payments are processed by <strong>HesabPay</strong>. We do not store your
@@ -291,7 +300,9 @@
     <ul>
       <li><strong>Access</strong> — request a copy of your data</li>
       <li><strong>Correction</strong> — update your name or phone number</li>
-      <li><strong>Deletion</strong> — request complete removal of your account</li>
+      <li><strong>Deletion</strong> — delete your account yourself at any time from
+          <em>Support &rarr; Delete my account</em> inside the app. Full instructions:
+          <a href="https://safebeauty.web.app/delete-account">https://safebeauty.web.app/delete-account</a></li>
       <li><strong>Portability</strong> — export your booking history</li>
     </ul>
     <p>To exercise any right, contact us using the details below.</p>
@@ -360,12 +371,18 @@
       <li><strong>امتیاز وفاداری</strong> — برای هر رزرو تایید شده</li>
       <li><strong>لیست انتظار</strong> — اگر به لیست انتظار سالنی بپیوندید</li>
       <li><strong>عکس‌هایی که بارگذاری می‌کنید</strong> — پروفایل، گالری سالن و عکس نظرات</li>
-      <li><strong>موقعیت تقریبی</strong> — فقط هنگام استفاده، برای نمایش فاصله و مسیر سالن</li>
+      <li><strong>آدرس ایمیل</strong> — اختیاری؛ برای بازیابی رمز عبور و هنگام پرداخت آنلاین با HesabPay به اشتراک گذاشته می‌شود</li>
+      <li><strong>موقعیت مکانی</strong> — فقط زمانی که خودتان استفاده کنید. موقعیت تقریبی برای مرتب‌سازی سالن‌ها بر اساس فاصله، و موقعیت دقیق تنها زمانی که صاحب سالن موقعیت سالن خود را روی نقشه ثبت می‌کند</li>
+      <li><strong>گزارش خطا و تشخیص</strong> — به‌صورت خودکار از طریق Firebase Crashlytics جمع‌آوری می‌شود تا مشکلات را برطرف کنیم؛ هرگز فروخته یا برای تبلیغات استفاده نمی‌شود</li>
     </ul>
     <p>
-      برای ارائه‌دهندگان، علاوه بر این موارد ذخیره می‌کنیم: نام سالن، ناحیه،
-      خدمات، ساعات کاری، قیمت خدمات، کارکنان، عکس‌های گالری و — برای تأیید هویت
-      (KYC) — شماره تذکره و عکس‌های تذکره و سلفی شما.
+      <strong>تأیید هویت (KYC) برای همه کاربران است</strong>، نه فقط صاحبان سالن:
+      مشتریان باید پیش از اولین رزرو و صاحبان سالن پیش از فعال شدن سالن، هویت خود
+      را تأیید کنند. برای این کار شماره تذکره، عکس تذکره و سلفی، ولایت و آدرس،
+      سال تولد، و تاریخ صدور و انقضای تذکره را جمع‌آوری می‌کنیم. این اطلاعات در
+      بخشی خصوصی ذخیره می‌شوند که فقط خود شما و مدیران ما به آن دسترسی دارند.
+      برای ارائه‌دهندگان علاوه بر این ذخیره می‌کنیم: نام سالن، ناحیه، خدمات،
+      ساعات کاری، قیمت خدمات، کارکنان و عکس‌های گالری.
     </p>
     <p>
       پرداخت‌ها توسط <strong>HesabPay</strong> پردازش می‌شوند. ما جزئیات کارت یا
@@ -440,7 +457,9 @@
     <ul>
       <li><strong>دسترسی</strong> — درخواست کپی داده‌های خود</li>
       <li><strong>اصلاح</strong> — به‌روزرسانی نام یا شماره تلفن</li>
-      <li><strong>حذف</strong> — درخواست حذف کامل حساب</li>
+      <li><strong>حذف</strong> — هر زمان می‌توانید حساب خود را از داخل اپ حذف کنید:
+          <em>پشتیبانی ← حذف حساب من</em>. راهنمای کامل:
+          <a href="https://safebeauty.web.app/delete-account">https://safebeauty.web.app/delete-account</a></li>
       <li><strong>انتقال</strong> — خروجی تاریخچه رزروها</li>
     </ul>
   </div>
@@ -505,12 +524,19 @@
       <li><strong>د وفادارۍ ټکي</strong> — د هر تایید شوي بک لپاره</li>
       <li><strong>د انتظار لیست</strong> — که د سالون د انتظار لیست ته ورننوتئ</li>
       <li><strong>هغه عکسونه چې پورته کوئ</strong> — پروفایل، د سالون ګالري او د نظر عکسونه</li>
-      <li><strong>نږدې ځای</strong> — یوازې کله چې یې کاروئ، د سالون د واټن او لارې ښودلو لپاره</li>
+      <li><strong>بریښنالیک پته</strong> — اختیاري؛ د پټنوم بیارغونې لپاره او کله چې آنلاین تادیه کوئ له HesabPay سره شریکیږي</li>
+      <li><strong>ځای</strong> — یوازې کله چې تاسو یې کارول وغواړئ. نږدې ځای کله چې پیرودونکي سالونونه د واټن له مخې ترتیبوي، او دقیق ځای یوازې کله چې د سالون خاوند خپل سالون په نقشه کې ټاکي</li>
+      <li><strong>د ستونزو او تشخیص راپورونه</strong> — د Firebase Crashlytics له لارې په اتوماتيک ډول راټولیږي ترڅو ستونزې حل کړو؛ هیڅکله نه پلورل کیږي او نه د اعلاناتو لپاره کارول کیږي</li>
     </ul>
     <p>
-      د چمتو کوونکو لپاره، سربیره پردې دا هم ساتو: د سالون نوم، ناحیه، خدمات، د
-      کار ساعتونه، بیې، کارمندان، د ګالرۍ عکسونه او — د پیژندنې تایید (KYC)
-      لپاره — د تذکرې شمیره او ستاسو د تذکرې او سیلفي عکسونه.
+      <strong>د پیژندنې تایید (KYC) د ټولو کاروونکو لپاره دی</strong>، نه یوازې د
+      سالون خاوندانو لپاره: پیرودونکي باید د خپل لومړي بکینګ دمخه او د سالون
+      خاوندان د سالون د فعالیدو دمخه خپله پیژندنه تایید کړي. د دې لپاره د تذکرې
+      شمیره، د تذکرې او سیلفي عکسونه، ولایت او پته، د زیږیدنې کال، او د تذکرې د
+      صادرولو او پای نیټې راټولوو. دا معلومات په یوه خصوصي برخه کې ساتل کیږي چې
+      یوازې تاسو او زموږ مدیران ورته لاسرسی لري. د چمتو کوونکو لپاره سربیره پردې
+      دا هم ساتو: د سالون نوم، ناحیه، خدمات، د کار ساعتونه، بیې، کارمندان او د
+      ګالرۍ عکسونه.
     </p>
     <p>
       تادیات د <strong>HesabPay</strong> لخوا پروسس کیږي. موږ ستاسو د کارت یا
@@ -585,7 +611,9 @@
     <ul>
       <li><strong>لاسرسی</strong> — ستاسو د ډیټا کاپي غوښتنه</li>
       <li><strong>سمون</strong> — نوم یا شمیره تازه کول</li>
-      <li><strong>حذف</strong> — د حساب د بشپړ لرې کولو غوښتنه</li>
+      <li><strong>ړنګول</strong> — هر وخت کولی شئ خپل حساب د اپ له دننه ړنګ کړئ:
+          <em>ملاتړ ← زما حساب ړنګ کړئ</em>. بشپړ لارښود:
+          <a href="https://safebeauty.web.app/delete-account">https://safebeauty.web.app/delete-account</a></li>
       <li><strong>لیږد</strong> — د بکینګ تاریخچه صادرول</li>
     </ul>
   </div>

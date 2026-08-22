@@ -59,6 +59,20 @@ service firebase.storage {
       allow delete: if salonOwner(salonId) || isAdmin();
     }
 
+    // ── Salon feed posts ───────────────────────────────────────────────────────
+    // Path: salon_posts/{salonId}/{postId}.jpg — the social discovery feed images.
+    // Same ownership model as the gallery: only the salon owner uploads; publicly
+    // readable so the feed renders for everyone.
+    match /salon_posts/{salonId}/{fileName} {
+      allow read:   if isSignedIn();
+      // The admin also uploads here, to seed a new salon's feed on its behalf
+      // (see adminPostForSalon). The Firestore document is still written
+      // server-side; this only opens the image bytes, not the post itself.
+      allow create: if (salonOwner(salonId) || isAdmin()) && isValidImage();
+      allow update: if false;
+      allow delete: if salonOwner(salonId) || isAdmin();
+    }
+
     // ── Staff portfolio photos ───────────────────────────────────────────────────
     // Path: staff_portfolio/{salonId}/{fileName}. Same ownership model as the salon
     // gallery — only the salon owner uploads; publicly readable so customers see a
@@ -89,8 +103,11 @@ service firebase.storage {
     // only the owner and admins can read, and only the owner can upload.
     match /kyc/{uid}/{fileName} {
       allow read:   if isSignedIn() && (uid == appUid() || isAdmin());
-      allow create: if isSignedIn() && uid == appUid() && isValidImage();
-      allow update: if false;                    // replace by delete + re-upload
+      // Create AND update by the owner: KYC uses fixed names (tazkira.jpg /
+      // selfie.jpg), so a rejected provider re-submitting overwrites the same
+      // path — that's an `update`, and blocking it left them unable to ever
+      // resubmit. Still owner-only and still image-validated.
+      allow write:  if isSignedIn() && uid == appUid() && isValidImage();
       allow delete: if uid == appUid() || isAdmin();
     }
   }

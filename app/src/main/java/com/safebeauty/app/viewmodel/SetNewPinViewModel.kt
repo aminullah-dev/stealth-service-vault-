@@ -25,11 +25,18 @@ class SetNewPinViewModel @Inject constructor(
 
     val oobCode: String = checkNotNull(savedStateHandle["oobCode"])
 
+    // The reason an attempt failed. The screen maps each to a localized string
+    // (LocalStrings) — the ViewModel must never hold a user-facing English literal,
+    // or the error renders in English inside an otherwise Dari/Pashto screen.
+    enum class ErrorReason {
+        PHONE_REQUIRED, PIN_REQUIRED, PIN_TOO_SHORT, PIN_MISMATCH, NOT_FOUND, RESET_FAILED
+    }
+
     sealed class State {
         object Idle    : State()
         object Loading : State()
         object Success : State()
-        data class Error(val message: String) : State()
+        data class Error(val reason: ErrorReason) : State()
     }
 
     var phone      by mutableStateOf("")
@@ -45,10 +52,10 @@ class SetNewPinViewModel @Inject constructor(
         val np = newPin.trim()
         val cp = confirmPin.trim()
 
-        if (p.isBlank())                       { state = State.Error("Phone number is required"); return }
-        if (np.isBlank())                      { state = State.Error("New password is required"); return }
-        if (np.length < 6)                     { state = State.Error("Password must be at least 6 characters"); return }
-        if (np != cp)                          { state = State.Error("Passwords do not match"); return }
+        if (p.isBlank())  { state = State.Error(ErrorReason.PHONE_REQUIRED); return }
+        if (np.isBlank()) { state = State.Error(ErrorReason.PIN_REQUIRED); return }
+        if (np.length < 6){ state = State.Error(ErrorReason.PIN_TOO_SHORT); return }
+        if (np != cp)     { state = State.Error(ErrorReason.PIN_MISMATCH); return }
 
         viewModelScope.launch {
             state = State.Loading
@@ -60,9 +67,15 @@ class SetNewPinViewModel @Inject constructor(
 
                 @Suppress("UNCHECKED_CAST")
                 val map = result.getData() as? Map<String, Any?> ?: emptyMap()
-                if (map["found"] != true) error("No account found for this phone number")
+                if (map["found"] != true) {
+                    state = State.Error(ErrorReason.NOT_FOUND)
+                    return@runCatching
+                }
                 val firebaseEmail = (map["firebaseEmail"] as? String).orEmpty()
-                if (firebaseEmail.isBlank()) error("No account found")
+                if (firebaseEmail.isBlank()) {
+                    state = State.Error(ErrorReason.NOT_FOUND)
+                    return@runCatching
+                }
 
                 val newSalt         = pinHasher.generateSalt()
                 val newHash         = pinHasher.hash(np, newSalt)
@@ -86,9 +99,9 @@ class SetNewPinViewModel @Inject constructor(
 
                 newPin = ""; confirmPin = ""
                 state = State.Success
-            }.onFailure { e ->
+            }.onFailure {
                 if (state == State.Loading) {
-                    state = State.Error(e.message ?: "Failed to reset password. The link may have expired.")
+                    state = State.Error(ErrorReason.RESET_FAILED)
                 }
             }
         }

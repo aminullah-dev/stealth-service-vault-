@@ -14,6 +14,9 @@
   :root{
     --rose:#B76E79; --deep:#8B3A47; --plum:#7A2F3D; --blush:#F9CBDA;
     --gold:#D4A853; --green:#3fa14a; --red:#C0392B;
+    /* status TEXT inks — tuned to pass WCAG 4.5:1 on their tinted pill/flash
+       backgrounds in each theme (the raw accent colors above fail as text) */
+    --ok-ink:#256b2e; --warn-ink:#77571a; --bad-ink:#a93226;
     --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
     --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
     --panel:rgba(255,255,255,.66); --panel-solid:#ffffff;
@@ -26,6 +29,7 @@
   }
   :root[data-theme="dark"]{
     --deep:#F6D9E1; --plum:#F0C6D2; --blush:#4d2f39;
+    --ok-ink:#7dd087; --warn-ink:#e6c47a; --bad-ink:#f0958a;
     --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
     --panel:rgba(40,27,33,.62); --panel-solid:#241820;
     --card:#241820; --surface:#2c1e26; --petal:#38262f; --lilac:#3a2a3f; --cream:#221820;
@@ -76,7 +80,7 @@
   .btn-sm:hover{opacity:.92;transform:translateY(-1px)}
   .btn-sm:active{transform:none}
   .btn-sm:disabled{opacity:.55;cursor:default}
-  .err{color:var(--red);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
+  .err{color:var(--bad-ink);font-size:12.5px;min-height:18px;margin-top:8px;font-weight:600}
   .langpick{display:flex;gap:6px;justify-content:center;margin:-6px 0 20px}
   .langpick button{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:700;
     background:var(--petal);color:var(--deep);transition:opacity .15s,transform .1s}
@@ -170,9 +174,9 @@
   .tbl tbody tr:hover{background:var(--hover)}
   .tbl .name{font-weight:700;color:var(--deep)}
   .pill{display:inline-block;padding:3px 11px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}
-  .pill.ok{background:rgba(63,161,74,.16);color:#3fa14a}
-  .pill.warn{background:rgba(212,168,83,.22);color:var(--gold)}
-  .pill.bad{background:rgba(192,57,43,.15);color:#e06c5e}
+  .pill.ok{background:rgba(63,161,74,.16);color:var(--ok-ink)}
+  .pill.warn{background:rgba(212,168,83,.22);color:var(--warn-ink)}
+  .pill.bad{background:rgba(192,57,43,.15);color:var(--bad-ink)}
   .pill.info{background:var(--surface);color:var(--rose)}
 
   /* ── Filter chips ──────────────────────────────────────────────── */
@@ -191,9 +195,9 @@
 
   /* ── Forms ─────────────────────────────────────────────────────── */
   textarea.field{min-height:90px;resize:vertical;line-height:1.55}
-  .flash{background:rgba(63,161,74,.14);color:#3fa14a;border-radius:12px;padding:11px 15px;font-size:12.5px;
+  .flash{background:rgba(63,161,74,.14);color:var(--ok-ink);border-radius:12px;padding:11px 15px;font-size:12.5px;
     margin-bottom:12px;font-weight:700;border:1px solid rgba(63,161,74,.2)}
-  .flash.bad{background:rgba(192,57,43,.14);color:#e06c5e;border-color:rgba(192,57,43,.2)}
+  .flash.bad{background:rgba(192,57,43,.14);color:var(--bad-ink);border-color:rgba(192,57,43,.2)}
   .fl{display:block;font-size:11px;font-weight:800;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:0 0 6px}
   .mini{padding:10px 12px;border:1.5px solid var(--line);border-radius:11px;background:var(--panel-solid);color:var(--ink);
     font-size:13px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -252,17 +256,41 @@
     [dir="rtl"] .row:not(.wide) .actions{right:auto;left:15px}
   }
 
+  /* ── Accessibility ─────────────────────────────────────────────── */
+  .navitem:focus-visible,.btn:focus-visible,.btn-sm:focus-visible,
+  .theme-toggle:focus-visible,.pw-toggle:focus-visible,.icon-btn:focus-visible{
+    outline:2px solid var(--rose);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  }
+
+  /* ── Password show/hide (login) ────────────────────────────────── */
+  /* Physical right side on purpose: password inputs are forced direction:ltr
+     (see the input[type=…] rule above), so the eye pins to the input's own
+     trailing edge in ALL languages — logical inline-end would resolve against
+     the RTL page and land on the opposite side from the reserved padding. */
+  .pw-wrap{position:relative;margin-bottom:11px}
+  .pw-wrap .field{margin-bottom:0;padding-right:44px}
+  .pw-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    background:transparent;color:var(--muted);font-size:15px;padding:5px 7px;border-radius:9px;line-height:1}
+  .pw-toggle:hover{background:var(--petal)}
+
   /* ── Responsive: collapse the sidebar to a top rail on narrow windows ── */
   @media(max-width:720px){
     #app{flex-direction:column}
-    .sidebar{width:100%;flex-direction:row;align-items:center;gap:8px;padding:10px 12px;overflow-x:auto;
+    /* Brand + footer buttons share the top line; the nav drops to its own
+       full-width line below and scrolls horizontally, so all 10 tabs stay
+       reachable instead of being crushed into a sliver beside Sign out.
+       margin-inline-end keeps it correct in both RTL (Dari/Pashto) and LTR. */
+    .sidebar{width:100%;flex-flow:row wrap;align-items:center;gap:8px;padding:10px 12px;
       border-right:none;border-bottom:1px solid var(--line)}
     [dir="rtl"] .sidebar{border-left:none;border-bottom:1px solid var(--line)}
-    .sidebar .brand{white-space:nowrap}
+    .sidebar .brand{white-space:nowrap;margin-inline-end:auto}
     .who2{display:none}
-    .nav{flex-direction:row;flex:1;gap:4px}
-    .navitem{width:auto;white-space:nowrap;padding:8px 11px}
-    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row}
+    .nav{order:3;flex:1 0 100%;flex-direction:row;gap:4px;overflow-x:auto;
+      -webkit-overflow-scrolling:touch;padding-bottom:2px}
+    .navitem{width:auto;white-space:nowrap;padding:8px 11px;flex:0 0 auto}
+    .sidebar .foot{border-top:none;padding-top:0;margin-top:0;flex-direction:row;gap:8px}
     .theme-toggle{width:auto;padding:9px 11px}
     main{padding:18px 16px 44px}
     .topbar{padding:14px 18px;font-size:16px}
@@ -300,7 +328,11 @@
       <button data-lang="en">English</button>
     </div>
     <input id="lp" class="field" type="tel" autocomplete="username" />
-    <input id="lw" class="field" type="password" autocomplete="current-password" />
+    <div class="pw-wrap">
+      <input id="lw" class="field" type="password" autocomplete="current-password" />
+      <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false"
+        onclick="var i=document.getElementById('lw'),s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';this.setAttribute('aria-pressed',s);i.focus()">👁</button>
+    </div>
     <button id="lbtn" class="btn">Sign in</button>
     <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
@@ -333,7 +365,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword, signOut }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, collection, query, where, getDocs, getDoc, doc,
+import { getFirestore, collection, query, where, orderBy, getDocs, getDoc, doc,
          setDoc, updateDoc, addDoc, deleteDoc, onSnapshot }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
@@ -375,6 +407,8 @@ const STR = {
   errInvalid:{en:'Invalid phone or password.', fa:'شماره تلفن یا رمز نادرست است.', ps:'د تلیفون شمېره یا پټ نوم ناسم دی.'},
   errNotProvider:{en:'This account is not a salon provider.', fa:'این حساب متعلق به یک سالن نیست.', ps:'دا حساب د سالون نه دی.'},
   errSuspended:{en:'This account is suspended. Please contact support.', fa:'این حساب مسدود شده است. با پشتیبانی تماس بگیرید.', ps:'دا حساب بند شوی دی. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
+  errPending:{en:'Your salon is awaiting admin approval. You can sign in once approved.', fa:'سالن شما در انتظار تأیید ادمین است. پس از تأیید می‌توانید وارد شوید.', ps:'ستاسو سالون د اډمین د تصویب په تمه دی. له تصویب وروسته کولی شئ ننوځئ.'},
+  errRejected:{en:'Your salon application was declined. Please contact support.', fa:'درخواست سالن شما رد شده است. با پشتیبانی تماس بگیرید.', ps:'ستاسو د سالون غوښتنه رد شوه. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
   errFailed:{en:'Sign-in failed.', fa:'ورود ناموفق بود.', ps:'ننوتل ناکام شو.'},
   getApp:{en:'⬇ Get the desktop app', fa:'⬇ دریافت اپ دسکتاپ (مک/ویندوز)', ps:'⬇ د ډیسکټاپ اپ ترلاسه کول (مک/وینډوز)'},
   // Shell
@@ -424,6 +458,7 @@ const STR = {
   colCustomer:{en:'Customer', fa:'مشتری', ps:'پیرودونکی'},
   colStaff:{en:'Staff', fa:'کارمند', ps:'کارمند'},
   colWhen:{en:'When', fa:'زمان', ps:'وخت'},
+  colRef:{en:'Ref', fa:'کد رزرو', ps:'د بکنګ کوډ'},
   colPayment:{en:'Payment', fa:'پرداخت', ps:'تادیه'},
   colStatus:{en:'Status', fa:'وضعیت', ps:'حالت'},
   anyStaff:{en:'Any', fa:'هرکدام', ps:'هر یو'},
@@ -523,6 +558,33 @@ const STR = {
   staffActive:{en:'Active', fa:'فعال', ps:'فعال'},
   staffInactive:{en:'Hidden', fa:'غیرفعال', ps:'پټ'},
   noStaff:{en:'No staff yet. Solo salon? You can skip this.', fa:'هنوز کارمندی نیست. سالن تک‌نفره؟ می‌توانید رد کنید.', ps:'تر اوسه کارمند نشته. یوازیني سالون؟ تیریدلی شئ.'},
+  // Feed (social posts)
+  feed:{en:'Feed', fa:'فید', ps:'فیډ'},
+  feedTitle:{en:'Share a post', fa:'انتشار پست', ps:'پوسټ خپرول'},
+  feedHint:{en:'Photos you share appear in the discovery feed and notify your followers.', fa:'عکس‌هایی که منتشر می‌کنید در فید کشف نمایش داده می‌شوند و به دنبال‌کنندگان اعلان می‌رود.', ps:'هغه عکسونه چې خپروئ د کشف په فیډ کې ښکاري او ستاسو پیروانو ته خبرتیا ورکوي.'},
+  captionPh:{en:'Caption (optional)', fa:'کپشن (اختیاری)', ps:'سرلیک (اختیاري)'},
+  sharePost:{en:'Share', fa:'انتشار', ps:'خپرول'},
+  storyTitle:{en:'Announce free time today', fa:'اعلام وقت خالی امروز', ps:'د نن ورځې خالي وخت اعلان'},
+  storyHint:{en:'Tell customers about a free chair today. It disappears after 24 hours and is shown to everyone, including customers who have not verified their identity yet.', fa:'به مشتریان بگویید امروز جای خالی دارید. بعد از ۲۴ ساعت خودش پاک می‌شود و به همه نمایش داده می‌شود، حتی مشتریانی که هنوز هویتشان را تأیید نکرده‌اند.', ps:'پیرودونکو ته ووایاست چې نن خالي څوکۍ لرئ. له ۲۴ ساعتونو وروسته پخپله ورکیږي او هرچا ته ښودل کیږي، حتی هغو پیرودونکو ته چې لا یې پیژندنه نه ده تصدیق کړې.'},
+  storyPh:{en:'e.g. Two chairs free after 2pm today', fa:'مثلاً امروز بعد از ساعت ۲ دو جای خالی داریم', ps:'لکه نن د ۲ بجو وروسته دوه خالي څوکۍ لرو'},
+  storyPost:{en:'Announce', fa:'اعلام کن', ps:'اعلان کړئ'},
+  storyLive:{en:'Live now', fa:'فعال', ps:'اوس فعال'},
+  storyNone:{en:'No announcement running.', fa:'اعلانی فعال نیست.', ps:'هیڅ اعلان فعال نه دی.'},
+  storyNeedText:{en:'Write what is free today first.', fa:'اول بنویسید امروز چه وقتی خالی است.', ps:'لومړی ولیکئ چې نن څه خالي دي.'},
+  yourPosts:{en:'Your posts', fa:'پست‌های شما', ps:'ستاسو پوسټونه'},
+  noPosts:{en:'No posts yet — share your first.', fa:'هنوز پستی نیست — اولی را منتشر کنید.', ps:'تر اوسه پوسټ نشته — لومړی یې خپور کړئ.'},
+  deletePostConfirm:{en:'Delete this post?', fa:'این پست حذف شود؟', ps:'دا پوسټ ړنګ شي؟'},
+  pickImageFirst:{en:'Choose a photo first.', fa:'ابتدا یک عکس انتخاب کنید.', ps:'لومړی یو عکس وټاکئ.'},
+  // ── Engagement on your own posts ────────────────────────────────────────────
+  engLikes:{en:'likes', fa:'پسند', ps:'خوښې'},
+  engComments:{en:'comments', fa:'نظر', ps:'نظرونه'},
+  showComments:{en:'Comments', fa:'نظرها', ps:'نظرونه'},
+  hideComments:{en:'Hide comments', fa:'بستن نظرها', ps:'نظرونه پټ کړئ'},
+  noComments:{en:'No comments on this photo yet.', fa:'هنوز نظری روی این عکس نیست.', ps:'تر اوسه پر دې عکس نظر نشته.'},
+  loadingComments:{en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  deleteCommentConfirm:{en:'Remove this comment? The person who wrote it is not told.', fa:'این نظر حذف شود؟ به نویسنده‌اش اطلاع داده نمی‌شود.', ps:'دا نظر ړنګ شي؟ لیکونکي ته یې خبر نه ورکول کیږي.'},
+  hoursLeft:{en:(h)=>`${h} h left`, fa:(h)=>`${h} ساعت باقی مانده`, ps:(h)=>`${h} ساعته پاتې`},
+  expiringSoon:{en:'Ends within the hour', fa:'کمتر از یک ساعت باقی مانده', ps:'له یوه ساعت لږ پاتې'},
   // Days
   Saturday:{en:'Saturday', fa:'شنبه', ps:'شنبه'},
   Sunday:{en:'Sunday', fa:'یکشنبه', ps:'یکشنبه'},
@@ -656,7 +718,13 @@ async function doLogin(){
     const m = res.data || {};
     if(m.mode !== 'REAL'){ throw new Error(t('errInvalid')); }
     if((m.role||'') !== 'PROVIDER'){ throw new Error(t('errNotProvider')); }
-    if((m.status||'') === 'SUSPENDED'){ throw new Error(t('errSuspended')); }
+    // Only APPROVED salons may operate the console — the salon doc exists at
+    // registration so sign-in would otherwise succeed, then every write fails
+    // with a raw "Missing or insufficient permissions" (rules require isApproved).
+    const st = (m.status||'');
+    if(st === 'SUSPENDED'){ throw new Error(t('errSuspended')); }
+    if(st === 'REJECTED'){ throw new Error(t('errRejected')); }
+    if(st !== 'APPROVED'){ throw new Error(t('errPending')); }
     const authPw = await deriveAuthPassword(pw, m.salt || '');
     await signInWithEmailAndPassword(auth, m.firebaseEmail, authPw);
     await httpsCallable(fns,'syncUidMap')({ appUid: m.uid });
@@ -706,6 +774,7 @@ const TABS = [
   { id:'reviews',  icon:'⭐', render:renderReviews },
   { id:'income',   icon:'💰', render:renderIncome },
   { id:'offers',   icon:'🏷️', render:renderOffers },
+  { id:'feed',     icon:'📸', render:renderFeed },
   { id:'gallery',  icon:'🖼️', render:renderGallery },
   { id:'staff',    icon:'💇', render:renderStaff },
   { id:'profile',  icon:'✂️', render:renderProfile },
@@ -749,6 +818,7 @@ function buildNav(){
   TABS.forEach(tab => {
     const b = document.createElement('button');
     b.className = 'navitem' + (tab.id===activeTab?' active':'');
+    if(tab.id===activeTab) b.setAttribute('aria-current','page');
     b.dataset.id = tab.id;
     b.innerHTML = `<span class="ico">${tab.icon}</span><span>${esc(t(tab.id))}</span>` +
       (tab.id==='requests' ? `<span class="tag hidden" id="reqTag"></span>` : '');
@@ -762,7 +832,11 @@ function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
   const tab = TABS.find(x=>x.id===id);
-  [...$('nav').children].forEach(b => b.classList.toggle('active', b.dataset.id===id));
+  [...$('nav').children].forEach(b => {
+    const on = b.dataset.id===id;
+    b.classList.toggle('active', on);
+    if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+  });
   $('topbar').textContent = t(tab.id);
   $('view').innerHTML = `<div class="empty">${t('loading')}</div>`;
   if(!salonId && id!=='today'){
@@ -862,6 +936,7 @@ function renderRequests(){
         return `<div class="row" data-id="${esc(a.id)}">
           <h3>${esc(a.serviceName||t('colService'))} ${cash}</h3>
           <div class="meta">
+            ${a.bookingCode?`🔖 <b style="letter-spacing:.5px">${esc(a.bookingCode)}</b><br>`:''}
             🗓 ${esc(fmtDT(a.appointmentDate))}${staff}<br>
             👤 ${esc(a.customerName||t('colCustomer'))} · ${esc(a.customerPhone||'')}<br>
             ⭐ ${rep}${noShow}${a.notes?`<br>📝 ${esc(a.notes)}`:''}
@@ -913,6 +988,7 @@ function paintCalendar(all){
     `<button class="chip ${f===calFilter?'on':''}" data-f="${f}">${esc(f==='ALL'?t('f_all'):stLabel(f))}</button>`).join('');
   const body = shown.length ? shown.map(a => `
       <tr>
+        <td style="white-space:nowrap;letter-spacing:.4px">${esc(a.bookingCode||'—')}</td>
         <td class="name">${esc(a.serviceName||'—')}</td>
         <td>${esc(a.customerName||'—')}</td>
         <td>${esc(a.staffName||t('anyStaff'))}</td>
@@ -924,7 +1000,7 @@ function paintCalendar(all){
   $('view').innerHTML =
     `<div class="chips">${chips}</div>
      <div class="tbl-wrap"><table class="tbl">
-       <thead><tr><th>${t('colService')}</th><th>${t('colCustomer')}</th><th>${t('colStaff')}</th><th>${t('colWhen')}</th><th>${t('colPayment')}</th><th>${t('colStatus')}</th></tr></thead>
+       <thead><tr><th scope="col">${t('colRef')}</th><th scope="col">${t('colService')}</th><th scope="col">${t('colCustomer')}</th><th scope="col">${t('colStaff')}</th><th scope="col">${t('colWhen')}</th><th scope="col">${t('colPayment')}</th><th scope="col">${t('colStatus')}</th></tr></thead>
        <tbody>${body}</tbody></table></div>`;
   $('view').querySelectorAll('.chip').forEach(c => c.onclick = () => { calFilter = c.dataset.f; paintCalendar(all); });
 }
@@ -1003,7 +1079,7 @@ function renderIncome(){
        </div>
        <div class="section-title">${t('payoutHistory')}</div>
        <div class="tbl-wrap"><table class="tbl">
-         <thead><tr><th>${t('colAmount')}</th><th>${t('colMethod')}</th><th>${t('colDate')}</th></tr></thead>
+         <thead><tr><th scope="col">${t('colAmount')}</th><th scope="col">${t('colMethod')}</th><th scope="col">${t('colDate')}</th></tr></thead>
          <tbody>${rows}</tbody></table></div>
        <div class="meta" style="color:var(--muted);margin-top:12px;font-size:12px">${t('incomeNote')}</div>`;
   }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
@@ -1080,6 +1156,207 @@ function pickImage(onFile){
   inp.click();
 }
 function validImage(f){ return /^image\/(jpeg|png|webp)$/.test(f.type) && f.size < 2*1024*1024; }
+
+// A story is only worth reading while it is still true, so say how long that is
+// rather than only that it is "live" — a salon deciding whether to post another
+// one needs the number, not the pill.
+function storyLeft(expiresAt){
+  const ms = (expiresAt||0) - Date.now();
+  if(ms <= 0) return '';
+  const hours = Math.floor(ms / 3600000);
+  return hours < 1 ? t('expiringSoon') : t('hoursLeft', String(hours));
+}
+
+// The comment thread under one of this salon's own photos.
+//
+// Loaded on demand rather than with a listener per post: a salon with thirty
+// photos would otherwise open thirty live queries to render a tab where most
+// threads are never looked at.
+//
+// Deleting is the salon moderating its own photo, which the rules allow
+// (ownsThisSalon). The author is not notified — this removes a comment, it does
+// not argue with anyone.
+async function paintComments(host, postId){
+  host.innerHTML = `<div class="meta" style="color:var(--muted)">${t('loadingComments')}</div>`;
+  try{
+    const snap = await getDocs(query(
+      collection(db,'post_comments'),
+      where('postId','==',postId),
+      orderBy('createdAt','asc')
+    ));
+    const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    host.innerHTML = rows.length
+      ? rows.map(c => `<div class="row" style="margin-bottom:7px" data-cmt="${esc(c.id)}">
+           <div style="font-size:13px;font-weight:700;color:var(--deep)">${esc(c.authorName||'—')}</div>
+           <div style="font-size:13px;color:var(--ink);margin-top:2px">${esc(c.text||'')}</div>
+           <div class="meta" style="margin-top:3px">${esc(fmtD(c.createdAt))}</div>
+           <div class="actions" style="margin-top:7px"><button class="btn-sm cmt-del" style="background:var(--red)">${t('del')}</button></div>
+         </div>`).join('')
+      : `<div class="meta" style="color:var(--muted)">${t('noComments')}</div>`;
+    host.querySelectorAll('[data-cmt]').forEach(row => {
+      row.querySelector('.cmt-del').onclick = async () => {
+        if(!confirm(t('deleteCommentConfirm'))) return;
+        try{
+          await deleteDoc(doc(db,'post_comments', row.dataset.cmt));
+          await paintComments(host, postId);
+        }catch(e){ alert(e.message||String(e)); }
+      };
+    });
+  }catch(e){
+    host.innerHTML = `<div class="meta" style="color:var(--muted)">${esc(e.message||String(e))}</div>`;
+  }
+}
+
+// ── Feed (social posts → discovery feed + follower notifications) ───────────────
+let feedDraftFile = null;   // the image chosen for the next post
+function renderFeed(){
+  if(!salonId){ $('view').innerHTML = `<div class="empty">${t('noSalon')}</div>`; return; }
+  feedDraftFile = null;
+  const unsubFn = onSnapshot(query(collection(db,'salon_posts'), where('salonId','==',salonId)), (snap)=>{
+    const posts = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    $('view').innerHTML =
+      `<div class="card-pad">
+         <span class="fl">${t('storyTitle')}</span>
+         <div class="meta" style="color:var(--muted);margin-bottom:11px">${t('storyHint')}</div>
+         <div id="story-live"></div>
+         <input id="story-text" class="mini" placeholder="${esc(t('storyPh'))}" style="margin-bottom:11px" />
+         <button id="story-post" class="btn" style="width:auto;padding:11px 26px">${t('storyPost')}</button>
+       </div>
+       <div class="card-pad">
+         <span class="fl">${t('feedTitle')}</span>
+         <div class="meta" style="color:var(--muted);margin-bottom:11px">${t('feedHint')}</div>
+         <div id="pf-preview"></div>
+         <div class="inline" style="margin-bottom:10px">
+           <div><button id="post-pick" class="btn-sm" style="background:var(--surface);color:var(--deep)">🖼️ ${t('addPhoto')}</button></div>
+         </div>
+         <input id="post-caption" class="mini" placeholder="${esc(t('captionPh'))}" style="margin-bottom:11px" />
+         <button id="post-share" class="btn" style="width:auto;padding:11px 26px">${t('sharePost')}</button>
+       </div>
+       <div class="section-title">${t('yourPosts')} (${posts.length})</div>` +
+      (posts.length ? posts.map(p => `
+        <div class="row wide" data-id="${esc(p.id)}" data-path="${esc(p.storagePath||'')}" data-cc="${Number(p.commentCount||0)}">
+          <img src="${esc(p.imageUrl||'')}" alt="" style="width:100%;max-height:280px;object-fit:cover;border-radius:12px" />
+          ${p.caption?`<div style="margin-top:8px;font-size:13px;color:var(--ink)">${esc(p.caption)}</div>`:''}
+          <div class="meta" style="margin-top:5px">
+            ${esc(fmtD(p.createdAt))}
+            &nbsp;·&nbsp; ❤ ${Number(p.likeCount||0)} ${t('engLikes')}
+            &nbsp;·&nbsp; 💬 ${Number(p.commentCount||0)} ${t('engComments')}
+          </div>
+          <div class="actions" style="margin-top:9px">
+            <button class="btn-sm post-cmt" style="background:var(--surface);color:var(--deep)">${t('showComments')} (${Number(p.commentCount||0)})</button>
+            <button class="btn-sm post-del" style="background:var(--red)">${t('del')}</button>
+          </div>
+          <div class="cmt-host" style="margin-top:10px"></div>
+        </div>`).join('') : `<div class="empty">${t('noPosts')}</div>`);
+
+    const paintPreview = () => {
+      const host = $('pf-preview'); if(!host) return;
+      if(feedDraftFile){
+        const url = URL.createObjectURL(feedDraftFile);
+        host.innerHTML = `<img src="${url}" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:10px" />`;
+      } else host.innerHTML = '';
+    };
+    // ── Story: a 24-hour availability announcement ──────────────────────────
+    // No image required. The point is speed: a salon with an empty chair should
+    // be able to say so in one line, from a phone, between customers.
+    (async () => {
+      const host = $('story-live'); if(!host) return;
+      try{
+        const snap = await getDocs(query(collection(db,'salon_stories'), where('salonId','==',salonId)));
+        const live = snap.docs.map(d=>({id:d.id,...d.data()})).filter(x => (x.expiresAt||0) > Date.now());
+        host.innerHTML = live.length
+          ? live.map(x => `<div class="row" style="margin-bottom:9px" data-story="${esc(x.id)}">
+               <span class="pill ok">${t('storyLive')}</span>
+               <span class="meta" style="margin-inline-start:8px">${esc(storyLeft(x.expiresAt))}</span>
+               <div style="margin-top:6px;font-size:13px;color:var(--ink)">${esc(x.text||'')}</div>
+               <div class="actions" style="margin-top:8px"><button class="btn-sm story-del" style="background:var(--red)">${t('del')}</button></div>
+             </div>`).join('')
+          : `<div class="meta" style="color:var(--muted);margin-bottom:10px">${t('storyNone')}</div>`;
+        host.querySelectorAll('[data-story]').forEach(row => {
+          row.querySelector('.story-del').onclick = async () => {
+            try{ await deleteDoc(doc(db,'salon_stories', row.dataset.story)); renderFeed(); }
+            catch(err){ alert(err.message||String(err)); }
+          };
+        });
+      }catch(_){ host.innerHTML = ''; }
+    })();
+
+    $('story-post').onclick = async (e) => {
+      const text = ($('story-text').value||'').trim().slice(0,200);
+      if(!text){ alert(t('storyNeedText')); return; }
+      const btn = e.target, lbl = btn.textContent; btn.disabled = true;
+      try{
+        const now = Date.now();
+        const ref = doc(collection(db,'salon_stories'));
+        await setDoc(ref, {
+          id: ref.id, salonId, salonName: (salon&&salon.salonName)||'',
+          text, imageUrl: '', storagePath: '',
+          createdAt: now,
+          // Written by the author rather than inferred on read, so the lifetime
+          // does not shift with each reader's clock.
+          expiresAt: now + 24*60*60*1000,
+        });
+        $('story-text').value = '';
+        renderFeed();
+      }catch(err){ alert(err.message||String(err)); }
+      finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('post-pick').onclick = () => pickImage(f => {
+      if(!validImage(f)){ alert(t('imageTooBig')); return; }
+      feedDraftFile = f; paintPreview();
+    });
+    $('post-share').onclick = async (e) => {
+      if(!feedDraftFile){ alert(t('pickImageFirst')); return; }
+      const btn = e.target, lbl = btn.textContent; btn.disabled = true; btn.textContent = t('uploading');
+      try{
+        const pRef = doc(collection(db,'salon_posts'));
+        const path = `salon_posts/${salonId}/${pRef.id}.jpg`;
+        await uploadBytes(sref(storage, path), feedDraftFile, { contentType: feedDraftFile.type });
+        const url = await getDownloadURL(sref(storage, path));
+        await setDoc(pRef, {
+          id: pRef.id, salonId, providerId: provider.uid,
+          salonName: (salon&&salon.salonName)||'',
+          imageUrl: url, storagePath: path,
+          caption: ($('post-caption').value||'').trim().slice(0,300),
+          createdAt: Date.now()
+        });
+        feedDraftFile = null;
+      }catch(err){ alert(t('uploadErr', err.message||'')); }
+      finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+    paintPreview();
+
+    // Scoped to post rows. Stories and comments carry the same .row class and are
+    // painted asynchronously into this same view, so a bare '.row' selector only
+    // ever worked because it happened to run before they arrived.
+    $('view').querySelectorAll('.row[data-id]').forEach(row => {
+      const host = row.querySelector('.cmt-host');
+      const cmt  = row.querySelector('.post-cmt');
+      if(cmt) cmt.onclick = async () => {
+        const open = host.dataset.open === '1';
+        if(open){
+          host.innerHTML = ''; host.dataset.open = '';
+          cmt.textContent = `${t('showComments')} (${row.dataset.cc||0})`;
+        }else{
+          host.dataset.open = '1';
+          cmt.textContent = t('hideComments');
+          await paintComments(host, row.dataset.id);
+        }
+      };
+      row.querySelector('.post-del').onclick = async () => {
+        if(!confirm(t('deletePostConfirm'))) return;
+        try{
+          // The cleanupDeletedPost trigger clears this post's likes and comments;
+          // only the image has to be removed from here.
+          await deleteDoc(doc(db,'salon_posts', row.dataset.id));
+          if(row.dataset.path){ try{ await deleteObject(sref(storage, row.dataset.path)); }catch(_){} }
+        }catch(e){ alert(e.message); }
+      };
+    });
+  }, (e)=>{ $('view').innerHTML = `<div class="empty">${t('loadErr', esc(e.message))}</div>`; });
+  unsub.push(unsubFn);
+}
 
 // ── Gallery (portfolio photos) ──────────────────────────────────────────────────
 async function addGalleryPhoto(file, btn){

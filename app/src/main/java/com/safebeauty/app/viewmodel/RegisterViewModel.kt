@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
@@ -28,13 +27,22 @@ class RegisterViewModel @Inject constructor(
 
     private val functions = FirebaseFunctions.getInstance()
 
+    // The reason an attempt failed. The screen maps each to a localized string
+    // (LocalStrings) — the ViewModel must never hold a user-facing English
+    // literal, or the error renders in English inside a Dari/Pashto screen.
+    enum class ErrorReason {
+        NAME_REQUIRED, PHONE_REQUIRED, PHONE_INVALID, EMAIL_INVALID,
+        PIN_TOO_SHORT, PIN_MISMATCH,
+        SALON_NAME_REQUIRED, DISTRICT_REQUIRED, SERVICES_REQUIRED,
+        PHONE_CHECK_FAILED, PHONE_EXISTS, REGISTRATION_FAILED
+    }
+
     sealed class RegisterState {
         object Idle       : RegisterState()
         object Loading    : RegisterState()
-        object AwaitingOtp : RegisterState()       // phone free; waiting for SMS code
         data class CustomerSuccess(val name: String) : RegisterState()
         object ProviderPending : RegisterState()   // needs admin approval
-        data class Error(val message: String) : RegisterState()
+        data class Error(val reason: ErrorReason) : RegisterState()
     }
 
     // ── Form fields ───────────────────────────────────────────────────────────
@@ -71,31 +79,37 @@ class RegisterViewModel @Inject constructor(
 
     // ── Validation ────────────────────────────────────────────────────────────
 
-    private fun validate(): String? {
-        if (name.isBlank())            return "Name is required"
-        if (phone.isBlank())           return "Phone number is required"
+    private fun validate(): ErrorReason? {
+        if (name.isBlank())            return ErrorReason.NAME_REQUIRED
+        if (phone.isBlank())           return ErrorReason.PHONE_REQUIRED
         // Self-registration is customer/provider only, and those must be Afghan
         // (+93) numbers. Admin accounts (any country) are created out-of-band.
         if (!PhoneUtils.isValidAfghan(phone))
-            return "Enter a valid Afghan phone number (e.g. 0700123456)"
+            return ErrorReason.PHONE_INVALID
         if (email.isNotBlank() && !Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches())
-            return "Please enter a valid email address"
-        if (password.length < 6)       return "Password must be at least 6 characters"
-        if (password != confirmPassword) return "Passwords do not match"
-        if (isProvider && salonName.isBlank()) return "Salon name is required"
-        if (isProvider && district.isBlank())  return "District is required"
-        if (isProvider && services.isEmpty())  return "Add at least one service"
+            return ErrorReason.EMAIL_INVALID
+        if (password.length < 6)       return ErrorReason.PIN_TOO_SHORT
+        if (password != confirmPassword) return ErrorReason.PIN_MISMATCH
+        if (isProvider && salonName.isBlank()) return ErrorReason.SALON_NAME_REQUIRED
+        if (isProvider && district.isBlank())  return ErrorReason.DISTRICT_REQUIRED
+        if (isProvider && services.isEmpty())  return ErrorReason.SERVICES_REQUIRED
         return null
     }
 
     // ── Registration ──────────────────────────────────────────────────────────
 
     /**
-     * Step 1 of registration: validate the form and confirm the phone number is
-     * not already taken, then hand off to the UI to send an SMS OTP. We verify the
-     * number BEFORE creating anything, so we never text a code for a duplicate.
+     * Registers the account: validate the form, confirm the phone number isn't
+     * already taken (server-side, since the phone is the login identifier), then
+     * create the account. Registration is phone + password — there is no SMS OTP
+     * step (phone ownership isn't verified via SMS).
      */
     fun startRegistration() {
+        // In-flight guard: a fast double-tap would otherwise launch two coroutines
+        // that both pass the phone-uniqueness check before either user doc exists,
+        // creating two accounts sharing one phone (login then resolves an arbitrary
+        // one).
+        if (state is RegisterState.Loading) return
         val error = validate()
         if (error != null) { state = RegisterState.Error(error); return }
 
@@ -111,31 +125,15 @@ class RegisterViewModel @Inject constructor(
                     .await()
                 (r.getData() as? Map<*, *>)?.get("found") == true
             }.getOrElse {
-                state = RegisterState.Error("Couldn't verify the phone number. Check your connection and try again.")
+                state = RegisterState.Error(ErrorReason.PHONE_CHECK_FAILED)
                 return@launch
             }
             if (exists) {
-                state = RegisterState.Error("An account with this phone number already exists.")
+                state = RegisterState.Error(ErrorReason.PHONE_EXISTS)
                 return@launch
             }
-            // Phone is free — the UI now sends the SMS code and collects it.
-            state = RegisterState.AwaitingOtp
-        }
-    }
-
-    /**
-     * Step 2: called once the SMS OTP has been entered and turned into a verified
-     * [phoneCredential]. Creates the account and *links* the credential to it to
-     * prove the user owns the number; if linking fails (wrong/expired code), the
-     * half-created account is rolled back so nothing partial is left behind.
-     */
-    fun completeRegistration(phoneCredential: PhoneAuthCredential) {
-        viewModelScope.launch {
-            state = RegisterState.Loading
 
             runCatching {
-                val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
-
                 val uid           = UUID.randomUUID().toString()
                 val salt          = pinHasher.generateSalt()
                 // pinHash/salt now hash the chosen PASSWORD (same PBKDF2 machinery
@@ -157,51 +155,52 @@ class RegisterViewModel @Inject constructor(
                     .orEmpty()
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
-                // Prove the user owns the phone by linking the SMS-verified
-                // credential to the fresh account. A wrong/expired code throws here,
-                // so we delete the just-created account and surface the error rather
-                // than leaving a half-registered, unverified user behind.
-                firebaseAuth.linkPhoneCredential(phoneCredential).getOrElse { e ->
+
+                // Once the Auth account exists, any failure of the following steps
+                // must roll it back — otherwise an orphaned Auth account (no user
+                // doc) permanently bricks the person: every retry hits "email
+                // already in use" and login-by-phone finds nothing.
+                try {
+                    firestoreRepository.createUser(
+                        UserDocument(
+                            uid           = uid,
+                            name          = name.trim(),
+                            phone         = normalizedPhone,
+                            email         = email.trim(),
+                            role          = role,
+                            pinHash       = pinHash,
+                            salt          = salt,
+                            status        = status,
+                            firebaseEmail = firebaseEmail,
+                            createdAt     = System.currentTimeMillis(),
+                            referralCode  = referralCode,
+                            referredBy    = referredBy
+                        )
+                    )
+
+                    if (isProvider) {
+                        // Salon creation is server-side (createProviderSalon): the
+                        // providerId must be the authoritative app-level uid, and at
+                        // registration the uid_map bridge isn't populated yet, so a
+                        // direct client write can't pass the security rules.
+                        functions
+                            .getHttpsCallable("createProviderSalon")
+                            .call(hashMapOf(
+                                "salonName" to salonName.trim(),
+                                "district"  to district.trim(),
+                                "services"  to services
+                            ))
+                            .await()
+                        state = RegisterState.ProviderPending
+                    } else {
+                        state = RegisterState.CustomerSuccess(name.trim())
+                    }
+                } catch (e: Exception) {
                     firebaseAuth.deleteCurrentUser()
                     throw e
                 }
-
-                firestoreRepository.createUser(
-                    UserDocument(
-                        uid           = uid,
-                        name          = name.trim(),
-                        phone         = normalizedPhone,
-                        email         = email.trim(),
-                        role          = role,
-                        pinHash       = pinHash,
-                        salt          = salt,
-                        status        = status,
-                        firebaseEmail = firebaseEmail,
-                        createdAt     = System.currentTimeMillis(),
-                        referralCode  = referralCode,
-                        referredBy    = referredBy
-                    )
-                )
-
-                if (isProvider) {
-                    // Salon creation is server-side (createProviderSalon): the
-                    // providerId must be the authoritative app-level uid, and at
-                    // registration the uid_map bridge isn't populated yet, so a
-                    // direct client write can't pass the security rules.
-                    functions
-                        .getHttpsCallable("createProviderSalon")
-                        .call(hashMapOf(
-                            "salonName" to salonName.trim(),
-                            "district"  to district.trim(),
-                            "services"  to services
-                        ))
-                        .await()
-                    state = RegisterState.ProviderPending
-                } else {
-                    state = RegisterState.CustomerSuccess(name.trim())
-                }
             }.onFailure { e ->
-                state = RegisterState.Error(e.message ?: "Registration failed. Try again.")
+                state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
             }
         }
     }
