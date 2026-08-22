@@ -7,7 +7,8 @@ const { phoneKey } = require("../lib/phone");
 const { assertAdmin, assertDocId, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
-const { admin, db, logger } = require("../shared");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { admin, alertable, db, logger } = require("../shared");
 
 // Referral rewards (AFN). Both are granted when a referred user's identity is
 // verified (see reviewKyc): the new user gets a welcome credit, the friend who
@@ -630,3 +631,57 @@ function callerIp(request) {
 }
 
 /** Purge stale rate-limit counters so the collection can't grow without bound. */
+
+
+// ── deriveUserPhoneKey ────────────────────────────────────────────────────────
+//
+// Keeps the login lookup key in step with the phone it is derived from.
+//
+// authenticateWithPassword resolves an account by three indexed attempts: the
+// normalized phone, the raw phone, and this key. The first two only match when
+// the stored form happens to equal what was typed, and the key is what covers
+// everything else — a number stored without its country code, or with a leading
+// zero, or in whatever shape an older version of the app wrote.
+//
+// It used to be populated by a callable an admin had to remember to run. That
+// is how the platform's own admin ended up locked out: the account predated the
+// app's normalization, the backfill had never been run against production, and
+// the tool for fixing it was itself behind assertAdmin — the fix sat behind the
+// door it had closed.
+//
+// So it is derived here instead, on every write, and nobody has to remember
+// anything. Server-written, so the rules can keep it frozen against clients: an
+// account that could choose its own login key could claim another's.
+exports.deriveUserPhoneKey = onDocumentWritten(
+  { document: "users/{uid}", region: "us-central1" },
+  async (event) => {
+    const after = event.data && event.data.after;
+    if (!after || !after.exists) return;
+
+    const u = after.data() || {};
+    const want = phoneKey(u.phone);
+    if (!want) return;                       // too short to identify anyone
+    if (u.phoneDigits === want) return;      // unchanged — and this is what
+                                             // stops the write below from
+                                             // retriggering this function forever
+
+    await after.ref.update({ phoneDigits: want });
+
+    // Two accounts sharing a subscriber number makes login ambiguous for both:
+    // whoever the index returns first wins, and the other person signs in to a
+    // stranger's account or not at all. It cannot be resolved automatically —
+    // only a person knows whether it is one customer registered twice or two
+    // customers who typed the same number — so it is surfaced, not guessed at.
+    const others = await db.collection("users")
+      .where("phoneDigits", "==", want)
+      .limit(3)
+      .get();
+    const clash = others.docs.filter((d) => d.id !== after.id);
+    if (clash.length) {
+      alertable("BOOKING_FAILED", "Two accounts share one phone number", {
+        phoneDigits: want,
+        uids: [after.id, ...clash.map((d) => d.id)],
+      });
+    }
+  }
+);
