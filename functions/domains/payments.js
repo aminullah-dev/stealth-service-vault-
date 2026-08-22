@@ -5,7 +5,7 @@
 
 const { computeCheckout, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
-const { hasSlotConflict, serviceSlotSpan } = require("../lib/slots");
+const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { isValidDocId } = require("../lib/validate");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
@@ -187,8 +187,12 @@ exports.createPaymentSession = onCall(
     // with no duration fall back to one whole slot. When no durations are set this
     // equals services.length — identical to the previous behavior. Tested in
     // lib/slots.js.
-    const slotSpan = serviceSlotSpan(
+    // busyOffsets names which of those slots the stylist is actually working. A
+    // colour leaves her free while the colour develops, and that gap is hers to
+    // sell — so it is left out of the set the conflict check compares.
+    const { span: slotSpan, busyOffsets } = serviceLayout(
       services.map((s) => s.name),
+      salon.serviceTiming,
       salon.durationPerService,
       salon.slotDurationMinutes
     );
@@ -234,7 +238,7 @@ exports.createPaymentSession = onCall(
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     };
 
-    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
+    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, busyOffsets, resolvedStaffId, slotMinutes)) {
       // A customer chose this salon, this service and this time, and could not
       // have it. That is the most specific demand signal the system can observe.
       await recordDemandSignal({
@@ -387,6 +391,7 @@ exports.createPaymentSession = onCall(
         serviceName,
         services,
         slotsCount:     slotSpan,
+        busyOffsets:     busyOffsets,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
@@ -452,7 +457,7 @@ exports.createPaymentSession = onCall(
       }
       try {
         await commitBookingAtomically(db, batch, readNearbyAppointments,
-          appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
+          appointmentDate, busyOffsets, resolvedStaffId, slotMinutes);
         await logAppointmentEvent(
           { bookingCode, salonId, customerId: uid, status: "" },
           apptRef.id, "PENDING",
@@ -502,6 +507,7 @@ exports.createPaymentSession = onCall(
       serviceName,
       services,
       slotsCount:    slotSpan,
+      busyOffsets:    busyOffsets,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,
@@ -548,7 +554,7 @@ exports.createPaymentSession = onCall(
     });
     try {
       await commitBookingAtomically(db, createBatch, readNearbyAppointments,
-        appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
+        appointmentDate, busyOffsets, resolvedStaffId, slotMinutes);
       await logAppointmentEvent(
         { bookingCode, salonId, customerId: uid, status: "" },
         apptRef.id, "AWAITING_PAYMENT",

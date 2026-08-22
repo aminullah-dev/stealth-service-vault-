@@ -276,8 +276,19 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
   const salonSnap = await db.doc(`salons/${salonId}`).get();
   const slotMinutes = Number((salonSnap.exists ? salonSnap.data().slotDurationMinutes : 0)) || 60;
 
+  // Bounded to the day being shown. This read used to fetch every appointment the
+  // salon had ever taken and then keep the ones falling in the window — the third
+  // door onto the same defect P1 closed in createPaymentSession, and the one a
+  // customer hits most often, since it runs every time she opens a date.
+  //
+  // The lower bound is a day early rather than exactly dayStart, so a long
+  // booking that began the previous evening is still read. The in-memory filter
+  // below is unchanged, so the set returned is identical to before — this is a
+  // cost fix, not a behaviour change.
   const snap = await db.collection("appointments")
     .where("salonId", "==", salonId)
+    .where("appointmentDate", ">=", start - 24 * 60 * 60 * 1000)
+    .where("appointmentDate", "<=", end)
     .get();
   const inWindow = snap.docs
     .map((d) => d.data())
@@ -371,7 +382,13 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
         .where("appointmentDate", "<", conflictWindow.end)
     );
     const others = otherSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    if (hasSlotConflict(others, dateMs, span, String(appt.staffId || ""), slotMinutes, appointmentId)) {
+    // The offsets the booking was made with, not a recomputed span: if the salon
+    // has since changed that service's timing, this booking still occupies what
+    // it occupied when the customer made it.
+    const busy = Array.isArray(appt.busyOffsets) && appt.busyOffsets.length
+      ? appt.busyOffsets
+      : span;
+    if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes, appointmentId)) {
       throw new HttpsError("failed-precondition", "That time is no longer available.");
     }
 

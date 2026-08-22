@@ -1181,24 +1181,28 @@ class DashboardViewModel @Inject constructor(
      * whole slot; the total is divided by the slot granularity and rounded up
      * (min 1). With no durations set this equals the service count — unchanged.
      */
-    fun slotSpanFor(salon: SalonDocument, serviceNames: List<String>): Int {
-        if (serviceNames.isEmpty()) return 1
-        val step = salon.slotDurationMinutes.coerceAtLeast(1)
-        val totalMinutes = serviceNames.sumOf { name ->
-            val d = salon.durationPerService[name] ?: 0
-            if (d > 0) d else step
-        }
-        return ((totalMinutes + step - 1) / step).coerceAtLeast(1)
-    }
-
-    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "", slotSpan: Int = 1) {
+    /**
+     * Load the start times a booking of [services] could take on [dateMs].
+     *
+     * Takes the services rather than a pre-computed span so the layout is worked
+     * out in one place. The screen used to compute the span and pass it in, which
+     * is one more copy of the rule than there should be — and the copy that is
+     * wrong is the one that offers a customer a slot the server then refuses.
+     */
+    fun loadSlotsForDate(
+        salon: SalonDocument,
+        dateMs: Long,
+        selectedStaffId: String = "",
+        services: List<String> = emptyList(),
+    ) {
         viewModelScope.launch {
             slotsLoading = true
             noWorkingHours = false
             val booked = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
             }.getOrDefault(emptyList())
-            val slots = computeSlots(salon, dateMs, booked, selectedStaffId, slotSpan)
+            val slots = computeSlots(salon, dateMs, booked, selectedStaffId,
+                                     com.safebeauty.app.util.SlotMath.layoutFor(salon, services))
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false
@@ -1235,7 +1239,7 @@ class DashboardViewModel @Inject constructor(
         dateMs: Long,
         booked: List<FirestoreRepository.BookedSlot>,
         selectedStaffId: String,
-        slotSpan: Int = 1
+        layout: com.safebeauty.app.util.SlotLayout,
     ): List<Long> {
         // Days the provider blocked off (time-off/holiday) offer no slots.
         if (salon.blockedDates.contains(com.safebeauty.app.util.DateUtils.kabulDateKey(dateMs))) {
@@ -1252,6 +1256,12 @@ class DashboardViewModel @Inject constructor(
         val activeStaff = salon.activeStaff()
         val capacity = if (activeStaff.isEmpty()) 1 else activeStaff.size
         val bookedByTime: Map<Long, List<FirestoreRepository.BookedSlot>> = booked.groupBy { it.time }
+        // Two sets, because a booking needs different things from each slot it
+        // covers. Every slot has to be inside opening hours — the client is in
+        // the salon for all of them. Only the slots the stylist is working have
+        // to be free; while a colour develops she can be booked by someone else,
+        // and that is the capacity this whole feature exists to sell.
+        val inHours = mutableListOf<Long>()
         val slots = mutableListOf<Long>()
         val openCal = Calendar.getInstance().apply {
             timeInMillis = dateMs
@@ -1281,20 +1291,22 @@ class DashboardViewModel @Inject constructor(
                     // "Any available": free while a chair is still open.
                     else                         -> atSlot.size < capacity
                 }
+                inHours.add(slotMs)
                 if (free) slots.add(slotMs)
             }
             openCal.add(Calendar.MINUTE, slotDuration)
         }
-        // A multi-service / group booking needs [slotSpan] back-to-back free slots,
-        // so a start time only qualifies when every slot it would occupy is also
-        // free (and still within opening hours). This mirrors the server-side
-        // expansion in lib/slots.js so the customer can't start a long booking that
-        // would run into an existing appointment or past closing time.
-        if (slotSpan <= 1) return slots
-        val freeSet = slots.toHashSet()
-        val stepMs  = slotDuration * 60_000L
+        // A start time qualifies when the stylist is free for every slot she is
+        // working, and the whole booking — development gap included — still fits
+        // inside opening hours. Mirrors serviceLayout + hasSlotConflict on the
+        // server, so the customer is not offered a slot she would be refused.
+        if (layout.span <= 1 && layout.busyOffsets.size <= 1) return slots
+        val freeSet    = slots.toHashSet()
+        val inHoursSet = inHours.toHashSet()
+        val stepMs     = slotDuration * 60_000L
         return slots.filter { start ->
-            (0 until slotSpan).all { i -> freeSet.contains(start + i * stepMs) }
+            layout.busyOffsets.all { i -> freeSet.contains(start + i * stepMs) } &&
+                (0 until layout.span).all { i -> inHoursSet.contains(start + i * stepMs) }
         }
     }
 

@@ -1540,7 +1540,7 @@ fun CustomerDashboardScreen(
                             val selectedDate = datePickerState.selectedDateMillis
                             if (selectedDate != null && bookingIntent != null) {
                                 bookingIntent = bookingIntent?.copy(dateMs = selectedDate)
-                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, slotSpan = viewModel.slotSpanFor(bookingIntent!!.salon, bookingIntent!!.services))
+                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, services = bookingIntent!!.services)
                             }
                             showSlotPicker = true
                         },
@@ -1584,7 +1584,7 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = "", staffName = "")
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", viewModel.slotSpanFor(intent.salon, intent.services))
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", intent.services)
                                         }
                                     },
                                     label = { Text(strings.staffAny, fontSize = 12.sp) },
@@ -1602,7 +1602,7 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = member.id, staffName = member.name)
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, viewModel.slotSpanFor(intent.salon, intent.services))
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, intent.services)
                                         }
                                     },
                                     label = { Text(member.name, fontSize = 12.sp) },

@@ -202,7 +202,7 @@
   .mini{padding:10px 12px;border:1.5px solid var(--line);border-radius:11px;background:var(--panel-solid);color:var(--ink);
     font-size:13px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s}
   .mini:focus{border-color:var(--rose);box-shadow:0 0 0 3px var(--ring)}
-  .svc-row{display:grid;grid-template-columns:1fr 120px 120px 40px;gap:10px;align-items:center;margin-bottom:9px}
+  .svc-row{display:grid;grid-template-columns:1fr 96px 96px 96px 96px 40px;gap:8px;align-items:center;margin-bottom:9px}
   .svc-row .svc-name{font-weight:700;color:var(--deep);font-size:13px}
   .svc-row .u{font-size:10.5px;color:var(--muted);font-weight:700}
   .icon-btn{width:34px;height:34px;border-radius:10px;background:var(--surface);color:var(--red);font-size:15px;
@@ -522,6 +522,13 @@ const STR = {
   servicesPricing:{en:'Services & pricing', fa:'خدمات و قیمت‌ها', ps:'خدمات او بیې'},
   colPrice:{en:'Price (AFN)', fa:'قیمت (افغانی)', ps:'بیه (افغانۍ)'},
   colDuration:{en:'Duration (min)', fa:'مدت (دقیقه)', ps:'موده (دقیقه)'},
+  colWait:{en:'Wait (min)', fa:'وقفه (دقیقه)', ps:'ځنډ (دقیقې)'},
+  colAfter:{en:'After (min)', fa:'پس از وقفه', ps:'له ځنډ وروسته'},
+  waitHint:{
+    en:'“Wait” is time inside the service when you are free — while colour develops, for example. You can be booked by someone else then. “After” is the work left once the wait ends, such as washing and styling.',
+    fa:'«وقفه» بخشی از همان مدت است که شما آزاد هستید — مثلاً وقتی رنگ مو در حال اثر کردن است. در آن زمان مشتری دیگری می‌تواند شما را رزرو کند. «پس از وقفه» کاری است که بعد از آن می‌ماند، مثل شستن و حالت دادن.',
+    ps:'«ځنډ» د همدې مودې هغه برخه ده چې تاسو خلاص یاست — لکه کله چې رنګ اثر کوي. په هغه وخت کې بل مراجع کولی شي تاسو ونیسي. «له ځنډ وروسته» هغه کار دی چې پاتې کیږي، لکه مینځل او سمول.'
+  },
   addServicePh:{en:'Add a service (e.g. Haircut)', fa:'افزودن خدمت (مثلاً کوتاهی مو)', ps:'خدمت زیاتول (لکه د ویښتانو کمول)'},
   addService:{en:'Add service', fa:'افزودن خدمت', ps:'خدمت زیاتول'},
   noServices:{en:'No services yet — add your first below.', fa:'هنوز خدمتی نیست — اولی را در پایین اضافه کنید.', ps:'تر اوسه خدمت نشته — لومړی یې لاندې زیات کړئ.'},
@@ -1494,6 +1501,7 @@ function renderProfile(){
     services: [...(salon.services||[])],
     prices: {...(salon.pricePerService||{})},
     durations: {...(salon.durationPerService||{})},
+    timing: {...(salon.serviceTiming||{})},
     slot: salon.slotDurationMinutes || 60,
     hours: DAYS.map(([d]) => {
       const w = hoursByDay[d] || {};
@@ -1520,7 +1528,8 @@ function renderProfile(){
 
     <div class="card-pad">
       <span class="fl">${t('servicesPricing')}</span>
-      <div class="svc-row" style="color:var(--muted)"><div class="u">${t('colService')}</div><div class="u">${t('colPrice')}</div><div class="u">${t('colDuration')}</div><div></div></div>
+      <div class="hint" style="margin:2px 0 8px">${t('waitHint')}</div>
+      <div class="svc-row" style="color:var(--muted)"><div class="u">${t('colService')}</div><div class="u">${t('colPrice')}</div><div class="u">${t('colDuration')}</div><div class="u">${t('colWait')}</div><div class="u">${t('colAfter')}</div><div></div></div>
       <div id="pf-services"></div>
       <div class="inline" style="margin-top:6px">
         <div><input id="pf-newsvc" class="mini" placeholder="${esc(t('addServicePh'))}" /></div>
@@ -1574,13 +1583,33 @@ function paintServices(){
       <div class="svc-name">${esc(s)}</div>
       <input class="mini pf-price" type="number" min="0" placeholder="0" value="${pf.prices[s]!=null?pf.prices[s]:''}" />
       <input class="mini pf-dur" type="number" min="0" placeholder="${pf.slot}" value="${pf.durations[s]!=null?pf.durations[s]:''}" />
+      <input class="mini pf-wait" type="number" min="0" placeholder="0" value="${(pf.timing[s]||{}).processing||''}" />
+      <input class="mini pf-after" type="number" min="0" placeholder="0" value="${(pf.timing[s]||{}).activeAfter||''}" />
       <button class="icon-btn pf-rm" title="${esc(t('del'))}">✕</button>
     </div>`).join('');
   host.querySelectorAll('.svc-row').forEach(row => {
     const s = row.dataset.svc;
     row.querySelector('.pf-price').oninput = e => { const v=parseInt(e.target.value||'0',10); pf.prices[s]=isNaN(v)?0:v; };
     row.querySelector('.pf-dur').oninput   = e => { const v=parseInt(e.target.value||'0',10); if(v>0) pf.durations[s]=v; else delete pf.durations[s]; };
-    row.querySelector('.pf-rm').onclick    = () => { pf.services = pf.services.filter(x=>x!==s); delete pf.prices[s]; delete pf.durations[s]; paintServices(); };
+    // The three numbers the salon types are total, wait and after. What gets
+    // stored is the breakdown the slot maths wants — the working time before the
+    // wait is whatever is left, never negative, so a typo that makes the parts
+    // exceed the total costs the salon a little capacity instead of freeing a
+    // stylist who is actually busy.
+    const retime = () => {
+      const total = parseInt(pf.durations[s] || pf.slot, 10) || pf.slot;
+      const wait  = parseInt(row.querySelector('.pf-wait').value  || '0', 10) || 0;
+      const after = parseInt(row.querySelector('.pf-after').value || '0', 10) || 0;
+      if (wait <= 0) { delete pf.timing[s]; return; }
+      pf.timing[s] = {
+        activeBefore: Math.max(0, total - wait - after),
+        processing:   wait,
+        activeAfter:  after,
+      };
+    };
+    row.querySelector('.pf-wait').oninput  = retime;
+    row.querySelector('.pf-after').oninput = retime;
+    row.querySelector('.pf-rm').onclick    = () => { pf.services = pf.services.filter(x=>x!==s); delete pf.prices[s]; delete pf.durations[s]; delete pf.timing[s]; paintServices(); };
   });
 }
 
@@ -1617,6 +1646,7 @@ async function saveProfile(){
       services: pf.services,
       pricePerService: pf.prices,
       durationPerService: pf.durations,
+      serviceTiming:      pf.timing,
       slotDurationMinutes: pf.slot,
       workingHours: pf.hours.map(w=>({ dayOfWeek:w.dayOfWeek, isOpen:w.isOpen, openHour:w.openHour, openMinute:w.openMinute, closeHour:w.closeHour, closeMinute:w.closeMinute })),
       lastMinuteEnabled: pf.lastEnabled,

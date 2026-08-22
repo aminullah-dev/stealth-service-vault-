@@ -142,6 +142,22 @@ data class ServicePackage(
     val discountPercent: Int = 0
 )
 
+/**
+ * How one service divides between the stylist working and the client waiting.
+ *
+ * Minutes. Total duration is the sum; [durationPerService] stays the fallback for
+ * services that have no breakdown. During [processing] the client is still in the
+ * salon but the stylist is free to take someone else — which is the whole reason
+ * this exists.
+ */
+data class ServiceTiming(
+    val activeBefore: Int = 0,
+    val processing: Int = 0,
+    val activeAfter: Int = 0,
+) {
+    val totalMinutes: Int get() = activeBefore + processing + activeAfter
+}
+
 data class StaffMember(
     val id: String = "",                    // stable UUID, generated when added
     val name: String = "",
@@ -180,6 +196,12 @@ data class SalonDocument(
     // A service with no entry (or 0) falls back to one slot (slotDurationMinutes),
     // so an unset map behaves exactly like the old one-slot-per-service model.
     val durationPerService: Map<String, Int> = emptyMap(),
+    // Where a service leaves the stylist free. Colouring hair is application,
+    // then development while she is elsewhere, then washing and styling — and
+    // that middle stretch is the most valuable unsold time in the salon. A
+    // service with no entry here is treated as working throughout, which is what
+    // every salon means today.
+    val serviceTiming: Map<String, ServiceTiming> = emptyMap(),
     // Days the salon is closed off (time-off/holidays), as "yyyy-MM-dd" strings in
     // Kabul-local time. No slots are offered on these days, and the booking
     // function rejects them server-side as defense in depth.
