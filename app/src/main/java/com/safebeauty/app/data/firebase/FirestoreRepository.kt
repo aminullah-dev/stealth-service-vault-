@@ -71,6 +71,22 @@ class FirestoreRepository @Inject constructor(
     private val supportTicketsCol    = db.collection("support_tickets")
     private val favoritesCol         = db.collection("favorites")
 
+    // ── How much of a growing collection a live listener may hold ─────────────
+    //
+    // A snapshot listener with no limit is a standing promise to download a
+    // collection that only ever grows, and to re-send it whenever any one
+    // document in it changes. For anything keyed to a person or a salon that
+    // promise gets more expensive every month they keep using the app — the
+    // customers who stay longest pay the most, which is exactly backwards.
+    //
+    // These bounds are not arbitrary: each is set to comfortably exceed what its
+    // screen can show, so nothing a person can actually reach is missing. Where
+    // a limit would change an answer rather than a view — a set of liked posts,
+    // a count — the fix is a different query, not a smaller one.
+    private val RECENT_NOTIFICATIONS = 100L   // the notification centre
+    private val RECENT_APPOINTMENTS  = 100L   // a bookings list, and its badges
+    private val ACTIVE_WAITLIST      = 50L    // simultaneous waits, not history
+
     // ── Users ─────────────────────────────────────────────────────────────────
 
     // NOTE: PIN authentication and the pre-auth phone lookup moved to Cloud
@@ -455,11 +471,17 @@ class FirestoreRepository @Inject constructor(
     fun observeForCustomer(customerId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("customerId", customerId)
+            // Descending by date, so this is every upcoming booking followed by
+            // recent history — the order the bookings list already showed, now
+            // decided by the server. Unbounded, a long-standing customer
+            // re-downloaded every appointment she had ever made each time one of
+            // them changed.
+            .orderBy("appointmentDate", Query.Direction.DESCENDING)
+            .limit(RECENT_APPOINTMENTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.appointmentDate }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1055,12 +1077,18 @@ class FirestoreRepository @Inject constructor(
     fun observeMyWaitlist(customerId: String): Flow<List<WaitlistEntry>> = callbackFlow {
         val listener = waitlistCol
             .whereEqualTo("customerId", customerId)
+            // The status filter was applied after downloading everything, so a
+            // customer who had joined many waitlists over the years read all of
+            // them to display the two she was actually waiting on. Ascending,
+            // because a waitlist is a queue and the oldest entry is the one
+            // nearest the front.
+            .whereIn("status", listOf("WAITING", "SLOT_AVAILABLE"))
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ACTIVE_WAITLIST)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(WaitlistEntry::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "WAITING" || it.status == "SLOT_AVAILABLE" }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1092,6 +1120,13 @@ class FirestoreRepository @Inject constructor(
     fun observeNotifications(uid: String): Flow<List<NotificationDocument>> = callbackFlow {
         val listener = notificationsCol
             .whereEqualTo("recipientId", uid)
+            // Sorted and bounded by the server. A notification is never deleted,
+            // so this listener grew for the life of the account and re-sent the
+            // whole history on every new one. The newest RECENT_NOTIFICATIONS are
+            // months of activity for any real customer; the notification centre
+            // is a recent-activity view, not an archive.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(RECENT_NOTIFICATIONS)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     CrashReporter.recordNonFatal(err, "firestore:observeNotifications")
@@ -1099,7 +1134,6 @@ class FirestoreRepository @Inject constructor(
                 }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(NotificationDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1294,11 +1328,15 @@ class FirestoreRepository @Inject constructor(
     fun observeRefundsForCustomer(customerId: String): Flow<List<RefundRequestDocument>> = callbackFlow {
         val listener = refundRequestsCol
             .whereEqualTo("customerId", customerId)
+            // Feeds a badge on the bookings list, so it only needs to cover the
+            // bookings that list can show — and it is bounded by the same number
+            // for exactly that reason.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(RECENT_APPOINTMENTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
