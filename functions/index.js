@@ -1317,6 +1317,16 @@ async function settlePaymentInTransaction(tx, ctx) {
   return "ignored";
 }
 
+// Exposed only to the integration tests, which exercise settlement against a
+// real Firestore rather than a mock — 208 lines that decide whether money moves
+// deserve better than being argued about from the source.
+//
+// Behind an env var so the deploy analyser never sees an extra export on the
+// money path. Tests set SAFEBEAUTY_TEST_HOOKS=1; nothing else does.
+if (process.env.SAFEBEAUTY_TEST_HOOKS === "1") {
+  exports.__testHooks = { settlePaymentInTransaction, db };
+}
+
 exports.hesabPayWebhook = onRequest(
   { secrets: [HESAB_API_KEY, HESAB_WEBHOOK_SECRET], region: "us-central1" },
   async (req, res) => {

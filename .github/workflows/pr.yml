@@ -36,7 +36,7 @@ jobs:
         working-directory: functions
 
   concurrency-guarantee:
-    name: Double-booking cannot happen
+    name: Money and slots cannot go wrong
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +57,12 @@ jobs:
       # produce exactly one winner. It is a separate job because it is the one
       # check whose failure means the platform can double-book a customer.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:emulator:inner"
+        working-directory: functions
+      # The settlement path: whether a provider is credited, whether a booking
+      # reaches the salon, and whether a webhook replayed twice pays twice. It
+      # runs the production function, not a reimplementation, so what passes
+      # here is what the webhook and the manual settle path both run.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:settlement:inner"
         working-directory: functions
 
   android:
