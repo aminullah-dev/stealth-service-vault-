@@ -29,7 +29,7 @@ const {
   commitBookingAtomically,
   slotConflictWindow,
 } = require("../lib/reservation");
-const { hasSlotConflict } = require("../lib/slots");
+const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 
 admin.initializeApp({ projectId: "safebeauty-test" });
 const db = admin.firestore();
@@ -227,6 +227,86 @@ test("a booking a week away does not block a reschedule", async () => {
   assert.ok(far.ok);
 
   assert.equal(await rescheduleWouldCollide(salonId, "any", onto), false);
+});
+
+/**
+ * A booking with processing time, committed through the real reservation path.
+ *
+ * The pure maths is covered in slots.test.js. What these check is that the gap
+ * survives the whole way through commitBookingAtomically and a live Firestore
+ * transaction — because a colour that frees its development gap in one place and
+ * not the other is either a stylist double-booked or an hour nobody can sell.
+ */
+const COLOUR = { activeBefore: 45, processing: 30, activeAfter: 20 };
+
+function attemptWithLayout(salonId, at, layout, staffId = "", slotMinutes = SLOT_MINUTES) {
+  const ref = db.collection("appointments").doc();
+  const pending = pendingWrites();
+  pending.set(ref, {
+    salonId, staffId,
+    appointmentDate: at,
+    slotsCount: layout.span,
+    busyOffsets: layout.busyOffsets,
+    status: "PENDING",
+    createdAt: Date.now(),
+  });
+  return commitBookingAtomically(db, pending, readerFor(salonId, at), at,
+                                 layout.busyOffsets, staffId, slotMinutes)
+    .then(() => ({ ok: true, id: ref.id }))
+    .catch((e) => ({ ok: false, taken: e instanceof SlotTakenError, err: e }));
+}
+
+test("a blow-dry books into a colour's development gap, for real", async () => {
+  // A 30-minute grid, because that is the coarsest one on which a 30-minute gap
+  // exists at all. At 60 minutes it rounds away and this would quietly become a
+  // test that a booking fits AFTER a colour, which proves nothing.
+  const FINE = 30;
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, FINE);
+  assert.deepEqual(colour.busyOffsets, [0, 1, 3], "slot 2 is the gap");
+
+  const first = await attemptWithLayout(salonId, base, colour, "zahra", FINE);
+  assert.ok(first.ok, "the colour itself must book");
+
+  const inGap = base + 2 * FINE * 60_000;
+  const second = await attemptWithLayout(salonId, inGap,
+                                         { span: 1, busyOffsets: [0] }, "zahra", FINE);
+  assert.ok(second.ok, "the stylist is free while the colour develops");
+
+  // And the washout is still hers: two slots from the gap must be refused.
+  const third = await attemptWithLayout(salonId, inGap,
+                                        { span: 2, busyOffsets: [0, 1] }, "sara2", FINE);
+  assert.ok(third.ok, "a different stylist was never blocked");
+  const fourth = await attemptWithLayout(salonId, inGap,
+                                         { span: 2, busyOffsets: [0, 1] }, "zahra", FINE);
+  assert.equal(fourth.ok, false, "running out of the gap hits the wash and style");
+  assert.ok(fourth.taken);
+});
+
+test("a booking cannot start on a colour's working slot", async () => {
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, SLOT_MINUTES);
+
+  assert.ok((await attemptWithLayout(salonId, base, colour, "zahra")).ok);
+  const clash = await attemptWithLayout(salonId, base, { span: 1, busyOffsets: [0] }, "zahra");
+  assert.equal(clash.ok, false);
+  assert.ok(clash.taken, "the application is working time and must be refused");
+});
+
+test("two colours for one stylist at the same time: exactly one wins", async () => {
+  // The gap must not become a hole the concurrency guarantee falls through.
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, SLOT_MINUTES);
+
+  const results = await Promise.all([
+    attemptWithLayout(salonId, base, colour, "zahra"),
+    attemptWithLayout(salonId, base, colour, "zahra"),
+  ]);
+  assert.equal(results.filter((r) => r.ok).length, 1,
+    "processing time must not weaken the one-winner guarantee");
 });
 
 test.after(async () => { await admin.app().delete(); });
