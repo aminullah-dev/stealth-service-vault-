@@ -1,5 +1,8 @@
 package com.safebeauty.app.data.firebase
 
+import com.google.firebase.firestore.AggregateSource
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.functions.FirebaseFunctions
@@ -16,17 +19,22 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * All live queries use AT MOST a single equality filter and then do any
- * remaining filtering/sorting in memory. This deliberately avoids Firestore
- * composite indexes — combining a where-filter with an orderBy on a different
- * field requires a pre-built composite index, and a missing index surfaces as
- * a FAILED_PRECONDITION error inside the snapshot listener. The collections in
- * this app are small, so in-memory sorting is negligible and removes a whole
- * class of runtime crashes.
+ * Listeners emit an empty result on error (instead of closing the flow), so a
+ * transient permission/network error can never propagate up through stateIn and
+ * crash the app.
  *
- * Listeners also emit an empty result on error (instead of closing the flow),
- * so a transient permission/network error can never propagate up through
- * stateIn and crash the app.
+ * This file used to say that every live query deliberately used at most one
+ * equality filter and did the rest in memory, to avoid composite indexes and
+ * the FAILED_PRECONDITION a missing one produces. That was a reasonable trade
+ * while the collections were small, and it stopped being one: it meant the app
+ * downloaded the entire salon collection on every open, and it is structurally
+ * why there was no ranking — nothing can rank a list the device has already
+ * sorted by name.
+ *
+ * Salon discovery is now server-side, paginated and indexed (see salonPage).
+ * The indexes it needs are committed in firestore.indexes.json alongside the
+ * queries, which is what makes the old objection no longer apply: an index that
+ * ships with its query cannot be the one that is missing.
  */
 @Singleton
 class FirestoreRepository @Inject constructor(
@@ -241,6 +249,121 @@ class FirestoreRepository @Inject constructor(
         }
         awaitClose { listener.remove() }
     }
+
+    // ── Server-side salon discovery ───────────────────────────────────────────
+    //
+    // observeAllSalons above attaches a live listener to the entire salons
+    // collection, downloads it, then sorts and filters on the device. At 500
+    // salons that is 500 reads on every app open plus a fan-out to every
+    // connected client on every salon edit — and it is structurally why there is
+    // no ranking: nothing can rank a list the device already sorted by name.
+    //
+    // These read a bounded page with the filters applied by Firestore. They are
+    // one-shot rather than listeners: a page that silently reshuffles under the
+    // customer's thumb while they are reading it is not an improvement, and the
+    // list refreshes on pull or on filter change.
+
+    /** How the customer's list is ordered. Mirrors SalonSort in the view model. */
+    enum class SalonOrder { RATING, PRICE, NAME }
+
+    data class SalonFilter(
+        val districtKey: String = "",      // "" = every neighbourhood
+        val category: String = "",         // "" = every category
+        val favoriteIds: List<String> = emptyList(),  // non-empty = favourites only
+        val search: String = "",           // prefix match on the salon name
+    )
+
+    data class SalonPage(
+        val salons: List<SalonDocument>,
+        val cursor: DocumentSnapshot?,     // pass back as `after` for the next page
+        val endReached: Boolean,
+    )
+
+    private val SALON_PAGE_SIZE = 20L
+
+    /**
+     * Build the query for a filter. Kept in one place so the paged read and the
+     * count can never disagree about what "matching" means — a count derived
+     * from a different query than the list is a number that is confidently wrong.
+     */
+    private fun salonQuery(filter: SalonFilter, order: SalonOrder): Query {
+        var q: Query = salonsCol
+
+        if (filter.districtKey.isNotBlank()) {
+            q = q.whereEqualTo("districtKey", filter.districtKey)
+        }
+        if (filter.category.isNotBlank()) {
+            q = q.whereArrayContains("categories", filter.category)
+        }
+        if (filter.favoriteIds.isNotEmpty()) {
+            // whereIn takes at most 30 values. A customer with more favourites
+            // than that gets the first 30 here and the rest filtered in the view
+            // model, rather than an exception.
+            q = q.whereIn(FieldPath.documentId(), filter.favoriteIds.take(30))
+        }
+
+        val search = filter.search.trim().lowercase()
+        if (search.isNotEmpty()) {
+            // Firestore cannot match a substring. A range on the normalized name
+            // gives prefix search, which covers typing the start of a name; \uf8ff
+            // is the highest code point, so it bounds the range at "anything
+            // starting with this". Mid-word search is not possible here without
+            // an external search service, which the architecture deliberately
+            // excludes.
+            q = q.orderBy("nameKey")
+                .startAt(search)
+                .endAt(search + "\uf8ff")
+            return q.limit(SALON_PAGE_SIZE)
+        }
+
+        q = when (order) {
+            // sortRating and minPrice are written by deriveSalonFields on every
+            // salon, never inherited — Firestore drops documents that lack the
+            // orderBy field, so an unrated or unpriced salon would vanish from a
+            // sorted list rather than appear at the end of it.
+            SalonOrder.RATING -> q.orderBy("sortRating", Query.Direction.DESCENDING)
+            SalonOrder.PRICE  -> q.orderBy("minPrice", Query.Direction.ASCENDING)
+            SalonOrder.NAME   -> q.orderBy("nameKey", Query.Direction.ASCENDING)
+        }
+        return q.limit(SALON_PAGE_SIZE)
+    }
+
+    /** One page of salons matching [filter], ordered by [order]. */
+    suspend fun salonPage(
+        filter: SalonFilter,
+        order: SalonOrder = SalonOrder.RATING,
+        after: DocumentSnapshot? = null,
+    ): SalonPage {
+        var q = salonQuery(filter, order)
+        if (after != null) q = q.startAfter(after)
+
+        val snap = q.get().await()
+        val list = snap.documents.mapNotNull {
+            it.toObject(SalonDocument::class.java)?.copy(id = it.id)
+        }
+        return SalonPage(
+            salons = list,
+            cursor = snap.documents.lastOrNull(),
+            endReached = snap.documents.size < SALON_PAGE_SIZE,
+        )
+    }
+
+    /**
+     * How many salons match [filter], for the "N providers found" line.
+     *
+     * An aggregation query, so it costs a fraction of reading the documents —
+     * and it has to exist at all because that number used to be the size of the
+     * fully-downloaded list, which pagination makes wrong.
+     */
+    suspend fun salonCount(filter: SalonFilter): Int =
+        runCatching {
+            salonQuery(filter, SalonOrder.RATING)
+                .count()
+                .get(AggregateSource.SERVER)
+                .await()
+                .count
+                .toInt()
+        }.getOrDefault(0)
 
     suspend fun createSalon(salon: SalonDocument): String {
         val ref = salonsCol.add(salon).await()

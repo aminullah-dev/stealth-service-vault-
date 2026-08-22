@@ -44,7 +44,7 @@ const { isValidDocId } = require("./lib/validate");
 const { averageRating } = require("./lib/reviews");
 const { bookingCodeFromBytes, normalizeBookingCode } = require("./lib/booking");
 const { phoneKey } = require("./lib/phone");
-const { categoriesFor } = require("./lib/categories");
+const { categoriesFor, normalize: categoryNormalize } = require("./lib/categories");
 const { normalizeDistrict } = require("./lib/areas");
 const { SlotTakenError, pendingWrites, commitBookingAtomically, slotConflictWindow } = require("./lib/reservation");
 
@@ -4078,6 +4078,22 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
 // what the salon entered, so nothing here can lose data a salon typed, and the
 // derivation can be changed and re-run.
 
+// A salon with no priced service still has to appear in a price-sorted list,
+// and it belongs at the end rather than nowhere. Firestore EXCLUDES documents
+// that lack the orderBy field entirely, so "no price" must be a number, not an
+// absent field — otherwise sorting by price silently hides salons, which is the
+// same invisible-empty failure this whole phase exists to fix.
+const NO_PRICE = 9999999;
+
+/** Lowest priced service, or NO_PRICE when the salon has priced nothing. */
+function salonMinPrice(salon) {
+  const prices = (salon && salon.pricePerService) || {};
+  const values = Object.values(prices)
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v) && v > 0);
+  return values.length ? Math.min(...values) : NO_PRICE;
+}
+
 /** What the derived fields should be for a salon, given what it stores. */
 function deriveSalonDiscovery(salon) {
   const { categories, unmatched } = categoriesFor(salon && salon.services);
@@ -4085,9 +4101,28 @@ function deriveSalonDiscovery(salon) {
   return {
     categories,
     districtKey: area.key || "",
+    // Prefix-searchable form of the name. Firestore cannot match a substring,
+    // but a range on a normalized name gives prefix search, which is what a
+    // customer typing the start of a salon name actually needs.
+    nameKey: categoryNormalize(salon && salon.salonName),
+    minPrice: salonMinPrice(salon),
+    // Always written, never inherited from the document: a salon that has never
+    // been rated must still be orderable by rating.
+    sortRating: Number((salon && salon.rating) || 0),
     // Not stored — returned so the caller can report what a human needs to look at.
     unmatchedServices: unmatched,
     districtCandidates: area.candidates || [],
+  };
+}
+
+/** The subset of derived values that actually get stored on the document. */
+function storedDiscoveryFields(derived) {
+  return {
+    categories:  derived.categories,
+    districtKey: derived.districtKey,
+    nameKey:     derived.nameKey,
+    minPrice:    derived.minPrice,
+    sortRating:  derived.sortRating,
   };
 }
 
@@ -4096,7 +4131,10 @@ function discoveryUpToDate(salon, derived) {
   const stored = Array.isArray(salon.categories) ? salon.categories : [];
   return stored.length === derived.categories.length
       && stored.every((c, i) => c === derived.categories[i])
-      && (salon.districtKey || "") === derived.districtKey;
+      && (salon.districtKey || "") === derived.districtKey
+      && (salon.nameKey || "") === derived.nameKey
+      && Number(salon.minPrice) === derived.minPrice
+      && Number(salon.sortRating) === derived.sortRating;
 }
 
 // Keeps the derived fields correct as salons edit themselves, so the backfill is
@@ -4115,10 +4153,7 @@ exports.deriveSalonFields = onDocumentWritten(
     const derived = deriveSalonDiscovery(salon);
     if (discoveryUpToDate(salon, derived)) return;
 
-    await after.ref.update({
-      categories:  derived.categories,
-      districtKey: derived.districtKey,
-    });
+    await after.ref.update(storedDiscoveryFields(derived));
 
     if (derived.unmatchedServices.length || derived.districtCandidates.length) {
       logger.warn("deriveSalonFields: needs human review", {
@@ -4154,10 +4189,7 @@ exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request)
     const derived = deriveSalonDiscovery(salon);
 
     if (!discoveryUpToDate(salon, derived)) {
-      await d.ref.update({
-        categories:  derived.categories,
-        districtKey: derived.districtKey,
-      });
+      await d.ref.update(storedDiscoveryFields(derived));
       updated += 1;
     }
 
