@@ -4903,6 +4903,24 @@ function chunkArray(arr, size) {
 exports.reconcileIntegrity = onSchedule(
   { schedule: "every day 04:00", timeZone: "Asia/Kabul", region: "us-central1" },
   async () => {
+    // Everything below runs inside a guard, because the sweep failing is itself
+    // a critical event and the alert for it used to live in code the failure
+    // skipped. This job crashed on a missing index from the day it was written
+    // and reported nothing for it — a watchdog that cannot announce its own
+    // death is indistinguishable from a system with nothing wrong.
+    try {
+      return await runIntegritySweep();
+    } catch (e) {
+      alertable("INTEGRITY_CRITICAL", "reconcileIntegrity itself failed", {
+        error: String((e && e.message) || e),
+      });
+      throw e;
+    }
+  }
+);
+
+async function runIntegritySweep() {
+  {
     const now    = Date.now();
     const since  = now - INTEGRITY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
     const findings = [];
@@ -5012,7 +5030,7 @@ exports.reconcileIntegrity = onSchedule(
       logger.log(`reconcileIntegrity: ${findings.length} finding(s), none critical`);
     }
   }
-);
+}
 
 // ── Notification localization ─────────────────────────────────────────────────
 //
