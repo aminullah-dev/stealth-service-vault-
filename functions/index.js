@@ -343,6 +343,15 @@ exports.createPaymentSession = onCall(
     };
 
     if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
+      // A customer chose this salon, this service and this time, and could not
+      // have it. That is the most specific demand signal the system can observe.
+      await recordDemandSignal({
+        kind: "SLOT_TAKEN",
+        districtKey: salon.districtKey || "",
+        serviceName,
+        salonId,
+        lang: user.lang || "",
+      });
       throw new HttpsError("failed-precondition", "That time slot is no longer available.", { reason: "SLOT_TAKEN" });
     }
 
@@ -2467,6 +2476,11 @@ exports.expireAbandonedPayments = onSchedule(
         });
       }
       if (outcome.appointmentId && !outcome.type) {
+        await recordDemandSignal({
+          kind: "CHECKOUT_ABANDONED",
+          serviceName: outcome.serviceName || "",
+          salonId: outcome.salonId || "",
+        });
         const snap = await db.doc(`appointments/${outcome.appointmentId}`).get();
         if (snap.exists) {
           await logAppointmentEvent(
@@ -4055,6 +4069,37 @@ exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
     expect: "A notification should arrive within about five minutes.",
   };
 });
+
+// ── Demand signals ────────────────────────────────────────────────────────────
+//
+// What a customer wanted and did not get. Successful bookings are recorded in
+// detail and failure is invisible, which means supply decisions -- which salon
+// to recruit next, in which district, for which service -- are made on instinct.
+//
+// Carries no identity, by design and not by omission. The question is how much
+// demand a district has for a service, which is answerable in aggregate, while a
+// per-person record of what a woman in Kabul searched for is a trail this
+// platform should not accumulate. The rules enforce the absence rather than
+// trusting callers to keep leaving it out.
+//
+// Best-effort throughout: a signal that fails to write must never affect the
+// request that produced it. Losing one data point is nothing; failing a booking
+// to record that a booking failed would be absurd.
+async function recordDemandSignal(signal) {
+  try {
+    await db.collection("demand_signals").add({
+      kind:        String(signal.kind || ""),
+      districtKey: String(signal.districtKey || "").slice(0, 64),
+      category:    String(signal.category || "").slice(0, 32),
+      serviceName: String(signal.serviceName || "").slice(0, 120),
+      salonId:     String(signal.salonId || ""),
+      lang:        String(signal.lang || ""),
+      at:          Date.now(),
+    });
+  } catch (e) {
+    logger.warn("recordDemandSignal failed", e);
+  }
+}
 
 // ── Salon discovery fields ────────────────────────────────────────────────────
 //

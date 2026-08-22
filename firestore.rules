@@ -427,6 +427,42 @@ service cloud.firestore {
       allow read, create, update, delete: if false;
     }
 
+    // ── demand_signals ───────────────────────────────────────────────────────────
+    // What customers looked for and did not get: an empty search, a slot that
+    // was already taken, a checkout abandoned. It is the data that answers
+    // "which salon should we recruit next", and it takes weeks to become useful,
+    // which is why capture starts now and the analysis comes later.
+    //
+    // Deliberately carries NO identity. Not a customer id, not a hash of one.
+    // The question is how much demand a district has for a service, and that is
+    // answerable in aggregate — while a per-person record of what a woman in
+    // Kabul searched for is exactly the kind of trail this platform should not
+    // be accumulating. Nothing downstream needs it, so nothing writes it.
+    //
+    // Write-only from the client: a customer may append, and may not read the
+    // collection back. A readable demand log would let anyone reconstruct which
+    // neighbourhoods are searching for what, which is competitive intelligence
+    // at best and a targeting list at worst.
+    match /demand_signals/{signalId} {
+      allow read: if isAdmin();
+
+      allow create: if isSignedIn()
+                 && request.resource.data.keys().hasOnly(
+                      ['kind', 'districtKey', 'category', 'serviceName', 'salonId', 'lang', 'at'])
+                 && request.resource.data.kind in ['NO_RESULTS', 'SLOT_TAKEN', 'CHECKOUT_ABANDONED']
+                 && request.resource.data.at is int
+                 // No identity fields, enforced rather than trusted: hasOnly
+                 // above already refuses any key not on the list, so a future
+                 // client cannot start attaching a uid without this rule failing.
+                 && request.resource.data.get('districtKey', '').size() <= 64
+                 && request.resource.data.get('category', '').size() <= 32
+                 && request.resource.data.get('serviceName', '').size() <= 120;
+
+      // Immutable and undeletable by clients. A signal that can be edited or
+      // removed is not evidence of anything.
+      allow update, delete: if false;
+    }
+
     // ── post_likes ───────────────────────────────────────────────────────────────
     // The document id is "{postId}_{userId}", which makes a second like from the
     // same person impossible to write rather than merely discouraged.

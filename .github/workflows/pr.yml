@@ -97,6 +97,19 @@ jobs:
       # that does not compile is not deployed — the previous deploy stays live —
       # so this catches a change that would otherwise look successful.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "echo rules compiled"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+        working-directory: functions
+      # Behavioural tests for the rules, not just a syntax check. The privacy
+      # claim that demand signals carry no identity is enforced by hasOnly(); a
+      # claim about behaviour has to be tested or it is a comment that was true
+      # on the day it was written.
+      - run: npm run test:rules
+        working-directory: functions
 
   secrets:
     name: No secrets committed

@@ -256,8 +256,34 @@ class DashboardViewModel @Inject constructor(
             _endOfSalons.value = page.endReached
             _matchingCount.value = firestoreRepository.salonCount(filter)
             _loadingSalons.value = false
+
+            // An empty result with a filter applied is the platform failing to
+            // serve someone who told it exactly what she wanted. Recorded so
+            // supply decisions stop being guesses — see demand_signals.
+            //
+            // Only when a filter is actually narrowing: an empty unfiltered list
+            // means the platform has no salons at all, which is already known and
+            // would otherwise write a signal on every cold start.
+            val narrowed = filter.districtKey.isNotBlank() ||
+                filter.category.isNotBlank() ||
+                filter.search.isNotBlank()
+            if (narrowed && page.salons.isEmpty()) {
+                val signature = "${filter.districtKey}|${filter.category}|${filter.search}"
+                // One signal per distinct combination per session. Without this,
+                // typing a name that matches nothing writes a row per keystroke.
+                if (reportedEmptySearches.add(signature)) {
+                    firestoreRepository.recordNoResults(
+                        districtKey = filter.districtKey,
+                        category    = filter.category,
+                        lang        = languageRepository.language.value.name.lowercase(),
+                    )
+                }
+            }
         }
     }
+
+    /** Filter combinations already reported empty, so each is recorded once. */
+    private val reportedEmptySearches = mutableSetOf<String>()
 
     /** Append the next page. Ignored while one is already in flight or at the end. */
     fun loadMoreSalons() {

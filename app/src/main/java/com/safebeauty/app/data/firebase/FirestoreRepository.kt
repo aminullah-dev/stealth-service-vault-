@@ -403,6 +403,31 @@ class FirestoreRepository @Inject constructor(
             null
         }
 
+    /**
+     * Record that a search or filter combination found nothing.
+     *
+     * No identity is attached — see the demand_signals rules. What matters is
+     * that a district wanted a category and the platform had nothing to offer;
+     * who asked is neither needed nor recorded.
+     *
+     * Best-effort: a customer's search must not fail because analytics did.
+     */
+    suspend fun recordNoResults(districtKey: String, category: String, lang: String) {
+        runCatching {
+            db.collection("demand_signals").add(
+                mapOf(
+                    "kind"        to "NO_RESULTS",
+                    "districtKey" to districtKey,
+                    "category"    to category,
+                    "serviceName" to "",
+                    "salonId"     to "",
+                    "lang"        to lang,
+                    "at"          to System.currentTimeMillis(),
+                )
+            ).await()
+        }
+    }
+
     suspend fun createSalon(salon: SalonDocument): String {
         val ref = salonsCol.add(salon).await()
         return ref.id
@@ -532,19 +557,56 @@ class FirestoreRepository @Inject constructor(
 
     // ── Chat ──────────────────────────────────────────────────────────────────
 
+    // A conversation between one customer and one salon has no natural end, and
+    // this used to load all of it on every open — unbounded, re-read in full on
+    // every new message, and sorted on the device. A pair who have talked for a
+    // year would pay for that year every time either of them opened the thread.
+    private val CHAT_WINDOW = 50L
+
+    /**
+     * The most recent [CHAT_WINDOW] messages, oldest-first for display.
+     *
+     * Still a live listener, because a chat that does not update as the other
+     * person types is not a chat — but now over a bounded window, so its cost
+     * does not grow with the length of the relationship. Older messages are
+     * fetched on demand by [olderMessages].
+     */
     fun observeConversation(conversationId: String): Flow<List<ChatMessage>> = callbackFlow {
         val listener = chatCol
             .whereEqualTo("conversationId", conversationId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(CHAT_WINDOW)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
-                    ?.sortedBy { it.timestamp }
+                    ?.reversed()          // newest-first from Firestore, oldest-first on screen
                     ?: emptyList()
                 trySend(list)
             }
         awaitClose { listener.remove() }
     }
+
+    /**
+     * The page of messages immediately before [beforeTimestamp], oldest-first.
+     *
+     * A one-shot read: history does not change, so there is nothing to listen to.
+     */
+    suspend fun olderMessages(conversationId: String, beforeTimestamp: Long): List<ChatMessage> =
+        runCatching {
+            chatCol
+                .whereEqualTo("conversationId", conversationId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .whereLessThan("timestamp", beforeTimestamp)
+                .limit(CHAT_WINDOW)
+                .get().await()
+                .documents
+                .mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
+                .reversed()
+        }.getOrElse {
+            CrashReporter.recordNonFatal(it, "olderMessages")
+            emptyList()
+        }
 
     suspend fun sendChatMessage(message: ChatMessage) {
         chatCol.add(message).await()
