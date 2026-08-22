@@ -86,6 +86,9 @@ class FirestoreRepository @Inject constructor(
     private val RECENT_NOTIFICATIONS = 100L   // the notification centre
     private val RECENT_APPOINTMENTS  = 100L   // a bookings list, and its badges
     private val ACTIVE_WAITLIST      = 50L    // simultaneous waits, not history
+    private val SALON_QUEUE          = 200L   // a salon's unconfirmed bookings
+    private val SALON_PORTFOLIO      = 100L   // reviews, photos and offers per salon
+    private val PROVIDER_PAYOUTS     = 100L   // a provider's payout history
 
     // ── Users ─────────────────────────────────────────────────────────────────
 
@@ -491,12 +494,17 @@ class FirestoreRepository @Inject constructor(
     fun observePendingForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
+            // PENDING was filtered after downloading every booking the salon had
+            // ever taken — so the queue of things needing a decision cost the
+            // salon's whole history to display. Ascending: the soonest
+            // appointment is the one that needs answering first.
+            .whereEqualTo("status", "PENDING")
+            .orderBy("appointmentDate", Query.Direction.ASCENDING)
+            .limit(SALON_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "PENDING" }
-                    ?.sortedBy { it.appointmentDate }
                     ?: emptyList()
                 trySend(list)
             }
@@ -640,11 +648,12 @@ class FirestoreRepository @Inject constructor(
     fun observeReviewsForSalon(salonId: String): Flow<List<ReviewDocument>> = callbackFlow {
         val listener = reviewsCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(ReviewDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -694,11 +703,12 @@ class FirestoreRepository @Inject constructor(
     fun observeGalleryForSalon(salonId: String): Flow<List<GalleryImageDocument>> = callbackFlow {
         val listener = galleryCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(GalleryImageDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -843,11 +853,12 @@ class FirestoreRepository @Inject constructor(
     fun observeOffersForSalon(salonId: String): Flow<List<OfferDocument>> = callbackFlow {
         val listener = offersCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(OfferDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1300,11 +1311,12 @@ class FirestoreRepository @Inject constructor(
     /** Live payout history for one provider (most recent first). */
     fun observePayoutsForProvider(providerId: String): Flow<List<PayoutDocument>> = callbackFlow {
         val listener = payoutsCol.whereEqualTo("providerId", providerId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(PROVIDER_PAYOUTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
