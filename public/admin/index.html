@@ -1608,7 +1608,32 @@ async function renderHealth(){
         </div>
         <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Assign missing phone lookup keys</button>
         <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
+      </div>
+      <div class="card-pad" style="margin-top:10px">
+        <div class="meta" style="color:var(--muted);margin-bottom:10px">
+          Sends a deliberate test alert through the whole chain — log, metric, policy, email.
+          Monitoring that has never fired is monitoring nobody knows works, and the moment you
+          find out is the moment you needed it. Worth running every few months.
+          Touches no data, and says it is a drill.
+        </div>
+        <button class="btn-sm" id="h-drill" style="background:var(--surface);color:var(--deep)">Send a test alert</button>
+        <div id="h-drillflash" class="mflash" style="margin-top:8px"></div>
       </div>`;
+
+    $('h-drill').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Sending…';
+      try{
+        await httpsCallable(fns,'adminTestAlert')({ note: 'Fired from the admin console' });
+        $('h-drillflash').className = 'mflash ok';
+        $('h-drillflash').textContent =
+          'Test alert sent. A notification should arrive within about five minutes. ' +
+          'If nothing arrives, the notification channel is probably still unverified.';
+      }catch(err){
+        $('h-drillflash').className = 'mflash bad';
+        $('h-drillflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
 
     $('h-phonekeys').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;

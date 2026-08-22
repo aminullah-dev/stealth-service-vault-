@@ -564,7 +564,7 @@ exports.createPaymentSession = onCall(
         if (err instanceof SlotTakenError) {
           throw new HttpsError("failed-precondition", err.message, { reason: err.reason });
         }
-        logger.error("createPaymentSession cash write failed", err);
+        alertable("BOOKING_FAILED", "createPaymentSession cash write failed", { salonId, uid });
         throw new HttpsError("internal", "Could not create the booking. Please try again.");
       }
 
@@ -660,7 +660,7 @@ exports.createPaymentSession = onCall(
       if (err instanceof SlotTakenError) {
         throw new HttpsError("failed-precondition", err.message, { reason: err.reason });
       }
-      logger.error("createPaymentSession online write failed", err);
+      alertable("BOOKING_FAILED", "createPaymentSession online write failed", { salonId, uid });
       throw new HttpsError("internal", "Could not create the booking. Please try again.");
     }
 
@@ -1100,11 +1100,11 @@ exports.hesabPayWebhook = onRequest(
         verifyRes.ok &&
         (verifyBody.valid === true || verifyBody.verified === true || verifyBody.success === true);
       if (!valid) {
-        logger.error("Webhook signature verification failed");
+        alertable("PAYMENT_FAILED", "Webhook signature verification failed");
         return res.status(401).send("Invalid signature");
       }
     } catch (err) {
-      logger.error("Signature verification error", err);
+      alertable("PAYMENT_FAILED", "Webhook signature verification error", { error: String(err && err.message || err) });
       return res.status(401).send("Signature verification error");
     }
 
@@ -1443,7 +1443,7 @@ exports.hesabPayWebhook = onRequest(
       }
       return res.status(200).send("OK");
     } catch (err) {
-      logger.error("Webhook processing error", err);
+      alertable("PAYMENT_FAILED", "Webhook processing error", { error: String(err && err.message || err) });
       return res.status(500).send("Processing error");
     }
   }
@@ -3176,6 +3176,26 @@ function assertNotSuspended(appUser) {
   }
 }
 
+/**
+ * Log something a person should be told about, under a stable machine label.
+ *
+ * Alert policies match on `jsonPayload.alert` rather than on the message text.
+ * A policy that greps prose breaks the day someone rewords a log line, and it
+ * breaks silently — the alert simply stops firing, which is indistinguishable
+ * from nothing going wrong. The label is the contract; the message is for the
+ * human who reads it afterwards.
+ *
+ * Kinds in use:
+ *   BOOKING_FAILED    a customer tried to book and could not
+ *   PAYMENT_FAILED    money moved, or failed to, without the record agreeing
+ *   BACKUP_FAILED     the nightly export did not complete
+ *   INTEGRITY_CRITICAL the nightly sweep found something that loses money
+ *   ALERT_PIPELINE_TEST a deliberate drill — see adminTestAlert
+ */
+function alertable(kind, message, details) {
+  logger.error(message, { alert: kind, ...(details || {}) });
+}
+
 /** Append a tamper-evident record of a privileged admin action. Best-effort. */
 async function logAdminAction(adminUser, action, details) {
   try {
@@ -4002,6 +4022,38 @@ exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (req
   return { ok: true, scanned: snap.size, assigned, done: snap.size < limit };
 });
 
+// ── adminTestAlert ────────────────────────────────────────────────────────────
+//
+// Fires a synthetic alert so the whole path can be checked end to end: log →
+// log-based metric → alert policy → notification → a person's phone.
+//
+// Monitoring that has never fired is monitoring nobody knows works, and the
+// moment you find out is the moment you needed it. Each link here can break
+// quietly — a metric filter that matches nothing, a notification channel that
+// was never verified, a policy left disabled — and none of those failures
+// announce themselves.
+//
+// Safe to run any time: it touches no data and describes itself as a drill in
+// the alert body, so whoever receives it is not misled into thinking the
+// platform is broken.
+exports.adminTestAlert = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const note = String((request.data || {}).note || "").slice(0, 200);
+
+  alertable(
+    "ALERT_PIPELINE_TEST",
+    "DRILL — this is a test of the alerting pipeline, not a real failure",
+    { triggeredBy: me.uid, triggeredByName: me.name || "", note, at: Date.now() }
+  );
+
+  await logAdminAction(me, "TEST_ALERT", { note });
+  return {
+    ok: true,
+    firedAt: Date.now(),
+    expect: "A notification should arrive within about five minutes.",
+  };
+});
+
 // ── adminBackfillPhoneKeys ────────────────────────────────────────────────────
 //
 // Writes the phoneDigits lookup key onto accounts that predate it.
@@ -4288,7 +4340,7 @@ exports.scheduledFirestoreBackup = onSchedule(
         startedAt: Date.now(), finishedAt: Date.now(),
         error: String((e && e.message) || e).slice(0, 500),
       }, { merge: true });
-      logger.error("scheduledFirestoreBackup FAILED", e);
+      alertable("BACKUP_FAILED", "scheduledFirestoreBackup FAILED", { error: String(e && e.message || e) });
       throw e;
     }
   }
@@ -4527,7 +4579,9 @@ exports.reconcileIntegrity = onSchedule(
       });
 
     if (critical > 0) {
-      logger.error(`reconcileIntegrity: ${critical} critical finding(s)`, { findings: findings.slice(0, 20) });
+      alertable("INTEGRITY_CRITICAL",
+        `reconcileIntegrity: ${critical} critical finding(s)`,
+        { critical, findings: findings.slice(0, 20) });
     } else {
       logger.log(`reconcileIntegrity: ${findings.length} finding(s), none critical`);
     }
