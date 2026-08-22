@@ -59,10 +59,38 @@ if [[ -n "$TARGETS" && "$TARGETS" != *"functions"* ]]; then
   exit 0
 fi
 
+# Indexes drift when deploys use narrow --only targets, which most do. The drift
+# is invisible until a query fails at runtime on the project that is behind —
+# and the project that is behind is usually staging, so the failure shows up
+# exactly where it was supposed to be caught, but after the change shipped.
+LOCAL_IDX="$(node -e "
+  const j = JSON.parse(require('fs').readFileSync('firestore.indexes.json','utf8'));
+  console.log((j.indexes||[]).length);
+")"
+REMOTE_IDX="$(gcloud firestore indexes composite list --project="$PROJECT" \
+  --format='value(name)' 2>/dev/null | wc -l | tr -d ' ')"
+
+# The two directions of drift mean different things and only one is urgent.
+if [[ "$LOCAL_IDX" -gt "$REMOTE_IDX" ]]; then
+  echo "── Missing indexes on $PROJECT: $REMOTE_IDX deployed, $LOCAL_IDX defined." >&2
+  echo "     A query will fail at runtime with FAILED_PRECONDITION. Deploy them:" >&2
+  echo "     npx firebase deploy --project $PROJECT --only firestore:indexes" >&2
+elif [[ "$REMOTE_IDX" -gt "$LOCAL_IDX" ]]; then
+  echo "── $PROJECT has $((REMOTE_IDX - LOCAL_IDX)) index(es) no longer defined locally." >&2
+  echo "     Harmless but billed: superseded indexes keep being maintained on every" >&2
+  echo "     write. Firebase asks before removing them, so this needs a person:" >&2
+  echo "     npx firebase deploy --project $PROJECT --only firestore:indexes" >&2
+fi
+
 echo "── Ensuring public invoker on callables (I-12)"
 
-CALLABLES="$(grep -oE '^exports\.[a-zA-Z0-9_]+ = onCall' functions/index.js \
-             | sed 's/^exports\.//; s/ = onCall//')"
+# index.js AND the domain modules. Splitting the backend moved callables out of
+# index.js, and a grep that only looked there would have found fewer of them and
+# reported success — leaving the ones it missed returning 403, which is the
+# precise outage this script exists to prevent.
+CALLABLES="$(grep -hoE '^exports\.[a-zA-Z0-9_]+ = onCall' \
+               functions/index.js functions/domains/*.js 2>/dev/null \
+             | sed 's/^exports\.//; s/ = onCall//' | sort -u)"
 
 if [[ -z "$CALLABLES" ]]; then
   echo "   No callables found — check the export pattern in functions/index.js" >&2
