@@ -252,7 +252,13 @@ service cloud.firestore {
                      && request.resource.data.get('categories', [])
                           == resource.data.get('categories', [])
                      && request.resource.data.get('districtKey', '')
-                          == resource.data.get('districtKey', ''));
+                          == resource.data.get('districtKey', '')
+                     // How dependably this salon answers its bookings, counted
+                     // by measureSalonReliability from what it actually did. A
+                     // salon that could write its own record would write a
+                     // perfect one.
+                     && request.resource.data.get('reliability', {})
+                          == resource.data.get('reliability', {}));
 
       allow delete: if isAdmin()
                  || (isProvider() && resource.data.providerId == me());

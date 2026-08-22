@@ -4274,6 +4274,104 @@ exports.rotateWaitlistOffers = onSchedule(
   }
 );
 
+// ── measureSalonReliability ───────────────────────────────────────────────────
+//
+// How dependably a salon answers the bookings it receives, counted from what is
+// already recorded.
+//
+// This is measurement, not ranking. It stores counts and a rate; it does not
+// order anyone or decide who gets shown first. That distinction is the whole
+// reason it can be built now while D-6 keeps ranking closed: counting facts a
+// salon produced is defensible at any scale, whereas weighting those facts into
+// a position — which allocates real income between real businesses — needs data
+// this platform does not yet have.
+//
+// It is also the input P8 will need whenever its gate opens, and it needs weeks
+// of history to mean anything, so starting the clock now is the point.
+//
+// Deliberately excludes the customer's own behaviour. A salon is not less
+// reliable because a customer cancelled, and folding that in would let a run of
+// unlucky customers damage a salon's standing.
+const RELIABILITY_WINDOW_DAYS = 90;
+
+exports.measureSalonReliability = onSchedule(
+  { schedule: "every day 02:30", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => {
+    const since = Date.now() - RELIABILITY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const salons = await db.collection("salons").limit(500).get();
+
+    for (const salonDoc of salons.docs) {
+      const appts = await db.collection("appointments")
+        .where("salonId", "==", salonDoc.id)
+        .where("createdAt", ">", since)
+        .limit(1000)
+        .get();
+
+      // Which cancellations this salon actually made. The trail denormalizes
+      // salonId, so this is one query rather than a read per booking.
+      const declined = new Set();
+      const events = await db.collection("appointment_events")
+        .where("salonId", "==", salonDoc.id)
+        .where("to", "==", "CANCELLED")
+        .limit(1000)
+        .get();
+      events.docs.forEach((e) => {
+        const ev = e.data() || {};
+        if (ev.actorRole === "PROVIDER" && ev.appointmentId) declined.add(ev.appointmentId);
+      });
+
+      let answered = 0;      // the salon acted: confirmed, or declined
+      let confirmed = 0;
+      let unanswered = 0;    // the visit time passed with the salon silent
+
+      appts.docs.forEach((d) => {
+        const a = d.data() || {};
+        const status = a.status || "";
+        if (status === "CONFIRMED" || status === "COMPLETED") {
+          answered += 1; confirmed += 1;
+        } else if (status === "CANCELLED") {
+          // A cancellation counts against the salon only when the salon made
+          // it. A customer changing her mind, or a checkout expiring, says
+          // nothing about how dependably this salon answers — and counting it
+          // would let a run of ordinary customer cancellations damage a salon's
+          // standing for something it did not do. Anything the trail cannot
+          // attribute is left out of both halves of the ratio rather than
+          // guessed at.
+          if (declined.has(d.id)) answered += 1;
+        } else if (status === "PENDING" && Number(a.appointmentDate || 0) < Date.now()) {
+          unanswered += 1;
+        }
+      });
+
+      const decided = answered + unanswered;
+      const reliability = {
+        window: RELIABILITY_WINDOW_DAYS,
+        bookings: appts.size,
+        confirmed,
+        unanswered,
+        // Null rather than a flattering 1.0 when there is nothing to judge. A
+        // brand new salon has not earned a perfect record, and showing one would
+        // be a claim the data does not support.
+        confirmRate: decided > 0 ? Math.round((confirmed / decided) * 100) : null,
+        measuredAt: Date.now(),
+      };
+
+      // Compare every value that is stored, not a subset of them. A guard that
+      // checks three of four fields silently pins the fourth: when the counts
+      // held steady but the rate changed, the new rate was computed and thrown
+      // away, and the salon kept a stale figure with no sign anything was wrong.
+      const prev = (salonDoc.data() || {}).reliability || {};
+      const changed = ["bookings", "confirmed", "unanswered", "confirmRate", "window"]
+        .some((k) => prev[k] !== reliability[k]);
+      if (changed) {
+        await salonDoc.ref.update({ reliability });
+      }
+    }
+
+    logger.log(`measureSalonReliability: measured ${salons.size} salon(s)`);
+  }
+);
+
 // ── adminDemandReport ─────────────────────────────────────────────────────────
 //
 // Which district wants which service, and whether there is anyone there to
