@@ -40,6 +40,27 @@ jobs:
       - run: npm test
         working-directory: functions
 
+  lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+        working-directory: functions
+      # Correctness, not style. The rule set is no-undef / no-redeclare /
+      # no-unused-vars plus the always-a-mistake checks — see functions/
+      # eslint.config.js for why those three specifically. Its first run found
+      # `actor is not defined` in rescheduleAppointment: a ReferenceError that
+      # had been live since the event trail was added, on a path no customer had
+      # happened to take yet. No test covered it, and no test would have.
+      - run: npm run lint
+        working-directory: functions
+
   concurrency-guarantee:
     name: Money and slots cannot go wrong
     runs-on: ubuntu-latest

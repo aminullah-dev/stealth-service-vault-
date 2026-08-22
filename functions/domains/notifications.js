@@ -120,8 +120,9 @@ exports.pushOnBroadcastCreated = onDocumentCreated(
 
     // Optional audience filters set by the admin console. Absent/blank means
     // "everyone", so existing broadcasts keep their old platform-wide behaviour.
-    const wantRole = String(b.targetRole || "").toUpperCase();      // CUSTOMER | PROVIDER
-    const wantLang = String(b.targetLang || "").toLowerCase();      // fa | ps | en
+    // Only the district filter is resolved here; role and language are applied
+    // by deliverBroadcast, which re-reads them from the broadcast document so a
+    // resumed send filters the same way the first attempt did.
     const wantDistrict = String(b.targetDistrict || "");            // salon district
 
     // A district filter only makes sense for providers, and their district lives

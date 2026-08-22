@@ -361,7 +361,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     }
 
     tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
-    writeAppointmentEvent(tx, appt, appointmentId, "PENDING", actor,
+    writeAppointmentEvent(tx, appt, appointmentId, "PENDING", appUser,
       `Rescheduled to ${new Date(dateMs).toISOString()}`);
     if (providerId) {
       tx.set(db.collection("notifications").doc(), {

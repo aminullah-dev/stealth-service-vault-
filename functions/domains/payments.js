@@ -316,7 +316,7 @@ exports.createPaymentSession = onCall(
     // recomputed from the live credit here; the payment is written reserved:true
     // so settlement does NOT spend again, and the abandon / write-failure /
     // HesabPay-failure paths refund it (refundReservation).
-    let afterPromo, referralUsed, price, commissionAmount, providerNet;
+    let referralUsed, price, commissionAmount, providerNet;
     {
       const split = await db.runTransaction(async (tx) => {
         const uRef  = db.doc(`users/${uid}`);
@@ -362,7 +362,7 @@ exports.createPaymentSession = onCall(
         }
         return s;
       });
-      ({ afterPromo, referralUsed, price, commissionAmount, providerNet } = split);
+      ({ referralUsed, price, commissionAmount, providerNet } = split);
     }
 
     const providerId        = salon.providerId || "";
@@ -985,12 +985,12 @@ exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) =
  * that has been running in production, moved and not rewritten.
  *
  * @param {FirebaseFirestore.Transaction} tx
- * @param {{paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId, apptEvent}} ctx
+ * @param {{paymentRef, paidSignal, failSignal, transactionId, signature, paymentId, apptEvent}} ctx
  * @returns {Promise<"paid"|"failed"|"ignored"|"replay"|"stale"|"already_paid"|"not_found">}
  */
 
 async function settlePaymentInTransaction(tx, ctx) {
-  const { paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId } = ctx;
+  const { paymentRef, paidSignal, failSignal, transactionId, signature, paymentId } = ctx;
   // Re-read inside the transaction so two concurrent retries can't both
   // pass the PAID check and double-credit the provider.
   const freshSnap = await tx.get(paymentRef);
