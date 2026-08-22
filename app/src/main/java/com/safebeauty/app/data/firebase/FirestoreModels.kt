@@ -532,3 +532,25 @@ data class RefundRequestDocument(
     val customerName: String = "",
     val salonName: String = ""
 )
+
+/**
+ * A salon's running booking tally, maintained by the deriveSalonStats trigger.
+ *
+ * Exists so the provider's Income tab can show lifetime totals without reading
+ * every appointment the salon has ever taken in order to count them. One
+ * document per salon, so reading it costs the same whether the salon has ten
+ * bookings or ten thousand.
+ *
+ * Counts are Long because Firestore's increment is an int64; the UI narrows
+ * them where it displays them.
+ */
+data class SalonStatsDocument(
+    val salonId: String = "",
+    val total: Long = 0L,
+    /** Bookings per status: PENDING, CONFIRMED, COMPLETED, CANCELLED, … */
+    val byStatus: Map<String, Long> = emptyMap(),
+    val byService: Map<String, Long> = emptyMap(),
+    /** Only CONFIRMED and COMPLETED — what the revenue estimate is built from. */
+    val confirmedByService: Map<String, Long> = emptyMap(),
+    val updatedAt: Long = 0L,
+)

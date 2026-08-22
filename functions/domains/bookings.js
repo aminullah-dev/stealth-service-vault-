@@ -11,6 +11,8 @@ const { isValidDocId } = require("../lib/validate");
 const { assertAdmin, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { countsAsConfirmed, statsDelta, isNoOp } = require("../lib/salonstats");
 const { admin, alertable, db, logger } = require("../shared");
 
 // Kabul-local calendar day for a timestamp.
@@ -987,3 +989,134 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
   }
 );
+
+// ── deriveSalonStats ─────────────────────────────────────────────────────────
+//
+// Keeps a running tally of a salon's bookings so the provider's Income tab does
+// not have to count them.
+//
+// That tab shows lifetime totals — bookings by status, bookings by service, and
+// the revenue estimate built from the confirmed ones. It got them by reading
+// every appointment the salon had ever taken into the phone and counting there,
+// which is the one listener in the app a limit could not fix: bounding it would
+// not have shortened a list, it would have quietly under-reported a salon
+// owner's earnings, and a wrong number that looks right is worse than a slow
+// screen.
+//
+// A trigger rather than an increment at each call site. Status changes happen in
+// createPaymentSession, the payment webhook, confirm, decline, cancel, the
+// scheduled sweep that completes past bookings, and the admin tools — and a
+// counter that is only right when every one of those remembers to update it is a
+// counter that will be wrong. Here it sees the before and after of any write,
+// whatever made it.
+//
+// Same shape as confirmedCount on the salon document, which is maintained this
+// way already, and as deriveSalonFields.
+exports.deriveSalonStats = onDocumentWritten(
+  { document: "appointments/{appointmentId}", region: "us-central1" },
+  async (event) => {
+    const beforeSnap = event.data && event.data.before;
+    const afterSnap  = event.data && event.data.after;
+    const before = beforeSnap && beforeSnap.exists ? beforeSnap.data() : null;
+    const after  = afterSnap  && afterSnap.exists  ? afterSnap.data()  : null;
+    if (!before && !after) return;
+
+    // An appointment never moves between salons; a reschedule keeps the same
+    // one. Taking the salon from whichever side exists covers create and delete.
+    const salonId = String((after || before).salonId || "");
+    if (!salonId) return;
+
+    // The arithmetic lives in lib/salonstats, where it is unit-tested. A tally
+    // that drifts is invisible: the appointments it was derived from are no
+    // longer read, so nothing would ever disagree with it.
+    const delta = statsDelta(before, after);
+    if (isNoOp(delta)) return;
+
+    const inc = admin.firestore.FieldValue.increment;
+    const toIncrements = (bag) => {
+      const out = {};
+      for (const [k, v] of Object.entries(bag)) out[k] = inc(v);
+      return out;
+    };
+    const patch = {};
+    if (delta.total !== 0) patch.total = inc(delta.total);
+    if (Object.keys(delta.byStatus).length)  patch.byStatus  = toIncrements(delta.byStatus);
+    if (Object.keys(delta.byService).length) patch.byService = toIncrements(delta.byService);
+    if (Object.keys(delta.confirmedByService).length) {
+      patch.confirmedByService = toIncrements(delta.confirmedByService);
+    }
+
+    patch.salonId   = salonId;
+    patch.updatedAt = Date.now();
+
+    // merge, so the document is created on the salon's first booking and the
+    // map keys are treated as keys rather than as dotted field paths — service
+    // names are whatever the salon typed, in any script.
+    await db.doc(`salon_stats/${salonId}`).set(patch, { merge: true });
+  }
+);
+
+// ── adminRebuildSalonStats ───────────────────────────────────────────────────
+//
+// Recomputes salon_stats from the appointments themselves.
+//
+// deriveSalonStats keeps the tally current from here on, but a trigger only
+// fires on a write: every appointment that already exists has never been seen by
+// it, so without this every salon's Income tab reads zero. That is the same
+// shape as the phone-key lockout — a derived value that only new writes populate
+// — and it is worse here than an empty search, because zero looks like an
+// answer. A salon owner has no way to tell "no bookings yet" from "the tally was
+// never built".
+//
+// Recomputes rather than adjusts, so it is safe to run twice, and so a tally
+// that has drifted for any reason is repaired rather than compounded.
+exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+
+  const tallies = new Map();   // salonId -> { total, byStatus, byService, confirmedByService }
+  const blank = () => ({ total: 0, byStatus: {}, byService: {}, confirmedByService: {} });
+  const bump = (bag, key, n) => { if (key) bag[key] = (bag[key] || 0) + n; };
+
+  // Paged, so a platform with more appointments than fit in one read still
+  // completes rather than timing out partway and leaving half a tally.
+  let cursor = null;
+  let scanned = 0;
+  for (;;) {
+    let q = db.collection("appointments").orderBy("__name__").limit(500);
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    if (snap.empty) break;
+    for (const d of snap.docs) {
+      const a = d.data();
+      const salonId = String(a.salonId || "");
+      if (!salonId) continue;
+      if (!tallies.has(salonId)) tallies.set(salonId, blank());
+      const t = tallies.get(salonId);
+      t.total += 1;
+      bump(t.byStatus, String(a.status || ""), 1);
+      bump(t.byService, String(a.serviceName || ""), 1);
+      if (countsAsConfirmed(a.status)) bump(t.confirmedByService, String(a.serviceName || ""), 1);
+    }
+    scanned += snap.size;
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.size < 500) break;
+  }
+
+  let written = 0;
+  for (const [salonId, t] of tallies) {
+    // Not merged: a recompute replaces the tally outright, so a bucket for a
+    // service the salon has since renamed away does not survive as a ghost.
+    await db.doc(`salon_stats/${salonId}`).set({
+      salonId,
+      total:              t.total,
+      byStatus:           t.byStatus,
+      byService:          t.byService,
+      confirmedByService: t.confirmedByService,
+      updatedAt:          Date.now(),
+    });
+    written += 1;
+  }
+
+  await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written });
+  return { ok: true, scanned, salons: written };
+});

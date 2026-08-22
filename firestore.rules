@@ -642,6 +642,26 @@ service cloud.firestore {
     // ── provider_balances ───────────────────────────────────────────────────────
     // Ledger of what each provider is owed. Maintained by the webhook Cloud
     // Function; a provider may read only their own balance.
+    // ── salon_stats ─────────────────────────────────────────────────────────────
+    // A running tally of a salon's bookings — totals by status and by service —
+    // maintained by the deriveSalonStats trigger so the provider's Income tab
+    // does not have to read every appointment to count them.
+    //
+    // Read by the salon's own provider and by admins, not by everyone who can
+    // read the salon. The salon document is public because customers browse it;
+    // how many bookings it has taken, broken down by service, is the business's
+    // own trading position.
+    match /salon_stats/{salonId} {
+      allow get: if isSignedIn() && (
+                   isAdmin() ||
+                   get(/databases/$(database)/documents/salons/$(salonId)).data.providerId == me()
+                 );
+      // No list: the tallies are looked up one salon at a time, and a listable
+      // collection would hand every salon's volume to anyone who asked.
+      allow list:  if false;
+      allow write: if false;
+    }
+
     match /provider_balances/{providerId} {
       allow read:  if ownsDoc(providerId) || isAdmin();
       allow write: if false;

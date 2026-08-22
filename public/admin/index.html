@@ -1649,6 +1649,17 @@ async function renderHealth(){
         </div>
         <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Fill in missing lookup keys</button>
         <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
+
+        <div class="mlabel" style="margin-top:18px">Salon booking tallies</div>
+        <div class="mhint">
+          Each salon's Income tab reads a running tally rather than counting its bookings.
+          A trigger keeps it current, but only from the booking that follows it — bookings
+          taken before it existed were never counted, so a salon that has been trading a
+          while reads zero. This recomputes every tally from the appointments themselves.
+          Safe to run twice; it replaces rather than adds.
+        </div>
+        <button class="btn-sm" id="h-salonstats" style="background:var(--rose)">Rebuild salon booking tallies</button>
+        <div id="h-ssflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
@@ -1710,6 +1721,20 @@ async function renderHealth(){
       }catch(err){
         $('h-drillflash').className = 'mflash bad';
         $('h-drillflash').textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
+
+    $('h-salonstats').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Working…';
+      try{
+        const { data } = await httpsCallable(fns,'adminRebuildSalonStats')({});
+        $('h-ssflash').className = 'mflash ok';
+        $('h-ssflash').textContent =
+          `Read ${data.scanned} booking(s); rebuilt ${data.salons} salon tall${data.salons === 1 ? 'y' : 'ies'}.`;
+      }catch(err){
+        $('h-ssflash').className = 'mflash bad';
+        $('h-ssflash').textContent = fnError(err);
       }finally{ btn.disabled = false; btn.textContent = lbl; }
     };
 

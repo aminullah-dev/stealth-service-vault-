@@ -188,7 +188,7 @@ fun ProviderDashboardScreen(
     val salon               by viewModel.salon.collectAsStateWithLifecycle()
     val isAvailable         by viewModel.isAvailable.collectAsStateWithLifecycle()
     val pendingAppointments by viewModel.pendingAppointments.collectAsStateWithLifecycle()
-    val allAppointments     by viewModel.allAppointments.collectAsStateWithLifecycle()
+    val monthAppointments   by viewModel.monthAppointments.collectAsStateWithLifecycle()
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
     val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
     val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
@@ -370,7 +370,10 @@ fun ProviderDashboardScreen(
                     1 -> ProfileTab(viewModel = viewModel)
                     2 -> AnalyticsTab(analytics = analytics)
                     3 -> IncomeTab(viewModel = viewModel)
-                    4 -> CalendarTab(allAppointments = allAppointments)
+                    4 -> CalendarTab(
+                        monthAppointments = monthAppointments,
+                        onMonthShown      = viewModel::showCalendarMonth,
+                    )
                     5 -> ReviewsTab(
                         reviews  = reviews,
                         onReply  = { id, text -> viewModel.replyToReview(id, text) }

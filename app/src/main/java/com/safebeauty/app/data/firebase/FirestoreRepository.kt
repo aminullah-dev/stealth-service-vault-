@@ -530,19 +530,55 @@ class FirestoreRepository @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    fun observeAllForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
+    /**
+     * A salon's appointments inside one calendar month.
+     *
+     * Replaces the calendar's use of observeAllForSalon, which downloaded every
+     * booking the salon had ever taken so the composable could keep the ones
+     * falling in the month on screen. The month is a date range, which Firestore
+     * can answer directly — the same salonId + appointmentDate index the booking
+     * conflict check uses.
+     *
+     * [startMs] inclusive, [endMs] exclusive, both in the device's own timezone,
+     * because that is the timezone the calendar grid is drawn in.
+     */
+    fun observeAppointmentsForMonth(salonId: String, startMs: Long, endMs: Long): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
+            .whereGreaterThanOrEqualTo("appointmentDate", startMs)
+            .whereLessThan("appointmentDate", endMs)
+            .orderBy("appointmentDate", Query.Direction.ASCENDING)
+            .limit(SALON_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-                val list = snap?.documents
+                trySend(snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.appointmentDate }
-                    ?: emptyList()
-                trySend(list)
+                    ?: emptyList())
             }
         awaitClose { listener.remove() }
     }
+
+    /**
+     * A salon's booking tally — one document, so it costs the same at ten
+     * bookings and at ten thousand.
+     *
+     * Replaces counting a downloaded copy of every appointment. The trigger that
+     * maintains it sees the before and after of any write to an appointment, so
+     * it stays right no matter which path changed a status.
+     */
+    fun observeSalonStats(salonId: String): Flow<SalonStatsDocument?> = callbackFlow {
+        if (salonId.isBlank()) { trySend(null); awaitClose { }; return@callbackFlow }
+        val listener = db.collection("salon_stats").document(salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    CrashReporter.recordNonFatal(err, "firestore:observeSalonStats")
+                    trySend(null); return@addSnapshotListener
+                }
+                trySend(snap?.toObject(SalonStatsDocument::class.java))
+            }
+        awaitClose { listener.remove() }
+    }
+
 
     // NOTE: appointments are created exclusively by the createPaymentSession
     // Cloud Function (pay-first); the rules deny client creation.

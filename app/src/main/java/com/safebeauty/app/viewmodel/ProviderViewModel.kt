@@ -81,13 +81,41 @@ class ProviderViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val allAppointments: StateFlow<List<AppointmentDocument>> = salon
-        .flatMapLatest { s ->
-            if (s != null) firestoreRepository.observeAllForSalon(s.id)
-            else flowOf(emptyList())
+    // ── Calendar: one month at a time ────────────────────────────────────────
+    //
+    // The calendar used to receive every appointment the salon had ever taken
+    // and keep the ones falling in the month on screen. The month it is showing
+    // is now part of the query, so paging back through a busy salon's history
+    // costs one month at a time instead of all of it at once.
+
+    private val _calendarMonth = MutableStateFlow(
+        java.util.Calendar.getInstance().let {
+            it.get(java.util.Calendar.YEAR) to it.get(java.util.Calendar.MONTH)
         }
-        .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    )
+
+    /** Called by the calendar when the provider pages to a different month. */
+    fun showCalendarMonth(year: Int, month: Int) {
+        _calendarMonth.value = year to month
+    }
+
+    val monthAppointments: StateFlow<List<AppointmentDocument>> =
+        combine(salon, _calendarMonth) { s, ym -> s to ym }
+            .flatMapLatest { (s, ym) ->
+                if (s == null) flowOf(emptyList())
+                else {
+                    val (year, month) = ym
+                    // Device timezone, matching the grid the calendar draws.
+                    val cal = java.util.Calendar.getInstance().apply {
+                        clear(); set(year, month, 1, 0, 0, 0)
+                    }
+                    val start = cal.timeInMillis
+                    cal.add(java.util.Calendar.MONTH, 1)
+                    firestoreRepository.observeAppointmentsForMonth(s.id, start, cal.timeInMillis)
+                }
+            }
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val reviews: StateFlow<List<ReviewDocument>> = salon
         .flatMapLatest { s ->
@@ -97,21 +125,36 @@ class ProviderViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val analytics: StateFlow<ProviderAnalytics> = allAppointments
-        .map { appointments ->
-            ProviderAnalytics(
-                total             = appointments.size,
-                // COMPLETED is a finished CONFIRMED booking (a scheduled function
-                // flips past ones over), so it still counts as an accepted booking.
-                confirmed         = appointments.count { it.status == "CONFIRMED" || it.status == "COMPLETED" },
-                pending           = appointments.count { it.status == "PENDING" },
-                cancelled         = appointments.count { it.status == "CANCELLED" },
-                byService         = appointments.groupingBy { it.serviceName }.eachCount(),
-                confirmedByService = appointments
-                    .filter { it.status == "CONFIRMED" || it.status == "COMPLETED" }
-                    .groupingBy { it.serviceName }.eachCount()
-            )
+    /**
+     * Lifetime totals, read from the tally rather than counted here.
+     *
+     * These used to be computed over every appointment the salon had ever taken,
+     * downloaded to the phone for the purpose. The numbers are the same; what
+     * changed is that reading them no longer costs more each year the salon
+     * stays in business.
+     */
+    val analytics: StateFlow<ProviderAnalytics> = salon
+        .flatMapLatest { s ->
+            if (s == null) flowOf(null) else firestoreRepository.observeSalonStats(s.id)
         }
+        .map { stats ->
+            if (stats == null) ProviderAnalytics()
+            else {
+                fun n(key: String) = (stats.byStatus[key] ?: 0L).toInt()
+                ProviderAnalytics(
+                    total = stats.total.toInt(),
+                    // COMPLETED is a finished CONFIRMED booking (a scheduled
+                    // function flips past ones over), so it still counts as an
+                    // accepted booking.
+                    confirmed          = n("CONFIRMED") + n("COMPLETED"),
+                    pending            = n("PENDING"),
+                    cancelled          = n("CANCELLED"),
+                    byService          = stats.byService.mapValues { (_, v) -> v.toInt() },
+                    confirmedByService = stats.confirmedByService.mapValues { (_, v) -> v.toInt() }
+                )
+            }
+        }
+        .catch { emit(ProviderAnalytics()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderAnalytics())
 
     val estimatedRevenue: StateFlow<Int> = combine(analytics, salon) { a, s ->

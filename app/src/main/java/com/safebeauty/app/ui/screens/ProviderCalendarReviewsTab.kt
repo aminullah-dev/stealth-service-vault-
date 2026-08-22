@@ -166,26 +166,29 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-internal fun CalendarTab(allAppointments: List<AppointmentDocument>) {
+internal fun CalendarTab(
+    monthAppointments: List<AppointmentDocument>,
+    onMonthShown: (year: Int, month: Int) -> Unit,
+) {
     val strings     = LocalStrings.current
     val todayCal    = remember { java.util.Calendar.getInstance() }
     var displayYear  by remember { mutableIntStateOf(todayCal.get(java.util.Calendar.YEAR)) }
     var displayMonth by remember { mutableIntStateOf(todayCal.get(java.util.Calendar.MONTH)) }
     var selectedDay  by remember { mutableStateOf<Int?>(null) }
 
-    // Group visible-month appointments by day-of-month
-    val appointmentsByDay = remember(allAppointments, displayYear, displayMonth) {
-        allAppointments
-            .filter { appt ->
-                val c = java.util.Calendar.getInstance().apply { timeInMillis = appt.appointmentDate }
-                c.get(java.util.Calendar.YEAR)  == displayYear &&
-                c.get(java.util.Calendar.MONTH) == displayMonth
-            }
-            .groupBy { appt ->
-                java.util.Calendar.getInstance()
-                    .apply { timeInMillis = appt.appointmentDate }
-                    .get(java.util.Calendar.DAY_OF_MONTH)
-            }
+    // Which month is on screen stays here — it is a property of the view. What
+    // changed is that the query follows it, instead of every appointment the
+    // salon ever took being downloaded so this could filter them down to one
+    // month at a time.
+    LaunchedEffect(displayYear, displayMonth) { onMonthShown(displayYear, displayMonth) }
+
+    // Already just this month; only the grouping is left to do.
+    val appointmentsByDay = remember(monthAppointments) {
+        monthAppointments.groupBy { appt ->
+            java.util.Calendar.getInstance()
+                .apply { timeInMillis = appt.appointmentDate }
+                .get(java.util.Calendar.DAY_OF_MONTH)
+        }
     }
 
     val selectedDayAppts = selectedDay?.let { appointmentsByDay[it] ?: emptyList() } ?: emptyList()

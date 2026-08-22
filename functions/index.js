@@ -102,6 +102,8 @@ exports.deriveUserPhoneKey       = identity.deriveUserPhoneKey;
 
 const bookings = require("./domains/bookings");
 exports.cancelAppointment          = bookings.cancelAppointment;
+exports.deriveSalonStats        = bookings.deriveSalonStats;
+exports.adminRebuildSalonStats  = bookings.adminRebuildSalonStats;
 exports.providerDeclineAppointment = bookings.providerDeclineAppointment;
 exports.getBookedSlots             = bookings.getBookedSlots;
 exports.rescheduleAppointment      = bookings.rescheduleAppointment;
