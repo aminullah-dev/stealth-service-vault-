@@ -29,6 +29,7 @@ const {
   commitBookingAtomically,
   slotConflictWindow,
 } = require("../lib/reservation");
+const { hasSlotConflict } = require("../lib/slots");
 
 admin.initializeApp({ projectId: "safebeauty-test" });
 const db = admin.firestore();
@@ -154,6 +155,78 @@ test("a booking far outside the window does not block", async () => {
 
   const near = await attempt(salonId, at);
   assert.ok(near.ok, "a booking a week earlier must not block this one");
+});
+
+/**
+ * The conflict check rescheduleAppointment runs, built the same way.
+ *
+ * Reschedule is a second door onto the same guarantee, and it was missed when
+ * the first was fixed: it read every appointment the salon had ever taken, with
+ * no date bound, inside a transaction. Nothing tested it, which is also how a
+ * `actor is not defined` in the same function survived until lint found it.
+ *
+ * This mirrors the production read and the production call to hasSlotConflict —
+ * including the appointmentId that excludes the booking being moved, without
+ * which every reschedule collides with itself.
+ */
+async function rescheduleWouldCollide(salonId, appointmentId, newDate, staffId = "", span = 1) {
+  const win = slotConflictWindow(newDate);
+  const snap = await db.collection("appointments")
+    .where("salonId", "==", salonId)
+    .where("appointmentDate", ">=", win.start)
+    .where("appointmentDate", "<", win.end)
+    .get();
+  const others = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return hasSlotConflict(others, newDate, span, staffId, SLOT_MINUTES, appointmentId);
+}
+
+test("a reschedule onto an occupied slot is refused", async () => {
+  // One base timestamp, not two calls to Date.now(). hasSlotConflict matches
+  // slot starts exactly, so a few milliseconds of drift between setting the
+  // booking up and asking about it is a different slot.
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const onto = base + 2 * 3_600_000;
+
+  const mine  = await attempt(salonId, base);
+  const other = await attempt(salonId, onto);
+  assert.ok(mine.ok && other.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, onto), true);
+});
+
+test("a reschedule onto a free slot is allowed", async () => {
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const mine = await attempt(salonId, base);
+  assert.ok(mine.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, base + 5 * 3_600_000), false);
+});
+
+test("a reschedule does not collide with the booking being moved", async () => {
+  // Without the appointmentId exclusion this is always true, and rescheduling
+  // is impossible — the booking's own current slot blocks it.
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  const mine = await attempt(salonId, at);
+  assert.ok(mine.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, at), false,
+    "a booking must not be its own conflict");
+  assert.equal(await rescheduleWouldCollide(salonId, "someone-else", at), true,
+    "and the same slot must still block anyone else");
+});
+
+test("a booking a week away does not block a reschedule", async () => {
+  // The bound this test exists for: outside the window the appointment is not
+  // read at all, so it cannot be mistaken for a conflict.
+  const salonId = freshSalon();
+  const onto = Date.now() + 86_400_000;
+  const far  = await attempt(salonId, onto + 7 * 86_400_000);
+  assert.ok(far.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, "any", onto), false);
 });
 
 test.after(async () => { await admin.app().delete(); });

@@ -5,6 +5,7 @@
 
 const { normalizeBookingCode } = require("../lib/booking");
 const { expandBooked, hasSlotConflict } = require("../lib/slots");
+const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_ADMIN_AFTER_MS, UNCONFIRMED_NUDGE_AFTER_MS, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
 const { assertAdmin, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
@@ -352,8 +353,20 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
         (Array.isArray(appt.services) ? appt.services.length : 0) ||
         1
     );
+    //
+    // Bounded to the requested time's neighbourhood, exactly as
+    // createPaymentSession is. Unbounded, this read every appointment the salon
+    // had ever taken — and did it inside a transaction, which Firestore may
+    // retry, so a busy salon paid its whole history again on every retry. The
+    // booking path was fixed in P1 and this one was missed: same defect, second
+    // door. A conflict can only involve an appointment near the new time, so
+    // nothing outside the window can change the answer.
+    const conflictWindow = slotConflictWindow(dateMs);
     const otherSnap = await tx.get(
-      db.collection("appointments").where("salonId", "==", appt.salonId)
+      db.collection("appointments")
+        .where("salonId", "==", appt.salonId)
+        .where("appointmentDate", ">=", conflictWindow.start)
+        .where("appointmentDate", "<", conflictWindow.end)
     );
     const others = otherSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     if (hasSlotConflict(others, dateMs, span, String(appt.staffId || ""), slotMinutes, appointmentId)) {
