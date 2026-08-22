@@ -37,10 +37,17 @@ def top_level_blocks(lines):
             (r"^const (\w+)\s*=", "helper"),
             (r"^let (\w+)\s*=", "helper"),
             (r"^exports\.(\w+)\s*=", "export"),
+            # A multi-line `const { a, b } = require(...)` is a top-level
+            # declaration too. Without it as a boundary, one sitting at the end
+            # of the file falls inside the last export's block and travels into
+            # the domain — which then declares it twice, once in its own header
+            # and once in the carried body.
+            (r"^const \{(\s*)$", "require-block"),
         ):
             m = re.match(pat, l)
             if m:
-                marks.append((i, m.group(1), kind))
+                name = m.group(1) if kind != "require-block" else f"__require_block_{i}"
+                marks.append((i, name, kind))
                 break
 
     # Carry the comment block immediately above each declaration with it — a
@@ -94,14 +101,16 @@ def strip_noise(src):
     src = re.sub(r"//[^\n]*", " ", src)
     src = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', src)
     src = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", src)
-    # Template literals are NOT stripped. `${HESAB_BASE_URL.value()}/payment` is
-    # executable code wearing a string's clothes, and removing it made the tool
-    # stop seeing a real dependency — the constant stayed behind while the code
-    # using it moved, which is a ReferenceError on the first checkout.
-    #
-    # The asymmetry decides this: a false positive costs one unused import, a
-    # false negative costs the payment path. So prose inside a template may
-    # still match, and that is the cheaper error.
+    # Template literals keep their ${...} expressions and lose their prose.
+    # `${HESAB_BASE_URL.value()}/payment` is executable code wearing a string's
+    # clothes — stripping the whole literal made the tool stop seeing a real
+    # dependency, and the constant stayed behind while the code using it moved.
+    # Keeping the whole literal instead makes ordinary words in message text
+    # look like identifiers. Keeping only the expressions is both.
+    def keep_expressions(m):
+        return " ".join(re.findall(r"\$\{([^{}]*)\}", m.group(0)))
+
+    src = re.sub(r"`(?:[^`\\]|\\.)*`", keep_expressions, src, flags=re.S)
     return src
 
 
@@ -221,7 +230,14 @@ def main():
             if not (m.start() > 0 and domain_code[m.start() - 1] == ".")
             and not re.match(r"\s*:", domain_code[m.end():m.end() + 4])
         ]
-        if uses:
+        # A name the domain declares for itself — a local const, or a
+        # destructuring target — shadows any import of it. Emitting the require
+        # anyway adds a module dependency that nothing can even reach.
+        shadowed = re.search(
+            r"(?:const|let|var)\s+(?:\[|\{)?[^=;]*\b%s\b[^=;]*(?:\]|\})?\s*=" % re.escape(name),
+            domain_code,
+        )
+        if uses and not shadowed:
             needed.setdefault(mod, []).append(name)
 
     # Anything from shared.js comes from there, not from a second require of

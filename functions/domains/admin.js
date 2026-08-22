@@ -3,7 +3,6 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const bookings = require("../domains/bookings");
 const { isValidDocId } = require("../lib/validate");
 const { assertAdmin, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
