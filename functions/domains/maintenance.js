@@ -339,6 +339,39 @@ async function runIntegritySweep() {
       }
     });
 
+    // 7. Live bookings whose salon no longer exists.
+    //
+    //    Deleting a salon leaves its appointments behind, which is right for
+    //    history — a customer's past visit should not vanish, and the salon name
+    //    is stored on the booking so it still reads correctly. A booking that has
+    //    not happened yet is a different thing: nobody is going to answer it, and
+    //    nobody is watching it. That is not hypothetical, it is what made
+    //    nudgeUnconfirmedBookings alert every hour on two June bookings whose
+    //    salon had been removed — the nudge had nowhere to send and no way to say
+    //    so. Finished bookings are deliberately not flagged; there are 18 of them
+    //    in production and they are simply the past.
+    const live = await db.collection("appointments")
+      .where("status", "in", ["PENDING", "CONFIRMED", "AWAITING_PAYMENT"])
+      .limit(200).get();
+    const liveSalonIds = [...new Set(
+      live.docs.map((d) => String(d.data().salonId || "")).filter(Boolean)
+    )];
+    if (liveSalonIds.length) {
+      const salonDocs = await db.getAll(
+        ...liveSalonIds.map((id) => db.doc(`salons/${id}`))
+      );
+      const missing = new Set(
+        salonDocs.filter((d) => !d.exists).map((d) => d.id)
+      );
+      live.docs.forEach((d) => {
+        const a = d.data();
+        if (missing.has(String(a.salonId || ""))) {
+          add("SALON_GONE", "critical", a.bookingCode || d.id,
+            `Booking is still open but its salon (${a.salonName || a.salonId}) no longer exists.`);
+        }
+      });
+    }
+
     const critical = findings.filter((f) => f.severity === "critical").length;
 
     await db.doc(`system_alerts/${new Date(now).toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" })}`)

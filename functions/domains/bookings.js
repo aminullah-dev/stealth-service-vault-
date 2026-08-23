@@ -1119,8 +1119,21 @@ exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (reques
     if (snap.size < 500) break;
   }
 
+  // A tally for a salon that no longer exists is a number nobody can read: the
+  // provider is gone, and the Income tab it feeds went with them. Production has
+  // four of these — 18 finished bookings across salons that were deleted — and
+  // the first run of this created a document for each. Skipped rather than
+  // deleted: they are harmless, and quietly removing production data to tidy a
+  // count is not this function's business.
+  const salonDocs = await db.getAll(
+    ...[...tallies.keys()].map((id) => db.doc(`salons/${id}`))
+  );
+  const alive = new Set(salonDocs.filter((d) => d.exists).map((d) => d.id));
+
   let written = 0;
+  let skipped = 0;
   for (const [salonId, t] of tallies) {
+    if (!alive.has(salonId)) { skipped += 1; continue; }
     // Not merged: a recompute replaces the tally outright, so a bucket for a
     // service the salon has since renamed away does not survive as a ghost.
     await db.doc(`salon_stats/${salonId}`).set({
@@ -1134,6 +1147,6 @@ exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (reques
     written += 1;
   }
 
-  await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written });
-  return { ok: true, scanned, salons: written };
+  await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written, skipped });
+  return { ok: true, scanned, salons: written, skipped };
 });

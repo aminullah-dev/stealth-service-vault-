@@ -1731,7 +1731,8 @@ async function renderHealth(){
         const { data } = await httpsCallable(fns,'adminRebuildSalonStats')({});
         $('h-ssflash').className = 'mflash ok';
         $('h-ssflash').textContent =
-          `Read ${data.scanned} booking(s); rebuilt ${data.salons} salon tall${data.salons === 1 ? 'y' : 'ies'}.`;
+          `Read ${data.scanned} booking(s); rebuilt ${data.salons} salon tall${data.salons === 1 ? 'y' : 'ies'}.` +
+          (data.skipped ? ` Skipped ${data.skipped} salon(s) that no longer exist.` : '');
       }catch(err){
         $('h-ssflash').className = 'mflash bad';
         $('h-ssflash').textContent = fnError(err);
