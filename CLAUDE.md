@@ -89,7 +89,23 @@ silently hit "permission denied".
   render with the pre-installed headless Chromium; post 1080×1350, story
   1080×1920.
 
+## Agents (`.claude/agents/`)
+- **`verify-live`** — proves a change is actually live and actually working,
+  from production and staging rather than from the repository. Run it after any
+  deploy, after any backfill, or when a number looks wrong. It exists because
+  this codebase's recurring defect is not code that breaks but code that looks
+  healthy and has never run: a backup that wrote no files, a sweep never
+  invoked, a Health tab no browser could read, derived fields only new writes
+  populate. Those are absences, not failures, and nothing else looks for them.
+- **`review-safebeauty`** — reviews a diff against the invariants here that were
+  learned by breaking them: bounded reads, `orderBy` dropping documents that
+  lack the field, index direction, a trigger needing a backfill, server-written
+  collections having no rules, the trilingual 4× rule, client and server slot
+  maths agreeing. Run it before committing anything touching queries, rules,
+  money, the slot maths, or strings.
+
 ## Git
+
 - Work on branch `claude/stealth-android-vault-4zr1d3`. Commit + push each
   finished change. Don't open PRs unless asked.
 
