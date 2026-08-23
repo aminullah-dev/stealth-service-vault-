@@ -326,7 +326,6 @@ internal fun BookingsSheetContent(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 /**
  * PENDING (awaiting the salon) is always cancellable. CONFIRMED (paid and
  * accepted) stays cancellable until the appointment time — cancelAppointment
@@ -399,6 +398,7 @@ private fun SwipeToCancel(
     ) { content() }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookingCard(
     appt: AppointmentDocument,
