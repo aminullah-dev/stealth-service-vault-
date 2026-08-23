@@ -62,8 +62,8 @@ android {
         applicationId = "com.security.stealthapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.9"
+        versionCode = 15
+        versionName = "2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
