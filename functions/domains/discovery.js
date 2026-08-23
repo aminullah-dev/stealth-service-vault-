@@ -4,7 +4,9 @@
 // so the deployed function set is unchanged by the move.
 
 const { normalizeDistrict } = require("../lib/areas");
-const { categoriesFor, categoryNormalize } = require("../lib/categories");
+// `normalize` is imported under a clearer local name — lib/categories has no
+// export called categoryNormalize, and dropping the rename made it undefined.
+const { categoriesFor, normalize: categoryNormalize } = require("../lib/categories");
 const { assertAdmin, logAdminAction } = require("../shared");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall } = require("firebase-functions/v2/https");
