@@ -1040,6 +1040,7 @@ class DashboardViewModel @Inject constructor(
     private var lastAttemptNotes: String = ""
     private var lastAttemptStaffId: String = ""
     private var lastAttemptPackageId: String = ""
+    private var lastAttemptParty: List<Map<String, Any>> = emptyList()
     val lastAttemptServiceList: List<String> get() = lastAttemptServices
     val lastAttemptStaff: String   get() = lastAttemptStaffId
     val lastAttemptPackage: String get() = lastAttemptPackageId
@@ -1052,7 +1053,8 @@ class DashboardViewModel @Inject constructor(
         notes: String = "",
         paymentMethod: String = "ONLINE",
         staffId: String = "",
-        packageId: String = ""
+        packageId: String = "",
+        party: List<Map<String, Any>> = emptyList()
     ) {
         // Funnel step 3: the moment of intent, logged before the network call so
         // it counts even when checkout then fails.
@@ -1070,6 +1072,7 @@ class DashboardViewModel @Inject constructor(
         lastAttemptNotes     = notes
         lastAttemptStaffId   = staffId
         lastAttemptPackageId = packageId
+        lastAttemptParty     = party
         // Only send a code that was actually validated for THIS service, so a
         // stale/mismatched code can't slip into the charge.
         val appliedCode = promoApplied?.code.orEmpty()
@@ -1083,7 +1086,8 @@ class DashboardViewModel @Inject constructor(
                 method            = paymentMethod,
                 promoCode         = appliedCode,
                 staffId           = staffId,
-                packageId         = packageId
+                packageId         = packageId,
+                party             = party
             )
             if (outcome is CheckoutOutcome.Failure) {
                 // Keep the attempt so the Failed dialog can offer a specific retry.
@@ -1111,7 +1115,19 @@ class DashboardViewModel @Inject constructor(
      *  online charge 0 (HesabPay can't charge 0). Keeps every other selection. */
     fun retryLastAsCash() {
         val salon = lastAttemptSalon ?: return
-        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "CASH", lastAttemptStaffId, lastAttemptPackageId)
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "CASH", lastAttemptStaffId, lastAttemptPackageId, lastAttemptParty)
+    }
+
+    /**
+     * Retry the last rejected booking online — used when the server refused cash.
+     *
+     * The refusal is the whole point of the rule, so the recovery is not to argue
+     * with it but to make the alternative one tap away. Losing the booking here
+     * would punish the salon a second time.
+     */
+    fun retryLastAsOnline() {
+        val salon = lastAttemptSalon ?: return
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "ONLINE", lastAttemptStaffId, lastAttemptPackageId, lastAttemptParty)
     }
 
     /** Retry the last rejected booking after dropping the promo code — used when
@@ -1194,6 +1210,8 @@ class DashboardViewModel @Inject constructor(
         dateMs: Long,
         selectedStaffId: String = "",
         services: List<String> = emptyList(),
+        /** A wedding party's guests, when this is one. Everyone works at once. */
+        party: List<Pair<String, List<String>>> = emptyList(),
     ) {
         viewModelScope.launch {
             slotsLoading = true
@@ -1201,8 +1219,16 @@ class DashboardViewModel @Inject constructor(
             val booked = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
             }.getOrDefault(emptyList())
-            val slots = computeSlots(salon, dateMs, booked, selectedStaffId,
-                                     com.safebeauty.app.util.SlotMath.layoutFor(salon, services))
+            // A party is the whole salon working in parallel, so its span is much
+            // shorter than the same services one after another. Using the ordinary
+            // layout here would offer a bride far fewer start times than the
+            // server would actually accept — safe, but it would hide the salon's
+            // afternoon from her.
+            val layout = if (party.isNotEmpty())
+                com.safebeauty.app.util.SlotMath.partyLayoutFor(salon, party)
+            else
+                com.safebeauty.app.util.SlotMath.layoutFor(salon, services)
+            val slots = computeSlots(salon, dateMs, booked, selectedStaffId, layout)
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false

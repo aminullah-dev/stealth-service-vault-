@@ -30,6 +30,36 @@ data class SlotLayout(
 
 object SlotMath {
 
+    /**
+     * A wedding party's layout: everyone works, so the wall-clock is the total
+     * work divided by however many stylists there are.
+     *
+     * Mirrors partySpan in functions/lib/party.js. Without it the picker would
+     * treat a party as one stylist working through five guests in turn and offer
+     * far fewer start times than the server would actually accept — safe, but
+     * wrong, and it would hide the salon's whole afternoon from a bride.
+     *
+     * Busy throughout: nobody is idle during a wedding, so there is no gap to
+     * sell the way a colour's development has one.
+     */
+    fun partyLayoutFor(
+        salon: SalonDocument,
+        guests: List<Pair<String, List<String>>>,
+    ): SlotLayout {
+        val step = salon.slotDurationMinutes.coerceAtLeast(1)
+        val staff = salon.activeStaff().size.coerceAtLeast(1)
+        val names = guests.flatMap { it.second }
+        if (names.isEmpty()) return SlotLayout(1, listOf(0))
+
+        val totalMinutes = names.sumOf { n ->
+            val d = salon.durationPerService[n] ?: 0
+            if (d > 0) d else step
+        }
+        val wallClock = ceilDiv(totalMinutes, staff)
+        val span = ceilDiv(wallClock, step).coerceAtLeast(1)
+        return SlotLayout(span = span, busyOffsets = (0 until span).toList())
+    }
+
     fun layoutFor(salon: SalonDocument, serviceNames: List<String>): SlotLayout {
         val step = salon.slotDurationMinutes.coerceAtLeast(1)
         if (serviceNames.isEmpty()) return SlotLayout(1, listOf(0))

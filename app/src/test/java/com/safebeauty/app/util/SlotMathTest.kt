@@ -2,6 +2,7 @@ package com.safebeauty.app.util
 
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.ServiceTiming
+import com.safebeauty.app.data.firebase.StaffMember
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +91,46 @@ class SlotMathTest {
     @Test
     fun `a service with no duration falls back to one whole slot`() {
         val l = SlotMath.layoutFor(salon(60), listOf("Unpriced"))
+        assertEquals(1, l.span)
+        assertEquals(listOf(0), l.busyOffsets)
+    }
+
+    // ── Parties ──────────────────────────────────────────────────────────────
+    // Same cases as functions/test/party.test.js. The server decides whether the
+    // salon is free; this decides which start times a bride is shown.
+
+    private fun partySalon(slotMinutes: Int = 60, staff: Int = 1) = SalonDocument(
+        slotDurationMinutes = slotMinutes,
+        durationPerService = mapOf("Makeup" to 60, "Hair" to 90),
+        staff = (1..staff).map { StaffMember(id = "s$it", name = "S$it", active = true) },
+    )
+
+    @Test
+    fun `more stylists means the same party finishes sooner`() {
+        val three = listOf(
+            "A" to listOf("Makeup"), "B" to listOf("Makeup"), "C" to listOf("Makeup"),
+        )
+        assertEquals(3, SlotMath.partyLayoutFor(partySalon(60, 1), three).span)
+        assertEquals(1, SlotMath.partyLayoutFor(partySalon(60, 3), three).span)
+        assertEquals(2, SlotMath.partyLayoutFor(partySalon(60, 2), three).span)
+    }
+
+    @Test
+    fun `a party is busy throughout, with no gap to sell`() {
+        val l = SlotMath.partyLayoutFor(partySalon(60, 1), listOf("A" to listOf("Makeup", "Hair")))
+        assertEquals(l.span, l.busyOffsets.size)
+        assertEquals((0 until l.span).toList(), l.busyOffsets)
+    }
+
+    @Test
+    fun `a salon with no named staff is one stylist, not zero`() {
+        val l = SlotMath.partyLayoutFor(partySalon(60, 0), listOf("A" to listOf("Makeup")))
+        assertEquals(1, l.span)
+    }
+
+    @Test
+    fun `an empty party is still a real booking`() {
+        val l = SlotMath.partyLayoutFor(partySalon(60, 3), emptyList())
         assertEquals(1, l.span)
         assertEquals(listOf(0), l.busyOffsets)
     }

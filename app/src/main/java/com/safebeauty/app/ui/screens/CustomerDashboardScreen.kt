@@ -1540,7 +1540,8 @@ fun CustomerDashboardScreen(
                             val selectedDate = datePickerState.selectedDateMillis
                             if (selectedDate != null && bookingIntent != null) {
                                 bookingIntent = bookingIntent?.copy(dateMs = selectedDate)
-                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, services = bookingIntent!!.services)
+                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, services = bookingIntent!!.services,
+                                    party = partyGuests.map { it.name to it.services })
                             }
                             showSlotPicker = true
                         },
@@ -1584,7 +1585,8 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = "", staffName = "")
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", intent.services)
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", intent.services,
+                                                partyGuests.map { it.name to it.services })
                                         }
                                     },
                                     label = { Text(strings.staffAny, fontSize = 12.sp) },
@@ -1602,7 +1604,8 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = member.id, staffName = member.name)
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, intent.services)
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, intent.services,
+                                                partyGuests.map { it.name to it.services })
                                         }
                                     },
                                     label = { Text(member.name, fontSize = 12.sp) },
@@ -1840,7 +1843,16 @@ fun CustomerDashboardScreen(
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
                                 val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
-                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId, intent.packageId)
+                                // The guest list goes as a list, not only as the
+                                // note. The note is still sent because it reads
+                                // well on the salon's screen today, but the
+                                // structure is what lets the server see that
+                                // everyone works at once instead of queueing five
+                                // guests onto one stylist.
+                                val partyPayload = partyGuests.map { g ->
+                                    mapOf<String, Any>("name" to g.name, "services" to g.services)
+                                }
+                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId, intent.packageId, partyPayload)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
@@ -1952,6 +1964,8 @@ fun CustomerDashboardScreen(
                         "STAFF_UNAVAILABLE" -> strings.bookFailStaffUnavailable
                         "FREE_USE_CASH"     -> strings.bookFailFreeUseCash
                         "PROMO_LIMIT"       -> strings.bookFailPromoLimit
+                        "PARTY"             -> strings.bookFailPartyPrepay
+                        "NO_SHOW_HISTORY"   -> strings.bookFailMustPrepay
                         else                -> strings.paymentFailed
                     }
                     AlertDialog(
@@ -1964,6 +1978,14 @@ fun CustomerDashboardScreen(
                                     onClick = { viewModel.retryLastAsCash() },
                                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
                                 ) { Text(strings.payCashInstead, color = Color.White) }
+                                // The refusal is the point of the rule, so the
+                                // recovery is not to argue with it but to make
+                                // the alternative one tap away. Losing the
+                                // booking here would punish the salon twice.
+                                "PARTY", "NO_SHOW_HISTORY" -> Button(
+                                    onClick = { viewModel.retryLastAsOnline() },
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.payOnlineInstead, color = Color.White) }
                                 "PROMO_LIMIT" -> Button(
                                     onClick = { viewModel.retryLastWithoutPromo() },
                                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
