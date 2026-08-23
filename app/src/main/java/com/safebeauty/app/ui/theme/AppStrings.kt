@@ -836,7 +836,7 @@ object StringResources {
         referralYourCode           = "Your code"
         referralCreditLabel        = "Your credit"
         referralShare              = "Share"
-        referralShareText          = { code -> "Join me on SafeBeauty — book trusted beauty salons. Use my code $code when you sign up and we both get AFN 100 off! Download: https://safebeauty.web.app" }
+        referralShareText          = { code -> "Join me on SafeBeauty — book trusted beauty salons. Use my code $code when you sign up and we both get AFN 100 off! Download: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "Share"
         shareSalonText             = { name, url -> "Check out $name on SafeBeauty — book trusted beauty services: $url" }
         referralCreditBadge        = { amt -> "AFN $amt credit" }
@@ -1461,7 +1461,7 @@ object StringResources {
         referralYourCode           = "کد شما"
         referralCreditLabel        = "اعتبار شما"
         referralShare              = "اشتراک‌گذاری"
-        referralShareText          = { code -> "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر. هنگام ثبت‌نام کد من $code را وارد کن تا هر دو ۱۰۰ افغانی تخفیف بگیریم! دانلود: https://safebeauty.web.app" }
+        referralShareText          = { code -> "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر. هنگام ثبت‌نام کد من $code را وارد کن تا هر دو ۱۰۰ افغانی تخفیف بگیریم! دانلود: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "اشتراک‌گذاری"
         shareSalonText             = { name, url -> "$name را در SafeBeauty ببین — رزرو مطمئن خدمات زیبایی: $url" }
         referralCreditBadge        = { amt -> "$amt افغانی اعتبار" }
@@ -2086,7 +2086,7 @@ object StringResources {
         referralYourCode           = "ستاسو کوډ"
         referralCreditLabel        = "ستاسو کریډیټ"
         referralShare              = "شریکول"
-        referralShareText          = { code -> "له ما سره په SafeBeauty کې یوځای شئ — د باور وړ ښکلا سالونونه بک کړئ. د راجستر پر مهال زما کوډ $code وکاروئ ترڅو دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کړو! ډاونلوډ: https://safebeauty.web.app" }
+        referralShareText          = { code -> "له ما سره په SafeBeauty کې یوځای شئ — د باور وړ ښکلا سالونونه بک کړئ. د راجستر پر مهال زما کوډ $code وکاروئ ترڅو دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کړو! ډاونلوډ: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "شریکول"
         shareSalonText             = { name, url -> "$name په SafeBeauty کې وګورئ — د باور وړ ښکلا خدمتونه بک کړئ: $url" }
         referralCreditBadge        = { amt -> "$amt افغانۍ کریډیټ" }

@@ -44,6 +44,10 @@ exports.pushOfferToFavoriters = onDocumentCreated(
       batch.set(db.collection("notifications").doc(), {
         recipientId: customerId,
         type:        "OFFER",
+        // msgKey is what pushOnNotificationCreated translates by; title and body
+        // stay as the English fallback for anything the catalogue does not know.
+        msgKey:      "OFFER_NEW",
+        msgParams:   { salon, text: offer.title || "" },
         title,
         body,
         isRead:      false,
@@ -226,6 +230,8 @@ exports.pushPostToFollowers = onDocumentCreated(
       batch.set(db.collection("notifications").doc(), {
         recipientId: customerId,
         type:        "POST",
+        msgKey:      "POST_NEW",
+        msgParams:   { salon, text: (post.caption || "").slice(0, 140) },
         title,
         body:        body.slice(0, 180),
         isRead:      false,

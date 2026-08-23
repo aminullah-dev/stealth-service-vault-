@@ -273,6 +273,8 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
   await db.collection("notifications").doc().set({
     recipientId: targetUid,
     type:        "SYSTEM",
+    msgKey:      approve ? "KYC_APPROVED" : "KYC_REJECTED",
+    msgParams:   { reason: approve ? "" : String(reason || "") },
     title:       approve ? "Identity Verified" : "Verification Rejected",
     body:        approve
       ? "Your identity has been verified. You can now continue."

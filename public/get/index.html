@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SafeBeauty · دانلود</title>
+<meta name="description" content="SafeBeauty — رزرو سالن‌های زیبایی معتبر در کابل" />
+<meta property="og:title" content="SafeBeauty" />
+<meta property="og:description" content="رزرو سالن‌های زیبایی معتبر — امن، ساده، به زبان خودت." />
+<style>
+  :root{
+    --rose:#B76E79; --deep:#8B3A47; --grad:linear-gradient(120deg,#EBA9C0,#B76E79 55%,#7A2F3D);
+    --bg1:#FFF7FB; --bg2:#FDEAF3; --bg3:#F3E6F5;
+    --card:#ffffff; --surface:#FDEFF6; --petal:#FCE4EF;
+    --ink:#3f3237; --muted:#9c8890; --line:#EFD5E1;
+    --shadow-lg:0 22px 60px rgba(139,58,71,.16);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --deep:#F6D9E1; --bg1:#17100f; --bg2:#1e1216; --bg3:#191016;
+      --card:#241820; --surface:#2c1e26; --petal:#38262f;
+      --ink:#F1E6EB; --muted:#B79AA5; --line:#3a2831;
+      --shadow-lg:0 24px 64px rgba(0,0,0,.55);
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;-webkit-font-smoothing:antialiased}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(1100px 600px at 100% -10%,rgba(235,169,192,.18),transparent 60%),
+      linear-gradient(160deg,var(--bg1),var(--bg2) 55%,var(--bg3));background-attachment:fixed}
+  button,a{font-family:inherit}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow-lg);
+    width:100%;max-width:480px;padding:38px 32px 30px;text-align:center;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--grad)}
+  .logo{width:72px;height:72px;border-radius:23px;margin:2px auto 14px;background:var(--grad);
+    box-shadow:0 12px 30px rgba(183,110,121,.42);display:flex;align-items:center;justify-content:center;font-size:33px;color:#fff}
+  h1{margin:0;font-size:24px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  .sub{color:var(--rose);font-size:12px;margin:5px 0 4px;text-transform:uppercase;letter-spacing:.14em;font-weight:800}
+  .tag{color:var(--muted);font-size:13.5px;line-height:1.6;margin:10px 4px 22px}
+  .langpick{display:flex;gap:6px;justify-content:center;margin:0 0 22px}
+  .langpick button{padding:6px 15px;border-radius:20px;font-size:12px;font-weight:700;background:var(--petal);color:var(--deep);border:none;cursor:pointer;transition:opacity .15s}
+  .langpick button:hover{opacity:.85}
+  .langpick button.on{background:var(--grad);color:#fff}
+  .dl{display:flex;align-items:center;gap:12px;width:100%;padding:15px 18px;border-radius:15px;margin-bottom:11px;
+    text-decoration:none;color:#fff;background:var(--grad);box-shadow:0 8px 20px rgba(183,110,121,.3);
+    font-weight:700;font-size:14.5px;transition:transform .12s,box-shadow .15s;text-align:start}
+  .dl:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(183,110,121,.4)}
+  .dl .ic{font-size:22px;flex-shrink:0}
+  .dl .lbl{flex:1}
+  .dl .lbl small{display:block;font-size:11px;font-weight:600;opacity:.85;margin-top:2px}
+  .dl.ghost{background:var(--petal);color:var(--deep);box-shadow:none}
+  .dl.ghost:hover{box-shadow:none;opacity:.9;transform:none}
+  .dl.secondary{background:var(--surface);color:var(--deep);box-shadow:none}
+  .dl.demoted{opacity:.7}
+  .browser{display:block;margin:16px 0 2px;color:var(--rose);font-size:13px;font-weight:700;text-decoration:none}
+  .browser:hover{text-decoration:underline}
+  details{margin-top:20px;text-align:start;background:var(--surface);border-radius:14px;padding:2px 16px;border:1px solid var(--line)}
+  summary{cursor:pointer;font-weight:800;font-size:12.5px;color:var(--deep);padding:13px 0;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"▸ ";color:var(--rose)}
+  details[open] summary::before{content:"▾ "}
+  .note{font-size:12.5px;line-height:1.7;color:var(--ink);padding:0 0 14px}
+  .note b{color:var(--deep)}
+  code{background:var(--petal);padding:2px 7px;border-radius:6px;font-size:12px;direction:ltr;display:inline-block;unicode-bidi:embed}
+  .fine{color:var(--muted);font-size:11px;margin-top:18px;line-height:1.6}
+  input[type="tel"]{direction:ltr}
+</style><style>
+  /* The referral card. Shown only when the invite link carried a code — an
+     empty box asking for a code nobody has is worse than no box. */
+  .code{display:none;margin:0 0 20px;padding:15px 16px;border-radius:15px;
+    background:var(--petal);border:1px dashed var(--rose);text-align:center}
+  .code.on{display:block}
+  .code .k{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--rose)}
+  .code .v{font-size:26px;font-weight:800;letter-spacing:.18em;color:var(--deep);margin:6px 0 4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;direction:ltr}
+  .code .why{font-size:12px;color:var(--muted);line-height:1.6}
+  .copy{margin-top:9px;padding:7px 16px;border:none;border-radius:20px;cursor:pointer;
+    background:var(--grad);color:#fff;font-size:12px;font-weight:800}
+  .copy:active{transform:scale(.97)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="langpick">
+    <button data-l="fa" class="on">دری</button>
+    <button data-l="ps">پښتو</button>
+    <button data-l="en">EN</button>
+  </div>
+
+  <div class="logo">🌸</div>
+  <h1>SafeBeauty</h1>
+  <div class="sub" id="sub"></div>
+  <div class="tag" id="tag"></div>
+
+  <div class="code" id="code">
+    <div class="k" id="ck"></div>
+    <div class="v" id="cv"></div>
+    <div class="why" id="cw"></div>
+    <button class="copy" id="cbtn"></button>
+  </div>
+
+  <a class="dl" id="play" href="#">
+    <span class="ic">▶</span>
+    <span class="lbl" id="playlbl"></span>
+  </a>
+
+  <a class="browser" id="salonlink" href="/provider">…</a>
+
+  <details>
+    <summary id="hs"></summary>
+    <div class="note" id="hn"></div>
+  </details>
+
+  <div class="fine" id="fine"></div>
+</div>
+
+<script>
+  // The Play listing. applicationId, not the code package — they differ on
+  // purpose (see CLAUDE.md), and using the wrong one sends everybody to a
+  // "not found" page on the store.
+  const PLAY = 'https://play.google.com/store/apps/details?id=com.security.stealthapp';
+
+  const T = {
+    sub:  {fa:'اپ اندروید', ps:'اندروید اپ', en:'Android App'},
+    tag:  {fa:'سالن‌های زیبایی معتبر کابل را ببین، ساعت خالی‌شان را همان لحظه رزرو کن، و امن پرداخت کن.',
+           ps:'د کابل د باور وړ ښکلا سالونونه وګورئ، خالي وخت یې همدا شېبه بک کړئ، او په خوندي ډول ورکړه وکړئ.',
+           en:'Browse trusted beauty salons in Kabul, book a free slot the moment you see it, and pay safely.'},
+    play: {fa:'دریافت از Google Play', ps:'له Google Play ترلاسه کړئ', en:'Get it on Google Play'},
+    ck:   {fa:'کد دعوت دوستت', ps:'ستا د ملګري بلنه کوډ', en:"Your friend's invite code"},
+    cw:   {fa:'هنگام ثبت‌نام این کد را وارد کن — هر دو ۱۰۰ افغانی تخفیف می‌گیرید.',
+           ps:'د راجستر پر مهال دا کوډ ولیکئ — دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کوئ.',
+           en:'Enter this when you sign up — you both get AFN 100 off.'},
+    copy: {fa:'کپی کد', ps:'کوډ کاپي کړئ', en:'Copy code'},
+    done: {fa:'کپی شد ✓', ps:'کاپي شو ✓', en:'Copied ✓'},
+    salon:{fa:'صاحب سالن هستی؟ کنسول سالن →', ps:'د سالون خاوند یاست؟ د سالون کنسول →', en:'Own a salon? Salon console →'},
+    hs:   {fa:'آیفون دارم / Google Play ندارم', ps:'آیفون لرم / Google Play نه لرم', en:"I have an iPhone / no Google Play"},
+    hn:   {fa:'اپ فعلاً فقط برای اندروید است. اگر آیفون داری یا Google Play روی گوشی‌ات نیست، می‌توانی از دوستت بخواهی برایت رزرو کند، یا با سالن مستقیم تماس بگیری. نسخه‌ی وب در راه است.',
+           ps:'اپ اوس مهال یوازې د اندروید لپاره دی. که آیفون لرئ یا Google Play نه لرئ، له ملګري وغواړئ چې بک وکړي، یا مستقیم له سالون سره اړیکه ونیسئ. ویب نسخه په لاره ده.',
+           en:'The app is Android-only for now. If you have an iPhone, or no Google Play on your phone, a friend can book for you or you can contact the salon directly. A web version is on the way.'},
+    fine: {fa:'با نصب اپ، شرایط و سیاست حریم خصوصی را می‌پذیری.',
+           ps:'د اپ په نصبولو سره، شرایط او د محرمیت تګلاره منئ.',
+           en:'By installing the app you accept the Terms and Privacy Policy.'},
+  };
+
+  const $ = (id) => document.getElementById(id);
+  // A code is only ever letters and digits — see functions/lib/booking.js. Anything
+  // else in the query string is somebody probing, and is not put on the page.
+  const RAW  = new URLSearchParams(location.search).get('code') || '';
+  const CODE = (RAW.match(/^[A-Za-z0-9]{4,12}$/) || [''])[0].toUpperCase();
+
+  function draw(l) {
+    document.documentElement.lang = l;
+    document.documentElement.dir  = (l === 'en') ? 'ltr' : 'rtl';
+    $('sub').textContent      = T.sub[l];
+    $('tag').textContent      = T.tag[l];
+    $('playlbl').textContent  = T.play[l];
+    $('ck').textContent       = T.ck[l];
+    $('cw').textContent       = T.cw[l];
+    $('cbtn').textContent     = T.copy[l];
+    $('salonlink').textContent= T.salon[l];
+    $('hs').textContent       = T.hs[l];
+    $('hn').textContent       = T.hn[l];
+    $('fine').textContent     = T.fine[l];
+    document.querySelectorAll('.langpick button')
+      .forEach(b => b.classList.toggle('on', b.dataset.l === l));
+    $('cbtn').dataset.copy = T.copy[l];
+    $('cbtn').dataset.done = T.done[l];
+  }
+
+  document.querySelectorAll('.langpick button')
+    .forEach(b => b.onclick = () => draw(b.dataset.l));
+
+  // The store link carries the code through, so a friend who installs from the
+  // invite still has it after Play hands them back to the app.
+  $('play').href = CODE ? PLAY + '&referrer=' + encodeURIComponent('code=' + CODE) : PLAY;
+
+  if (CODE) {
+    $('code').classList.add('on');
+    $('cv').textContent = CODE;
+    $('cbtn').onclick = async () => {
+      try { await navigator.clipboard.writeText(CODE); } catch (_) {}
+      $('cbtn').textContent = $('cbtn').dataset.done;
+      setTimeout(() => { $('cbtn').textContent = $('cbtn').dataset.copy; }, 1600);
+    };
+  }
+
+  // Dari first: it is what most of the audience reads, and guessing from the
+  // browser would put a Kabul phone set to English on the wrong page.
+  draw(['fa','ps','en'].includes(navigator.language?.slice(0,2)) ? navigator.language.slice(0,2) : 'fa');
+</script>
+</body>
+</html>

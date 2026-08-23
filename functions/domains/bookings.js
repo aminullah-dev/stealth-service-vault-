@@ -954,6 +954,8 @@ exports.nudgeUnconfirmedBookings = onSchedule(
         batch.set(db.collection("notifications").doc(), {
           recipientId: adminDoc.id,
           type:        "SYSTEM",
+          msgKey:      "ADMIN_UNCONFIRMED_BOOKINGS",
+          msgParams:   { count: needsAdmin.length },
           title:       "Bookings still unconfirmed",
           body:        `${needsAdmin.length} paid booking(s) have gone unconfirmed for over 6 hours. Contact the salon before they are auto-cancelled.`,
           isRead:      false,

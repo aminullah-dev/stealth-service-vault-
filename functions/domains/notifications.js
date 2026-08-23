@@ -72,13 +72,38 @@ exports.pushOnNotificationCreated = onDocumentCreated(
     if (!n || !n.recipientId || !n.title) return;
 
     const userSnap = await db.doc(`users/${n.recipientId}`).get();
-    const token = userSnap.exists ? String(userSnap.data().fcmToken || "") : "";
-    if (!token) return; // user never logged in on a push-capable device
 
-    // The user doc is already loaded for the token, so reading their language
-    // here is free. Falls back to the stored English text for older docs.
+    // Translate BEFORE the token check, and write it back onto the notification.
+    //
+    // The banner has always been translated and the Notification Center inside
+    // the app has always been English, because it renders the stored title and
+    // body and nothing ever read msgKey — a whole message catalogue written by
+    // the server and consumed by nobody. A customer got a push in Dari, tapped
+    // it, and landed on a list in English.
+    //
+    // Storing the translation rather than mirroring the catalogue in Kotlin is
+    // deliberate. Twenty-one keys in three languages is a hundred and twenty-six
+    // strings, and a second copy of them on the device is the same client/server
+    // drift that has already cost this codebase a wrong slot picker and a search
+    // that found nothing. One catalogue, on the server, written down once per
+    // notification.
+    //
+    // A notification is a record of a moment, so it keeps the language it was
+    // sent in even if the reader switches later. That is the right behaviour
+    // rather than a limitation: what she was told is what she was told.
     const lang = userSnap.exists ? String(userSnap.data().lang || "") : "";
     const { title, body } = localizeNotification(n, lang);
+
+    // Only when it actually differs — most notifications for a Dari reader are
+    // already stored in the language localizeNotification returns.
+    if (title !== n.title || body !== n.body) {
+      // onDocumentCreated, so this update does not retrigger the function.
+      await event.data.ref.update({ title, body })
+        .catch((e) => logger.warn("pushOnNotificationCreated: could not store translation", e));
+    }
+
+    const token = userSnap.exists ? String(userSnap.data().fcmToken || "") : "";
+    if (!token) return; // user never logged in on a push-capable device
 
     try {
       await admin.messaging().send({
@@ -294,6 +319,18 @@ const NOTIF_I18N = {
     fa: { t: "نوبت پیشِ‌رو",          b: (p) => `${p.service} در ${p.salon} به‌زودی است.` },
     ps: { t: "راتلونکی نوبت",         b: (p) => `${p.service} په ${p.salon} کې ډېر ژر دی.` },
   },
+  // The salon's own words are passed through verbatim — an offer written in
+  // Pashto stays in Pashto. Only the sentence built around it is translated.
+  OFFER_NEW: {
+    en: { t: "New offer 💖", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} has a new offer.` },
+    fa: { t: "پیشنهاد جدید 💖", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} پیشنهاد تازه دارد.` },
+    ps: { t: "نوی وړاندیز 💖", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} نوی وړاندیز لري.` },
+  },
+  POST_NEW: {
+    en: { t: "New photos 📸", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} shared new work.` },
+    fa: { t: "عکس‌های جدید 📸", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} کار تازه دارد.` },
+    ps: { t: "نوي انځورونه 📸", b: (p) => p.text ? `${p.salon}: ${p.text}` : `${p.salon} نوي کارونه ښیي.` },
+  },
   WAITLIST_SLOT: {
     en: { t: "A slot opened up 🎉", b: (p) => `${p.salon} has a free slot on your waitlisted day — book it before it's gone!` },
     fa: { t: "یک نوبت خالی شد 🎉",   b: (p) => `${p.salon} در روزی که در لیست انتظار بودید جای خالی دارد — قبل از پر شدن رزرو کنید!` },
@@ -348,6 +385,40 @@ const NOTIF_I18N = {
     en: { t: "We miss you 💕", b: () => "It's been a while — book your next beauty appointment on SafeBeauty." },
     fa: { t: "دلتنگ شما شدیم 💕", b: () => "مدتی گذشته — نوبت بعدی زیبایی‌تان را در سیف‌بیوتی رزرو کنید." },
     ps: { t: "ستاسو په یاد یو 💕", b: () => "یو څه وخت تېر شو — خپل راتلونکی د ښکلا نوبت په سیف‌بیوتي کې ونیسئ." },
+  },
+  // The admin's version of the same situation. Deliberately its own entry rather
+  // than reusing PENDING_BOOKINGS_WAITING: that one tells a salon owner to
+  // confirm her bookings, and this one tells an operator to go and ring her.
+  // The result of identity verification. Among the most consequential messages
+  // the platform sends — it decides whether a woman can book at all — and it was
+  // going out in English to an audience that mostly does not read English. The
+  // admin's rejection reason is their own words and passes through verbatim.
+  KYC_APPROVED: {
+    en: { t: "Identity verified ✅", b: () => "Your identity has been verified. You can book now." },
+    fa: { t: "هویت تأیید شد ✅", b: () => "هویت شما تأیید شد. حالا می‌توانید رزرو کنید." },
+    ps: { t: "پېژندنه تایید شوه ✅", b: () => "ستاسو پېژندنه تایید شوه. اوس کولی شئ بکینګ وکړئ." },
+  },
+  KYC_REJECTED: {
+    en: { t: "Verification rejected", b: (p) => p.reason
+      ? `Your verification was rejected: ${p.reason}`
+      : "Your verification was rejected. Please submit your documents again." },
+    fa: { t: "تأیید هویت رد شد", b: (p) => p.reason
+      ? `تأیید هویت شما رد شد: ${p.reason}`
+      : "تأیید هویت شما رد شد. لطفاً مدارک را دوباره ارسال کنید." },
+    ps: { t: "پېژندنه رد شوه", b: (p) => p.reason
+      ? `ستاسو پېژندنه رد شوه: ${p.reason}`
+      : "ستاسو پېژندنه رد شوه. مهرباني وکړئ اسناد بیا واستوئ." },
+  },
+  ADMIN_UNCONFIRMED_BOOKINGS: {
+    en: { t: "Bookings still unconfirmed ⚠️", b: (p) => p.count === 1
+      ? "A paid booking has gone unconfirmed for over 6 hours. Contact the salon."
+      : `${p.count} paid bookings have gone unconfirmed for over 6 hours. Contact the salons.` },
+    fa: { t: "رزروهای تأییدنشده ⚠️", b: (p) => p.count === 1
+      ? "یک رزرو پرداخت‌شده بیش از ۶ ساعت است تأیید نشده. با سالن تماس بگیرید."
+      : `${p.count} رزرو پرداخت‌شده بیش از ۶ ساعت است تأیید نشده‌اند. با سالن‌ها تماس بگیرید.` },
+    ps: { t: "ناتاییده بکینګونه ⚠️", b: (p) => p.count === 1
+      ? "یو تادیه شوی بکینګ له ۶ ساعتونو زیات ناتایید پاتې دی. له سالون سره اړیکه ونیسئ."
+      : `${p.count} تادیه شوي بکینګونه له ۶ ساعتونو زیات ناتایید پاتې دي. له سالونونو سره اړیکه ونیسئ.` },
   },
   PENDING_BOOKINGS_WAITING: {
     en: { t: "Bookings waiting for you ⏳", b: (p) => p.count === 1
