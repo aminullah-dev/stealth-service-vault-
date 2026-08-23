@@ -86,13 +86,19 @@
   /* ── Shell ─────────────────────────────────────────────────────── */
   #app{height:100vh;display:flex;overflow:hidden}
   .sidebar{width:224px;flex-shrink:0;background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-    border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 13px}
+    border-inline-end:1px solid var(--line);display:flex;flex-direction:column;padding:20px 13px}
+  .langpick{display:flex;gap:5px;margin-bottom:9px}
+  .langpick button{flex:1;padding:6px 4px;border:none;border-radius:9px;cursor:pointer;
+    font-family:inherit;font-size:11.5px;font-weight:800;background:var(--surface);color:var(--muted);
+    transition:background .15s,color .15s}
+  .langpick button:hover{color:var(--deep)}
+  .langpick button.on{background:var(--rose);color:#fff}
   .sidebar .brand{font-size:19px;font-weight:800;padding:2px 10px 2px;letter-spacing:-.02em;
     background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
   .who2{font-size:11px;color:var(--muted);padding:2px 10px 16px;font-weight:600}
   .nav{display:flex;flex-direction:column;gap:3px;flex:1;overflow-y:auto;margin:0 -3px;padding:0 3px}
   .navitem{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;width:100%;
-    color:var(--muted);font-weight:600;font-size:13px;background:transparent;text-align:left;
+    color:var(--muted);font-weight:600;font-size:13px;background:transparent;text-align:start;
     transition:background .14s,color .14s,transform .1s}
   .navitem:hover{background:var(--petal);color:var(--deep)}
   .navitem:active{transform:scale(.98)}
@@ -130,11 +136,11 @@
   .row .meta{color:var(--muted);font-size:12px;line-height:1.5}
   .row .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
   @media(min-width:680px){
-    .row:not(.ticket){padding-right:168px}
+    .row:not(.ticket){padding-inline-end:168px}
     .row:not(.ticket) .actions{position:absolute;top:13px;right:15px;margin-top:0;flex-direction:column;align-items:stretch;width:142px}
     .row .actions .btn-sm{width:100%}
   }
-  .row.ticket{padding-right:16px}
+  .row.ticket{padding-inline-end:16px}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:10.5px;font-weight:700;vertical-align:middle}
   .badge.dot{background:rgba(192,57,43,.14);color:var(--bad-ink)}
   .empty{text-align:center;color:var(--muted);padding:56px 10px;font-size:13.5px;font-weight:600}
@@ -143,7 +149,7 @@
   /* ── Tables ────────────────────────────────────────────────────── */
   .tbl-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--card)}
   .tbl{width:100%;border-collapse:collapse;background:transparent;min-width:560px}
-  .tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  .tbl th{text-align:start;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
     font-weight:800;padding:12px 17px;background:var(--surface);border-bottom:1px solid var(--line);white-space:nowrap;
     position:sticky;top:0;z-index:1}
   .tbl td{padding:12px 17px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink);vertical-align:middle}
@@ -223,8 +229,8 @@
        full-width line below and scrolls horizontally, so all 12 tabs stay
        reachable instead of being crushed into a sliver beside Sign out. */
     .sidebar{width:100%;flex-flow:row wrap;align-items:center;gap:8px;padding:10px 12px;
-      border-right:none;border-bottom:1px solid var(--line)}
-    .sidebar .brand{white-space:nowrap;margin-right:auto}
+      border-inline-end:none;border-bottom:1px solid var(--line)}
+    .sidebar .brand{white-space:nowrap;margin-inline-end:auto}
     .who2{display:none}
     .nav{order:3;flex:1 0 100%;flex-direction:row;gap:4px;overflow-x:auto;
       -webkit-overflow-scrolling:touch;padding-bottom:2px}
@@ -264,14 +270,14 @@
     <div class="logo">❀</div>
     <h1>SafeBeauty</h1>
     <div class="sub">Admin Console</div>
-    <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" autocomplete="username" />
+    <input id="lp" class="field" type="tel" placeholder="Phone (e.g. +93700…)" data-i18n-ph="ph_phoneEG93700" autocomplete="username" />
     <div class="pw-wrap">
-      <input id="lw" class="field" type="password" placeholder="Password" autocomplete="current-password" />
+      <input id="lw" class="field" type="password" placeholder="Password" data-i18n-ph="ph_password" autocomplete="current-password" />
       <button type="button" class="pw-toggle" aria-label="Show password" aria-pressed="false"
         onclick="var i=document.getElementById('lw'),s=i.type==='password';i.type=s?'text':'password';this.textContent=s?'🙈':'👁';this.setAttribute('aria-pressed',s);i.focus()">👁</button>
     </div>
-    <button id="lbtn" class="btn">Sign in</button>
-    <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px">☝ Sign in with Touch ID</button>
+    <button id="lbtn" class="btn" data-i18n="btn_signIn">Sign in</button>
+    <button id="lbio" class="btn btn-ghost hidden" style="margin-top:10px" data-i18n="btn_signInWithTouchId">☝ Sign in with Touch ID</button>
     <label id="lrem" class="hidden" style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:12px;font-size:13px;color:var(--rose);cursor:pointer">
       <input type="checkbox" id="lremc" /> Remember me with Touch ID
     </label>
@@ -286,8 +292,13 @@
     <div class="who2" id="who"></div>
     <nav class="nav" id="nav"></nav>
     <div class="foot">
-      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">☾ Dark mode</button>
-      <button class="btn-sm" id="logout" style="width:100%;background:var(--rose)">Sign out</button>
+      <div class="langpick" id="langpick">
+        <button data-lang="fa">دری</button>
+        <button data-lang="ps">پښتو</button>
+        <button data-lang="en" data-i18n="btn_en">EN</button>
+      </div>
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" data-i18n="darkMode">☾ Dark mode</button>
+      <button class="btn-sm" id="logout" style="width:100%;background:var(--rose)" data-i18n="btn_signOut">Sign out</button>
     </div>
   </aside>
   <div class="main-area">
@@ -358,6 +369,153 @@ async function deriveAuthPassword(pin, saltB64){
 // ── State ───────────────────────────────────────────────────────────────────
 let admin = null; // { uid, name }
 const $ = (id) => document.getElementById(id);
+// ── Language ────────────────────────────────────────────────────────────────
+//
+// Ported from the provider console, which has run trilingual since it shipped.
+// The same shape on purpose: one STR table, t() with a fallback chain, and the
+// direction driven off the chosen language.
+//
+// Two rules about what gets translated, because getting this wrong makes an
+// operator's job harder rather than easier:
+//
+//   · Prose is translated — labels, buttons, hints, empty states, the sentences
+//     that explain what a button will do.
+//   · Machine tokens are not — PAID, AWAITING_PAYMENT, FAILED_PRECONDITION, a
+//     collection name, a booking code. Those are what the logs say, what the
+//     error messages say, and what you would paste into a search. Translating
+//     them severs the console from everything else you would look at next.
+//
+// A missing key returns the key itself rather than blank, so a gap shows up as
+// something obviously wrong instead of an empty button.
+const LANGS = ['fa','ps','en'];
+let lang = (() => {
+  try { const v = localStorage.getItem('sb-admin-lang'); if (LANGS.includes(v)) return v; } catch(e){}
+  return 'fa';
+})();
+
+// Dari and Pashto for everything the console says in prose. Machine tokens —
+// PAID, AWAITING_PAYMENT, collection and field names, booking codes — are not
+// here on purpose: they are what the logs say and what you would paste into a
+// search, and translating them cuts the console off from everything you would
+// look at next.
+//
+// Terminology follows the salon console and the app, which have been trilingual
+// for longer. An operator moving between the two consoles and seeing one word
+// for 'customer' in each is the failure that costs more than a rough phrasing.
+const STR = {
+  btn_close: {en:'Close', fa:'بسته', ps:'بندول'},
+  btn_confirmForTheSalon: {en:'Confirm for the salon', fa:'تایید به‌جای سالن', ps:'د سالون پر ځای تایید'},
+  btn_en: {en:'EN', fa:'EN', ps:'EN'},
+  btn_makeAdmin: {en:'Make admin', fa:'تعیین ادمین', ps:'اډمین وټاکئ'},
+  btn_reinstateAccount: {en:'Reinstate account', fa:'بازگردانی حساب', ps:'حساب بیا فعالول'},
+  btn_remove: {en:'Remove', fa:'حذف', ps:'لرې کول'},
+  btn_removeAdmin: {en:'Remove admin', fa:'حذف ادمین', ps:'اډمین لرې کړئ'},
+  btn_signIn: {en:'Sign in', fa:'ورود', ps:'ننوتل'},
+  btn_signInWithTouchId: {en:'☝ Sign in with Touch ID', fa:'☝ ورود با Touch ID', ps:'☝ د Touch ID په مرسته ننوتل'},
+  btn_signOut: {en:'Sign out', fa:'خروج', ps:'وتل'},
+  btn_suspend: {en:'Suspend', fa:'تعلیق', ps:'معلق کول'},
+  btn_unsuspend: {en:'Unsuspend', fa:'رفع تعلیق', ps:'له معلق کولو وتل'},
+  btn_unverify: {en:'Unverify', fa:'لغو تأیید', ps:'د تایید لغو'},
+  btn_verify: {en:'Verify', fa:'تأیید', ps:'تایید'},
+  darkMode: {en:'☾ Dark mode', fa:'☾ حالت تاریک', ps:'☾ تیاره حالت'},
+  lightMode: {en:'☀︎ Light mode', fa:'☀︎ حالت روشن', ps:'☀︎ رڼا حالت'},
+  empty_loading: {en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  empty_noAdminActionsRecordedYet: {en:'No admin actions recorded yet.', fa:'هنوز اقدامی از ادمین ثبت نشده.', ps:'تر اوسه د اډمین هیڅ کړنه نه ده ثبت شوې.'},
+  empty_noBackupHasRunYet: {en:'No backup has run yet', fa:'هنوز پشتیبان‌گیری انجام نشده', ps:'تر اوسه بیک‌اپ نه دی ترسره شوی'},
+  empty_noBookableSalons: {en:'No bookable salons', fa:'سالن قابل رزروی نیست', ps:'د بکینګ وړ سالون نشته'},
+  empty_noCommentsYet: {en:'No comments yet', fa:'هنوز نظری نیست', ps:'تر اوسه نظر نشته'},
+  empty_noDemandYetThatNobodyCanServe: {en:'No demand yet that nobody can serve', fa:'هنوز تقاضای بی‌پاسخ وجود ندارد', ps:'تر اوسه بې‌ځوابه تقاضا نشته'},
+  empty_noFlaggedReports: {en:'No flagged reports 🎉', fa:'گزارشی نیست 🎉', ps:'هیڅ راپور نشته 🎉'},
+  empty_noIdentityChecksAwaitingReview: {en:'No identity checks awaiting review ✓', fa:'احراز هویتی در انتظار بررسی نیست ✓', ps:'د بیاکتنې په تمه د هویت تصدیق نشته ✓'},
+  empty_noMatchingSalons: {en:'No matching salons', fa:'هیچ سالنی مطابقت ندارد', ps:'هیڅ سالون سمون نه خوري'},
+  empty_noMatchingUsers: {en:'No matching users', fa:'هیچ کاربری مطابقت ندارد', ps:'هیڅ کاروونکی سمون نه خوري'},
+  empty_noOpenSupportRequests: {en:'No open support requests', fa:'درخواست پشتیبانی بازی وجود ندارد', ps:'هیڅ خلاصه د ملاتړ غوښتنه نشته'},
+  empty_noPendingApprovals: {en:'No pending approvals 🎉', fa:'موردی در انتظار تایید نیست 🎉', ps:'د تایید په تمه څه نشته 🎉'},
+  empty_noPendingRefunds: {en:'No pending refunds', fa:'بازپرداخت در انتظاری نیست', ps:'هیڅ پاتې بیرته‌ورکړه نشته'},
+  empty_noPostsYet: {en:'No posts yet', fa:'هنوز پستی نیست', ps:'تر اوسه پوسټ نشته'},
+  empty_noPromoCodesYet: {en:'No promo codes yet', fa:'هنوز کد تخفیفی وجود ندارد', ps:'لا تر اوسه هیڅ د تخفیف کوډ نشته'},
+  empty_noStoryRunning: {en:'No story running', fa:'استوری فعالی نیست', ps:'اوس مهال سټوري نشته'},
+  empty_nothingOutOfPlace: {en:'Nothing out of place 🎉', fa:'همه چیز سر جایش است 🎉', ps:'هرڅه په خپل ځای دي 🎉'},
+  empty_nothingOwed: {en:'Nothing owed 🎉', fa:'بدهی‌ای نیست 🎉', ps:'هیڅ پور نشته 🎉'},
+  empty_nothingRecordedYet: {en:'Nothing recorded yet', fa:'هنوز چیزی ثبت نشده', ps:'تر اوسه هیڅ ثبت نشته'},
+  empty_nothingStuck: {en:'Nothing stuck 🎉', fa:'چیزی گیر نکرده 🎉', ps:'هیڅ شی بند پاتې نه دی 🎉'},
+  empty_theNightlyCheckHasNotRunYet: {en:'The nightly check has not run yet', fa:'بررسی شبانه هنوز اجرا نشده', ps:'شپنۍ کتنه لا نه ده ترسره شوې'},
+  loading: {en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  ph_password: {en:'Password', fa:'رمز عبور', ps:'پټنوم'},
+  ph_phoneEG93700: {en:'Phone (e.g. +93700…)', fa:'شماره تلفن (مثل ‎+93700…)', ps:'د تلیفون شمېره (لکه ‎+93700…)'},
+  ph_searchNameOrPhone: {en:'Search name or phone…', fa:'جستجو با نام یا شماره تلفن…', ps:'د نوم یا تلیفون شمېرې له مخې لټون…'},
+  sec_platformOverview: {en:'Platform overview', fa:'نمای کلی پلتفرم', ps:'د پلیټفارم عمومي کتنه'},
+  sec_review: {en:'Review', fa:'نظرات', ps:'نظرونه'},
+  signedInAs: {en:'Signed in as', fa:'وارد شده به عنوان', ps:'ننوتی حساب'},
+  tab_activity: {en:'Activity', fa:'فعالیت', ps:'فعالیت'},
+  tab_admins: {en:'Admins', fa:'ادمین‌ها', ps:'اډمینان'},
+  tab_announce: {en:'Announce', fa:'اعلان', ps:'اعلان'},
+  tab_approvals: {en:'Approvals', fa:'تاییدها', ps:'تاییدونه'},
+  tab_audit: {en:'Audit', fa:'ثبت اقدامات', ps:'د کړنو ثبت'},
+  tab_booking: {en:'Booking', fa:'رزرو', ps:'بکینګ'},
+  tab_content: {en:'Content', fa:'محتوا', ps:'منځپانګه'},
+  tab_demand: {en:'Demand', fa:'تقاضا', ps:'تقاضا'},
+  tab_finance: {en:'Finance', fa:'مالی', ps:'مالي'},
+  tab_health: {en:'Health', fa:'سلامت', ps:'روغتیا'},
+  tab_kyc: {en:'KYC', fa:'KYC', ps:'KYC'},
+  tab_promo: {en:'Promo', fa:'کد تخفیف', ps:'د تخفیف کوډ'},
+  tab_reports: {en:'Reports', fa:'گزارش‌ها', ps:'راپورونه'},
+  tab_salons: {en:'Salons', fa:'سالن‌ها', ps:'سالونونه'},
+  tab_stats: {en:'Statistics', fa:'آمار', ps:'احصایه'},
+  tab_stuck: {en:'Stuck pay', fa:'پرداخت گیرمانده', ps:'ایسارې تادیې'},
+  tab_support: {en:'Support', fa:'پشتیبانی', ps:'ملاتړ'},
+  tab_users: {en:'Users', fa:'کاربران', ps:'کاروونکي'},
+};
+
+function t(key, ...args){
+  const e = STR[key];
+  if(!e) return key;
+  const v = (e[lang] != null) ? e[lang] : e.en;
+  return (typeof v === 'function') ? v(...args) : v;
+}
+
+function applyLangDir(){
+  document.documentElement.lang = lang;
+  document.documentElement.dir  = (lang === 'en') ? 'ltr' : 'rtl';
+}
+
+// Walks the markup rather than rebuilding it. data-i18n leaves the English in
+// the HTML as the fallback, so a key that does not exist yet degrades to the
+// text that was always there instead of to nothing.
+function paintStatic(){
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.dataset.i18n;
+    if(STR[k]) el.textContent = t(k);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    const k = el.dataset.i18nPh;
+    if(STR[k]) el.placeholder = t(k);
+  });
+  document.querySelectorAll('#langpick button').forEach(b =>
+    b.classList.toggle('on', b.dataset.lang === lang));
+  // The theme button's label depends on the theme, not only the language, so it
+  // cannot be a plain data-i18n row.
+  const tb = $('themeToggle');
+  if(tb) tb.textContent = document.documentElement.getAttribute('data-theme') === 'dark'
+    ? t('lightMode') : t('darkMode');
+}
+
+function setLang(next){
+  if(!LANGS.includes(next)) return;
+  lang = next;
+  try { localStorage.setItem('sb-admin-lang', next); } catch(e){}
+  applyLangDir();
+  paintStatic();
+  // Only once the operator is actually inside — before login there is no nav.
+  if (!$('app').classList.contains('hidden')) {
+    renderNav();
+    // The open tab is re-rendered rather than translated in place: its content
+    // is built from template literals, and a half-repainted screen is worse
+    // than a brief blank one.
+    selectTab(activeTab);
+  }
+}
+
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtDate = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
 const statusPill = (s) => {
@@ -416,6 +574,28 @@ async function callFn(name, payload, btn, flashId, okMsg){
     if(btn){ btn.disabled = false; btn.textContent = label; }
   }
 }
+
+// ── Language, before anything is drawn ──────────────────────────────────────
+// Runs at module load so the login card is already in the right language and
+// direction — switching after the operator has read it is worse than starting
+// there.
+document.querySelectorAll('#langpick button')
+  .forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+// The theme toggle lives in an inline script that runs before this module, so it
+// cannot reach t() and rewrites its own label in English every time it is
+// pressed. Wrapping it here rather than moving it: it has to stay inline so the
+// stored theme is applied before the first paint, which is what stops the page
+// flashing white on a dark-mode machine.
+const _toggleTheme = window.toggleTheme;
+window.toggleTheme = function(){
+  _toggleTheme();
+  const b = $('themeToggle');
+  if(b) b.textContent = document.documentElement.getAttribute('data-theme') === 'dark'
+    ? t('lightMode') : t('darkMode');
+};
+applyLangDir();
+paintStatic();
 
 // ── Login ────────────────────────────────────────────────────────────────────
 $('lbtn').addEventListener('click', doLogin);
@@ -501,30 +681,39 @@ let unsub = [];   // active onSnapshot cleanups per view
 function enterApp(){
   $('login').classList.add('hidden');
   $('app').classList.remove('hidden');
-  $('who').textContent = 'Signed in as ' + admin.name;
+  $('who').textContent = t('signedInAs') + ' ' + admin.name;
+  renderNav();
+  selectTab(activeTab);
+}
+
+// Rebuilt rather than relabelled when the language changes: the labels live in
+// the button markup, and walking them to patch text would have to know the same
+// structure this builds. One definition of what a nav item is.
+function renderNav(){
   const nav = $('nav');
   nav.innerHTML = '';
-  TABS.forEach(t => {
+  TABS.forEach(tab => {
     const b = document.createElement('button');
-    b.className = 'navitem' + (t.id===activeTab?' active':'');
-    if(t.id===activeTab) b.setAttribute('aria-current','page');
-    b.innerHTML = `<span class="ico">${t.icon}</span><span>${t.label}</span>`;
-    b.onclick = () => selectTab(t.id);
+    b.className = 'navitem' + (tab.id===activeTab?' active':'');
+    if(tab.id===activeTab) b.setAttribute('aria-current','page');
+    // t() is the translator now, so the loop variable cannot be called t —
+    // inside the callback it would shadow the function entirely.
+    b.innerHTML = `<span class="ico">${tab.icon}</span><span>${t('tab_'+tab.id)}</span>`;
+    b.onclick = () => selectTab(tab.id);
     nav.appendChild(b);
   });
-  selectTab(activeTab);
 }
 function selectTab(id){
   activeTab = id;
   unsub.forEach(fn => { try{fn();}catch(_){} }); unsub = [];
-  const tab = TABS.find(t=>t.id===id);
+  const tab = TABS.find(x=>x.id===id);
   [...$('nav').children].forEach((b,i) => {
     const on = TABS[i].id===id;
     b.classList.toggle('active', on);
     if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
-  $('topbar').textContent = tab.label;
-  $('view').innerHTML = '<div class="empty">Loading…</div>';
+  $('topbar').textContent = t('tab_' + tab.id);
+  $('view').innerHTML = `<div class="empty">${t('loading')}</div>`;
   tab.render();
 }
 
@@ -554,7 +743,7 @@ async function renderStats(){
       ['⏳','Pending approvals', pending], ['🪪','KYC pending', kycPending], ['🚫','Suspended', suspended],
     ];
     $('view').innerHTML =
-      `<div class="section-title">Platform overview</div><div class="grid">` +
+      `<div class="section-title">${t('sec_platformOverview')}</div><div class="grid">` +
       cards.map(([ic,l,n]) => `<div class="stat"><div class="ico">${ic}</div><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
       `</div>`;
   }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load stats: ${esc(e.message)}</div>`; }
@@ -594,7 +783,7 @@ function renderAnnounce(){
       <div id="aflash"></div>
       <select id="atmpl" class="field" style="margin-bottom:10px">
         <option value="">Insert a template…</option>
-        ${ANNOUNCE_TEMPLATES.map((t,i)=>`<option value="${i}">${esc(t.label)}</option>`).join('')}
+        ${ANNOUNCE_TEMPLATES.map((tpl,i)=>`<option value="${i}">${esc(tpl.label)}</option>`).join('')}
       </select>
       <textarea id="amsg" class="field" dir="auto" placeholder="Your message to all users…"></textarea>
       <div class="mglabel" style="margin-top:4px">Audience</div>
@@ -666,7 +855,7 @@ function renderApprovals(){
   unsub.push(onSnapshot(q, snap => {
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
-    if(!rows.length){ $('view').innerHTML = `<div class="empty">No pending approvals 🎉</div>`; return; }
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noPendingApprovals')}</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Joined</th><th scope="col"></th></tr></thead>
@@ -696,7 +885,7 @@ function renderKyc(){
   unsub.push(onSnapshot(q, snap => {
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
-    if(!rows.length){ $('view').innerHTML = `<div class="empty">No identity checks awaiting review ✓</div>`; return; }
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noIdentityChecksAwaitingReview')}</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
@@ -741,12 +930,12 @@ function renderSupport(){
     rows.sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
     const el = $('tickets');
     if(!el) return;
-    if(!rows.length){ el.innerHTML = `<div class="empty">No open support requests</div>`; return; }
-    el.innerHTML = rows.map(t => `
-      <div class="row ticket ${selectedTicket===t.userId?'sel':''}" role="button" tabindex="0" data-uid="${esc(t.userId)}" data-name="${esc(t.userName||t.userId)}">
-        <h3>${t.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(t.userName||t.userId)}</h3>
-        <div class="meta">${esc(t.userRole||'')}${t.relatedInfo?' · '+esc(t.relatedInfo):''}</div>
-        <div class="meta">${fmtDate(t.updatedAt)}</div>
+    if(!rows.length){ el.innerHTML = `<div class="empty">${t('empty_noOpenSupportRequests')}</div>`; return; }
+    el.innerHTML = rows.map(row => `
+      <div class="row ticket ${selectedTicket===row.userId?'sel':''}" role="button" tabindex="0" data-uid="${esc(row.userId)}" data-name="${esc(row.userName||row.userId)}">
+        <h3>${row.unreadForAdmin?'<span class="badge dot">●</span> ':''}${esc(row.userName||row.userId)}</h3>
+        <div class="meta">${esc(row.userRole||'')}${row.relatedInfo?' · '+esc(row.relatedInfo):''}</div>
+        <div class="meta">${fmtDate(row.updatedAt)}</div>
       </div>`).join('');
     el.querySelectorAll('.ticket').forEach(r => {
       r.onclick = () => openChat(r.dataset.uid, r.dataset.name);
@@ -884,7 +1073,7 @@ async function openTemplates(targetInputId){
       <textarea id="tpl-body" class="field" placeholder="Message text (what gets sent)"></textarea>
       <button class="btn-sm" id="tpl-add" style="background:var(--rose)">Add template</button>
     </div>
-    <button class="btn-sm mclose" id="tpl-close">Close</button>`);
+    <button class="btn-sm mclose" id="tpl-close">${t('btn_close')}</button>`);
   $('tpl-close').onclick = hideModal;
   $('tpl-defaults').onclick = async (e) => {
     e.target.disabled = true;
@@ -960,7 +1149,7 @@ async function renderUsers(){
       (capped ? `<div class="meta" style="color:var(--warn-ink);margin-bottom:10px">
          Showing the ${USER_PAGE} newest accounts. Older accounts are not listed here —
          use the Manage flow on the Admins tab to reach one by phone number.</div>` : '') +
-      `<input id="usearch" class="field" placeholder="Search name or phone…" style="max-width:340px;margin-bottom:16px" />
+      `<input id="usearch" class="field" placeholder="${t('ph_searchNameOrPhone')}" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
     const setStatus = async (uid, status) => {
       try{ await updateDoc(doc(db,'users',uid), { status });
@@ -981,11 +1170,11 @@ async function renderUsers(){
           <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">Manage</button>
             ${u.status==='SUSPENDED'
-              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">Unsuspend</button>`
-              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">Suspend</button>`}
+              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">${t('btn_unsuspend')}</button>`
+              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">${t('btn_suspend')}</button>`}
           </td>
         </tr>`).join('') + `</tbody></table></div>`
-        : `<div class="empty">No matching users</div>`;
+        : `<div class="empty">${t('empty_noMatchingUsers')}</div>`;
       $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setStatus(b.dataset.sus,'SUSPENDED'));
       $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setStatus(b.dataset.uns,'APPROVED'));
       $('ulist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
@@ -1004,8 +1193,8 @@ function openUserModal(u, onChanged){
   const isProvider = (u.role==='PROVIDER');
   const isAdminUser = (u.role==='ADMIN');
   const adminBtn = isAdminUser
-    ? `<button class="btn-sm" id="m-revoke" style="background:var(--red)">Remove admin</button>`
-    : `<button class="btn-sm" id="m-grant" style="background:var(--gold)">Make admin</button>`;
+    ? `<button class="btn-sm" id="m-revoke" style="background:var(--red)">${t('btn_removeAdmin')}</button>`
+    : `<button class="btn-sm" id="m-grant" style="background:var(--gold)">${t('btn_makeAdmin')}</button>`;
   showModal(`
     <h2>${esc(u.name||u.id)}</h2>
     <div class="msub">${esc(u.role||'—')} · ${esc(u.phone||'—')}</div>
@@ -1059,7 +1248,7 @@ function openUserModal(u, onChanged){
              Suspended${u.suspendedReason?` — ${esc(u.suspendedReason)}`:''}. They can still sign in and
              read their history; what is blocked is booking, confirming and rating.
            </div>
-           <button class="btn-sm" id="m-reinstate" style="background:var(--green)">Reinstate account</button>`
+           <button class="btn-sm" id="m-reinstate" style="background:var(--green)">${t('btn_reinstateAccount')}</button>`
         : `<div class="mrow">
              <input id="m-susreason" class="field" placeholder="Reason (kept on the record)" />
              <button class="btn-sm" id="m-suspend" style="background:var(--red)">Suspend</button>
@@ -1214,7 +1403,7 @@ async function renderAdmins(){
           <td class="name">${esc(a.name||a.id)}</td>
           <td>${esc(a.phone||'—')}</td>
           <td style="text-align:right">${admins.length>1
-            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">Remove</button>`
+            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">${t('btn_remove')}</button>`
             : `<span class="meta" style="color:var(--muted)">last admin</span>`}</td>
         </tr>`).join('')}</tbody></table></div>`;
 
@@ -1243,7 +1432,7 @@ async function renderAdmins(){
         if(u.role==='ADMIN'){ found.innerHTML = `<div class="mflash ok">${esc(u.name||u.id)} is already an admin.</div>`; return; }
         found.innerHTML = `<div class="row" style="margin:0"><h3>${esc(u.name||u.id)}</h3>
           <div class="meta">${esc(u.role||'—')} · ${esc(u.phone||phone)}</div>
-          <div class="actions" style="margin-top:8px"><button id="agrant" class="btn-sm" style="background:var(--gold)">Make admin</button></div></div>`;
+          <div class="actions" style="margin-top:8px"><button id="agrant" class="btn-sm" style="background:var(--gold)">${t('btn_makeAdmin')}</button></div></div>`;
         $('agrant').onclick = async (e) => {
           if(await callFn('grantAdmin', { targetUid:m.uid }, e.target, 'aflash2', 'Granted ✓')) setTimeout(renderAdmins, 700);
         };
@@ -1354,11 +1543,11 @@ async function renderSalons(){
           <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">Manage</button>
             ${s.isVerified
-              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">Unverify</button>`
-              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">Verify</button>`}
+              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">${t('btn_unverify')}</button>`
+              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">${t('btn_verify')}</button>`}
           </td>
         </tr>`; }).join('') + `</tbody></table></div>`
-        : `<div class="empty">No matching salons</div>`;
+        : `<div class="empty">${t('empty_noMatchingSalons')}</div>`;
       $('slist').querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>verify(b.dataset.ver,true));
       $('slist').querySelectorAll('[data-unv]').forEach(b=>b.onclick=()=>verify(b.dataset.unv,false));
       $('slist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
@@ -1382,7 +1571,7 @@ async function renderSalons(){
 // something is most likely to need removing, and burying it under two other
 // sections would cost time when it matters.
 async function renderContent(){
-  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
     const [cSnap, pSnap, sSnap] = await Promise.all([
       getDocs(query(collection(db,'post_comments'), orderBy('createdAt','desc'), limit(100))),
@@ -1414,7 +1603,7 @@ async function renderContent(){
           <td>${esc(c.salonId||'—')}</td>
           <td>${fmtDate(c.createdAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-delc="${esc(c.id)}">Remove</button></td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No comments yet</div>`}
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noCommentsYet')}</div>`}
 
       <div class="section-title" style="margin-top:26px">Live stories (${stories.length})</div>
       ${stories.length ? `<div class="tbl-wrap"><table class="tbl">
@@ -1424,7 +1613,7 @@ async function renderContent(){
           <td>${esc(x.text||'')}</td>
           <td>${hoursLeft(x.expiresAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-dels="${esc(x.id)}">Remove</button></td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No story running</div>`}
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noStoryRunning')}</div>`}
 
       <div class="section-title" style="margin-top:26px">Posts (${posts.length})</div>
       ${posts.length ? `<div class="tbl-wrap"><table class="tbl">
@@ -1438,7 +1627,7 @@ async function renderContent(){
           <td>${fmtDate(p.createdAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--red)"
                 data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">Remove</button></td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No posts yet</div>`}
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPostsYet')}</div>`}
     `;
 
     const after = (fn) => async (btn) => {
@@ -1584,7 +1773,7 @@ const EVENT_TONE = {
 };
 
 async function renderActivity(){
-  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
     const snap = await getDocs(query(
       collection(db,'appointment_events'), orderBy('at','desc'), limit(120)
@@ -1653,7 +1842,7 @@ function BOOKING_ACTIONS(a){
   }
 
   const confirm = a.status === 'PENDING'
-    ? `<button class="btn-sm" data-act="confirm" data-id="${id}" style="background:var(--rose)">Confirm for the salon</button>`
+    ? `<button class="btn-sm" data-act="confirm" data-id="${id}" style="background:var(--rose)">${t('btn_confirmForTheSalon')}</button>`
     : '';
 
   return `<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:8px">
@@ -1735,7 +1924,7 @@ function paintBooking(d){
         '<th scope="col">Rating</th><th scope="col">No-show</th><th scope="col">Comment</th><th scope="col">When</th>',
         (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?'<span class="pill bad">yes</span>':'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
 
-    ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">Review</div>` +
+    ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">${t('sec_review')}</div>` +
       rowsOrEmpty(d.reviews,
         '<th scope="col">Rating</th><th scope="col">Comment</th><th scope="col">Salon reply</th>',
         (r) => `<tr><td>★ ${Number(r.rating||0)}</td><td>${esc(r.comment||'—')}</td><td>${esc(r.providerReply||'—')}</td></tr>`, '') : ''}
@@ -1749,7 +1938,7 @@ function paintBooking(d){
 // because "is there a backup" and "is anything broken" are the same question
 // asked at the same moment.
 async function renderHealth(){
-  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
     const [alertSnap, backupSnap] = await Promise.all([
       getDocs(query(collection(db,'system_alerts'), orderBy('ranAt','desc'), limit(1))),
@@ -1779,7 +1968,7 @@ async function renderHealth(){
           <td>${fmtDate(b.startedAt)}</td>
           <td>${b.finishedAt?fmtDate(b.finishedAt):'—'}</td>
           <td>${esc(b.error||'—')}</td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No backup has run yet</div>`}
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noBackupHasRunYet')}</div>`}
 
       <div class="section-title" style="margin-top:26px">
         Integrity ${latest ? `— last checked ${fmtDate(latest.ranAt)}` : ''}
@@ -1788,8 +1977,8 @@ async function renderHealth(){
         Found by the nightly sweep. Nothing here has been changed automatically — each one is a
         disagreement between two records that a person should decide about.
       </div>
-      ${!latest ? `<div class="empty">The nightly check has not run yet</div>`
-        : findings.length === 0 ? `<div class="empty">Nothing out of place 🎉</div>`
+      ${!latest ? `<div class="empty">${t('empty_theNightlyCheckHasNotRunYet')}</div>`
+        : findings.length === 0 ? `<div class="empty">${t('empty_nothingOutOfPlace')}</div>`
         : `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Severity</th><th scope="col">Kind</th><th scope="col">Reference</th><th scope="col">Detail</th></tr></thead>
         <tbody>` + findings.map(f => `<tr>
@@ -1956,7 +2145,7 @@ async function renderHealth(){
 // status endpoint to ask, so a person checks the reference on their dashboard
 // and confirms. The settlement itself runs the same code the webhook runs.
 async function renderStuck(){
-  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
     const { data } = await httpsCallable(fns,'adminStuckPayments')({});
     const rows = data.rows || [];
@@ -1989,7 +2178,7 @@ async function renderStuck(){
             <button class="btn-sm" style="background:var(--green)" data-settle="${esc(r.paymentId)}">Settle</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`
-        : `<div class="empty">Nothing stuck 🎉</div>`}
+        : `<div class="empty">${t('empty_nothingStuck')}</div>`}
       <div id="stuck-flash" class="mflash" style="margin-top:10px"></div>`;
 
     $('view').querySelectorAll('[data-settle]').forEach(b => b.onclick = async () => {
@@ -2028,7 +2217,7 @@ async function renderStuck(){
 // These signals carry no identity — see the demand_signals rules — so this is
 // aggregate by construction, not by convention.
 async function renderDemand(){
-  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
     const { data } = await httpsCallable(fns,'adminDemandReport')({ days: 30 });
     const rows = data.rows || [];
@@ -2055,7 +2244,7 @@ async function renderDemand(){
           <td><span class="pill bad">none</span></td>
           <td class="meta">${kinds(r.byKind)}</td>
         </tr>`).join('') + `</tbody></table></div>`
-        : `<div class="empty">No demand yet that nobody can serve</div>`}
+        : `<div class="empty">${t('empty_noDemandYetThatNobodyCanServe')}</div>`}
 
       <div class="section-title" style="margin-top:26px">All recorded demand</div>
       ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
@@ -2067,7 +2256,7 @@ async function renderDemand(){
           <td>${r.salons === 0 ? '<span class="pill bad">0</span>' : r.salons}</td>
           <td class="meta">${kinds(r.byKind)}</td>
         </tr>`).join('') + `</tbody></table></div>`
-        : `<div class="empty">Nothing recorded yet</div>`}
+        : `<div class="empty">${t('empty_nothingRecordedYet')}</div>`}
 
       <div class="section-title" style="margin-top:26px">Supply by district</div>
       ${(data.supplyByDistrict||[]).length ? `<div class="tbl-wrap"><table class="tbl">
@@ -2077,7 +2266,7 @@ async function renderDemand(){
           <td>${s.total}</td>
           <td class="meta">${Object.entries(s.byCategory||{}).map(([c,n])=>`${esc(c)} ${n}`).join(' · ') || '—'}</td>
         </tr>`).join('') + `</tbody></table></div>`
-        : `<div class="empty">No bookable salons</div>`}`;
+        : `<div class="empty">${t('empty_noBookableSalons')}</div>`}`;
   }catch(e){
     $('view').innerHTML = `<div class="empty">${esc(e.message||String(e))}</div>`;
   }
@@ -2115,7 +2304,7 @@ async function renderAudit(){
   try{
     const snap = await getDocs(query(collection(db,'admin_audit'), orderBy('createdAt','desc'), limit(300)));
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
-    if(!rows.length){ $('view').innerHTML = `<div class="empty">No admin actions recorded yet.</div>`; return; }
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noAdminActionsRecordedYet')}</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
       <div class="tbl-wrap"><table class="tbl">
@@ -2332,7 +2521,7 @@ async function renderFinance(){
     <div class="section-title">Provider payouts owed</div>
     <div id="balances"><div class="empty">Loading…</div></div>
     <div class="section-title" style="margin-top:22px">Refund requests</div>
-    <div id="refunds"><div class="empty">Loading…</div></div>`;
+    <div id="refunds"><div class="empty">${t('empty_loading')}</div></div>`;
 
   // Commission
   const cref = doc(db,'platform_config','general');
@@ -2373,7 +2562,7 @@ async function renderFinance(){
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">owes platform</span></td>
           <td></td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">Nothing owed 🎉</div>`;
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_nothingOwed')}</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
         const b = bals[+btn.dataset.pay];
         if(!confirm(`Mark ${AFN(b.owedAmount)} paid to ${b.name}?`)) return;
@@ -2399,7 +2588,7 @@ async function renderFinance(){
           <td>${esc(r.cust)}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">Mark refunded</button></td>
-        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No pending refunds</div>`;
+        </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPendingRefunds')}</div>`;
       rel.querySelectorAll('[data-ref]').forEach(btn => btn.onclick = async () => {
         const r = refunds[+btn.dataset.ref];
         if(!confirm(`Mark ${AFN(r.amount)} as refunded?`)) return;
@@ -2428,7 +2617,7 @@ function renderPromo(){
       <button id="psave" class="btn">Save code</button>
     </div>
     <div class="section-title">Existing codes</div>
-    <div id="plist"><div class="empty">Loading…</div></div>`;
+    <div id="plist"><div class="empty">${t('empty_loading')}</div></div>`;
   $('psave').onclick = async () => {
     const code = $('pcode').value.trim().toUpperCase();
     if(code.length < 3){ alert('Code must be at least 3 characters'); return; }
@@ -2454,7 +2643,7 @@ function renderPromo(){
         <td>${p.active?'<span class="pill ok">active</span>':'<span class="pill info">off</span>'}</td>
         <td style="text-align:right"><button class="btn-sm" style="background:${p.active?'var(--muted)':'var(--green)'}"
           data-tog="${esc(p.code||p.id)}" data-act="${p.active?'0':'1'}">${p.active?'Disable':'Enable'}</button></td>
-      </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">No promo codes yet</div>`;
+      </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPromoCodesYet')}</div>`;
     el.querySelectorAll('[data-tog]').forEach(b => b.onclick = () =>
       httpsCallable(fns,'setPromoActive')({ code:b.dataset.tog, active:b.dataset.act==='1' }).catch(e=>alert(e.message)));
   }, err => { const el=$('plist'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
@@ -2465,7 +2654,7 @@ function renderReports(){
   unsub.push(onSnapshot(query(collection(db,'customer_reports'), where('flagged','==',true)), snap => {
     const rows = []; snap.forEach(d => { const r=d.data(); if(r.status==='OPEN') rows.push({ id:d.id, ...r }); });
     rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-    if(!rows.length){ $('view').innerHTML = `<div class="empty">No flagged reports 🎉</div>`; return; }
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noFlaggedReports')}</div>`; return; }
     $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Customer</th><th scope="col">Salon</th><th scope="col">Rating</th><th scope="col">Flag</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
