@@ -634,6 +634,28 @@ service cloud.firestore {
     // Tamper-evident log of privileged admin actions (password resets, balance
     // adjustments, admin grants…). Written exclusively by Cloud Functions (Admin
     // SDK); admins may read the trail but no one can write or alter it directly.
+    // ── system_alerts / system_backups ──────────────────────────────────────────
+    // What the nightly integrity sweep found, and whether each backup export
+    // actually completed. Both written by Cloud Functions through the Admin SDK,
+    // which bypasses these rules — so there was never a rule for either, and the
+    // admin console's Health tab has therefore never been able to read them from
+    // a browser. It reads both before rendering anything, so the whole tab failed
+    // with "Missing or insufficient permissions", taking its repair tools down
+    // with it. A page nobody can open is indistinguishable from a page nobody
+    // needs, which is why this went unnoticed.
+    //
+    // Admin-only: they describe the platform's own health, and a backup listing
+    // tells an attacker exactly when and where the data is written.
+    match /system_alerts/{dayId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    match /system_backups/{runId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
     match /admin_audit/{entryId} {
       allow read:  if isAdmin();
       allow write: if false;
