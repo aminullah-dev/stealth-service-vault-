@@ -1,6 +1,7 @@
 package com.safebeauty.app.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,7 +85,7 @@ import java.util.Locale
 
 private enum class NotifFilter { ALL, UNREAD, BOOKINGS, WAITLIST, SYSTEM }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NotificationCenterScreen(
     onBack: () -> Unit,
@@ -209,6 +210,11 @@ fun NotificationCenterScreen(
                     ) {
                         items(filtered, key = { it.id }) { notif ->
                             SwipeableNotificationCard(
+                                // Dismissing one used to make the rest jump up.
+                                // The keyed list can animate the gap closing
+                                // instead, which is the difference between the
+                                // list settling and the list flinching.
+                                modifier     = Modifier.animateItemPlacement(),
                                 notification = notif,
                                 onRead       = { viewModel.markRead(notif.id) },
                                 onDismiss    = { viewModel.delete(notif.id) }
@@ -221,12 +227,13 @@ fun NotificationCenterScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun SwipeableNotificationCard(
     notification: NotificationDocument,
     onRead: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
@@ -236,6 +243,7 @@ private fun SwipeableNotificationCard(
     )
 
     SwipeToDismissBox(
+        modifier           = modifier,
         state              = dismissState,
         enableDismissFromStartToEnd = false,
         backgroundContent  = {

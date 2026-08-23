@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -255,7 +256,11 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsUpcoming, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
                 }
-                upcoming.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id]) }
+                upcoming.forEach { appt ->
+                    SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
+                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id])
+                    }
+                }
             }
 
             if (past.isNotEmpty()) {
@@ -267,7 +272,14 @@ internal fun BookingsSheetContent(
                     Spacer(Modifier.width(8.dp))
                     Text(strings.bookingsPast, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextMuted)
                 }
-                past.forEach { appt -> BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id]) }
+                // Past bookings are not cancellable, so the wrapper renders them
+                // untouched — the gesture simply is not there rather than being
+                // there and doing nothing.
+                past.forEach { appt ->
+                    SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
+                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id])
+                    }
+                }
             }
         }
 
@@ -315,6 +327,78 @@ internal fun BookingsSheetContent(
 }
 
 @OptIn(ExperimentalLayoutApi::class)
+/**
+ * PENDING (awaiting the salon) is always cancellable. CONFIRMED (paid and
+ * accepted) stays cancellable until the appointment time — cancelAppointment
+ * flags the payment for a manual refund either way.
+ *
+ * One definition, because the card's button and the swipe gesture must agree:
+ * a row that can be swiped but shows no button, or the reverse, is a bug the
+ * customer discovers by trying.
+ */
+private fun AppointmentDocument.isCancellable(): Boolean =
+    status == "PENDING" ||
+        (status == "CONFIRMED" && appointmentDate > System.currentTimeMillis())
+
+/**
+ * Swipe a booking toward the end of the row to cancel it.
+ *
+ * The gesture opens the confirmation; it never cancels on its own. Cancelling a
+ * paid booking moves money — it flags a refund a person then has to settle — and
+ * a payment should not turn on whether a thumb slipped. confirmValueChange
+ * returns false for exactly that reason: the row springs back, and the dialog
+ * that was always there is what actually decides.
+ *
+ * Bookings that cannot be cancelled do not swipe at all, rather than swiping to
+ * nothing, which reads as the app having ignored you.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToCancel(
+    appt: AppointmentDocument,
+    onRequestCancel: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (!appt.isCancellable()) { content(); return }
+
+    val strings = LocalStrings.current
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) onRequestCancel()
+            false
+        }
+    )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = false,
+        backgroundContent = {
+            val active = state.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            val bg by animateColorAsState(
+                targetValue = if (active) DangerRed else Color.Transparent,
+                label = "cancel_bg"
+            )
+            Box(
+                modifier         = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(bg)
+                    .padding(horizontal = 22.dp),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                if (active) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Close, contentDescription = null, tint = Color.White,
+                             modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(strings.cancelAppointment, color = Color.White,
+                             fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    ) { content() }
+}
+
 @Composable
 private fun BookingCard(
     appt: AppointmentDocument,
@@ -338,8 +422,7 @@ private fun BookingCard(
     // PENDING (awaiting provider confirmation) is always cancellable. CONFIRMED
     // (paid + accepted) can still be cancelled up until the appointment time —
     // cancelAppointment() flags the payment for a manual refund either way.
-    val canCancel     = appt.status == "PENDING" ||
-        (appt.status == "CONFIRMED" && appt.appointmentDate > System.currentTimeMillis())
+    val canCancel     = appt.isCancellable()
 
     Card(
         shape    = RoundedCornerShape(14.dp),

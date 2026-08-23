@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
@@ -163,6 +164,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BookingRequestsTab(
     appointments: List<AppointmentDocument>,
@@ -249,10 +251,11 @@ internal fun BookingRequestsTab(
                     SwipeableRequestCard(
                         onAccept  = { onAccept(appt.id) },
                         onDecline = { onDecline(appt.id) },
+                        modifier  = Modifier.animateItemPlacement(),
                         content   = card
                     )
                 } else {
-                    card()
+                    Box(Modifier.animateItemPlacement()) { card() }
                 }
             }
         }
@@ -549,6 +552,7 @@ private fun CustomerReputationBadge(appointment: AppointmentDocument) {
 private fun SwipeableRequestCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val state = rememberSwipeToDismissBoxState(
@@ -563,6 +567,9 @@ private fun SwipeableRequestCard(
         positionalThreshold = { total -> total * 0.35f }
     )
     SwipeToDismissBox(
+        // Accepting or declining removes the row; the list closes the gap rather
+        // than the remaining requests jumping into its place.
+        modifier = modifier,
         state = state,
         backgroundContent = {
             val dir = state.dismissDirection

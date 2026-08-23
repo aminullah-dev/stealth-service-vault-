@@ -9,6 +9,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -161,7 +165,31 @@ fun AppNavGraph(
 
         NavHost(
             navController    = navController,
-            startDestination = startDestination
+            startDestination = startDestination,
+            // slideIntoContainer with Start/End rather than a signed pixel offset:
+            // the app runs right-to-left in Dari and Pashto, and an absolute
+            // offset would send every forward navigation the wrong way for most
+            // of the people using it. Start and End follow the layout direction.
+            //
+            // Short and shallow on purpose. This is a booking app used one-handed,
+            // often on a slow phone; a transition long enough to admire is a
+            // transition in the way.
+            enterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(240)) +
+                    fadeIn(tween(180))
+            },
+            exitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(240)) +
+                    fadeOut(tween(140))
+            },
+            popEnterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(240)) +
+                    fadeIn(tween(180))
+            },
+            popExitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(240)) +
+                    fadeOut(tween(140))
+            },
         ) {
 
             composable(Screen.Onboarding.route) {

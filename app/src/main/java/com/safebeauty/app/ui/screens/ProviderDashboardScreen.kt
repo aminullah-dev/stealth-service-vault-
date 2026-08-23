@@ -82,6 +82,8 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Tab
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -192,7 +194,14 @@ fun ProviderDashboardScreen(
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
     val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
     val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
-    var selectedTab         by remember { mutableIntStateOf(0) }
+    // The tabs are a pager now, so a finger can move between them. selectedTab is
+    // derived from the pager rather than held separately — two sources of truth
+    // for "which tab" is how a tab row ends up highlighting one thing while the
+    // screen shows another.
+    val tabScope   = rememberCoroutineScope()
+    val pagerState = rememberPagerState(pageCount = { 6 })
+    val selectedTab = pagerState.currentPage
+    val goToTab: (Int) -> Unit = { i -> tabScope.launch { pagerState.animateScrollToPage(i) } }
     var showLangPicker      by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
 
@@ -292,7 +301,7 @@ fun ProviderDashboardScreen(
                 ) {
                     Tab(
                         selected = selectedTab == 0,
-                        onClick  = { selectedTab = 0 },
+                        onClick  = { goToTab(0) },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(strings.tabRequests, fontSize = 14.sp)
@@ -318,33 +327,40 @@ fun ProviderDashboardScreen(
                     )
                     Tab(
                         selected = selectedTab == 1,
-                        onClick  = { selectedTab = 1 },
+                        onClick  = { goToTab(1) },
                         text     = { Text(strings.tabMyProfile, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 2,
-                        onClick  = { selectedTab = 2 },
+                        onClick  = { goToTab(2) },
                         text     = { Text(strings.tabAnalytics, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 3,
-                        onClick  = { selectedTab = 3 },
+                        onClick  = { goToTab(3) },
                         text     = { Text(strings.tabIncome, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 4,
-                        onClick  = { selectedTab = 4 },
+                        onClick  = { goToTab(4) },
                         text     = { Text(strings.tabCalendar, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 5,
-                        onClick  = { selectedTab = 5 },
+                        onClick  = { goToTab(5) },
                         text     = { Text(strings.reviews, fontSize = 14.sp) }
                     )
                 }
 
                 // ── Tab content ───────────────────────────────────────────
-                when (selectedTab) {
+                // weight(1f) rather than a height: the Column fills the screen,
+                // so the pager takes what is left under the tab row. Without it a
+                // pager in a Column has no bound to measure against.
+                HorizontalPager(
+                    state    = pagerState,
+                    modifier = Modifier.weight(1f),
+                ) { page ->
+                when (page) {
                     0 -> BookingRequestsTab(
                         appointments = pendingAppointments,
                         salonId      = salon?.id ?: "",
@@ -378,6 +394,7 @@ fun ProviderDashboardScreen(
                         reviews  = reviews,
                         onReply  = { id, text -> viewModel.replyToReview(id, text) }
                     )
+                }
                 }
             }
         }
