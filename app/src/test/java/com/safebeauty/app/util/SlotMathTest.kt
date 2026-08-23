@@ -134,4 +134,27 @@ class SlotMathTest {
         assertEquals(1, l.span)
         assertEquals(listOf(0), l.busyOffsets)
     }
+
+    @Test
+    fun `a party layout says it needs the whole salon`() {
+        // The server widens hasSlotConflict to every chair when the request is a
+        // party. If this flag is ever dropped, the picker goes back to offering a
+        // bride a time when two of three stylists are free — which the server then
+        // refuses at the till.
+        val l = SlotMath.partyLayoutFor(partySalon(60, 3), listOf("A" to listOf("Makeup")))
+        assertEquals(true, l.wholeSalon)
+    }
+
+    @Test
+    fun `an ordinary booking does not take the whole salon`() {
+        assertEquals(false, SlotMath.layoutFor(partySalon(60, 3), listOf("Makeup")).wholeSalon)
+        assertEquals(false, SlotMath.layoutFor(salon(30, mapOf("Colour" to colour)), listOf("Colour")).wholeSalon)
+    }
+
+    @Test
+    fun `even an empty party takes the salon`() {
+        // Otherwise a guest list that normalises down to nothing would quietly
+        // book as an ordinary one-chair appointment.
+        assertEquals(true, SlotMath.partyLayoutFor(partySalon(60, 3), emptyList()).wholeSalon)
+    }
 }

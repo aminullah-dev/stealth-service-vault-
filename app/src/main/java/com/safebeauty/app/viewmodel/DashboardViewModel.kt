@@ -1309,6 +1309,12 @@ class DashboardViewModel @Inject constructor(
             if (slotMs > now) {
                 val atSlot = bookedByTime[slotMs].orEmpty()
                 val free = when {
+                    // A party needs everyone. hasSlotConflict widens to every
+                    // chair when the request is one, so a slot with two of three
+                    // stylists free is a slot the server will refuse — and a
+                    // start time offered and then refused is worse than one
+                    // never offered, because it is refused at the till.
+                    layout.wholeSalon            -> atSlot.isEmpty()
                     // A specific stylist was chosen: free unless that stylist is
                     // already booked at this time.
                     selectedStaffId.isNotEmpty() -> atSlot.none { it.staffId == selectedStaffId }

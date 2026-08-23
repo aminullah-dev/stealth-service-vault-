@@ -27,6 +27,15 @@ data class SlotLayout(
     val span: Int,
     /** Offsets within [span] where the stylist is unavailable. */
     val busyOffsets: List<Int>,
+    /**
+     * True when the booking needs every stylist, not one chair.
+     *
+     * Mirrors the `reqIsParty` argument to hasSlotConflict on the server, which
+     * widens the comparison to every chair. Without it the picker offers a bride
+     * a time when two of three stylists are free and the server refuses it — the
+     * exact drift the two implementations exist to avoid.
+     */
+    val wholeSalon: Boolean = false,
 )
 
 object SlotMath {
@@ -50,7 +59,7 @@ object SlotMath {
         val step = salon.slotDurationMinutes.coerceAtLeast(1)
         val staff = salon.activeStaff().size.coerceAtLeast(1)
         val names = guests.flatMap { it.second }
-        if (names.isEmpty()) return SlotLayout(1, listOf(0))
+        if (names.isEmpty()) return SlotLayout(1, listOf(0), wholeSalon = true)
 
         val totalMinutes = names.sumOf { n ->
             val d = salon.durationPerService[n] ?: 0
@@ -58,7 +67,7 @@ object SlotMath {
         }
         val wallClock = ceilDiv(totalMinutes, staff)
         val span = ceilDiv(wallClock, step).coerceAtLeast(1)
-        return SlotLayout(span = span, busyOffsets = (0 until span).toList())
+        return SlotLayout(span = span, busyOffsets = (0 until span).toList(), wholeSalon = true)
     }
 
     fun layoutFor(salon: SalonDocument, serviceNames: List<String>): SlotLayout {

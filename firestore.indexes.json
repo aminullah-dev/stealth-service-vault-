@@ -653,7 +653,7 @@
       ]
     },
     {
-      "collectionGroup": "gallery",
+      "collectionGroup": "salon_gallery",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -667,7 +667,7 @@
       ]
     },
     {
-      "collectionGroup": "offers",
+      "collectionGroup": "salon_offers",
       "queryScope": "COLLECTION",
       "fields": [
         {
@@ -727,7 +727,7 @@
       ]
     },
     {
-      "collectionGroup": "offers",
+      "collectionGroup": "salon_offers",
       "queryScope": "COLLECTION",
       "fields": [
         {
