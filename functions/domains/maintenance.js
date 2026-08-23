@@ -372,6 +372,35 @@ async function runIntegritySweep() {
       });
     }
 
+    // 8. Salons the derivation could not place confidently.
+    //
+    //    deriveSalonDiscovery refuses to guess when a service matches no category
+    //    or a district could be two places, which is right — but it was reporting
+    //    that refusal to a log line, and a log line is not a queue. Nobody read
+    //    it, so nobody knew that a salon whose only earning service is called
+    //    "mo" appears under no category chip at all: a customer searching for
+    //    what it actually does is told there are no providers, while it sits on
+    //    the previous screen.
+    //
+    //    Not critical. Nothing is lost or wrong — it is work waiting for a
+    //    person, and paging someone at three in the morning about a category
+    //    mapping is how a list gets ignored.
+    const unplaced = await db.collection("salons")
+      .where("needsDiscoveryReview", "==", true)
+      .limit(50).get();
+    unplaced.docs.forEach((d) => {
+      const r = d.data().discoveryReview || {};
+      const bits = [];
+      if ((r.unmatchedServices || []).length) {
+        bits.push(`services matching no category: ${r.unmatchedServices.join(", ")}`);
+      }
+      if ((r.districtCandidates || []).length) {
+        bits.push(`district could be ${r.districtCandidates.join(" or ")}`);
+      }
+      add("SALON_NEEDS_REVIEW", "warn", d.data().salonName || d.id,
+        bits.join("; ") || "The discovery fields could not be derived confidently.");
+    });
+
     const critical = findings.filter((f) => f.severity === "critical").length;
 
     await db.doc(`system_alerts/${new Date(now).toLocaleDateString("en-CA", { timeZone: "Asia/Kabul" })}`)

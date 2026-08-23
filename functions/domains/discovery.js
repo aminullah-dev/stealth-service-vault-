@@ -241,12 +241,27 @@ function deriveSalonDiscovery(salon) {
 /** The subset of derived values that actually get stored on the document. */
 
 function storedDiscoveryFields(derived) {
+  const review = {
+    unmatchedServices:  derived.unmatchedServices,
+    districtCandidates: derived.districtCandidates,
+  };
   return {
     categories:  derived.categories,
     districtKey: derived.districtKey,
     nameKey:     derived.nameKey,
     minPrice:    derived.minPrice,
     sortRating:  derived.sortRating,
+    // Stored, not only logged. The derivation refuses to guess when it cannot
+    // decide confidently, which is right — but it was reporting that refusal to
+    // a log line, and a log line is not a queue. A salon whose only earning
+    // service matches no category does not appear under any category chip, and
+    // nobody was ever going to find that out.
+    //
+    // A boolean beside the detail because the nightly sweep queries it, and it
+    // lives in another domain: a flag it can filter on is the whole reason this
+    // is a field rather than a cross-domain import.
+    needsDiscoveryReview: review.unmatchedServices.length > 0 || review.districtCandidates.length > 0,
+    discoveryReview:      review,
   };
 }
 
@@ -254,12 +269,23 @@ function storedDiscoveryFields(derived) {
 
 function discoveryUpToDate(salon, derived) {
   const stored = Array.isArray(salon.categories) ? salon.categories : [];
+  const sameList = (a, b) => {
+    const x = Array.isArray(a) ? a : [];
+    const y = Array.isArray(b) ? b : [];
+    return x.length === y.length && x.every((v, i) => v === y[i]);
+  };
+  const review = salon.discoveryReview || {};
   return stored.length === derived.categories.length
       && stored.every((c, i) => c === derived.categories[i])
       && (salon.districtKey || "") === derived.districtKey
       && (salon.nameKey || "") === derived.nameKey
       && Number(salon.minPrice) === derived.minPrice
-      && Number(salon.sortRating) === derived.sortRating;
+      && Number(salon.sortRating) === derived.sortRating
+      // Also compared, or a salon whose services stop matching a category would
+      // keep its old derived fields, look up to date, and never be written —
+      // so the flag that says a person should look would never be raised.
+      && sameList(review.unmatchedServices, derived.unmatchedServices)
+      && sameList(review.districtCandidates, derived.districtCandidates);
 }
 
 // Keeps the derived fields correct as salons edit themselves, so the backfill is

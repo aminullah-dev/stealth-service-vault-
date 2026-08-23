@@ -259,6 +259,13 @@ service cloud.firestore {
                           == resource.data.get('categories', [])
                      && request.resource.data.get('districtKey', '')
                           == resource.data.get('districtKey', '')
+                     // And the flag saying a person should look at this salon.
+                     // One that could clear its own would simply vanish from the
+                     // admin's review queue while staying unfindable.
+                     && request.resource.data.get('needsDiscoveryReview', false)
+                          == resource.data.get('needsDiscoveryReview', false)
+                     && request.resource.data.get('discoveryReview', {})
+                          == resource.data.get('discoveryReview', {})
                      // How dependably this salon answers its bookings, counted
                      // by measureSalonReliability from what it actually did. A
                      // salon that could write its own record would write a
