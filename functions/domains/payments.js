@@ -6,6 +6,8 @@
 const { computeCheckout, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
+const { cashAllowed } = require("../lib/commitment");
+const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
@@ -32,6 +34,12 @@ const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
 
 // Default commission if the platform_config doc is missing (percent).
 const DEFAULT_COMMISSION_PERCENT = 10;
+
+/** The whole config document, for the settings that are not the commission. */
+async function getPlatformConfig() {
+  const snap = await db.doc("platform_config/general").get();
+  return snap.exists ? (snap.data() || {}) : {};
+}
 
 async function getCommissionPercent() {
   const snap = await db.doc("platform_config/general").get();
@@ -103,9 +111,36 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party } =
       request.data || {};
+    // A wedding party is a booking for several people at once. It arrives as a
+    // guest list rather than a flat service list, so the salon can see who is
+    // having what — and so the slot maths can account for everyone working at
+    // the same time instead of queueing them onto one stylist.
+    const isParty = Array.isArray(party) && party.length > 0;
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
+
+    // Whether this customer may pay at the salon at all. Cash is the pleasant way
+    // to book and the one most customers here want; it is also the one that costs
+    // a salon a chair and an hour when nobody arrives, because nothing was at
+    // stake. noShowCount has been counted since the two-way ratings went in and
+    // has never governed anything — this is where it starts to. See lib/commitment.
+    if (paymentMethod === "CASH") {
+      const verdict = cashAllowed({
+        noShowCount: appUser.noShowCount,
+        isParty,
+        config: await getPlatformConfig(),
+      });
+      if (!verdict.allowed) {
+        throw new HttpsError(
+          "failed-precondition",
+          verdict.reason === "PARTY"
+            ? "A group booking is paid in advance."
+            : "This booking must be paid in advance.",
+          { reason: verdict.reason, noShowCount: verdict.noShowCount || 0 }
+        );
+      }
+    }
 
     // The HesabPay secret is only needed for the online path — cash bookings
     // never call out to HesabPay, so a missing/unconfigured key must not block
@@ -126,7 +161,7 @@ exports.createPaymentSession = onCall(
         ? serviceNames
         : (serviceNameInput ? [serviceNameInput] : []);
 
-    if (!salonId || requestedServiceNames.length === 0 || !appointmentDate) {
+    if (!salonId || (requestedServiceNames.length === 0 && !isParty) || !appointmentDate) {
       throw new HttpsError(
         "invalid-argument",
         "salonId, at least one service, and appointmentDate are required."
@@ -170,7 +205,16 @@ exports.createPaymentSession = onCall(
 
     // Price every requested service server-side and sum them. One shared path for
     // single-service, multi-service, and group bookings (see lib/money.js, tested).
-    const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, requestedServiceNames);
+    // A party is priced from its guest list. Normalised against what the salon
+    // actually offers, because this arrives from a phone: a guest cannot conjure
+    // a service into existence, and a guest having nothing done is not a guest.
+    const partyGuests = isParty ? normalizeParty(party, salon.services) : [];
+    if (isParty && partyGuests.length === 0) {
+      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.");
+    }
+    const effectiveNames = isParty ? partyServices(partyGuests) : requestedServiceNames;
+
+    const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, effectiveNames);
     if (invalid.length > 0) {
       throw new HttpsError("failed-precondition", `No valid price for: ${invalid.join(", ")}`);
     }
@@ -190,12 +234,26 @@ exports.createPaymentSession = onCall(
     // busyOffsets names which of those slots the stylist is actually working. A
     // colour leaves her free while the colour develops, and that gap is hers to
     // sell — so it is left out of the set the conflict check compares.
-    const { span: slotSpan, busyOffsets } = serviceLayout(
-      services.map((s) => s.name),
-      salon.serviceTiming,
-      salon.durationPerService,
-      salon.slotDurationMinutes
+    // A party is the salon's block of the day rather than one stylist's: everyone
+    // works, so the wall-clock is the total work divided by however many stylists
+    // there are. Processing time does not apply — nobody is idle during a wedding
+    // — so a party is busy throughout its span.
+    const activeStaffCount = Math.max(
+      1,
+      (Array.isArray(salon.staff) ? salon.staff : []).filter((m) => m && m.active !== false).length
     );
+    const { span: slotSpan, busyOffsets } = isParty
+      ? { span: partySpan(partyGuests, salon.durationPerService, salon.slotDurationMinutes, activeStaffCount),
+          busyOffsets: null }
+      : serviceLayout(
+          services.map((s) => s.name),
+          salon.serviceTiming,
+          salon.durationPerService,
+          salon.slotDurationMinutes
+        );
+    // What the conflict check compares: the working offsets for an ordinary
+    // booking, the whole span for a party.
+    const occupies = isParty ? slotSpan : busyOffsets;
 
     // Resolve the requested staff member (if any) server-side, so the stored
     // staffName can't be spoofed and a booking can't reference a staff member
@@ -238,7 +296,7 @@ exports.createPaymentSession = onCall(
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     };
 
-    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, busyOffsets, resolvedStaffId, slotMinutes)) {
+    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, occupies, resolvedStaffId, slotMinutes, undefined, isParty)) {
       // A customer chose this salon, this service and this time, and could not
       // have it. That is the most specific demand signal the system can observe.
       await recordDemandSignal({
@@ -391,7 +449,10 @@ exports.createPaymentSession = onCall(
         serviceName,
         services,
         slotsCount:     slotSpan,
-        busyOffsets:     busyOffsets,
+        busyOffsets:     busyOffsets || [],
+        isParty:     isParty,
+        party:     partyGuests,
+        partySize:     partyGuests.length,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
@@ -457,7 +518,7 @@ exports.createPaymentSession = onCall(
       }
       try {
         await commitBookingAtomically(db, batch, readNearbyAppointments,
-          appointmentDate, busyOffsets, resolvedStaffId, slotMinutes);
+          appointmentDate, occupies, resolvedStaffId, slotMinutes, isParty);
         await logAppointmentEvent(
           { bookingCode, salonId, customerId: uid, status: "" },
           apptRef.id, "PENDING",
@@ -507,7 +568,10 @@ exports.createPaymentSession = onCall(
       serviceName,
       services,
       slotsCount:    slotSpan,
-      busyOffsets:    busyOffsets,
+      busyOffsets:    busyOffsets || [],
+      isParty:    isParty,
+      party:    partyGuests,
+      partySize:    partyGuests.length,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,
@@ -554,7 +618,7 @@ exports.createPaymentSession = onCall(
     });
     try {
       await commitBookingAtomically(db, createBatch, readNearbyAppointments,
-        appointmentDate, busyOffsets, resolvedStaffId, slotMinutes);
+        appointmentDate, occupies, resolvedStaffId, slotMinutes, isParty);
       await logAppointmentEvent(
         { bookingCode, salonId, customerId: uid, status: "" },
         apptRef.id, "AWAITING_PAYMENT",

@@ -388,7 +388,11 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     const busy = Array.isArray(appt.busyOffsets) && appt.busyOffsets.length
       ? appt.busyOffsets
       : span;
-    if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes, appointmentId)) {
+    // A party keeps taking the whole salon when it moves. Rescheduling one onto a
+    // day the salon is otherwise busy has to be refused for the same reason
+    // booking it did.
+    if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes,
+                        appointmentId, appt.isParty === true)) {
       throw new HttpsError("failed-precondition", "That time is no longer available.");
     }
 

@@ -309,4 +309,72 @@ test("two colours for one stylist at the same time: exactly one wins", async () 
     "processing time must not weaken the one-winner guarantee");
 });
 
+/**
+ * A wedding party, through the real reservation path.
+ *
+ * A party is the salon's block of the day, not one stylist's — everyone works,
+ * which is the only reason its wall-clock is short enough to be worth booking.
+ * If it only held one chair, a salon could accept a party and three haircuts for
+ * the same hour and be three stylists short on the morning of a wedding.
+ */
+function attemptParty(salonId, at, span, staffId = "") {
+  const ref = db.collection("appointments").doc();
+  const pending = pendingWrites();
+  pending.set(ref, {
+    salonId, staffId,
+    appointmentDate: at,
+    slotsCount: span,
+    isParty: true,
+    partySize: 4,
+    status: "PENDING",
+    createdAt: Date.now(),
+  });
+  return commitBookingAtomically(db, pending, readerFor(salonId, at), at,
+                                 span, staffId, SLOT_MINUTES, true)
+    .then(() => ({ ok: true, id: ref.id }))
+    .catch((e) => ({ ok: false, taken: e instanceof SlotTakenError, err: e }));
+}
+
+test("a party blocks a stylist nobody named on it", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+
+  assert.ok((await attemptParty(salonId, at, 2)).ok, "the party itself must book");
+
+  const haircut = await attempt(salonId, at, "zahra");
+  assert.equal(haircut.ok, false, "zahra is working the wedding");
+  assert.ok(haircut.taken);
+});
+
+test("an ordinary booking blocks a party from taking the salon", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+
+  assert.ok((await attempt(salonId, at, "sara")).ok);
+  const wedding = await attemptParty(salonId, at, 2);
+  assert.equal(wedding.ok, false, "one stylist already busy means not everyone is free");
+  assert.ok(wedding.taken);
+});
+
+test("two parties at the same hour: exactly one wins", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  const results = await Promise.all([
+    attemptParty(salonId, at, 2),
+    attemptParty(salonId, at, 2),
+  ]);
+  assert.equal(results.filter((r) => r.ok).length, 1,
+    "a salon cannot host two weddings at once");
+});
+
+test("a party leaves the rest of the day alone", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  assert.ok((await attemptParty(salonId, at, 2)).ok);
+
+  const later = at + 4 * SLOT_MINUTES * 60_000;
+  assert.ok((await attempt(salonId, later, "zahra")).ok,
+    "the block is the party's length, not the whole day");
+});
+
 test.after(async () => { await admin.app().delete(); });

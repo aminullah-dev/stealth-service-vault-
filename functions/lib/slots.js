@@ -154,7 +154,15 @@ function serviceLayout(serviceNames, timings, durationPerService, slotMinutes) {
 // explicit list of working offsets from serviceLayout. Both sides of the
 // comparison are then just sets of times the stylist is busy, and a colour's
 // development gap is simply not in either set.
-function hasSlotConflict(existing, reqStart, reqSpanOrOffsets, staffId, slotMinutes, excludeId) {
+//
+// [reqIsParty] and an existing booking's own `isParty` both widen the comparison
+// to every chair. A wedding party is not one stylist's afternoon, it is the
+// salon's — everyone works, which is the only reason the wall-clock is short
+// enough to be worth booking. So a party conflicts with any other booking at the
+// same time whoever it was for, and any booking conflicts with a party. Without
+// this a salon could take a party and three haircuts for the same hour and be
+// three stylists short on the day of somebody's wedding.
+function hasSlotConflict(existing, reqStart, reqSpanOrOffsets, staffId, slotMinutes, excludeId, reqIsParty) {
   const start = Number(reqStart);
   if (!Number.isFinite(start)) return false;
   const step = Math.max(1, Number(slotMinutes) || 30) * 60000;
@@ -167,7 +175,8 @@ function hasSlotConflict(existing, reqStart, reqSpanOrOffsets, staffId, slotMinu
   for (const a of existing || []) {
     if (!a || a.status === "CANCELLED") continue;
     if (excludeId && a.id === excludeId) continue;
-    if (String(a.staffId || "") !== wantStaff) continue;
+    const bothInvolveWholeSalon = reqIsParty === true || a.isParty === true;
+    if (!bothInvolveWholeSalon && String(a.staffId || "") !== wantStaff) continue;
     for (const t of slotsForAppointment(a, slotMinutes)) {
       if (wanted.has(t)) return true;
     }

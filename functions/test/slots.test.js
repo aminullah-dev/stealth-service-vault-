@@ -254,3 +254,50 @@ test("slotsForAppointment: a booking claiming no busy slots falls back to all", 
   const outOfRange = { appointmentDate: base, slotsCount: 2, busyOffsets: [7, 9] };
   assert.equal(slotsForAppointment(outOfRange, slot).length, 2, "nonsense offsets are not trusted");
 });
+
+// ── A party takes the salon, not a chair ─────────────────────────────────────
+//
+// A wedding party is everyone working at once — that is the only reason its
+// wall-clock is short enough to be worth booking. If it only blocked one chair,
+// a salon could accept a party and three haircuts for the same hour and find
+// itself three stylists short on the morning of somebody's wedding.
+
+const AT = 1_800_000_000_000;
+const party = (staffId = "") => ({ appointmentDate: AT, slotsCount: 2, staffId, isParty: true });
+const normal = (staffId) => ({ appointmentDate: AT, slotsCount: 1, staffId });
+
+test("a party blocks a stylist who was not named on it", () => {
+  assert.equal(hasSlotConflict([party()], AT, 1, "zahra", 60), true);
+  assert.equal(hasSlotConflict([party()], AT, 1, "sara", 60), true);
+});
+
+test("an existing booking blocks a party, whoever it was for", () => {
+  assert.equal(hasSlotConflict([normal("zahra")], AT, 2, "", 60, undefined, true), true,
+    "one stylist already busy means the party cannot have everyone");
+});
+
+test("two parties at the same time collide", () => {
+  assert.equal(hasSlotConflict([party()], AT, 2, "", 60, undefined, true), true);
+});
+
+test("a party does not block a different time", () => {
+  const later = AT + 5 * 60 * 60000;
+  assert.equal(hasSlotConflict([party()], later, 1, "zahra", 60), false);
+});
+
+test("a cancelled party releases the whole salon", () => {
+  const dead = { ...party(), status: "CANCELLED" };
+  assert.equal(hasSlotConflict([dead], AT, 1, "zahra", 60), false);
+});
+
+test("a party being rescheduled does not block itself", () => {
+  const p = { ...party(), id: "party-1" };
+  assert.equal(hasSlotConflict([p], AT, 2, "", 60, "party-1", true), false);
+});
+
+test("without the party flag nothing changes for ordinary bookings", () => {
+  // The guard against this widening quietly applying to everything.
+  assert.equal(hasSlotConflict([normal("zahra")], AT, 1, "sara", 60), false,
+    "two stylists still work in parallel");
+  assert.equal(hasSlotConflict([normal("zahra")], AT, 1, "zahra", 60), true);
+});

@@ -60,7 +60,7 @@ function pendingWrites() {
  * @param {(tx) => Promise<Array>} readNearby  reads candidate appointments via the transaction
  * @throws {SlotTakenError} when the slots are taken
  */
-async function commitBookingAtomically(db, pending, readNearby, appointmentDate, slotSpanOrOffsets, staffId, slotMinutes) {
+async function commitBookingAtomically(db, pending, readNearby, appointmentDate, slotSpanOrOffsets, staffId, slotMinutes, isParty) {
   await db.runTransaction(async (tx) => {
     // Every read must precede every write in a Firestore transaction, which is
     // also the order correctness requires.
@@ -68,7 +68,7 @@ async function commitBookingAtomically(db, pending, readNearby, appointmentDate,
     // Either a slot count or the explicit offsets the stylist is working — see
     // hasSlotConflict. A colour's development gap is not in either set, so the
     // stylist can be booked into it without this refusing.
-    if (hasSlotConflict(existing, appointmentDate, slotSpanOrOffsets, staffId, slotMinutes)) {
+    if (hasSlotConflict(existing, appointmentDate, slotSpanOrOffsets, staffId, slotMinutes, undefined, isParty)) {
       throw new SlotTakenError();
     }
     for (const op of pending.ops) {
