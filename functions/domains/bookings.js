@@ -8,7 +8,7 @@ const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_ADMIN_AFTER_MS, UNCONFIRMED_NUDGE_AFTER_MS, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -1155,4 +1155,49 @@ exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (reques
 
   await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written, skipped });
   return { ok: true, scanned, salons: written, skipped };
+});
+
+// ── adminCancelAppointment ───────────────────────────────────────────────────
+//
+// The one booking action an admin could not take.
+//
+// confirmAppointment and rescheduleAppointment have always let an admin act —
+// both check `role !== "ADMIN"` before refusing — but cancelling went through
+// cancelPaidAppointment's authorize predicate, and the two callers that use it
+// ask "is this your booking" and "is this your salon". An admin is neither, so
+// the person whose job is to sort out a booking nobody else can was the only one
+// who could not cancel it. Support's answer was to talk the customer through
+// doing it herself, or to ask the salon to decline.
+//
+// This does not open a new path to the money. It calls the same helper with the
+// same transaction: the payment is flagged for refund, the provider's balance is
+// unwound, the event trail is written. What changes is who is allowed, and that
+// an admin's reason is recorded — a cancellation with no author is the kind of
+// thing that later has to be reconstructed from a customer's memory.
+exports.adminCancelAppointment = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const { appointmentId, reason } = request.data || {};
+  if (!appointmentId) {
+    throw new HttpsError("invalid-argument", "appointmentId is required.");
+  }
+  assertDocId(appointmentId, "appointmentId");
+
+  // A reason is required rather than optional. An admin cancelling somebody's
+  // booking is an intervention, and one without a stated cause is indistinguish-
+  // able afterwards from a mistake.
+  const why = String(reason || "").trim().slice(0, 300);
+  if (why.length < 3) {
+    throw new HttpsError("invalid-argument", "Say why this booking is being cancelled.");
+  }
+
+  const result = await cancelPaidAppointment(
+    appointmentId,
+    "ADMIN",
+    () => true,
+    { uid: me.uid, role: "ADMIN", name: me.name || "" },
+    why
+  );
+
+  await logAdminAction(me, "CANCEL_APPOINTMENT", { appointmentId, reason: why });
+  return result;
 });

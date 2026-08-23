@@ -484,6 +484,7 @@ const TABS = [
   { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
   { id:'content',  label:'Content',    icon:'📸', render:renderContent },
   { id:'demand',   label:'Demand',     icon:'📈', render:renderDemand },
+  { id:'activity', label:'Activity',   icon:'🌊', render:renderActivity },
   { id:'booking',  label:'Booking',    icon:'🔎', render:renderBooking },
   { id:'health',   label:'Health',     icon:'🩺', render:renderHealth },
   { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
@@ -1509,6 +1510,164 @@ function renderBooking(){
   $('bk-go').onclick = run;
   $('bk-code').onkeydown = (e) => { if(e.key === 'Enter') run(); };
   $('bk-code').focus();
+
+  // Delegated, because the buttons are rendered by paintBooking every time a
+  // booking is looked up — binding them directly would leave the handlers of the
+  // previous booking attached to nothing.
+  $('bk-out').onclick = async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    const id = btn.dataset.id;
+    if(!id) return;
+
+    let ok = false;
+    if(btn.dataset.act === 'confirm'){
+      // confirmAppointment has always accepted an admin — it checks the salon's
+      // owner OR the ADMIN role. There was simply no way to reach it from here.
+      ok = await callFn('confirmAppointment', { appointmentId: id }, btn, 'bk-actflash',
+                        'Confirmed on the salon\u2019s behalf \u2713');
+
+    } else if(btn.dataset.act === 'move'){
+      const v = $('bk-newdate').value;
+      if(!v){
+        $('bk-actflash').className = 'mflash bad';
+        $('bk-actflash').textContent = 'Pick the new date and time first.';
+        return;
+      }
+      // datetime-local has no timezone, so it is read in the operator's own — the
+      // same clock they are reading the appointment time on.
+      const ms = new Date(v).getTime();
+      if(!Number.isFinite(ms)){
+        $('bk-actflash').className = 'mflash bad';
+        $('bk-actflash').textContent = 'That date could not be read.';
+        return;
+      }
+      ok = await callFn('rescheduleAppointment', { appointmentId: id, newDate: ms },
+                        btn, 'bk-actflash', 'Moved \u2713 The salon has to confirm it again.');
+
+    } else if(btn.dataset.act === 'cancel'){
+      const why = ($('bk-reason').value || '').trim();
+      if(why.length < 3){
+        $('bk-actflash').className = 'mflash bad';
+        $('bk-actflash').textContent = 'Say why first — a cancellation with no reason cannot be explained later.';
+        $('bk-reason').focus();
+        return;
+      }
+      if(!window.confirm('Cancel this booking? The payment is flagged for refund and the salon\u2019s balance is unwound.')) return;
+      ok = await callFn('adminCancelAppointment', { appointmentId: id, reason: why },
+                        btn, 'bk-actflash', 'Cancelled \u2713 Refund flagged for a person to settle.');
+    }
+
+    // Re-read rather than patching the card in place: the server decides what the
+    // booking now is, and a screen that guesses drifts from it.
+    if(ok) setTimeout(run, 700);
+  };
+}
+
+// ── Activity ────────────────────────────────────────────────────────────────
+//
+// Every status change a booking has ever been through, newest first.
+//
+// appointment_events has been written on every transition since the trail went
+// in — who changed what, from which state to which, and why — and nothing has
+// ever read it. The other tabs each answer one question about one kind of thing;
+// this is the only place that shows the platform moving.
+//
+// It is deliberately not a dashboard of totals. A count tells you the shape of a
+// week; this tells you that a booking was confirmed and then cancelled eleven
+// minutes later, which is the sort of thing a person notices and no aggregate
+// ever surfaces.
+const EVENT_TONE = {
+  CONFIRMED: 'ok', COMPLETED: 'ok',
+  PENDING: 'info', AWAITING_PAYMENT: 'info',
+  CANCELLED: 'bad', DECLINED: 'bad',
+};
+
+async function renderActivity(){
+  $('view').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const snap = await getDocs(query(
+      collection(db,'appointment_events'), orderBy('at','desc'), limit(120)
+    ));
+    const rows = snap.docs.map(d => d.data());
+
+    if(!rows.length){
+      $('view').innerHTML = `<div class="card-pad"><div class="empty">
+        Nothing has happened yet. Every booking that is confirmed, moved, cancelled
+        or completed appears here as it happens.</div></div>`;
+      return;
+    }
+
+    // Grouped by day so a scroll reads as a diary rather than a wall.
+    const byDay = new Map();
+    for(const r of rows){
+      const day = new Date(Number(r.at||0)).toLocaleDateString(undefined,
+        { weekday:'short', day:'numeric', month:'short' });
+      if(!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(r);
+    }
+
+    const who = (r) => {
+      const role = String(r.actorRole||'').toUpperCase();
+      if(role === 'SYSTEM') return 'automatically';
+      const name = esc(r.actorName || '') || role.toLowerCase() || 'someone';
+      return `by ${name}${role && role !== 'SYSTEM' ? ` (${esc(role.toLowerCase())})` : ''}`;
+    };
+
+    $('view').innerHTML = [...byDay.entries()].map(([day, items]) => `
+      <div class="section-title" style="margin-top:20px">${esc(day)} · ${items.length}</div>
+      <div class="card-pad">
+        ${items.map(r => `
+          <div style="display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)">
+            <span class="pill ${EVENT_TONE[r.to]||'info'}" style="flex-shrink:0">${esc(r.to||'—')}</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13.5px;color:var(--ink)">
+                <b>${esc(r.bookingCode||r.appointmentId||'—')}</b>
+                ${r.from ? `moved from ${esc(r.from)}` : 'created'} ${who(r)}
+              </div>
+              ${r.reason ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">“${esc(r.reason)}”</div>` : ''}
+            </div>
+            <div style="font-size:11.5px;color:var(--muted);flex-shrink:0">
+              ${new Date(Number(r.at||0)).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
+            </div>
+          </div>`).join('')}
+      </div>`).join('');
+  }catch(err){
+    $('view').innerHTML = `<div class="card-pad"><div class="mflash bad">${esc(fnError(err))}</div></div>`;
+  }
+}
+
+// Which interventions make sense for a booking in this state.
+//
+// PENDING and CONFIRMED are the only live states. Everything else is finished,
+// and rendering buttons the server would refuse teaches an operator to distrust
+// the screen — which is worse than not offering them.
+//
+// The reason box appears only where it is required, so it never looks optional.
+function BOOKING_ACTIONS(a){
+  const id = esc(a.id || '');
+  if(!id) return '<div class="empty">No appointment id — nothing here can be acted on.</div>';
+
+  if(a.status !== 'PENDING' && a.status !== 'CONFIRMED'){
+    return `<div class="empty">This booking is ${esc(a.status||'finished')} — there is nothing left to change.</div>`;
+  }
+
+  const confirm = a.status === 'PENDING'
+    ? `<button class="btn-sm" data-act="confirm" data-id="${id}" style="background:var(--rose)">Confirm for the salon</button>`
+    : '';
+
+  return `<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:8px">
+            ${confirm}
+            <input type="datetime-local" id="bk-newdate"
+              style="padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
+            <button class="btn-sm" data-act="move" data-id="${id}"
+              style="background:var(--surface);color:var(--deep)">Move to this time</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:11px">
+            <input id="bk-reason" placeholder="Why is this being cancelled?" maxlength="300"
+              style="flex:1;min-width:230px;padding:8px 11px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
+            <button class="btn-sm" data-act="cancel" data-id="${id}" style="background:#B4404F">Cancel booking</button>
+          </div>`;
 }
 
 function paintBooking(d){
@@ -1534,6 +1693,18 @@ function paintBooking(d){
         Appointment: ${fmtDate(a.appointmentDate)} · Booked: ${fmtDate(a.createdAt)}<br/>
         ${a.notes?`Note: “${esc(a.notes)}”`:''}
       </div>
+    </div>
+
+    <div class="card-pad" style="margin-top:14px">
+      <div class="mlabel">Act on this booking</div>
+      <div class="mhint">
+        Everything here is recorded against your name in the audit log and in the
+        booking's own history below. Cancelling flags the payment for refund and
+        unwinds the salon's balance — the same path the customer's own cancel
+        takes, not a shortcut around it.
+      </div>
+      ${BOOKING_ACTIONS(a)}
+      <div id="bk-actflash" class="mflash" style="margin-top:10px"></div>
     </div>
 
     <div class="section-title" style="margin-top:22px">History (${(d.events||[]).length})</div>
