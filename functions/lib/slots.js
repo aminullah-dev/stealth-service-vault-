@@ -77,9 +77,15 @@ function expandBooked(appointments, slotMinutes) {
   const booked = [];
   for (const a of appointments || []) {
     const staffId = String((a && a.staffId) || "");
+    // Carried through so the customer's picker can tell a party apart from an
+    // ordinary booking. A party holds every chair — hasSlotConflict widens to all
+    // of them — so a picker that saw only staffId would count a three-stylist
+    // salon as having two free during somebody's wedding, and offer times the
+    // server then refuses at checkout.
+    const isParty = a && a.isParty === true;
     for (const t of slotsForAppointment(a, slotMinutes)) {
       slots.push(t);
-      booked.push({ time: t, staffId });
+      booked.push({ time: t, staffId, isParty });
     }
   }
   return { slots, booked };

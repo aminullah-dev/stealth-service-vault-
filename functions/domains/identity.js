@@ -4,6 +4,9 @@
 // so the deployed function set is unchanged by the move.
 
 const { phoneKey } = require("../lib/phone");
+// The same normaliser salons use for nameKey, so a name is searchable under one
+// spelling rather than two. See lib/categories.
+const { normalize: normalizeName } = require("../lib/categories");
 const { assertAdmin, assertDocId, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
@@ -578,7 +581,7 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
     // Derived the same way as the trigger. Written even when empty, so that a
     // nameless account still appears in a name-ordered admin list rather than
     // being dropped by the orderBy.
-    const name = String(data.name || "").trim().toLowerCase();
+    const name = normalizeName(data.name);
 
     const patch = {};
     if (key && data.phoneDigits !== key) patch.phoneDigits = key;
@@ -692,7 +695,7 @@ exports.deriveUserPhoneKey = onDocumentWritten(
     // impossible to act on. The salon path learned this the same way (see
     // deriveSalonFields and sortRating).
     const wantPhone = phoneKey(u.phone);
-    const wantName  = String(u.name || "").trim().toLowerCase();
+    const wantName  = normalizeName(u.name);
 
     const patch = {};
     if (wantPhone && u.phoneDigits !== wantPhone) patch.phoneDigits = wantPhone;

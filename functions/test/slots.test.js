@@ -85,10 +85,12 @@ test("expandBooked: flattens every appointment's slots, tagged with staff", () =
   ];
   const { slots, booked } = expandBooked(appts, 30);
   assert.deepEqual(slots, [T, T + 30 * MIN, T + 180 * MIN]);
+  // isParty is part of the shape now: the customer's picker needs to tell a
+  // party's slots from an ordinary booking's, because a party holds every chair.
   assert.deepEqual(booked, [
-    { time: T, staffId: "s1" },
-    { time: T + 30 * MIN, staffId: "s1" },
-    { time: T + 180 * MIN, staffId: "s2" },
+    { time: T, staffId: "s1", isParty: false },
+    { time: T + 30 * MIN, staffId: "s1", isParty: false },
+    { time: T + 180 * MIN, staffId: "s2", isParty: false },
   ]);
 });
 
@@ -300,4 +302,18 @@ test("without the party flag nothing changes for ordinary bookings", () => {
   assert.equal(hasSlotConflict([normal("zahra")], AT, 1, "sara", 60), false,
     "two stylists still work in parallel");
   assert.equal(hasSlotConflict([normal("zahra")], AT, 1, "zahra", 60), true);
+});
+
+test("expandBooked tells the picker which slots a party holds", () => {
+  // Without this the customer's picker counts chairs: a three-stylist salon
+  // looks like it has two free during somebody's wedding, and the times it
+  // offers are refused at checkout.
+  const party  = { appointmentDate: AT, slotsCount: 2, staffId: "", isParty: true };
+  const normal = { appointmentDate: AT, slotsCount: 1, staffId: "zahra" };
+  const { booked } = expandBooked([party, normal], 60);
+
+  assert.equal(booked.filter((b) => b.isParty).length, 2, "both of the party's slots");
+  assert.equal(booked.filter((b) => !b.isParty).length, 1);
+  assert.equal(booked.find((b) => b.staffId === "zahra").isParty, false,
+    "an ordinary booking must not be reported as a party");
 });

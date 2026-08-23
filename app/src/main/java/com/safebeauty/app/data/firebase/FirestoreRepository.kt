@@ -5,11 +5,13 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
 import com.safebeauty.app.util.CrashReporter
 import com.safebeauty.app.util.PhoneUtils
+import com.safebeauty.app.util.SearchKey
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -107,6 +109,17 @@ class FirestoreRepository @Inject constructor(
     // owner/admin in firestore.rules. getUserById below only ever reads the
     // caller's OWN document.
 
+    /**
+     * Registration only — never an update.
+     *
+     * A whole-document set(), which is right for a document that does not exist
+     * yet and wrong for one that does: UserDocument omits phoneDigits, nameKey,
+     * suspended and suspendedReason, all of which the rules freeze, so reusing
+     * this to save a profile would delete them and be refused. That is not
+     * hypothetical — the salon equivalent shipped and broke every provider's
+     * Save button. Field-level update() is the path for edits; see updateUserName
+     * and the others below.
+     */
     suspend fun createUser(user: UserDocument) {
         usersCol.document(user.uid).set(user).await()
     }
@@ -346,7 +359,9 @@ class FirestoreRepository @Inject constructor(
             q = q.whereIn(FieldPath.documentId(), filter.favoriteIds.take(30))
         }
 
-        val search = filter.search.trim().lowercase()
+        // Normalised the way the server stores nameKey — see SearchKey. Sending
+        // the raw text queries a range over spelling that was never written.
+        val search = SearchKey.normalize(filter.search)
         if (search.isNotEmpty()) {
             // Firestore cannot match a substring. A range on the normalized name
             // gives prefix search, which covers typing the start of a name; \uf8ff
@@ -472,8 +487,25 @@ class FirestoreRepository @Inject constructor(
         return ref.id
     }
 
+    /**
+     * Save the salon's own edits, without deleting what the server owns.
+     *
+     * This was a whole-document set() from the Kotlin POJO, and SalonDocument
+     * does not declare `reliability`, `needsDiscoveryReview` or
+     * `discoveryReview` — they are derived, and the rules freeze them precisely
+     * so a salon cannot write its own reputation or clear its own review flag.
+     * A set() deletes a field it does not mention, the deleted field reads back
+     * as the default, the default never equals the stored value, and the write
+     * is refused. Every Save, for every salon, with a generic failure dialog and
+     * nothing in the logs saying why.
+     *
+     * merge() writes what the object carries and leaves the rest alone, which is
+     * exactly the shape the rules are asking for. It is also the honest
+     * description of the operation: a provider is editing her salon, not
+     * replacing it.
+     */
     suspend fun updateSalon(salon: SalonDocument) {
-        salonsCol.document(salon.id).set(salon).await()
+        salonsCol.document(salon.id).set(salon, SetOptions.merge()).await()
     }
 
     suspend fun setAvailability(salonId: String, isAvailable: Boolean) {
@@ -600,7 +632,14 @@ class FirestoreRepository @Inject constructor(
      * One taken time-slot for a salon, tagged with the staff member it belongs
      * to ([staffId] is empty for a solo salon / "any available" booking).
      */
-    data class BookedSlot(val time: Long, val staffId: String)
+    /**
+     * One taken slot, as the server sees it.
+     *
+     * [isParty] matters because a party holds the whole salon rather than one
+     * chair. Without it the picker counts chairs and offers a time during
+     * somebody's wedding that checkout then refuses.
+     */
+    data class BookedSlot(val time: Long, val staffId: String, val isParty: Boolean = false)
 
     /**
      * Taken time-slots for a salon on the day containing [dateMs]. Served by
@@ -633,7 +672,7 @@ class FirestoreRepository @Inject constructor(
             return booked.mapNotNull { entry ->
                 val m = entry as? Map<*, *> ?: return@mapNotNull null
                 val time = (m["time"] as? Number)?.toLong() ?: return@mapNotNull null
-                BookedSlot(time, m["staffId"] as? String ?: "")
+                BookedSlot(time, m["staffId"] as? String ?: "", m["isParty"] == true)
             }
         }
         return (map["slots"] as? List<*>)
@@ -1041,7 +1080,9 @@ class FirestoreRepository @Inject constructor(
         var q: Query = usersCol
         filter.role?.let { q = q.whereEqualTo("role", it) }
 
-        val search = filter.search.trim().lowercase()
+        // Normalised the way the server stores nameKey — see SearchKey. Sending
+        // the raw text queries a range over spelling that was never written.
+        val search = SearchKey.normalize(filter.search)
         if (search.isNotEmpty()) {
             // An admin searching for a person types one of two things: a phone
             // number or a name. Both are answered by a field the server derives

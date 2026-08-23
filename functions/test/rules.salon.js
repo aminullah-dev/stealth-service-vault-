@@ -103,3 +103,43 @@ test("a salon cannot file itself under a category it did not earn", async () => 
 test("a salon cannot award itself the verified badge", async () => {
   await assertFails(asProvider().doc(`salons/${SALON}`).update({ isVerified: true }));
 });
+
+test("the shape the Android app used to send is refused", async () => {
+  // A whole-document set() from a POJO that does not declare the derived fields.
+  // Firestore deletes what the object omits, the deleted field reads back as the
+  // default, the default never equals the stored value, and the write is refused.
+  // This is what broke every provider's Save button, in the shipped app, silently.
+  await assertFails(
+    asProvider().doc(`salons/${SALON}`).set({
+      providerId: PROV_APP,
+      salonName: "Test Salon",
+      services: ["Nails"],
+      district: "Karte Naw",
+      isVerified: false,
+      categories: [],
+      districtKey: "",
+      // reliability, needsDiscoveryReview and discoveryReview deliberately absent
+    })
+  );
+});
+
+test("the same edit merged is allowed", async () => {
+  // What the app sends now. merge() writes what the object carries and leaves
+  // the rest alone, so the frozen fields survive and the comparison passes.
+  await assertSucceeds(
+    asProvider().doc(`salons/${SALON}`).set(
+      { services: ["Nails"], district: "Karte Naw" },
+      { merge: true }
+    )
+  );
+});
+
+test("merging cannot be used to smuggle a frozen field", async () => {
+  // The guard against reading the fix as "merge is allowed, therefore anything".
+  await assertFails(
+    asProvider().doc(`salons/${SALON}`).set({ needsDiscoveryReview: false }, { merge: true })
+  );
+  await assertFails(
+    asProvider().doc(`salons/${SALON}`).set({ reliability: { answeredPct: 100 } }, { merge: true })
+  );
+});
