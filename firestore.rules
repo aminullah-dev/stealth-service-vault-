@@ -118,7 +118,23 @@ service cloud.firestore {
                  && request.resource.data.get('profileRewardClaimed', false) == false
                  // Nor may it seed either derived lookup key — see the update rule.
                  && request.resource.data.get('phoneDigits', '') == ''
-                 && request.resource.data.get('nameKey', '') == '';
+                 && request.resource.data.get('nameKey', '') == ''
+                 // The account may only claim the identity the caller is already
+                 // signed in as.
+                 //
+                 // resolveAppUser decides who every callable is talking to with
+                 // users.where('firebaseEmail','==',token.email).limit(1) — so
+                 // this field IS the server's notion of identity. It was
+                 // unconstrained on create and unfrozen on update, and the
+                 // document id is chosen by the client, which made planting one
+                 // enough to capture another account's resolution: a limit(1)
+                 // with no orderBy breaks ties by ascending __name__, so a low id
+                 // wins deterministically and forever.
+                 //
+                 // Not a takeover — the password still derives from the victim's
+                 // own salt, and role/status stay frozen — but a permanent,
+                 // silent lockout, and the one variant nothing anywhere alerts on.
+                 && request.resource.data.get('firebaseEmail', '') == request.auth.token.email;
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -215,7 +231,11 @@ service cloud.firestore {
                      && request.resource.data.get('phoneDigits', '')
                           == resource.data.get('phoneDigits', '')
                      && request.resource.data.get('nameKey', '')
-                          == resource.data.get('nameKey', ''));
+                          == resource.data.get('nameKey', '')
+                     // And the identity itself. Changing this on an existing doc
+                     // is the same attack as planting a new one.
+                     && request.resource.data.get('firebaseEmail', '')
+                          == resource.data.get('firebaseEmail', ''));
 
       allow delete: if isAdmin();
     }
