@@ -247,9 +247,9 @@
      it is available immediately and independent of sign-in. */
   (function(){
     try{
-      var t = localStorage.getItem('sb-theme') ||
+      var saved = localStorage.getItem('sb-theme') ||
               (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-theme', saved);
     }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
   })();
   function toggleTheme(){
@@ -346,7 +346,7 @@ const fns  = getFunctions(app, 'us-central1');
 const storage = getStorage(app);
 
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
-function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
+function clean(raw){ const v=raw.trim(); const plus=v.startsWith('+'); const d=v.replace(/\D/g,''); return plus?'+'+d:d; }
 function normalizeAfghan(raw){
   let c=clean(raw);
   if(c.startsWith('+93')) return c;
@@ -1157,8 +1157,10 @@ async function renderUsers(){
       catch(e){ alert(e.message); }
     };
     const draw = (term='') => {
-      const t = term.trim().toLowerCase();
-      const rows = users.filter(u => !t || (u.name||'').toLowerCase().includes(t) || (u.phone||'').includes(t));
+      // Named q, not t: t is the translation function, and shadowing it here
+      // turned every translated label below into "" is not a function.
+      const q = term.trim().toLowerCase();
+      const rows = users.filter(u => !q || (u.name||'').toLowerCase().includes(q) || (u.phone||'').includes(q));
       $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">KYC</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
@@ -1526,10 +1528,11 @@ async function renderSalons(){
       catch(e){ alert(e.message); }
     };
     const draw = (term='') => {
-      const t = term.trim().toLowerCase();
+      // Named q, not t — see renderUsers.draw.
+      const q = term.trim().toLowerCase();
       const rows = salons.filter(s => {
         const o = owners[s.providerId] || {};
-        return !t || (s.salonName||'').toLowerCase().includes(t) || (s.district||'').toLowerCase().includes(t) || (o.phone||'').includes(t);
+        return !q || (s.salonName||'').toLowerCase().includes(q) || (s.district||'').toLowerCase().includes(q) || (o.phone||'').includes(q);
       });
       $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">Salon</th><th scope="col">District</th><th scope="col">Owner phone</th><th scope="col">Rating</th><th scope="col">KYC</th><th scope="col">Verified</th><th scope="col"></th></tr></thead>

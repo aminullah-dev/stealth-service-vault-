@@ -301,9 +301,9 @@
      (no flash). Shared with the admin console via the same localStorage keys. */
   (function(){
     try{
-      var t = localStorage.getItem('sb-theme') ||
+      var saved = localStorage.getItem('sb-theme') ||
               (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-theme', saved);
     }catch(e){ document.documentElement.setAttribute('data-theme','light'); }
     try{
       var l = localStorage.getItem('sb-lang') || 'fa';
@@ -690,7 +690,7 @@ document.querySelectorAll('#langpick button').forEach(b =>
   b.addEventListener('click', () => setLang(b.dataset.lang)));
 
 // ── Phone normalization (mirrors PhoneUtils.normalizeForLogin) ──────────────
-function clean(raw){ const t=raw.trim(); const plus=t.startsWith('+'); const d=t.replace(/\D/g,''); return plus?'+'+d:d; }
+function clean(raw){ const v=raw.trim(); const plus=v.startsWith('+'); const d=v.replace(/\D/g,''); return plus?'+'+d:d; }
 function normalizeAfghan(raw){
   let c=clean(raw);
   if(c.startsWith('+93')) return c;
