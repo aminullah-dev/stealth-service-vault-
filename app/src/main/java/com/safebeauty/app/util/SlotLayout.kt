@@ -1,6 +1,7 @@
 package com.safebeauty.app.util
 
 import com.safebeauty.app.data.firebase.SalonDocument
+import com.safebeauty.app.data.firebase.activeStaff
 
 /**
  * Where a booking's working time and its idle time fall, on the device.
