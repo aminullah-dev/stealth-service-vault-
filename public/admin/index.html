@@ -465,6 +465,175 @@ const STR = {
   tab_stuck: {en:'Stuck pay', fa:'پرداخت گیرمانده', ps:'ایسارې تادیې'},
   tab_support: {en:'Support', fa:'پشتیبانی', ps:'ملاتړ'},
   tab_users: {en:'Users', fa:'کاربران', ps:'کاروونکي'},
+
+  hint_suspendedExplain: {
+    en:(r)=>`Suspended${r ? ` — ${r}` : ''}. They can still sign in and read their history; what is blocked is booking, confirming and rating.`,
+    fa:(r)=>`تعلیق‌شده${r ? ` — ${r}` : ''}. او همچنان می‌تواند وارد شود و سابقهٔ خود را ببیند؛ آنچه مسدود شده رزرو، تایید و امتیازدهی است.`,
+    ps:(r)=>`معلق شوی${r ? ` — ${r}` : ''}. هغه لا هم ننوتلی شي او خپله پخوانۍ سابقه لیدلی شي؛ خو بکینګ، تایید او امتیاز ورکول یې بند دي.`},
+  hint_integrityLastChecked: {
+    en:(d)=>`Integrity ${d ? `— last checked ${d}` : ''}`,
+    fa:(d)=>`یکپارچگی ${d ? `— آخرین بررسی ${d}` : ''}`,
+    ps:(d)=>`بشپړتیا ${d ? `— وروستۍ کتنه ${d}` : ''}`},
+  // The English pluralises; Dari and Pashto do not, so the s/no-s lives in the
+  // English value and nowhere else — which is the point of keeping it here.
+  hint_builtFromSignals: {
+    en:(n,tr)=>`Built from ${n} signal${n===1?'':'s'}. These take weeks to become useful — capture started recently, so a thin report now is expected, not broken.${tr ? ' Only the most recent 2000 signals were read.' : ''}`,
+    fa:(n,tr)=>`برگرفته از ${n} سیگنال. این گزارش‌ها هفته‌ها وقت می‌خواهند تا به کار بیایند — جمع‌آوری سیگنال‌ها تازه شروع شده، پس کم‌بودن داده‌ها در این گزارش طبیعی است، نه نشانهٔ خرابی.${tr ? ' تنها آخرین ۲۰۰۰ سیگنال خوانده شد.' : ''}`,
+    ps:(n,tr)=>`دا راپور له ${n} سیګنالونو څخه جوړ شوی دی. دا ډول راپورونه څو اونۍ وخت غواړي چې ګټور شي — د سیګنالونو راټولول یوازې په دې وروستیو کې پیل شوي دي، نو اوس د راپور کم معلومات طبیعي دي، د خرابۍ نښه نه ده.${tr ? ' یوازې وروستي ۲۰۰۰ سیګنالونه لوستل شوي دي.' : ''}`},
+  // ── Tab bodies ────────────────────────────────────────────────────────────
+  // The chrome was translated first — sidebar, tab names, a handful of buttons.
+  // These are what is inside each tab: the column headings, the button labels and
+  // the copy that explains what a maintenance action will do.
+  btn_apply: {en:'Apply', fa:'اعمال', ps:'پلي کول'},
+  btn_approve: {en:'Approve', fa:'تایید', ps:'تایید'},
+  btn_assignMissingBookingReferences: {en:'Assign missing booking references', fa:'تخصیص کد رزرو به رزروهای بدون کد', ps:'بې کوډه بکینګونو ته کوډ ورکول'},
+  btn_cancelBooking: {en:'Cancel booking', fa:'لغو رزرو', ps:'بکینګ لغوه کړئ'},
+  btn_closeGeneric: {en:'Close', fa:'بسته', ps:'بندول'},
+  btn_countThemFirst: {en:'Count them first', fa:'شمارش اولیه', ps:'لومړی یې وشمېرئ'},
+  btn_createSalon: {en:'Create salon', fa:'ایجاد سالن', ps:'سالون جوړ کړئ'},
+  btn_delete: {en:'Delete', fa:'حذف', ps:'ړنګول'},
+  btn_deriveSalonFilterFields: {en:'Derive salon filter fields', fa:'استخراج فیلدهای فیلتر سالن‌ها', ps:'د سالونونو د فلټر د ساحو استخراج'},
+  btn_dismiss: {en:'Dismiss', fa:'رد کردن', ps:'رد کول'},
+  btn_fillInMissingInviteCodes: {en:'Fill in missing invite codes', fa:'تکمیل کدهای دعوت', ps:'د بلنې کوډونو بشپړول'},
+  btn_fillInMissingLookupKeys: {en:'Fill in missing lookup keys', fa:'تکمیل کلیدهای جستجو', ps:'د لټون د کلیدونو بشپړول'},
+  btn_find: {en:'Find', fa:'جستجو', ps:'ولټوئ'},
+  btn_grant: {en:'Grant', fa:'اعطا', ps:'ورکول'},
+  btn_loadBookingsReviewsReports: {en:'Load bookings, reviews and reports', fa:'بارگذاری رزروها، نظرات و گزارش‌ها', ps:'د بکینګونو، نظرونو او راپورونو بارول'},
+  btn_lookUp: {en:'Look up', fa:'جستجو', ps:'ولټوئ'},
+  btn_manage: {en:'Manage', fa:'مدیریت', ps:'سمبالول'},
+  btn_markPaid: {en:'Mark paid', fa:'ثبت پرداخت', ps:'تادیه ثبتول'},
+  btn_markRefunded: {en:'Mark refunded', fa:'ثبت بازپرداخت', ps:'بیرته‌ورکړه ثبتول'},
+  btn_messageTemplates: {en:'📋 Message templates', fa:'📋 قالب‌های پیام', ps:'📋 د پیغامونو کينډۍ'},
+  btn_moveToThisTime: {en:'Move to this time', fa:'انتقال به این زمان', ps:'دې وخت ته یې ولېږدوئ'},
+  btn_rebuildSalonBookingTallies: {en:'Rebuild salon booking tallies', fa:'بازسازی آمار رزرو سالن‌ها', ps:'د سالونونو د بکینګ احصایې بیا جوړول'},
+  btn_reject: {en:'Reject', fa:'رد', ps:'ردول'},
+  btn_removeItem: {en:'Remove', fa:'حذف', ps:'لرې کول'},
+  btn_reset: {en:'Reset', fa:'بازنشانی', ps:'بیا ټاکل'},
+  btn_save: {en:'Save', fa:'ذخیره', ps:'خوندي کول'},
+  btn_saveCode: {en:'Save code', fa:'ذخیره کد', ps:'کوډ خوندي کول'},
+  btn_send: {en:'Send', fa:'ارسال', ps:'لېږل'},
+  btn_sendATestAlert: {en:'Send a test alert', fa:'ارسال هشدار آزمایشی', ps:'د ازموینې خبرتیا لېږل'},
+  btn_settle: {en:'Settle', fa:'تسویه', ps:'تسویه کول'},
+  btn_suspendAccount: {en:'Suspend', fa:'تعلیق', ps:'معلق کول'},
+  hint_accountStanding: {en:'Account standing', fa:'وضعیت حساب', ps:'د حساب حالت'},
+  hint_actOnThisBooking: {en:'Act on this booking', fa:'اقدام روی این رزرو', ps:'پر دې بکینګ کړنه'},
+  hint_addASalon: {en:'Add a salon', fa:'افزودن سالن', ps:'سالون اضافه کول'},
+  hint_addAnAdministrator: {en:'Add an administrator', fa:'افزودن ادمین', ps:'اډمین زیاتول'},
+  hint_adjustSalonBalance: {en:'Adjust salon balance (AFN)', fa:'تنظیم موجودی سالن (AFN)', ps:'د سالون د بیلانس تنظیم (AFN)'},
+  hint_adminAccess: {en:'Admin access', fa:'دسترسی ادمین', ps:'د اډمین لاسرسی'},
+  hint_adminActionLog: {en:(a0)=>`Admin action log (${a0})`, fa:(a0)=>`ثبت اقدامات ادمین (${a0})`, ps:(a0)=>`د اډمین د کړنو ثبت (${a0})`},
+  hint_allRecordedDemand: {en:'All recorded demand', fa:'همهٔ تقاضاهای ثبت‌شده', ps:'ټوله ثبت شوې تقاضا'},
+  hint_allUsersCount: {en:(a0,a1)=>`All users (${a0}${a1})`, fa:(a0,a1)=>`همه کاربران (${a0}${a1})`, ps:(a0,a1)=>`ټول کاروونکي (${a0}${a1})`},
+  hint_announceDelivery: {en:'Delivered as a push notification and shown in-app. Leave the filters on their defaults to reach everyone. A district filter matches salon owners by their salon\'s district, so it has no effect on customers.', fa:'به‌صورت اعلان فوری فرستاده می‌شود و در داخل اپ هم نمایش داده می‌شود. برای رسیدن به همه، فیلترها را روی حالت پیش‌فرض بگذارید. فیلتر ناحیه، صاحبان سالن را بر اساس ناحیهٔ سالن‌شان انتخاب می‌کند، بنابراین بر مشتریان هیچ اثری ندارد.', ps:'د فوري خبرتیا په توګه لېږل کیږي او په اپ کې هم ښودل کیږي. د دې لپاره چې ټولو ته ورسیږي، فلټرونه په خپل اصلي حالت پریږدئ. د ناحیې فلټر د سالون خاوندان د خپل سالون د ناحیې له مخې ټاکي، نو پر پیرودونکو هیڅ اغېز نه لري.'},
+  hint_auditLogIsImmutable: {en:'Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.', fa:'هر اقدامی که تنها ادمین می‌تواند انجام دهد (بازنشانی رمز عبور، تغییر موجودی یا اعتبار، تعیین ادمین…) در اینجا ثبت می‌شود و قابل ویرایش نیست.', ps:'هغه کړنې چې یوازې اډمین یې ترسره کولی شي (د پټنوم بیا تنظیمول، د بیلانس یا کریډیټ بدلون، د اډمین ټاکل…) دلته ثبتېږي او د سمون وړ نه دي.'},
+  hint_auditLogLoadFailed: {en:(a0)=>`Couldn't load the audit log: ${a0}`, fa:(a0)=>`ثبت اقدامات بارگذاری نشد: ${a0}`, ps:(a0)=>`د کړنو ثبت ترلاسه نه شو: ${a0}`},
+  hint_behaviourReportsCount: {en:(a0)=>`Behaviour reports (${a0})`, fa:(a0)=>`گزارش‌های رفتاری (${a0})`, ps:(a0)=>`د چلند راپورونه (${a0})`},
+  hint_bookingActionsRecorded: {en:'Everything here is recorded against your name in the audit log and in the booking\'s own history below. Cancelling flags the payment for refund and unwinds the salon\'s balance — the same path the customer\'s own cancel takes, not a shortcut around it.', fa:'هر کاری که اینجا انجام می‌دهید، به نام شما در ثبت اقدامات و در تاریخچهٔ همین رزرو در پایین ثبت می‌شود. لغو کردن، پرداخت را برای بازپرداخت علامت می‌زند و موجودی سالن را به حالت پیش از رزرو برمی‌گرداند — همان مسیری که لغو خود مشتری هم از آن می‌گذرد، نه میان‌بری در کنار آن.', ps:'هر څه چې دلته کوئ، ستاسو په نوم د کړنو په ثبت کې او لاندې د همدې بکینګ په تاریخچه کې ثبتېږي. لغوه کول تادیه د بیرته‌ورکړې لپاره نښه کوي او د سالون بیلانس هماغه پخواني حالت ته راګرځوي — دا هماغه لار ده چې د پیرودونکي خپل لغوه کول هم ترې تېرېږي، نه څنګ ته کومه لنډه لار.'},
+  hint_bookingFinished: {en:(a0)=>`This booking is ${a0} — there is nothing left to change.`, fa:(a0)=>`وضعیت این رزرو ${a0} است — چیزی برای تغییر باقی نمانده.`, ps:(a0)=>`د دې بکینګ حالت ${a0} دی — د بدلولو لپاره بل څه نشته.`},
+  hint_bookingLookupHelp: {en:'Enter the reference the customer reads out (SB-4C7GHJ), or a booking\'s document id. Case, spaces and a missing prefix are all fine.', fa:'کدی را که مشتری برایتان می‌خواند (SB-4C7GHJ)، یا شناسه سند رزرو را وارد کنید. بزرگ یا کوچک بودن حروف، فاصله‌ها و نبود پیشوند «SB-» هیچ مشکلی ایجاد نمی‌کند.', ps:'هغه کوډ چې پیرودونکی یې درته لولي (SB-4C7GHJ)، یا د بکینګ د سند پېژندکوډ ولیکئ. که توري لوی وي که واړه، که تشې پکې وي، او که «SB-» ورسره نه وي — هیڅ ستونزه نشته.'},
+  hint_bookingsBeforeReferences: {en:'Bookings made before references existed have none, so support cannot look them up. Safe to run repeatedly — it only touches bookings that still have no code.', fa:'رزروهایی که پیش از ایجاد کد رزرو ثبت شده‌اند کد ندارند، بنابراین پشتیبانی نمی‌تواند آن‌ها را پیدا کند. اجرای چندبارهٔ آن بی‌خطر است — فقط رزروهایی را تغییر می‌دهد که هنوز کد ندارند.', ps:'هغه بکینګونه چې د کوډ له رامنځته کېدو دمخه شوي دي، کوډ نه لري، نو ملاتړ یې نه شي پیدا کولی. څو ځله یې چلول خطر نه لري — یوازې هغه بکینګونه بدلوي چې لا هم کوډ نه لري.'},
+  hint_bookingsCount: {en:(a0)=>`Bookings (${a0})`, fa:(a0)=>`رزروها (${a0})`, ps:(a0)=>`بکینګونه (${a0})`},
+  hint_categoryAndNeighbourhoodFilters: {en:'Category and neighbourhood filters compare against fields derived from what each salon typed. Until a salon has them, its chips match nothing — a customer searching for nails sees "no providers found" while a nail salon sits on the previous screen. Anything that cannot be resolved confidently is listed below for you to decide, never guessed.', fa:'فیلترهای دسته‌بندی و ناحیه با فیلدهایی مقایسه می‌شوند که از نوشته‌های خود سالن استخراج شده‌اند. تا وقتی سالنی این فیلدها را نداشته باشد، برچسب‌های فیلترش با هیچ جستجویی مطابقت نمی‌کند — مشتری‌ای که دنبال خدمات ناخن می‌گردد «ارائه‌دهنده‌ای یافت نشد» می‌بیند، در حالی که یک سالن ناخن درست در صفحه قبل وجود دارد. هر موردی که با اطمینان قابل تشخیص نباشد هرگز حدس زده نمی‌شود؛ در پایین فهرست می‌شود تا شما تصمیم بگیرید.', ps:'د کټګورۍ او سیمې فلټرونه له هغو ساحو سره پرتله کیږي چې د هر سالون له لیکلو څخه استخراج شوې دي. تر څو چې یو سالون دا ساحې ونه لري، د هغه د فلټر نښې له هیڅ لټون سره سمون نه خوري — هغه پیرودونکی چې د نوکانو لټون کوي، «هیڅ وړاندې کوونکی ونه موندل شو» ویني، حال دا چې د نوکانو یو سالون همدا اوس په تېره پرده کې شته. هر هغه څه چې په ډاډ سره ونه ټاکل شي، هیڅکله اټکل نه کیږي؛ لاندې لیست کیږي څو تاسو پرې پرېکړه وکړئ.'},
+  hint_commentsCount: {en:(a0)=>`Comments (${a0})`, fa:(a0)=>`نظرات (${a0})`, ps:(a0)=>`نظرونه (${a0})`},
+  hint_commentsScope: {en:'The 100 most recent across the platform. Removing one does not notify its author.', fa:'آخرین 100 نظر در سراسر پلتفرم. با حذف یک نظر، به نویسنده آن اطلاع داده نمی‌شود.', ps:'په ټول پلیټفارم کې وروستي 100 نظرونه. کله چې یو نظر لرې کړئ، لیکوال ته یې خبر نه ورکول کیږي.'},
+  hint_couldntLoadStats: {en:(a0)=>`Couldn't load stats: ${a0}`, fa:(a0)=>`بارگذاری آمار ممکن نشد: ${a0}`, ps:(a0)=>`د احصایې پورته کول ونشول: ${a0}`},
+  hint_createUpdatePromoCode: {en:'Create / update a promo code', fa:'ایجاد / ویرایش کد تخفیف', ps:'د تخفیف کوډ جوړول / تازه کول'},
+  hint_createsTheOwnersProviderAccount: {en:'Creates the owner\'s provider account and their salon. Give the owner the phone number and password below so they can sign in.', fa:'برای مالک، حساب ارائه‌دهنده خدمات و سالن او را ایجاد می‌کند. شماره تلفن و رمز عبور زیر را به مالک بدهید تا بتواند وارد شود.', ps:'د مالک لپاره د خدماتو د چمتو کوونکي حساب او سالون جوړوي. مالک ته لاندې د تلیفون شمېره او پټنوم ورکړئ ترڅو خپل حساب ته ننوځي.'},
+  hint_currentAdmins: {en:(a0)=>`Current admins (${a0})`, fa:(a0)=>`ادمین‌های فعلی (${a0})`, ps:(a0)=>`اوسني اډمینان (${a0})`},
+  hint_deleteAccount: {en:'Delete account', fa:'حذف حساب', ps:'د حساب ړنګول'},
+  hint_deleteAccountRules: {en:'For a duplicate registration or a test row — nothing else. An account with any bookings, payments, reviews, reports or salons is refused: deleting it would leave a salon holding an appointment with nobody to contact. Suspend those instead. Recoverable for 7 days.', fa:'فقط برای ثبت‌نام تکراری یا حسابی که برای آزمایش ساخته شده — نه چیز دیگری. حسابی که هرگونه رزرو، پرداخت، نظر، گزارش یا سالن داشته باشد رد می‌شود: حذف آن، سالنی را با نوبتی تنها می‌گذارد که مخاطبی برای تماس ندارد. به‌جای حذف، چنین حساب‌هایی را تعلیق کنید. تا 7 روز قابل بازگردانی است.', ps:'یوازې تکراري راجستر یا د ازموینې لپاره جوړ شوی حساب — بل هیڅ نه. هغه حساب چې کوم بکینګ، تادیه، نظر، راپور یا سالون ولري، رد کېږي: د هغه ړنګول به یو سالون له داسې نوبت سره یوازې پرېږدي چې د اړیکې لپاره یې څوک نه وي. د دې پر ځای دغسې حسابونه معلق کړئ. تر 7 ورځو پورې د بېرته راګرځولو وړ دی.'},
+  hint_editProfile: {en:'Edit profile', fa:'ویرایش پروفایل', ps:'د پروفایل سمول'},
+  hint_existingCodes: {en:'Existing codes', fa:'کدهای موجود', ps:'موجود کوډونه'},
+  hint_findABooking: {en:'Find a booking', fa:'یافتن رزرو', ps:'د بکینګ موندل'},
+  hint_findUserByPhoneThenGrantAdmin: {en:'Find a user by phone, then grant them admin access.', fa:'کاربر را با شماره تلفن پیدا کنید، سپس به او دسترسی ادمین بدهید.', ps:'د تلیفون شمېرې له مخې کاروونکی ولټوئ، بیا هغه ته د اډمین لاسرسی ورکړئ.'},
+  hint_flaggedCustomerReports: {en:(a0)=>`Flagged customer reports (${a0})`, fa:(a0)=>`گزارش‌های نشان‌دار درباره مشتریان (${a0})`, ps:(a0)=>`د پیرودونکو په اړه نښه شوي راپورونه (${a0})`},
+  hint_foundByTheNightlySweep: {en:'Found by the nightly sweep. Nothing here has been changed automatically — each one is a disagreement between two records that a person should decide about.', fa:'این موارد را بررسی شبانه پیدا کرده است. هیچ‌چیز در اینجا به‌صورت خودکار تغییر نکرده است — هر مورد ناسازگاری میان دو رکورد است که یک نفر باید درباره‌اش تصمیم بگیرد.', ps:'دا هغه څه دي چې شپنۍ کتنې موندلي دي. دلته هیڅ شی په اتوماتیک ډول نه دی بدل شوی — هر یو یې د دوو ریکارډونو ترمنځ ناسمون دی چې پرېکړه یې باید یو کس وکړي.'},
+  hint_fullHistory: {en:'Full history', fa:'سابقهٔ کامل', ps:'بشپړه سابقه'},
+  hint_grantCredit: {en:'Grant credit (AFN)', fa:'اعطای اعتبار (AFN)', ps:'د اعتبار ورکول (AFN)'},
+  hint_historyCount: {en:(a0)=>`History (${a0})`, fa:(a0)=>`تاریخچه (${a0})`, ps:(a0)=>`تاریخچه (${a0})`},
+  hint_identityVerificationQueue: {en:(a0)=>`Identity verification queue (${a0})`, fa:(a0)=>`صف احراز هویت (${a0})`, ps:(a0)=>`د هویت د تصدیق کتار (${a0})`},
+  hint_inviteCodes: {en:'Invite codes', fa:'کدهای دعوت', ps:'د بلنې کوډونه'},
+  hint_liveStoriesCount: {en:(a0)=>`Live stories (${a0})`, fa:(a0)=>`استوری‌های فعال (${a0})`, ps:(a0)=>`فعال سټوري (${a0})`},
+  hint_maintenance: {en:'Maintenance', fa:'نگهداری', ps:'ساتنه'},
+  hint_needsYourDecision: {en:(a0)=>`Needs your decision (${a0})`, fa:(a0)=>`نیازمند تصمیم شما (${a0})`, ps:(a0)=>`ستاسو پرېکړې ته اړتیا لري (${a0})`},
+  hint_noAppointmentId: {en:'No appointment id — nothing here can be acted on.', fa:'شناسهٔ رزرو وجود ندارد — اینجا روی چیزی نمی‌توان اقدام کرد.', ps:'د بکینګ پېژندشمېره نشته — دلته پر هیڅ شي کړنه نه شي کېدای.'},
+  hint_nothingHasHappenedYet: {en:'Nothing has happened yet. Every booking that is confirmed, moved, cancelled or completed appears here as it happens.', fa:'هنوز چیزی رخ نداده. هر رزروی که تایید شود، زمانش تغییر کند، لغو شود یا تکمیل شود، همان لحظه اینجا نمایش داده می‌شود.', ps:'تر اوسه هیڅ پېښه نه ده شوې. هر بکینګ چې تایید شي، وخت یې بدل شي، لغوه شي یا بشپړ شي، هماغه شېبه دلته ښکاري.'},
+  hint_olderThanGraceMinutes: {en:(a0)=>`Older than ${a0} minutes. Most are customers who closed the checkout and owe nothing. The ones that matter are those where HesabPay took the money and the webhook never arrived — check the reference on your HesabPay dashboard before settling. Settling runs exactly the same code a webhook does, so settling one twice cannot pay a salon twice.`, fa:(a0)=>`از آغاز این پرداخت‌ها بیش از ${a0} دقیقه گذشته است. بیشتر این موارد مشتریانی هستند که صفحهٔ پرداخت را بسته‌اند و بدهی‌ای ندارند. موارد مهم آن‌هایی هستند که HesabPay پول را گرفته اما وب‌هوک هرگز نرسیده است — پیش از تسویه، شمارهٔ مرجع را در داشبورد HesabPay خود بررسی کنید. تسویه دقیقاً همان کدی را اجرا می‌کند که وب‌هوک اجرا می‌کند، بنابراین تسویهٔ دوبارهٔ یک مورد نمی‌تواند دو بار به سالن پرداخت کند.`, ps:(a0)=>`د دې تادیو له پیل څخه له ${a0} دقیقو زیاته موده تېره ده. ډېری یې هغه پېرودونکي دي چې د تادیې پاڼه یې بنده کړې ده او هیڅ پور نه لري. مهمې هغه دي چې HesabPay پیسې اخیستې دي خو وېب‌هوک هیڅکله نه دی راغلی — تر تسویې مخکې په خپل HesabPay ډشبورډ کې د مرجع شمېره وګورئ. تسویه کول هماغه کوډ چلوي چې وېب‌هوک یې چلوي، نو که یوه تادیه دوه ځله تسویه شي، سالون ته پیسې دوه ځله نه ورکول کېږي.`},
+  hint_onlyFirst200FindingsStored: {en:'Only the first 200 findings are stored.', fa:'تنها 200 مورد اول ذخیره می‌شود.', ps:'یوازې لومړۍ 200 موندنې ثبت کیږي.'},
+  hint_paymentsCount: {en:(a0)=>`Payments (${a0})`, fa:(a0)=>`پرداخت‌ها (${a0})`, ps:(a0)=>`تادیې (${a0})`},
+  hint_paymentsStartedButNeverSettled: {en:(a0)=>`Payments started but never settled (${a0})`, fa:(a0)=>`پرداخت‌هایی که آغاز شده اما هرگز تسویه نشده‌اند (${a0})`, ps:(a0)=>`هغه تادیې چې پیل شوې دي خو هیڅکله تسویه شوې نه دي (${a0})`},
+  hint_pendingProviderApprovals: {en:(a0)=>`Pending provider approvals (${a0})`, fa:(a0)=>`صاحبان سالن در انتظار تایید (${a0})`, ps:(a0)=>`د تایید په تمه د سالون خاوندان (${a0})`},
+  hint_postsCount: {en:(a0)=>`Posts (${a0})`, fa:(a0)=>`پست‌ها (${a0})`, ps:(a0)=>`پوسټونه (${a0})`},
+  hint_providerPayoutsOwed: {en:'Provider payouts owed', fa:'بدهی به ارائه‌دهندگان', ps:'چمتو کوونکو ته پورونه'},
+  hint_refundRequests: {en:'Refund requests', fa:'درخواست‌های بازپرداخت', ps:'د بیرته‌ورکړې غوښتنې'},
+  hint_refundsCount: {en:(a0)=>`Refunds (${a0})`, fa:(a0)=>`بازپرداخت‌ها (${a0})`, ps:(a0)=>`بیرته‌ورکړې (${a0})`},
+  hint_reportedBySalonsCount: {en:(a0)=>`Reported by salons (${a0})`, fa:(a0)=>`گزارش‌های ثبت‌شده از سوی سالن‌ها (${a0})`, ps:(a0)=>`د سالونونو له خوا شوي راپورونه (${a0})`},
+  hint_resetPassword: {en:'Reset password', fa:'بازنشانی رمز عبور', ps:'د پټنوم بیا ټاکل'},
+  hint_reviewsWrittenCount: {en:(a0)=>`Reviews written (${a0})`, fa:(a0)=>`نظرات نوشته‌شده (${a0})`, ps:(a0)=>`لیکل شوي نظرونه (${a0})`},
+  hint_salonBalance: {en:'Salon balance', fa:'موجودی سالن', ps:'د سالون بیلانس'},
+  hint_salonBookingTallies: {en:'Salon booking tallies', fa:'آمار رزرو سالن‌ها', ps:'د سالونونو د بکینګ احصایې'},
+  hint_salonsCount: {en:(a0)=>`Salons (${a0})`, fa:(a0)=>`سالن‌ها (${a0})`, ps:(a0)=>`سالونونه (${a0})`},
+  hint_sendAnAnnouncement: {en:'Send an announcement', fa:'ارسال اعلان', ps:'اعلان لېږل'},
+  hint_sendsADeliberateTestAlert: {en:'Sends a deliberate test alert through the whole chain — log, metric, policy, email. Monitoring that has never fired is monitoring nobody knows works, and the moment you find out is the moment you needed it. Worth running every few months. Touches no data, and says it is a drill.', fa:'یک هشدار آزمایشی را عمداً از تمام زنجیره عبور می‌دهد — لاگ، متریک، پالیسی، ایمیل. سیستم نظارتی که هرگز فعال نشده باشد، سیستمی است که هیچ‌کس نمی‌داند کار می‌کند یا نه، و لحظه‌ای که متوجه می‌شوید همان لحظه‌ای است که به آن نیاز داشتید. اجرای آن هر چند ماه یک‌بار ارزش دارد. به هیچ داده‌ای دست نمی‌زند و خودش می‌گوید که تمرین است.', ps:'د ازموینې یوه خبرتیا په قصدي ډول د ټول لړ له لارې لېږي — لاګ، متریک، پالیسي، ایمیل. هغه څارنه چې هیڅکله فعاله شوې نه وي، هغه څارنه ده چې هیڅوک نه پوهیږي چې کار کوي که نه، او هغه شېبه چې پرې پوه شئ، همغه شېبه ده چې اړتیا مو ورته درلوده. هرو څو میاشتو کې یو ځل یې چلول ارزښت لري. هیڅ معلوماتو ته لاس نه وروړي، او پخپله وايي چې دا یوه ازموینه ده.'},
+  hint_showingNewestAccounts: {en:(a0)=>`Showing the ${a0} newest accounts. Older accounts are not listed here — use the Manage flow on the Admins tab to reach one by phone number.`, fa:(a0)=>`جدیدترین ${a0} حساب نمایش داده می‌شود. حساب‌های قدیمی‌تر اینجا فهرست نمی‌شوند — در بخش ادمین‌ها از مدیریت استفاده کنید تا با شماره تلفن به یکی از آن‌ها برسید.`, ps:(a0)=>`تر ټولو نوي ${a0} حسابونه ښودل کېږي. زاړه حسابونه دلته نه ښکاري — د اډمینانو په برخه کې د سمبالولو له لارې کولی شئ د تلیفون شمېرې له مخې یو حساب ته ورسېږئ.`},
+  hint_supplyByDistrict: {en:'Supply by district', fa:'عرضه به تفکیک ناحیه', ps:'د ناحیو له مخې عرضه'},
+  hint_tellUserThisPassword: {en:'Tell the user this password; they can change it after signing in.', fa:'این رمز عبور را به کاربر بگویید؛ او پس از ورود می‌تواند آن را تغییر دهد.', ps:'دا پټنوم کاروونکي ته ووایئ؛ هغه یې له ننوتلو وروسته بدلولی شي.'},
+  hint_whereDemandExceedsSupply: {en:(a0)=>`Where demand exceeds supply — last ${a0} days`, fa:(a0)=>`جایی که تقاضا از عرضه بیشتر است — ${a0} روز اخیر`, ps:(a0)=>`چیرې چې تقاضا له عرضې څخه زیاته ده — وروستۍ ${a0} ورځې`},
+  th_action: {en:'Action', fa:'اقدام', ps:'کړنه'},
+  th_amount: {en:'Amount', fa:'مبلغ', ps:'مبلغ'},
+  th_announcement: {en:'Announcement', fa:'اعلان', ps:'اعلان'},
+  th_author: {en:'Author', fa:'نویسنده', ps:'لیکوال'},
+  th_balance: {en:'Balance', fa:'مانده حساب', ps:'د حساب بیلانس'},
+  th_bookableSalons: {en:'Bookable salons', fa:'سالن‌های قابل رزرو', ps:'د بکینګ وړ سالونونه'},
+  th_booking: {en:'Booking', fa:'رزرو', ps:'بکینګ'},
+  th_bookingState: {en:'Booking state', fa:'وضعیت رزرو', ps:'د بکینګ حالت'},
+  th_by: {en:'By', fa:'انجام‌دهنده', ps:'ترسره کوونکی'},
+  th_caption: {en:'Caption', fa:'شرح', ps:'تشریح'},
+  th_categoriesCovered: {en:'Categories covered', fa:'دسته‌های تحت پوشش', ps:'پوښل شوې کټګورۍ'},
+  th_category: {en:'Category', fa:'دسته', ps:'کټګوري'},
+  th_code: {en:'Code', fa:'کد', ps:'کوډ'},
+  th_comment: {en:'Comment', fa:'نظر', ps:'نظر'},
+  th_customer: {en:'Customer', fa:'مشتری', ps:'پېرودونکی'},
+  th_date: {en:'Date', fa:'تاریخ', ps:'نېټه'},
+  th_day: {en:'Day', fa:'روز', ps:'ورځ'},
+  th_detail: {en:'Detail', fa:'جزئیات', ps:'جزئیات'},
+  th_discount: {en:'Discount', fa:'تخفیف', ps:'تخفیف'},
+  th_district: {en:'District', fa:'ناحیه', ps:'ناحیه'},
+  th_error: {en:'Error', fa:'خطا', ps:'تېروتنه'},
+  th_finished: {en:'Finished', fa:'زمان پایان', ps:'د پای وخت'},
+  th_flag: {en:'Flag', fa:'نوع گزارش', ps:'د راپور ډول'},
+  th_from: {en:'From', fa:'از', ps:'له'},
+  th_hesabPaySession: {en:'HesabPay session', fa:'نشست HesabPay', ps:'د HesabPay ناسته'},
+  th_joined: {en:'Joined', fa:'تاریخ عضویت', ps:'د ګډون نېټه'},
+  th_kind: {en:'Kind', fa:'نوع', ps:'ډول'},
+  th_kyc: {en:'KYC', fa:'KYC', ps:'KYC'},
+  th_left: {en:'Left', fa:'باقی‌مانده', ps:'پاتې وخت'},
+  th_madeUpOf: {en:'Made up of', fa:'ترکیب', ps:'ترکیب'},
+  th_method: {en:'Method', fa:'روش پرداخت', ps:'د تادیې طریقه'},
+  th_name: {en:'Name', fa:'نام', ps:'نوم'},
+  th_noShow: {en:'No-show', fa:'عدم حضور', ps:'غیرحاضري'},
+  th_ownerPhone: {en:'Owner phone', fa:'تلفن مالک', ps:'د مالک تلیفون'},
+  th_phone: {en:'Phone', fa:'شماره تلفن', ps:'د تلیفون شمېره'},
+  th_photo: {en:'Photo', fa:'عکس', ps:'انځور'},
+  th_provider: {en:'Provider', fa:'ارائه‌دهنده', ps:'چمتو کوونکی'},
+  th_rating: {en:'Rating', fa:'امتیاز', ps:'امتیاز'},
+  th_reference: {en:'Reference', fa:'مرجع', ps:'مرجع'},
+  th_role: {en:'Role', fa:'نقش', ps:'رول'},
+  th_salon: {en:'Salon', fa:'سالن', ps:'سالون'},
+  th_salonReply: {en:'Salon reply', fa:'پاسخ سالن', ps:'د سالون ځواب'},
+  th_salons: {en:'Salons', fa:'سالن‌ها', ps:'سالونونه'},
+  th_salonsServingIt: {en:'Salons serving it', fa:'سالن‌های ارائه‌دهنده', ps:'خدمت کوونکي سالونونه'},
+  th_severity: {en:'Severity', fa:'شدت', ps:'شدت'},
+  th_started: {en:'Started', fa:'زمان شروع', ps:'د پیل وخت'},
+  th_state: {en:'State', fa:'وضعیت', ps:'وضعیت'},
+  th_status: {en:'Status', fa:'وضعیت', ps:'حالت'},
+  th_timesWanted: {en:'Times wanted', fa:'تعداد تقاضا', ps:'د تقاضا شمېر'},
+  th_to: {en:'To', fa:'به', ps:'ته'},
+  th_unrecognisedServices: {en:'Unrecognised services', fa:'خدمات ناشناخته', ps:'ناپېژندل شوي خدمتونه'},
+  th_used: {en:'Used', fa:'تعداد استفاده', ps:'د کارونې شمېر'},
+  th_verified: {en:'Verified', fa:'تأیید شده', ps:'تایید شوی'},
+  th_when: {en:'When', fa:'زمان', ps:'وخت'},
+  th_why: {en:'Why', fa:'دلیل', ps:'لامل'},
 };
 
 function t(key, ...args){
@@ -746,7 +915,7 @@ async function renderStats(){
       `<div class="section-title">${t('sec_platformOverview')}</div><div class="grid">` +
       cards.map(([ic,l,n]) => `<div class="stat"><div class="ico">${ic}</div><div class="n">${n}</div><div class="l">${l}</div></div>`).join('') +
       `</div>`;
-  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load stats: ${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<div class="empty">${t('hint_couldntLoadStats', esc(e.message))}</div>`; }
 }
 
 // ── Announcements ──────────────────────────────────────────────────────────────
@@ -778,7 +947,7 @@ const ANNOUNCE_TEMPLATES = [
 
 function renderAnnounce(){
   $('view').innerHTML = `
-    <div class="section-title">Send an announcement</div>
+    <div class="section-title">${t('hint_sendAnAnnouncement')}</div>
     <div class="card" style="padding:18px;max-width:560px">
       <div id="aflash"></div>
       <select id="atmpl" class="field" style="margin-bottom:10px">
@@ -803,11 +972,9 @@ function renderAnnounce(){
       <select id="a-district" class="field">
         <option value="">Any district (salon owners only)</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
       </select>
-      <button id="asend" class="btn">Send</button>
+      <button id="asend" class="btn">${t('btn_send')}</button>
       <div class="meta" style="margin-top:10px">
-        Delivered as a push notification and shown in-app. Leave the filters on
-        their defaults to reach everyone. A district filter matches salon owners
-        by their salon's district, so it has no effect on customers.
+        ${t('hint_announceDelivery')}
       </div>
     </div>`;
   // The button says who it will actually reach — a targeted send that still
@@ -856,17 +1023,17 @@ function renderApprovals(){
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noPendingApprovals')}</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Pending provider approvals (${rows.length})</div>
+    $('view').innerHTML = `<div class="section-title">${t('hint_pendingProviderApprovals', rows.length)}</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Joined</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_name')}</th><th scope="col">${t('th_role')}</th><th scope="col">${t('th_phone')}</th><th scope="col">${t('th_joined')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
           <td>${esc(u.phone||'—')}</td>
           <td>${fmtDate(u.createdAt)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">${t('btn_approve')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">${t('btn_reject')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () =>
@@ -886,16 +1053,16 @@ function renderKyc(){
     const rows = [];
     snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noIdentityChecksAwaitingReview')}</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Identity verification queue (${rows.length})</div>
+    $('view').innerHTML = `<div class="section-title">${t('hint_identityVerificationQueue', rows.length)}</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_name')}</th><th scope="col">${t('th_role')}</th><th scope="col">${t('th_phone')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
           <td>${esc(u.phone||'—')}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">Approve</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">Reject</button>
+            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">${t('btn_approve')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">${t('btn_reject')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     const review = (uid, approve, reason='') =>
@@ -916,7 +1083,7 @@ let chatUnsub = null;
 function renderSupport(){
   $('view').innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-      <button id="tplmanage" class="btn-sm" style="background:var(--petal);color:var(--deep)">📋 Message templates</button>
+      <button id="tplmanage" class="btn-sm" style="background:var(--petal);color:var(--deep)">${t('btn_messageTemplates')}</button>
     </div>
     <div class="support-wrap">
       <div id="tickets"></div>
@@ -953,8 +1120,8 @@ function openChat(userId, name){
     <div class="composer">
       <button id="ctpl" class="btn-sm" style="background:var(--petal);color:var(--deep)" title="Insert a saved reply">📋</button>
       <input id="cin" class="field" placeholder="Reply to ${esc(name)}…" />
-      <button id="csend" class="btn-sm" style="background:var(--rose)">Send</button>
-      <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">Close</button>
+      <button id="csend" class="btn-sm" style="background:var(--rose)">${t('btn_send')}</button>
+      <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">${t('btn_closeGeneric')}</button>
     </div>`;
   const convId = 'support_'+userId;
   if(chatUnsub){ try{chatUnsub();}catch(_){} }
@@ -1145,10 +1312,9 @@ async function renderUsers(){
     // Say so when the list is capped. A console that silently shows a subset is
     // worse than one that shows fewer rows and admits it.
     const capped = users.length === USER_PAGE;
-    $('view').innerHTML = `<div class="section-title">All users (${users.length}${capped?'+':''})</div>` +
+    $('view').innerHTML = `<div class="section-title">${t('hint_allUsersCount', users.length, capped?'+':'')}</div>` +
       (capped ? `<div class="meta" style="color:var(--warn-ink);margin-bottom:10px">
-         Showing the ${USER_PAGE} newest accounts. Older accounts are not listed here —
-         use the Manage flow on the Admins tab to reach one by phone number.</div>` : '') +
+         ${t('hint_showingNewestAccounts', USER_PAGE)}</div>` : '') +
       `<input id="usearch" class="field" placeholder="${t('ph_searchNameOrPhone')}" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
     const setStatus = async (uid, status) => {
@@ -1162,7 +1328,7 @@ async function renderUsers(){
       const q = term.trim().toLowerCase();
       const rows = users.filter(u => !q || (u.name||'').toLowerCase().includes(q) || (u.phone||'').includes(q));
       $('ulist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Phone</th><th scope="col">Status</th><th scope="col">KYC</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_name')}</th><th scope="col">${t('th_role')}</th><th scope="col">${t('th_phone')}</th><th scope="col">${t('th_status')}</th><th scope="col">${t('th_kyc')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(u => `<tr>
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
@@ -1170,7 +1336,7 @@ async function renderUsers(){
           <td>${statusPill(u.status)}</td>
           <td>${kycPill(u.kycStatus)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">Manage</button>
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">${t('btn_manage')}</button>
             ${u.status==='SUSPENDED'
               ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">${t('btn_unsuspend')}</button>`
               : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">${t('btn_suspend')}</button>`}
@@ -1203,81 +1369,77 @@ function openUserModal(u, onChanged){
     <div id="m-flash" class="mflash"></div>
 
     <div class="mgroup">
-      <div class="mglabel">Reset password</div>
+      <div class="mglabel">${t('hint_resetPassword')}</div>
       <div class="mrow">
         <input id="m-pw" class="field" placeholder="New temporary password" />
-        <button class="btn-sm" id="m-pwbtn" style="background:var(--rose)">Reset</button>
+        <button class="btn-sm" id="m-pwbtn" style="background:var(--rose)">${t('btn_reset')}</button>
       </div>
-      <div class="meta" style="color:var(--muted);font-size:11px">Tell the user this password; they can change it after signing in.</div>
+      <div class="meta" style="color:var(--muted);font-size:11px">${t('hint_tellUserThisPassword')}</div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Edit profile</div>
+      <div class="mglabel">${t('hint_editProfile')}</div>
       <input id="m-name" class="field" value="${esc(u.name||'')}" placeholder="Name" />
       <div class="mrow">
         <input id="m-phone" class="field" value="${esc(u.phone||'')}" placeholder="Phone (+93…)" />
-        <button class="btn-sm" id="m-savebtn" style="background:var(--rose)">Save</button>
+        <button class="btn-sm" id="m-savebtn" style="background:var(--rose)">${t('btn_save')}</button>
       </div>
     </div>
 
     ${isProvider ? `
     <div class="mgroup">
-      <div class="mglabel">Adjust salon balance (AFN)</div>
+      <div class="mglabel">${t('hint_adjustSalonBalance')}</div>
       <input id="m-baldelta" class="field" type="number" placeholder="Amount (+ owed to them, − they owe)" />
       <div class="mrow">
         <input id="m-balreason" class="field" placeholder="Reason (optional)" />
-        <button class="btn-sm" id="m-balbtn" style="background:var(--rose)">Apply</button>
+        <button class="btn-sm" id="m-balbtn" style="background:var(--rose)">${t('btn_apply')}</button>
       </div>
     </div>` : `
     <div class="mgroup">
-      <div class="mglabel">Grant credit (AFN)</div>
+      <div class="mglabel">${t('hint_grantCredit')}</div>
       <input id="m-credamt" class="field" type="number" placeholder="Amount (+ add, − deduct)" />
       <div class="mrow">
         <input id="m-credreason" class="field" placeholder="Reason (optional)" />
-        <button class="btn-sm" id="m-credbtn" style="background:var(--rose)">Grant</button>
+        <button class="btn-sm" id="m-credbtn" style="background:var(--rose)">${t('btn_grant')}</button>
       </div>
     </div>`}
 
     <div class="mgroup">
-      <div class="mglabel">Admin access</div>
+      <div class="mglabel">${t('hint_adminAccess')}</div>
       ${adminBtn}
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Account standing</div>
+      <div class="mglabel">${t('hint_accountStanding')}</div>
       ${u.suspended
         ? `<div class="meta" style="color:var(--bad-ink);margin-bottom:9px">
-             Suspended${u.suspendedReason?` — ${esc(u.suspendedReason)}`:''}. They can still sign in and
-             read their history; what is blocked is booking, confirming and rating.
+             ${t('hint_suspendedExplain', u.suspendedReason ? esc(u.suspendedReason) : '')}
            </div>
            <button class="btn-sm" id="m-reinstate" style="background:var(--green)">${t('btn_reinstateAccount')}</button>`
         : `<div class="mrow">
              <input id="m-susreason" class="field" placeholder="Reason (kept on the record)" />
-             <button class="btn-sm" id="m-suspend" style="background:var(--red)">Suspend</button>
+             <button class="btn-sm" id="m-suspend" style="background:var(--red)">${t('btn_suspendAccount')}</button>
            </div>`}
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Delete account</div>
+      <div class="mglabel">${t('hint_deleteAccount')}</div>
       <div class="meta" style="color:var(--muted);margin-bottom:9px">
-        For a duplicate registration or a test row — nothing else. An account with any
-        bookings, payments, reviews, reports or salons is refused: deleting it would leave
-        a salon holding an appointment with nobody to contact. Suspend those instead.
-        Recoverable for 7 days.
+        ${t('hint_deleteAccountRules')}
       </div>
       <div class="mrow">
         <input id="m-delreason" class="field" placeholder="Reason (kept on the record)" />
-        <button class="btn-sm" id="m-delete" style="background:var(--red)">Delete</button>
+        <button class="btn-sm" id="m-delete" style="background:var(--red)">${t('btn_delete')}</button>
       </div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Full history</div>
-      <button class="btn-sm" id="m-dossier" style="background:var(--surface);color:var(--deep)">Load bookings, reviews and reports</button>
+      <div class="mglabel">${t('hint_fullHistory')}</div>
+      <button class="btn-sm" id="m-dossier" style="background:var(--surface);color:var(--deep)">${t('btn_loadBookingsReviewsReports')}</button>
       <div id="m-dossier-out" style="margin-top:10px"></div>
     </div>
 
-    <button class="btn-sm mclose" id="m-close">Close</button>
+    <button class="btn-sm mclose" id="m-close">${t('btn_closeGeneric')}</button>
   `);
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 700); };
@@ -1326,21 +1488,21 @@ function openUserModal(u, onChanged){
         ? `<div class="tbl-wrap"><table class="tbl"><tbody>${rows.map(body).join('')}</tbody></table></div>`
         : `<div class="meta" style="color:var(--muted)">${empty}</div>`;
       $('m-dossier-out').innerHTML = `
-        <div class="mglabel" style="margin-top:4px">Bookings (${b.length})</div>
+        <div class="mglabel" style="margin-top:4px">${t('hint_bookingsCount', b.length)}</div>
         ${list(b, x => `<tr>
             <td class="name">${esc(x.bookingCode||x.id)}</td>
             <td>${esc(x.salonName||'—')}</td>
             <td><span class="pill ${STATUS_PILL[x.status]||'info'}">${esc(x.status||'')}</span></td>
             <td>${fmtDate(x.appointmentDate)}</td>
           </tr>`, 'No bookings')}
-        <div class="mglabel" style="margin-top:12px">Reviews written (${r.length})</div>
+        <div class="mglabel" style="margin-top:12px">${t('hint_reviewsWrittenCount', r.length)}</div>
         ${list(r, x => `<tr><td>★ ${Number(x.rating||0)}</td><td>${esc(x.comment||'—')}</td></tr>`, 'None')}
-        <div class="mglabel" style="margin-top:12px">Reported by salons (${rep.length})</div>
+        <div class="mglabel" style="margin-top:12px">${t('hint_reportedBySalonsCount', rep.length)}</div>
         ${list(rep, x => `<tr>
             <td>${x.noShow?'<span class="pill bad">no-show</span>':'★ '+Number(x.rating||0)}</td>
             <td>${esc(x.comment||'—')}</td><td>${fmtDate(x.createdAt)}</td>
           </tr>`, 'None — nothing has been reported about this account')}
-        ${data.balance ? `<div class="mglabel" style="margin-top:12px">Salon balance</div>
+        ${data.balance ? `<div class="mglabel" style="margin-top:12px">${t('hint_salonBalance')}</div>
           <div class="meta">${Number(data.balance.owed||0).toLocaleString()} AFN owed</div>` : ''}`;
     }catch(err){
       $('m-dossier-out').innerHTML = `<div class="meta" style="color:var(--bad-ink)">${esc(fnError(err))}</div>`;
@@ -1388,19 +1550,19 @@ async function renderAdmins(){
     const all = []; snap.forEach(d => all.push({ id:d.id, ...d.data() }));
     const admins = all.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
     $('view').innerHTML = `
-      <div class="section-title">Add an administrator</div>
+      <div class="section-title">${t('hint_addAnAdministrator')}</div>
       <div class="card" style="padding:16px;max-width:460px;margin-bottom:22px">
         <div id="aflash2" class="mflash"></div>
-        <div class="meta" style="color:var(--muted);margin-bottom:8px">Find a user by phone, then grant them admin access.</div>
+        <div class="meta" style="color:var(--muted);margin-bottom:8px">${t('hint_findUserByPhoneThenGrantAdmin')}</div>
         <div class="mrow">
           <input id="aphone" class="field" placeholder="Phone (+93…)" style="margin:0" />
-          <button id="afind" class="btn-sm" style="background:var(--rose)">Find</button>
+          <button id="afind" class="btn-sm" style="background:var(--rose)">${t('btn_find')}</button>
         </div>
         <div id="afound" style="margin-top:10px"></div>
       </div>
-      <div class="section-title">Current admins (${admins.length})</div>
+      <div class="section-title">${t('hint_currentAdmins', admins.length)}</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Name</th><th scope="col">Phone</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_name')}</th><th scope="col">${t('th_phone')}</th><th scope="col"></th></tr></thead>
         <tbody>${admins.map(a=>`<tr>
           <td class="name">${esc(a.name||a.id)}</td>
           <td>${esc(a.phone||'—')}</td>
@@ -1471,12 +1633,11 @@ async function renderSalons(){
     // so the admin needs to create the owner's account and their salon together;
     // waiting for self-registration would leave the marketplace empty.
     $('view').innerHTML = `
-      <div class="section-title">Add a salon</div>
+      <div class="section-title">${t('hint_addASalon')}</div>
       <div class="card" style="padding:16px;max-width:560px;margin-bottom:22px">
         <div id="nsflash" class="mflash"></div>
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Creates the owner's provider account and their salon. Give the owner the
-          phone number and password below so they can sign in.
+          ${t('hint_createsTheOwnersProviderAccount')}
         </div>
         <div class="mrow">
           <input id="ns-owner" class="field" placeholder="Owner full name" />
@@ -1490,9 +1651,9 @@ async function renderSalons(){
         </div>
         <input id="ns-salon" class="field" placeholder="Salon name" />
         <input id="ns-services" class="field" placeholder="Services, comma separated (e.g. Hair, Makeup, Nails)" />
-        <button id="ns-create" class="btn" style="margin-top:6px">Create salon</button>
+        <button id="ns-create" class="btn" style="margin-top:6px">${t('btn_createSalon')}</button>
       </div>
-      <div class="section-title">Salons (${salons.length})</div>
+      <div class="section-title">${t('hint_salonsCount', salons.length)}</div>
       <input id="ssearch" class="field" placeholder="Search salon, district or phone…" style="max-width:340px;margin-bottom:16px" />
       <div id="slist"></div>`;
 
@@ -1535,7 +1696,7 @@ async function renderSalons(){
         return !q || (s.salonName||'').toLowerCase().includes(q) || (s.district||'').toLowerCase().includes(q) || (o.phone||'').includes(q);
       });
       $('slist').innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Salon</th><th scope="col">District</th><th scope="col">Owner phone</th><th scope="col">Rating</th><th scope="col">KYC</th><th scope="col">Verified</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_district')}</th><th scope="col">${t('th_ownerPhone')}</th><th scope="col">${t('th_rating')}</th><th scope="col">${t('th_kyc')}</th><th scope="col">${t('th_verified')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(s => { const o = owners[s.providerId] || {}; return `<tr>
           <td class="name">${esc(s.salonName||s.id)}</td>
           <td>${esc(s.district||'—')}</td>
@@ -1544,7 +1705,7 @@ async function renderSalons(){
           <td>${kycPill(o.kycStatus)}</td>
           <td>${s.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">No</span>'}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">Manage</button>
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">${t('btn_manage')}</button>
             ${s.isVerified
               ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">${t('btn_unverify')}</button>`
               : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">${t('btn_verify')}</button>`}
@@ -1594,33 +1755,33 @@ async function renderContent(){
     };
 
     $('view').innerHTML = `
-      <div class="section-title">Comments (${comments.length})</div>
+      <div class="section-title">${t('hint_commentsCount', comments.length)}</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
-        The 100 most recent across the platform. Removing one does not notify its author.
+        ${t('hint_commentsScope')}
       </div>
       ${comments.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Author</th><th scope="col">Comment</th><th scope="col">Salon</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_author')}</th><th scope="col">${t('th_comment')}</th><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_when')}</th><th scope="col"></th></tr></thead>
         <tbody>` + comments.map(c => `<tr>
           <td class="name">${esc(c.authorName||'—')}</td>
           <td>${esc(c.text||'')}</td>
           <td>${esc(c.salonId||'—')}</td>
           <td>${fmtDate(c.createdAt)}</td>
-          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-delc="${esc(c.id)}">Remove</button></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-delc="${esc(c.id)}">${t('btn_removeItem')}</button></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noCommentsYet')}</div>`}
 
-      <div class="section-title" style="margin-top:26px">Live stories (${stories.length})</div>
+      <div class="section-title" style="margin-top:26px">${t('hint_liveStoriesCount', stories.length)}</div>
       ${stories.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Salon</th><th scope="col">Announcement</th><th scope="col">Left</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_announcement')}</th><th scope="col">${t('th_left')}</th><th scope="col"></th></tr></thead>
         <tbody>` + stories.map(x => `<tr>
           <td class="name">${esc(x.salonName||x.salonId||'—')}${seeded(x)}</td>
           <td>${esc(x.text||'')}</td>
           <td>${hoursLeft(x.expiresAt)}</td>
-          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-dels="${esc(x.id)}">Remove</button></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--red)" data-dels="${esc(x.id)}">${t('btn_removeItem')}</button></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noStoryRunning')}</div>`}
 
-      <div class="section-title" style="margin-top:26px">Posts (${posts.length})</div>
+      <div class="section-title" style="margin-top:26px">${t('hint_postsCount', posts.length)}</div>
       ${posts.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Photo</th><th scope="col">Salon</th><th scope="col">Caption</th><th scope="col">❤</th><th scope="col">💬</th><th scope="col">When</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_photo')}</th><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_caption')}</th><th scope="col">❤</th><th scope="col">💬</th><th scope="col">${t('th_when')}</th><th scope="col"></th></tr></thead>
         <tbody>` + posts.map(p => `<tr>
           <td><img src="${esc(p.imageUrl||'')}" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:9px;border:1px solid var(--line)"/></td>
           <td class="name">${esc(p.salonName||p.salonId||'—')}${seeded(p)}</td>
@@ -1629,7 +1790,7 @@ async function renderContent(){
           <td>${Number(p.commentCount||0)}</td>
           <td>${fmtDate(p.createdAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--red)"
-                data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">Remove</button></td>
+                data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">${t('btn_removeItem')}</button></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPostsYet')}</div>`}
     `;
 
@@ -1672,14 +1833,13 @@ const STATUS_PILL = {
 
 function renderBooking(){
   $('view').innerHTML = `
-    <div class="section-title">Find a booking</div>
+    <div class="section-title">${t('hint_findABooking')}</div>
     <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
-      Enter the reference the customer reads out (SB-4C7GHJ), or a booking's document id.
-      Case, spaces and a missing prefix are all fine.
+      ${t('hint_bookingLookupHelp')}
     </div>
     <div class="mrow" style="max-width:520px">
       <input id="bk-code" class="field" placeholder="SB-4C7GHJ" autocomplete="off" />
-      <button class="btn-sm" id="bk-go" style="background:var(--rose)">Look up</button>
+      <button class="btn-sm" id="bk-go" style="background:var(--rose)">${t('btn_lookUp')}</button>
     </div>
     <div id="bk-flash" class="mflash"></div>
     <div id="bk-out"></div>`;
@@ -1785,8 +1945,7 @@ async function renderActivity(){
 
     if(!rows.length){
       $('view').innerHTML = `<div class="card-pad"><div class="empty">
-        Nothing has happened yet. Every booking that is confirmed, moved, cancelled
-        or completed appears here as it happens.</div></div>`;
+        ${t('hint_nothingHasHappenedYet')}</div></div>`;
       return;
     }
 
@@ -1838,10 +1997,10 @@ async function renderActivity(){
 // The reason box appears only where it is required, so it never looks optional.
 function BOOKING_ACTIONS(a){
   const id = esc(a.id || '');
-  if(!id) return '<div class="empty">No appointment id — nothing here can be acted on.</div>';
+  if(!id) return `<div class="empty">${t('hint_noAppointmentId')}</div>`;
 
   if(a.status !== 'PENDING' && a.status !== 'CONFIRMED'){
-    return `<div class="empty">This booking is ${esc(a.status||'finished')} — there is nothing left to change.</div>`;
+    return `<div class="empty">${t('hint_bookingFinished', esc(a.status||'finished'))}</div>`;
   }
 
   const confirm = a.status === 'PENDING'
@@ -1853,12 +2012,12 @@ function BOOKING_ACTIONS(a){
             <input type="datetime-local" id="bk-newdate"
               style="padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
             <button class="btn-sm" data-act="move" data-id="${id}"
-              style="background:var(--surface);color:var(--deep)">Move to this time</button>
+              style="background:var(--surface);color:var(--deep)">${t('btn_moveToThisTime')}</button>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:11px">
             <input id="bk-reason" placeholder="Why is this being cancelled?" maxlength="300"
               style="flex:1;min-width:230px;padding:8px 11px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
-            <button class="btn-sm" data-act="cancel" data-id="${id}" style="background:#B4404F">Cancel booking</button>
+            <button class="btn-sm" data-act="cancel" data-id="${id}" style="background:#B4404F">${t('btn_cancelBooking')}</button>
           </div>`;
 }
 
@@ -1888,20 +2047,17 @@ function paintBooking(d){
     </div>
 
     <div class="card-pad" style="margin-top:14px">
-      <div class="mlabel">Act on this booking</div>
+      <div class="mlabel">${t('hint_actOnThisBooking')}</div>
       <div class="mhint">
-        Everything here is recorded against your name in the audit log and in the
-        booking's own history below. Cancelling flags the payment for refund and
-        unwinds the salon's balance — the same path the customer's own cancel
-        takes, not a shortcut around it.
+        ${t('hint_bookingActionsRecorded')}
       </div>
       ${BOOKING_ACTIONS(a)}
       <div id="bk-actflash" class="mflash" style="margin-top:10px"></div>
     </div>
 
-    <div class="section-title" style="margin-top:22px">History (${(d.events||[]).length})</div>
+    <div class="section-title" style="margin-top:22px">${t('hint_historyCount', (d.events||[]).length)}</div>
     ${rowsOrEmpty(d.events||[],
-      '<th scope="col">When</th><th scope="col">From</th><th scope="col">To</th><th scope="col">By</th><th scope="col">Why</th>',
+      `<th scope="col">${t('th_when')}</th><th scope="col">${t('th_from')}</th><th scope="col">${t('th_to')}</th><th scope="col">${t('th_by')}</th><th scope="col">${t('th_why')}</th>`,
       (e) => `<tr>
         <td>${fmtDate(e.at)}</td>
         <td>${e.from?pill(e.from):'—'}</td>
@@ -1911,25 +2067,25 @@ function paintBooking(d){
       </tr>`,
       'No history recorded — this booking predates the event trail.')}
 
-    <div class="section-title" style="margin-top:22px">Payments (${(d.payments||[]).length})</div>
+    <div class="section-title" style="margin-top:22px">${t('hint_paymentsCount', (d.payments||[]).length)}</div>
     ${rowsOrEmpty(d.payments||[],
-      '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Method</th><th scope="col">When</th>',
+      `<th scope="col">${t('th_amount')}</th><th scope="col">${t('th_status')}</th><th scope="col">${t('th_method')}</th><th scope="col">${t('th_when')}</th>`,
       (p) => `<tr><td>${money(p.amount)}</td><td>${esc(p.status||'—')}</td><td>${esc(p.method||p.paymentMethod||'—')}</td><td>${fmtDate(p.createdAt)}</td></tr>`,
       'No payment row')}
 
-    ${(d.refunds||[]).length ? `<div class="section-title" style="margin-top:22px">Refunds (${d.refunds.length})</div>` +
+    ${(d.refunds||[]).length ? `<div class="section-title" style="margin-top:22px">${t('hint_refundsCount', d.refunds.length)}</div>` +
       rowsOrEmpty(d.refunds,
-        '<th scope="col">Amount</th><th scope="col">Status</th><th scope="col">When</th>',
+        `<th scope="col">${t('th_amount')}</th><th scope="col">${t('th_status')}</th><th scope="col">${t('th_when')}</th>`,
         (r) => `<tr><td>${money(r.amount)}</td><td>${esc(r.status||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
 
-    ${(d.reports||[]).length ? `<div class="section-title" style="margin-top:22px">Behaviour reports (${d.reports.length})</div>` +
+    ${(d.reports||[]).length ? `<div class="section-title" style="margin-top:22px">${t('hint_behaviourReportsCount', d.reports.length)}</div>` +
       rowsOrEmpty(d.reports,
-        '<th scope="col">Rating</th><th scope="col">No-show</th><th scope="col">Comment</th><th scope="col">When</th>',
+        `<th scope="col">${t('th_rating')}</th><th scope="col">${t('th_noShow')}</th><th scope="col">${t('th_comment')}</th><th scope="col">${t('th_when')}</th>`,
         (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?'<span class="pill bad">yes</span>':'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
 
     ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">${t('sec_review')}</div>` +
       rowsOrEmpty(d.reviews,
-        '<th scope="col">Rating</th><th scope="col">Comment</th><th scope="col">Salon reply</th>',
+        `<th scope="col">${t('th_rating')}</th><th scope="col">${t('th_comment')}</th><th scope="col">${t('th_salonReply')}</th>`,
         (r) => `<tr><td>★ ${Number(r.rating||0)}</td><td>${esc(r.comment||'—')}</td><td>${esc(r.providerReply||'—')}</td></tr>`, '') : ''}
   `;
 }
@@ -1971,7 +2127,7 @@ async function renderHealth(){
           : `<span class="pill bad">No verified backup on record</span>`}
       </div>
       ${backups.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Day</th><th scope="col">State</th><th scope="col">Started</th><th scope="col">Finished</th><th scope="col">Error</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_day')}</th><th scope="col">${t('th_state')}</th><th scope="col">${t('th_started')}</th><th scope="col">${t('th_finished')}</th><th scope="col">${t('th_error')}</th></tr></thead>
         <tbody>` + backups.map(b => `<tr>
           <td class="name">${esc(b.id)}</td>
           <td><span class="pill ${b.state==='DONE'?'ok':b.state==='FAILED'?'bad':b.state==='PRUNED'?'info':'warn'}">${esc(b.state||'—')}</span></td>
@@ -1981,31 +2137,29 @@ async function renderHealth(){
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noBackupHasRunYet')}</div>`}
 
       <div class="section-title" style="margin-top:26px">
-        Integrity ${latest ? `— last checked ${fmtDate(latest.ranAt)}` : ''}
+        ${t('hint_integrityLastChecked', latest ? fmtDate(latest.ranAt) : '')}
       </div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
-        Found by the nightly sweep. Nothing here has been changed automatically — each one is a
-        disagreement between two records that a person should decide about.
+        ${t('hint_foundByTheNightlySweep')}
       </div>
       ${!latest ? `<div class="empty">${t('empty_theNightlyCheckHasNotRunYet')}</div>`
         : findings.length === 0 ? `<div class="empty">${t('empty_nothingOutOfPlace')}</div>`
         : `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Severity</th><th scope="col">Kind</th><th scope="col">Reference</th><th scope="col">Detail</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_severity')}</th><th scope="col">${t('th_kind')}</th><th scope="col">${t('th_reference')}</th><th scope="col">${t('th_detail')}</th></tr></thead>
         <tbody>` + findings.map(f => `<tr>
           <td><span class="pill ${sev[f.severity]||'info'}">${esc(f.severity||'')}</span></td>
           <td class="name">${esc(f.kind||'')}</td>
           <td>${esc(f.ref||'')}</td>
           <td>${esc(f.detail||'')}</td>
         </tr>`).join('') + `</tbody></table></div>
-        ${latest.truncated ? `<div class="meta" style="color:var(--muted);margin-top:8px">Only the first 200 findings are stored.</div>` : ''}`}
+        ${latest.truncated ? `<div class="meta" style="color:var(--muted);margin-top:8px">${t('hint_onlyFirst200FindingsStored')}</div>` : ''}`}
 
-      <div class="section-title" style="margin-top:26px">Maintenance</div>
+      <div class="section-title" style="margin-top:26px">${t('hint_maintenance')}</div>
       <div class="card-pad">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Bookings made before references existed have none, so support cannot look them up.
-          Safe to run repeatedly — it only touches bookings that still have no code.
+          ${t('hint_bookingsBeforeReferences')}
         </div>
-        <button class="btn-sm" id="h-backfill" style="background:var(--rose)">Assign missing booking references</button>
+        <button class="btn-sm" id="h-backfill" style="background:var(--rose)">${t('btn_assignMissingBookingReferences')}</button>
         <div id="h-flash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
@@ -2017,10 +2171,10 @@ async function renderHealth(){
           This fills in what is missing. Safe to run repeatedly; reports any two accounts
           that share a number.
         </div>
-        <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">Fill in missing lookup keys</button>
+        <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">${t('btn_fillInMissingLookupKeys')}</button>
         <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
 
-        <div class="mlabel" style="margin-top:18px">Salon booking tallies</div>
+        <div class="mlabel" style="margin-top:18px">${t('hint_salonBookingTallies')}</div>
         <div class="mhint">
           Each salon's Income tab reads a running tally rather than counting its bookings.
           A trigger keeps it current, but only from the booking that follows it — bookings
@@ -2028,10 +2182,10 @@ async function renderHealth(){
           while reads zero. This recomputes every tally from the appointments themselves.
           Safe to run twice; it replaces rather than adds.
         </div>
-        <button class="btn-sm" id="h-salonstats" style="background:var(--rose)">Rebuild salon booking tallies</button>
+        <button class="btn-sm" id="h-salonstats" style="background:var(--rose)">${t('btn_rebuildSalonBookingTallies')}</button>
         <div id="h-ssflash" class="mflash" style="margin-top:8px"></div>
 
-        <div class="mlabel" style="margin-top:18px">Invite codes</div>
+        <div class="mlabel" style="margin-top:18px">${t('hint_inviteCodes')}</div>
         <div class="mhint">
           The invite card in a customer's profile is the only place in the app that shares
           SafeBeauty itself, and it renders nothing at all when the account has no invite
@@ -2046,28 +2200,22 @@ async function renderHealth(){
           trip the &ldquo;function errors are spiking&rdquo; alert. That is the backfill
           finding them, not a failure.
         </div>
-        <button class="btn-sm" id="h-refcodes" style="background:var(--rose)">Fill in missing invite codes</button>
-        <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">Count them first</button>
+        <button class="btn-sm" id="h-refcodes" style="background:var(--rose)">${t('btn_fillInMissingInviteCodes')}</button>
+        <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-refflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Sends a deliberate test alert through the whole chain — log, metric, policy, email.
-          Monitoring that has never fired is monitoring nobody knows works, and the moment you
-          find out is the moment you needed it. Worth running every few months.
-          Touches no data, and says it is a drill.
+          ${t('hint_sendsADeliberateTestAlert')}
         </div>
-        <button class="btn-sm" id="h-drill" style="background:var(--surface);color:var(--deep)">Send a test alert</button>
+        <button class="btn-sm" id="h-drill" style="background:var(--surface);color:var(--deep)">${t('btn_sendATestAlert')}</button>
         <div id="h-drillflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Category and neighbourhood filters compare against fields derived from what each salon
-          typed. Until a salon has them, its chips match nothing — a customer searching for nails
-          sees "no providers found" while a nail salon sits on the previous screen.
-          Anything that cannot be resolved confidently is listed below for you to decide, never guessed.
+          ${t('hint_categoryAndNeighbourhoodFilters')}
         </div>
-        <button class="btn-sm" id="h-normalize" style="background:var(--rose)">Derive salon filter fields</button>
+        <button class="btn-sm" id="h-normalize" style="background:var(--rose)">${t('btn_deriveSalonFilterFields')}</button>
         <div id="h-normflash" class="mflash" style="margin-top:8px"></div>
         <div id="h-normout" style="margin-top:8px"></div>
       </div>`;
@@ -2082,9 +2230,9 @@ async function renderHealth(){
           `Scanned ${data.scanned}, updated ${data.updated}.` + (data.done ? ' All done.' : ' Run again to continue.');
         const rows = data.needsReview || [];
         $('h-normout').innerHTML = rows.length ? `
-          <div class="mglabel" style="margin-top:6px">Needs your decision (${rows.length})</div>
+          <div class="mglabel" style="margin-top:6px">${t('hint_needsYourDecision', rows.length)}</div>
           <div class="tbl-wrap"><table class="tbl">
-            <thead><tr><th scope="col">Salon</th><th scope="col">Unrecognised services</th><th scope="col">District</th></tr></thead>
+            <thead><tr><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_unrecognisedServices')}</th><th scope="col">${t('th_district')}</th></tr></thead>
             <tbody>` + rows.map(r => `<tr>
               <td class="name">${esc(r.salonName||r.salonId)}</td>
               <td>${(r.unmatchedServices||[]).map(esc).join(', ') || '—'}</td>
@@ -2251,18 +2399,15 @@ async function renderStuck(){
     const money = (n) => `${Number(n||0).toLocaleString()} AFN`;
 
     $('view').innerHTML = `
-      <div class="section-title">Payments started but never settled (${rows.length})</div>
+      <div class="section-title">${t('hint_paymentsStartedButNeverSettled', rows.length)}</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
-        Older than ${data.graceMinutes} minutes. Most are customers who closed the checkout and owe nothing.
-        The ones that matter are those where HesabPay took the money and the webhook never arrived —
-        check the reference on your HesabPay dashboard before settling.
-        Settling runs exactly the same code a webhook does, so settling one twice cannot pay a salon twice.
+        ${t('hint_olderThanGraceMinutes', data.graceMinutes)}
       </div>
       ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr>
-          <th scope="col">Booking</th><th scope="col">Customer</th><th scope="col">Amount</th>
-          <th scope="col">Booking state</th><th scope="col">Started</th>
-          <th scope="col">HesabPay session</th><th scope="col"></th>
+          <th scope="col">${t('th_booking')}</th><th scope="col">${t('th_customer')}</th><th scope="col">${t('th_amount')}</th>
+          <th scope="col">${t('th_bookingState')}</th><th scope="col">${t('th_started')}</th>
+          <th scope="col">${t('th_hesabPaySession')}</th><th scope="col"></th>
         </tr></thead>
         <tbody>` + rows.map(r => `<tr>
           <td class="name">${esc(r.bookingCode || r.appointmentId || '—')}<div class="meta" style="color:var(--muted)">${esc(r.serviceName||'')}</div></td>
@@ -2274,7 +2419,7 @@ async function renderStuck(){
           <td>${fmtDate(r.createdAt)}</td>
           <td class="meta" style="word-break:break-all">${esc(r.hesabSessionId||'—')}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--green)" data-settle="${esc(r.paymentId)}">Settle</button>
+            <button class="btn-sm" style="background:var(--green)" data-settle="${esc(r.paymentId)}">${t('btn_settle')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_nothingStuck')}</div>`}
@@ -2327,15 +2472,13 @@ async function renderDemand(){
       .map(([k,v]) => `${v} ${esc(kindLabel[k]||k)}`).join(' · ') || '—';
 
     $('view').innerHTML = `
-      <div class="section-title">Where demand exceeds supply — last ${data.days} days</div>
+      <div class="section-title">${t('hint_whereDemandExceedsSupply', data.days)}</div>
       <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">
-        Built from ${data.signalCount} signal${data.signalCount===1?'':'s'}.
-        These take weeks to become useful — capture started recently, so a thin report now is expected, not broken.
-        ${data.truncated ? 'Only the most recent 2000 signals were read.' : ''}
+        ${t('hint_builtFromSignals', data.signalCount, !!data.truncated)}
       </div>
 
       ${unmet.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">District</th><th scope="col">Category</th><th scope="col">Times wanted</th><th scope="col">Salons serving it</th><th scope="col">Made up of</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_district')}</th><th scope="col">${t('th_category')}</th><th scope="col">${t('th_timesWanted')}</th><th scope="col">${t('th_salonsServingIt')}</th><th scope="col">${t('th_madeUpOf')}</th></tr></thead>
         <tbody>` + unmet.map(r => `<tr>
           <td class="name">${esc(r.districtKey)}</td>
           <td>${esc(r.category)}</td>
@@ -2345,9 +2488,9 @@ async function renderDemand(){
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_noDemandYetThatNobodyCanServe')}</div>`}
 
-      <div class="section-title" style="margin-top:26px">All recorded demand</div>
+      <div class="section-title" style="margin-top:26px">${t('hint_allRecordedDemand')}</div>
       ${rows.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">District</th><th scope="col">Category</th><th scope="col">Times wanted</th><th scope="col">Salons</th><th scope="col">Made up of</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_district')}</th><th scope="col">${t('th_category')}</th><th scope="col">${t('th_timesWanted')}</th><th scope="col">${t('th_salons')}</th><th scope="col">${t('th_madeUpOf')}</th></tr></thead>
         <tbody>` + rows.map(r => `<tr>
           <td class="name">${esc(r.districtKey)}</td>
           <td>${esc(r.category)}</td>
@@ -2357,9 +2500,9 @@ async function renderDemand(){
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_nothingRecordedYet')}</div>`}
 
-      <div class="section-title" style="margin-top:26px">Supply by district</div>
+      <div class="section-title" style="margin-top:26px">${t('hint_supplyByDistrict')}</div>
       ${(data.supplyByDistrict||[]).length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">District</th><th scope="col">Bookable salons</th><th scope="col">Categories covered</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_district')}</th><th scope="col">${t('th_bookableSalons')}</th><th scope="col">${t('th_categoriesCovered')}</th></tr></thead>
         <tbody>` + data.supplyByDistrict.map(s => `<tr>
           <td class="name">${esc(s.districtKey)}</td>
           <td>${s.total}</td>
@@ -2404,10 +2547,10 @@ async function renderAudit(){
     const snap = await getDocs(query(collection(db,'admin_audit'), orderBy('createdAt','desc'), limit(300)));
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noAdminActionsRecordedYet')}</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Admin action log (${rows.length})</div>
-      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">Every privileged action (password resets, balance/credit changes, admin grants…) is recorded here and cannot be edited.</div>
+    $('view').innerHTML = `<div class="section-title">${t('hint_adminActionLog', rows.length)}</div>
+      <div class="meta" style="color:var(--muted);margin:-6px 0 14px;font-size:12px">${t('hint_auditLogIsImmutable')}</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">When</th><th scope="col">By</th><th scope="col">Action</th></tr></thead>
+        <thead><tr><th scope="col">${t('th_when')}</th><th scope="col">${t('th_by')}</th><th scope="col">${t('th_action')}</th></tr></thead>
         <tbody>` + rows.map(a => {
           const m = AUDIT_META[a.action] || { icon:'•', cls:'info' };
           return `<tr>
@@ -2416,7 +2559,7 @@ async function renderAudit(){
             <td><span class="pill ${m.cls}" style="margin-inline-end:7px">${m.icon} ${esc((a.action||'').replace(/_/g,' '))}</span>${describeAudit(a)}</td>
           </tr>`;
         }).join('') + `</tbody></table></div>`;
-  }catch(e){ $('view').innerHTML = `<div class="empty">Couldn't load the audit log: ${esc(e.message)}</div>`; }
+  }catch(e){ $('view').innerHTML = `<div class="empty">${t('hint_auditLogLoadFailed', esc(e.message))}</div>`; }
 }
 
 /** The full salon/owner control panel: edit salon + owner contact, view the
@@ -2614,12 +2757,12 @@ async function renderFinance(){
       <div class="meta" id="ccur">Current: …</div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <input id="cinput" class="field" type="number" min="0" max="100" placeholder="%" style="margin:0" />
-        <button id="csave" class="btn-sm" style="background:var(--rose)">Save</button>
+        <button id="csave" class="btn-sm" style="background:var(--rose)">${t('btn_save')}</button>
       </div>
     </div>
-    <div class="section-title">Provider payouts owed</div>
+    <div class="section-title">${t('hint_providerPayoutsOwed')}</div>
     <div id="balances"><div class="empty">Loading…</div></div>
-    <div class="section-title" style="margin-top:22px">Refund requests</div>
+    <div class="section-title" style="margin-top:22px">${t('hint_refundRequests')}</div>
     <div id="refunds"><div class="empty">${t('empty_loading')}</div></div>`;
 
   // Commission
@@ -2652,11 +2795,11 @@ async function renderFinance(){
     const bel = $('balances');
     const drawBal = () => {
       bel.innerHTML = bals.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Provider</th><th scope="col">Balance</th><th scope="col"></th></tr></thead><tbody>` +
+        <thead><tr><th scope="col">${t('th_provider')}</th><th scope="col">${t('th_balance')}</th><th scope="col"></th></tr></thead><tbody>` +
         bals.map((b,i)=> (b.owedAmount||0) > 0 ? `<tr>
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--deep)">${AFN(b.owedAmount)}</b></td>
-          <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">Mark paid</button></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">${t('btn_markPaid')}</button></td>
         </tr>` : `<tr>
           <td class="name">${esc(b.name)}</td>
           <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">owes platform</span></td>
@@ -2681,12 +2824,12 @@ async function renderFinance(){
     const rel = $('refunds');
     const drawRef = () => {
       rel.innerHTML = refunds.length ? `<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Amount</th><th scope="col">To</th><th scope="col">Date</th><th scope="col"></th></tr></thead><tbody>` +
+        <thead><tr><th scope="col">${t('th_amount')}</th><th scope="col">${t('th_to')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead><tbody>` +
         refunds.map((r,i)=>`<tr>
           <td class="name">${AFN(r.amount)}</td>
           <td>${esc(r.cust)}</td>
           <td>${fmtDate(r.createdAt)}</td>
-          <td style="text-align:right"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">Mark refunded</button></td>
+          <td style="text-align:right"><button class="btn-sm" style="background:var(--rose)" data-ref="${i}">${t('btn_markRefunded')}</button></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPendingRefunds')}</div>`;
       rel.querySelectorAll('[data-ref]').forEach(btn => btn.onclick = async () => {
         const r = refunds[+btn.dataset.ref];
@@ -2704,7 +2847,7 @@ async function renderFinance(){
 // ── Promo codes ────────────────────────────────────────────────────────────────
 function renderPromo(){
   $('view').innerHTML = `
-    <div class="section-title">Create / update a promo code</div>
+    <div class="section-title">${t('hint_createUpdatePromoCode')}</div>
     <div class="card" style="padding:16px;max-width:520px;margin-bottom:22px">
       <div id="pflash"></div>
       <input id="pcode" class="field" placeholder="CODE (e.g. WELCOME10)" />
@@ -2713,9 +2856,9 @@ function renderPromo(){
         <input id="pamt" class="field" type="number" placeholder="or AFN off" />
       </div>
       <input id="pmax" class="field" type="number" placeholder="Max uses (0 = unlimited)" />
-      <button id="psave" class="btn">Save code</button>
+      <button id="psave" class="btn">${t('btn_saveCode')}</button>
     </div>
-    <div class="section-title">Existing codes</div>
+    <div class="section-title">${t('hint_existingCodes')}</div>
     <div id="plist"><div class="empty">${t('empty_loading')}</div></div>`;
   $('psave').onclick = async () => {
     const code = $('pcode').value.trim().toUpperCase();
@@ -2734,7 +2877,7 @@ function renderPromo(){
     const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
     const el = $('plist'); if(!el) return;
     el.innerHTML = rows.length ? `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th scope="col">Code</th><th scope="col">Discount</th><th scope="col">Used</th><th scope="col">Status</th><th scope="col"></th></tr></thead><tbody>` +
+      <thead><tr><th scope="col">${t('th_code')}</th><th scope="col">${t('th_discount')}</th><th scope="col">${t('th_used')}</th><th scope="col">${t('th_status')}</th><th scope="col"></th></tr></thead><tbody>` +
       rows.map(p => `<tr>
         <td class="name">${esc(p.code||p.id)}</td>
         <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
@@ -2754,9 +2897,9 @@ function renderReports(){
     const rows = []; snap.forEach(d => { const r=d.data(); if(r.status==='OPEN') rows.push({ id:d.id, ...r }); });
     rows.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
     if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noFlaggedReports')}</div>`; return; }
-    $('view').innerHTML = `<div class="section-title">Flagged customer reports (${rows.length})</div>
+    $('view').innerHTML = `<div class="section-title">${t('hint_flaggedCustomerReports', rows.length)}</div>
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th scope="col">Customer</th><th scope="col">Salon</th><th scope="col">Rating</th><th scope="col">Flag</th><th scope="col">Date</th><th scope="col"></th></tr></thead>
+        <thead><tr><th scope="col">${t('th_customer')}</th><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_rating')}</th><th scope="col">${t('th_flag')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(r => `<tr>
           <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
           <td>${esc(r.salonName||'—')}</td>
@@ -2764,8 +2907,8 @@ function renderReports(){
           <td>${r.noShow?'<span class="pill warn">no-show</span>':'<span class="pill bad">flagged</span>'}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">Dismiss</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${r.id}">Suspend</button>
+            <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">${t('btn_dismiss')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${r.id}">${t('btn_suspendAccount')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     const resolve = (id, suspend) =>
