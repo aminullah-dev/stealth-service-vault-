@@ -4,6 +4,7 @@
 // so the deployed function set is unchanged by the move.
 
 const { phoneKey } = require("../lib/phone");
+const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
@@ -621,6 +622,126 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
   };
 });
 
+// ── adminBackfillReferralCodes ───────────────────────────────────────────────
+//
+// The invite card in the customer's profile is the only place in the app that
+// shares SafeBeauty itself, and it opens with `if (code.isBlank()) return` —
+// no card, no empty state, nothing. An account with no referralCode has no way
+// to invite anyone and no way to find out why.
+//
+// referralCode is written once, at registration, and only since the referral
+// programme shipped on 2026-07-12. Every account older than that has never had
+// one; the rules freeze the field against client writes, so the app cannot fix
+// itself. This is the only thing that can.
+//
+// Deliberately unlike adminBackfillPhoneKeys, which this is otherwise modelled
+// on, in two ways:
+//
+//   1. It pages with a cursor. That one restarts from the beginning on every
+//      call, so pressing its button twice rescans the same first 300 accounts;
+//      account 301 is unreachable no matter how many times you press it.
+//   2. It orders by document id, not createdAt. `orderBy` returns none of the
+//      documents missing the field, and an account old enough to lack a
+//      referralCode is exactly the kind of account that predates createdAt too.
+//      Ordering by __name__ can never drop a document, because every document
+//      has one.
+exports.adminBackfillReferralCodes = onCall(
+  // A page costs up to two sequential round trips per account — a uniqueness
+  // query and a write — so 100 accounts is a few hundred RPCs in series. The
+  // default 60s deadline is enough for that and not enough for much more, and a
+  // deadline mid-page is the one failure this design cannot make idempotent-free
+  // progress through, so the ceiling is raised and the page kept small.
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(200, Math.max(1, Number(data.limit || 100)));
+    const dryRun = data.dryRun === true;
+    const after  = typeof data.cursor === "string" ? data.cursor.trim() : "";
+
+    let q = db.collection("users")
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(limit);
+    // startAfter accepts either the id string or a DocumentReference here — the
+    // SDK resolves a bare id against the collection. What matters is that this is
+    // a VALUE cursor either way, unlike startAfter(documentSnapshot), which needs
+    // the document to still exist: a page whose last account is deleted between
+    // two calls would otherwise strand the run.
+    if (after) q = q.startAfter(db.collection("users").doc(after));
+
+    const snap = await q.get();
+
+    // Codes handed out during this page. A real run does not depend on it: each
+    // code is written before the next account is examined, so the uniqueness
+    // query below sees it. A dry run writes nothing, so this Set is the only
+    // thing standing between two accounts that want the same code — and it is
+    // per-page, which is why a dry run's collision count is a floor rather than a
+    // number. The count it exists to report, how many accounts still have none,
+    // is unaffected.
+    const claimedHere = new Set();
+    let written = 0;
+    let alreadyHad = 0;
+    const collisions = [];   // uid pairs that wanted the same code
+    const unresolved = [];   // uids that could not be given one at all
+
+    for (const d of snap.docs) {
+      if (String(d.data().referralCode || "").trim()) { alreadyHad += 1; continue; }
+
+      const attempts = maxAttempts(d.id);
+      let code = "";
+      for (let attempt = BACKFILL_MIN_ATTEMPT; attempt < attempts; attempt += 1) {
+        const candidate = deriveReferralCode(d.id, attempt);
+        if (!candidate) break;
+        if (claimedHere.has(candidate)) { collisions.push({ code: candidate, uid: d.id }); continue; }
+        const taken = await db.collection("users")
+          .where("referralCode", "==", candidate).limit(1).get();
+        if (!taken.empty && taken.docs[0].id !== d.id) {
+          collisions.push({ code: candidate, uid: d.id, heldBy: taken.docs[0].id });
+          continue;
+        }
+        code = candidate;
+        break;
+      }
+
+      if (!code) { unresolved.push(d.id); continue; }
+
+      claimedHere.add(code);
+      if (!dryRun) {
+        await d.ref.update({ referralCode: code });
+        written += 1;
+      }
+    }
+
+    const done = snap.size < limit;
+    const cursor = snap.size ? snap.docs[snap.docs.length - 1].id : after;
+
+    await logAdminAction(me, "BACKFILL_REFERRAL_CODES", {
+      scanned: snap.size, written, alreadyHad, dryRun,
+      collisions: collisions.length, unresolved: unresolved.length,
+  });
+  if (unresolved.length) {
+    logger.error("adminBackfillReferralCodes: could not derive a code", { unresolved });
+  }
+
+  return {
+    ok: true,
+    dryRun,
+    scanned: snap.size,
+    written,
+    alreadyHad,
+    // needed counts every account without a code; fixable is the subset this
+    // can actually do something about. Reporting only `needed` would let a dry
+    // run promise a repair for accounts it will skip.
+    needed: snap.size - alreadyHad,
+    fixable: snap.size - alreadyHad - unresolved.length,
+    collisions,
+    unresolved,
+    cursor,
+    done,
+  };
+  });
+
+
 async function enforceRateLimit(key, max, windowMs) {
   const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
   const now = Date.now();
@@ -724,7 +845,12 @@ exports.deriveUserPhoneKey = onDocumentWritten(
       .get();
     const clash = others.docs.filter((d) => d.id !== after.id);
     if (clash.length) {
-      alertable("BOOKING_FAILED", "Two accounts share one phone number", {
+      // Not BOOKING_FAILED, which is documented as "a customer tried to book
+      // and could not". Two accounts sharing a number is a real problem and a
+      // different one, and mislabelling it means a backfill that touches old
+      // accounts — surfacing every historical duplicate at once — reads as a
+      // checkout outage to whoever is woken up.
+      alertable("DUPLICATE_PHONE", "Two accounts share one phone number", {
         phoneDigits: want,
         uids: [after.id, ...clash.map((d) => d.id)],
       });

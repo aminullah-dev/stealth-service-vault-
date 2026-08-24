@@ -16,6 +16,14 @@
   "hosting": {
     "public": "public",
     "cleanUrls": true,
+    "redirects": [
+      {
+        "//": "Every invite sent from a build older than versionCode 15 ends in the bare root, which served Firebase's own Page Not Found. Those invites are already in people's hands and no app update reaches them, so the root has to resolve on its own.",
+        "source": "/",
+        "destination": "/get",
+        "type": 302
+      }
+    ],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
   }
 }

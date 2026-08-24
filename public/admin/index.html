@@ -1940,6 +1940,13 @@ function paintBooking(d){
 // them they are just a log line nobody opens. Backup state sits here too,
 // because "is there a backup" and "is anything broken" are the same question
 // asked at the same moment.
+// Where the invite-code backfill got to, kept outside renderHealth so switching
+// tabs — or a page that failed halfway — does not send the next press back to
+// the first account. Two cursors, because a preview and a real run walk the
+// collection independently and must not inherit each other's position.
+const refCursors = { real: '', dry: '' };
+let refBusy = false;
+
 async function renderHealth(){
   $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
   try{
@@ -2023,6 +2030,25 @@ async function renderHealth(){
         </div>
         <button class="btn-sm" id="h-salonstats" style="background:var(--rose)">Rebuild salon booking tallies</button>
         <div id="h-ssflash" class="mflash" style="margin-top:8px"></div>
+
+        <div class="mlabel" style="margin-top:18px">Invite codes</div>
+        <div class="mhint">
+          The invite card in a customer's profile is the only place in the app that shares
+          SafeBeauty itself, and it renders nothing at all when the account has no invite
+          code &mdash; no card, no message. Codes are written at registration and only since
+          the referral programme shipped in July, so every account older than that has none
+          and cannot invite anyone. Safe to run repeatedly; it only touches accounts that
+          still have no code, and reports any two that wanted the same one.
+          Two things to expect on the first run: every account it touches also has its
+          login and search keys re-derived by a background trigger, which is how they
+          get filled in at last &mdash; and any two old accounts registered under one
+          phone number surface as errors while that happens. Enough of them at once will
+          trip the &ldquo;function errors are spiking&rdquo; alert. That is the backfill
+          finding them, not a failure.
+        </div>
+        <button class="btn-sm" id="h-refcodes" style="background:var(--rose)">Fill in missing invite codes</button>
+        <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">Count them first</button>
+        <div id="h-refflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
@@ -2101,6 +2127,76 @@ async function renderHealth(){
         $('h-ssflash').textContent = fnError(err);
       }finally{ btn.disabled = false; btn.textContent = lbl; }
     };
+
+
+    // Pages with a cursor until the collection is exhausted, and says so plainly
+    // when it did not get to the end.
+    //
+    // A first draft of this capped the walk at forty pages and then printed the
+    // same green sentence a completed run prints — the exact defect the callable
+    // it drives was written to avoid, moved from the server to the client. A run
+    // that stops short now says so, and the cursor outlives the click, so the
+    // next press continues instead of re-walking what is already done.
+    const runRefCodes = async (btn, dryRun) => {
+      if (refBusy) return;
+      const flash = $('h-refflash');
+      const buttons = [$('h-refcodes'), $('h-refdry')];
+      const lbl = btn.textContent;
+      const key = dryRun ? 'dry' : 'real';
+
+      if (!dryRun && !confirm(
+        'Give an invite code to every account that has none?\n\n' +
+        'This writes to the account records themselves. It is safe to repeat — ' +
+        'an account that already has a code is skipped — but it cannot be undone ' +
+        'account by account. Run "Count them first" if you have not.')) return;
+
+      refBusy = true;
+      buttons.forEach(b => { b.disabled = true; });
+      const started = Date.now();
+      let scanned = 0, written = 0, needed = 0, fixable = 0, complete = false;
+      const collisions = [], unresolved = [];
+      try{
+        // A time budget rather than a page count. A page count is a guess about
+        // how large the collection will ever be, and it stops being true without
+        // anything saying so.
+        while (Date.now() - started < 120000) {
+          btn.textContent = dryRun ? `Counting… ${scanned}` : `Working… ${written}`;
+          const { data } = await httpsCallable(fns,'adminBackfillReferralCodes')(
+            { limit: 100, dryRun, cursor: refCursors[key] });
+          scanned += data.scanned; written += data.written;
+          needed  += data.needed;  fixable += (data.fixable != null ? data.fixable : data.needed);
+          collisions.push(...(data.collisions||[]));
+          unresolved.push(...(data.unresolved||[]));
+          // Advanced before the done check and deliberately not cleared on the
+          // way out of an unfinished run — that is what makes the next press a
+          // continuation.
+          refCursors[key] = data.cursor;
+          if (data.done) { complete = true; refCursors[key] = ''; break; }
+        }
+
+        const extra =
+          (collisions.length ? ` ${collisions.length} needed a longer code to stay unique.` : '') +
+          (unresolved.length ? ` ${unresolved.length} cannot be given one at all — check the logs.` : '');
+        const head = dryRun
+          ? `Checked ${scanned} account(s); ${needed} still have no invite code`
+            + (fixable !== needed ? `, ${fixable} of which can be fixed` : '') + '.'
+          : `Checked ${scanned} account(s); wrote ${written} invite code(s).`;
+        const tail = complete ? '' : ` Stopped after ${scanned} — press again to carry on from here.`;
+        flash.className = 'mflash ' + ((unresolved.length || !complete) ? 'bad' : 'ok');
+        flash.textContent = head + extra + tail;
+      }catch(err){
+        // The cursor is kept, so a failed page resumes rather than restarts.
+        flash.className = 'mflash bad';
+        flash.textContent = fnError(err) +
+          (scanned ? ` Stopped after ${scanned} account(s); press again to carry on from here.` : '');
+      }finally{
+        refBusy = false;
+        buttons.forEach(b => { b.disabled = false; });
+        btn.textContent = lbl;
+      }
+    };
+    $('h-refcodes').onclick = (e) => runRefCodes(e.target, false);
+    $('h-refdry').onclick   = (e) => runRefCodes(e.target, true);
 
     $('h-phonekeys').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;

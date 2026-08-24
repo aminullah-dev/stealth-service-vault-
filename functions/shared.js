@@ -147,6 +147,7 @@ function assertNotSuspended(appUser) {
  *
  * Kinds in use:
  *   BOOKING_FAILED    a customer tried to book and could not
+ *   DUPLICATE_PHONE   two accounts claim one number, so login is ambiguous
  *   PAYMENT_FAILED    money moved, or failed to, without the record agreeing
  *   BACKUP_FAILED     the nightly export did not complete
  *   INTEGRITY_CRITICAL the nightly sweep found something that loses money

@@ -98,6 +98,7 @@ exports.createProviderSalon      = identity.createProviderSalon;
 exports.lookupAccountByPhone     = identity.lookupAccountByPhone;
 exports.requestAccountDeletion   = identity.requestAccountDeletion;
 exports.adminBackfillPhoneKeys   = identity.adminBackfillPhoneKeys;
+exports.adminBackfillReferralCodes = identity.adminBackfillReferralCodes;
 exports.deriveUserPhoneKey       = identity.deriveUserPhoneKey;
 
 const bookings = require("./domains/bookings");
