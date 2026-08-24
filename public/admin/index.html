@@ -2100,8 +2100,38 @@ function paintBooking(d){
 // tabs — or a page that failed halfway — does not send the next press back to
 // the first account. Two cursors, because a preview and a real run walk the
 // collection independently and must not inherit each other's position.
-const refCursors = { real: '', dry: '' };
 let refBusy = false;
+
+// Where each maintenance job got to, keyed by callable name. Kept at module
+// scope so a job that runs out of time continues on the next press instead of
+// walking the same first page again — which is what all three of these did
+// until now, while telling the admin to "run again to continue".
+const jobCursors = {};
+
+/**
+ * Drive a paged maintenance callable until its collection is exhausted or the
+ * time budget runs out. [onPage] accumulates whatever the caller wants to say
+ * afterwards; the return says whether it actually finished, which is the part
+ * that must never be assumed.
+ */
+async function runPaged(name, limit, onPage, opts){
+  const o   = opts || {};
+  const ck  = o.cursorKey || name;      // a preview and a real run page separately
+  const started = Date.now();
+  let complete = false;
+  while (Date.now() - started < (o.budgetMs || 120000)) {
+    const { data } = await httpsCallable(fns, name)(
+      Object.assign({ limit, cursor: jobCursors[ck] || '' }, o.extra || {}));
+    onPage(data);
+    jobCursors[ck] = data.cursor || '';
+    if (data.done) { complete = true; jobCursors[ck] = ''; break; }
+  }
+  return complete;
+}
+
+/** What a run that stopped short has to say for itself. */
+const moreToGo = (complete, scanned) =>
+  complete ? '' : ` Stopped after ${scanned} — press again to carry on from here.`;
 
 async function renderHealth(){
   $('view').innerHTML = `<div class="empty">${t('empty_loading')}</div>`;
@@ -2223,12 +2253,15 @@ async function renderHealth(){
     $('h-normalize').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;
       btn.disabled = true; btn.textContent = 'Working…';
+      let scanned = 0, updated = 0; const rows = [];
       try{
-        const { data } = await httpsCallable(fns,'adminNormalizeSalons')({ limit: 300 });
-        $('h-normflash').className = 'mflash ok';
+        const complete = await runPaged('adminNormalizeSalons', 300, d => {
+          scanned += d.scanned; updated += d.updated; rows.push(...(d.needsReview||[]));
+          btn.textContent = `Working… ${scanned}`;
+        });
+        $('h-normflash').className = 'mflash ' + (complete ? 'ok' : 'bad');
         $('h-normflash').textContent =
-          `Scanned ${data.scanned}, updated ${data.updated}.` + (data.done ? ' All done.' : ' Run again to continue.');
-        const rows = data.needsReview || [];
+          `Scanned ${scanned}, updated ${updated}.` + (complete ? ' All done.' : '') + moreToGo(complete, scanned);
         $('h-normout').innerHTML = rows.length ? `
           <div class="mglabel" style="margin-top:6px">${t('hint_needsYourDecision', rows.length)}</div>
           <div class="tbl-wrap"><table class="tbl">
@@ -2300,27 +2333,16 @@ async function renderHealth(){
 
       refBusy = true;
       buttons.forEach(b => { b.disabled = true; });
-      const started = Date.now();
       let scanned = 0, written = 0, needed = 0, fixable = 0, complete = false;
       const collisions = [], unresolved = [];
       try{
-        // A time budget rather than a page count. A page count is a guess about
-        // how large the collection will ever be, and it stops being true without
-        // anything saying so.
-        while (Date.now() - started < 120000) {
+        complete = await runPaged('adminBackfillReferralCodes', 100, d => {
+          scanned += d.scanned; written += d.written;
+          needed  += d.needed;  fixable += (d.fixable != null ? d.fixable : d.needed);
+          collisions.push(...(d.collisions||[]));
+          unresolved.push(...(d.unresolved||[]));
           btn.textContent = dryRun ? `Counting… ${scanned}` : `Working… ${written}`;
-          const { data } = await httpsCallable(fns,'adminBackfillReferralCodes')(
-            { limit: 100, dryRun, cursor: refCursors[key] });
-          scanned += data.scanned; written += data.written;
-          needed  += data.needed;  fixable += (data.fixable != null ? data.fixable : data.needed);
-          collisions.push(...(data.collisions||[]));
-          unresolved.push(...(data.unresolved||[]));
-          // Advanced before the done check and deliberately not cleared on the
-          // way out of an unfinished run — that is what makes the next press a
-          // continuation.
-          refCursors[key] = data.cursor;
-          if (data.done) { complete = true; refCursors[key] = ''; break; }
-        }
+        }, { cursorKey: 'adminBackfillReferralCodes:' + key, extra: { dryRun } });
 
         const extra =
           (collisions.length ? ` ${collisions.length} needed a longer code to stay unique.` : '') +
@@ -2329,9 +2351,8 @@ async function renderHealth(){
           ? `Checked ${scanned} account(s); ${needed} still have no invite code`
             + (fixable !== needed ? `, ${fixable} of which can be fixed` : '') + '.'
           : `Checked ${scanned} account(s); wrote ${written} invite code(s).`;
-        const tail = complete ? '' : ` Stopped after ${scanned} — press again to carry on from here.`;
         flash.className = 'mflash ' + ((unresolved.length || !complete) ? 'bad' : 'ok');
-        flash.textContent = head + extra + tail;
+        flash.textContent = head + extra + moreToGo(complete, scanned);
       }catch(err){
         // The cursor is kept, so a failed page resumes rather than restarts.
         flash.className = 'mflash bad';
@@ -2349,14 +2370,17 @@ async function renderHealth(){
     $('h-phonekeys').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;
       btn.disabled = true; btn.textContent = 'Working…';
+      let scanned = 0, written = 0; const dups = [];
       try{
-        const { data } = await httpsCallable(fns,'adminBackfillPhoneKeys')({ limit: 300 });
-        const dup = (data.collisions||[]).length;
-        $('h-pkflash').className = 'mflash ' + (dup ? 'bad' : 'ok');
+        const complete = await runPaged('adminBackfillPhoneKeys', 300, d => {
+          scanned += d.scanned; written += d.written; dups.push(...(d.collisions||[]));
+          btn.textContent = `Working… ${scanned}`;
+        });
+        $('h-pkflash').className = 'mflash ' + ((dups.length || !complete) ? 'bad' : 'ok');
         $('h-pkflash').textContent =
-          `Scanned ${data.scanned}, wrote ${data.written}.` +
-          (data.done ? ' All done.' : ' Run again to continue.') +
-          (dup ? ` ${dup} number(s) claimed by more than one account — check the logs.` : '');
+          `Scanned ${scanned}, wrote ${written}.` + (complete ? ' All done.' : '') +
+          (dups.length ? ` ${dups.length} number(s) claimed by more than one account — check the logs.` : '') +
+          moreToGo(complete, scanned);
       }catch(err){
         $('h-pkflash').className = 'mflash bad';
         $('h-pkflash').textContent = fnError(err);
@@ -2366,11 +2390,15 @@ async function renderHealth(){
     $('h-backfill').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;
       btn.disabled = true; btn.textContent = 'Working…';
+      let scanned = 0, assigned = 0;
       try{
-        const { data } = await httpsCallable(fns,'adminBackfillBookingCodes')({ limit: 200 });
-        $('h-flash').className = 'mflash ok';
-        $('h-flash').textContent = `Scanned ${data.scanned}, assigned ${data.assigned}.` +
-          (data.done ? ' All done.' : ' Run again to continue.');
+        const complete = await runPaged('adminBackfillBookingCodes', 200, d => {
+          scanned += d.scanned; assigned += d.assigned;
+          btn.textContent = `Working… ${scanned}`;
+        });
+        $('h-flash').className = 'mflash ' + (complete ? 'ok' : 'bad');
+        $('h-flash').textContent = `Scanned ${scanned}, assigned ${assigned}.` +
+          (complete ? ' All done.' : '') + moreToGo(complete, scanned);
       }catch(err){
         $('h-flash').className = 'mflash bad';
         $('h-flash').textContent = fnError(err);

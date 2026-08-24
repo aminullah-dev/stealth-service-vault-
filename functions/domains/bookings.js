@@ -8,7 +8,7 @@ const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_ADMIN_AFTER_MS, UNCONFIRMED_NUDGE_AFTER_MS, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -748,10 +748,14 @@ exports.adminLookupBooking = onCall({ region: "us-central1" }, async (request) =
 exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(400, Math.max(1, Number((request.data || {}).limit || 200)));
+  const after = pageCursor(request.data);
 
-  // A missing field cannot be queried for, so this walks by creation order and
-  // skips the ones already done rather than filtering server-side.
-  const snap = await db.collection("appointments").orderBy("createdAt", "asc").limit(limit).get();
+  // A missing field cannot be queried for, so this walks the whole collection
+  // and skips the ones already done. It walked by creation order with no cursor
+  // until now, which re-read the same first 200 bookings on every press — and
+  // dropped every booking taken before createdAt existed, which is the same
+  // era as the bookings that have no reference. See idPage.
+  const snap = await idPage("appointments", limit, after);
 
   let assigned = 0;
   for (const d of snap.docs) {
@@ -767,7 +771,7 @@ exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (req
   }
 
   await logAdminAction(me, "BACKFILL_CODES", { scanned: snap.size, assigned });
-  return { ok: true, scanned: snap.size, assigned, done: snap.size < limit };
+  return { ok: true, scanned: snap.size, assigned, ...pageEnd(snap, limit, after) };
 });
 
 // ── rotateWaitlistOffers ──────────────────────────────────────────────────────

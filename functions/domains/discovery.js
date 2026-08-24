@@ -7,7 +7,7 @@ const { normalizeDistrict } = require("../lib/areas");
 // `normalize` is imported under a clearer local name — lib/categories has no
 // export called categoryNormalize, and dropping the rename made it undefined.
 const { categoriesFor, normalize: categoryNormalize } = require("../lib/categories");
-const { assertAdmin, logAdminAction } = require("../shared");
+const { assertAdmin, idPage, logAdminAction, pageCursor, pageEnd } = require("../shared");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -368,8 +368,12 @@ exports.normalizeSalonsDaily = onSchedule(
 exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+  const after = pageCursor(request.data);
 
-  const snap = await db.collection("salons").orderBy("createdAt", "asc").limit(limit).get();
+  // Was orderBy("createdAt").limit(limit) with no cursor — the same first 300
+  // salons on every press, and none of the salons registered before createdAt
+  // existed. Those are the ones whose filter chips match nothing. See idPage.
+  const snap = await idPage("salons", limit, after);
 
   let updated = 0;
   const needsReview = [];
@@ -398,11 +402,5 @@ exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request)
     scanned: snap.size, updated, needsReview: needsReview.length,
   });
 
-  return {
-    ok: true,
-    scanned: snap.size,
-    updated,
-    needsReview,
-    done: snap.size < limit,
-  };
+  return { ok: true, scanned: snap.size, updated, needsReview, ...pageEnd(snap, limit, after) };
 });

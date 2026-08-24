@@ -305,6 +305,49 @@ function pbkdf2Hash(pin, saltB64) {
   return crypto.pbkdf2Sync(String(pin), salt, 65536, 32, "sha256").toString("base64");
 }
 
+
+// ── Paging a whole collection, for the maintenance backfills ─────────────────
+//
+// Every backfill in this codebase was written the same wrong way twice over,
+// and the admin console has been telling someone to "run again to continue" a
+// job that could not continue:
+//
+//   1. No cursor. `orderBy(x).limit(300)` returns the SAME first 300 documents
+//      on every call, so document 301 is unreachable however many times the
+//      button is pressed — and `done: snap.size < limit` is then only ever true
+//      when the entire collection fits in one page.
+//   2. Ordered by createdAt. A query with orderBy returns none of the documents
+//      that lack the field, and the documents needing a backfill are the oldest
+//      ones — precisely the ones most likely to predate createdAt as well. The
+//      sweep silently skips exactly what it was written to find.
+//
+// Ordering by __name__ cannot drop a document, because every document has one.
+//
+// [after] is a document id from a previous page's `cursor`. The cursor is a
+// value, not a snapshot, so a page whose last document is deleted between two
+// calls does not strand the run.
+function idPage(collectionName, limit, after) {
+  let q = db.collection(collectionName)
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(limit);
+  if (after) q = q.startAfter(db.collection(collectionName).doc(after));
+  return q.get();
+}
+
+/** The `cursor` and `done` a paged callable returns, given the page it read. */
+function pageEnd(snap, limit, after) {
+  return {
+    cursor: snap.size ? snap.docs[snap.docs.length - 1].id : (after || ""),
+    done:   snap.size < limit,
+  };
+}
+
+/** The cursor a paged callable was called with, sanitised. */
+function pageCursor(data) {
+  const c = (data || {}).cursor;
+  return typeof c === "string" ? c.trim() : "";
+}
+
 module.exports = {
   pbkdf2Hash,
   refundReservation, randomBookingCode, reserveBookingCode,
@@ -313,4 +356,5 @@ module.exports = {
   normalizeAfghanPhone, normalizePhone, assertAdmin,
   assertNotSuspended, logAdminAction, appointmentEvent,
   writeAppointmentEvent, logAppointmentEvent,
+  idPage, pageEnd, pageCursor,
 };

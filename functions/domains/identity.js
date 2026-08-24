@@ -8,7 +8,7 @@ const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../li
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
-const { assertAdmin, assertDocId, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -571,8 +571,13 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
 exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+  const after = pageCursor(request.data);
 
-  const snap = await db.collection("users").orderBy("createdAt", "asc").limit(limit).get();
+  // Was orderBy("createdAt").limit(limit) with no cursor: it re-read the same
+  // first 300 accounts on every press, so account 301 was unreachable, and it
+  // dropped every account written before createdAt existed — which is exactly
+  // the population missing these keys. See idPage.
+  const snap = await idPage("users", limit, after);
 
   const seen = new Map();   // key -> first uid that claimed it
   const collisions = [];
@@ -613,13 +618,7 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
   if (collisions.length) {
     logger.error("adminBackfillPhoneKeys: duplicate phone keys", { collisions });
   }
-  return {
-    ok: true,
-    scanned: snap.size,
-    written,
-    collisions,
-    done: snap.size < limit,
-  };
+  return { ok: true, scanned: snap.size, written, collisions, ...pageEnd(snap, limit, after) };
 });
 
 // ── adminBackfillReferralCodes ───────────────────────────────────────────────
@@ -657,19 +656,9 @@ exports.adminBackfillReferralCodes = onCall(
     const data = request.data || {};
     const limit  = Math.min(200, Math.max(1, Number(data.limit || 100)));
     const dryRun = data.dryRun === true;
-    const after  = typeof data.cursor === "string" ? data.cursor.trim() : "";
+    const after  = pageCursor(data);
 
-    let q = db.collection("users")
-      .orderBy(admin.firestore.FieldPath.documentId())
-      .limit(limit);
-    // startAfter accepts either the id string or a DocumentReference here — the
-    // SDK resolves a bare id against the collection. What matters is that this is
-    // a VALUE cursor either way, unlike startAfter(documentSnapshot), which needs
-    // the document to still exist: a page whose last account is deleted between
-    // two calls would otherwise strand the run.
-    if (after) q = q.startAfter(db.collection("users").doc(after));
-
-    const snap = await q.get();
+    const snap = await idPage("users", limit, after);
 
     // Codes handed out during this page. A real run does not depend on it: each
     // code is written before the next account is examined, so the uniqueness
@@ -712,8 +701,7 @@ exports.adminBackfillReferralCodes = onCall(
       }
     }
 
-    const done = snap.size < limit;
-    const cursor = snap.size ? snap.docs[snap.docs.length - 1].id : after;
+    const { cursor, done } = pageEnd(snap, limit, after);
 
     await logAdminAction(me, "BACKFILL_REFERRAL_CODES", {
       scanned: snap.size, written, alreadyHad, dryRun,
