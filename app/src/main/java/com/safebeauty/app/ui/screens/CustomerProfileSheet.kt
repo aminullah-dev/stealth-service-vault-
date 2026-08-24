@@ -445,11 +445,24 @@ internal fun WalletCard(credit: Long, modifier: Modifier = Modifier, onTopUp: ()
     }
 }
 
+/**
+ * The invite card — and the only place in the app that shares SafeBeauty itself.
+ *
+ * It used to open with `if (code.isBlank()) return`, so an account with no
+ * referral code rendered nothing at all: no card, no empty state, no way to
+ * share the app and no way to find out why. Codes are only written at
+ * registration, and only since the referral programme shipped, so that was
+ * every older account — and it made sharing the app hostage to having a code.
+ *
+ * Now the card always appears. The code section is what is conditional, and the
+ * share button works either way: with a code it carries the code and the offer,
+ * without one it carries the app and no promise the account cannot keep.
+ */
 @Composable
 internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modifier) {
     val strings = LocalStrings.current
     val context = LocalContext.current
-    if (code.isBlank()) return
+    val hasCode = code.isNotBlank()
 
     Card(
         shape    = RoundedCornerShape(18.dp),
@@ -482,14 +495,29 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
                     .padding(horizontal = 14.dp, vertical = 12.dp)
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(strings.referralYourCode, fontSize = 11.sp, color = RoseGold)
-                    Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepRose, letterSpacing = 2.sp)
+                    if (hasCode) {
+                        Text(strings.referralYourCode, fontSize = 11.sp, color = RoseGold)
+                        Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepRose, letterSpacing = 2.sp)
+                    } else {
+                        // Not an error state — the code is derived server-side and
+                        // may simply not have been written yet. Saying so is
+                        // better than an empty box where a code should be.
+                        Text(
+                            strings.referralNoCodeYet,
+                            fontSize = 12.sp,
+                            color = TextMuted,
+                            lineHeight = 17.sp,
+                        )
+                    }
                 }
                 Button(
                     onClick = {
                         val share = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, strings.referralShareText(code))
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                if (hasCode) strings.referralShareText(code) else strings.shareAppText,
+                            )
                         }
                         runCatching { context.startActivity(Intent.createChooser(share, null)) }
                     },
@@ -499,7 +527,10 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
                 ) {
                     Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(strings.referralShare, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (hasCode) strings.referralShare else strings.shareTheApp,
+                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }

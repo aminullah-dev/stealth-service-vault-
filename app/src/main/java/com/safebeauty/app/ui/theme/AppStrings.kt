@@ -146,6 +146,11 @@ class AppStrings {
     var referralYourCode: String = ""
     var referralCreditLabel: String = ""
     var referralShare: String = ""
+    var swipeHintTabs: String = ""
+    var swipeHintExploreFavourites: String = ""
+    var shareTheApp: String = ""
+    var shareAppText: String = ""
+    var referralNoCodeYet: String = ""
     var referralShareText: (String) -> String = { "" }
     var shareSalon: String = ""
     var shareSalonText: (String, String) -> String = { _, _ -> "" }
@@ -836,6 +841,11 @@ object StringResources {
         referralYourCode           = "Your code"
         referralCreditLabel        = "Your credit"
         referralShare              = "Share"
+        swipeHintTabs              = "Swipe left or right to move between tabs"
+        swipeHintExploreFavourites = "Swipe left or right to switch between all salons and your favourites"
+        shareTheApp                = "Share SafeBeauty"
+        shareAppText               = "Join me on SafeBeauty — book trusted beauty salons in Kabul, with real reviews and prices you can see before you book. Download: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "Your personal invite code is on its way — you can still share the app."
         referralShareText          = { code -> "Join me on SafeBeauty — book trusted beauty salons. Use my code $code when you sign up and we both get AFN 100 off! Download: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "Share"
         shareSalonText             = { name, url -> "Check out $name on SafeBeauty — book trusted beauty services: $url" }
@@ -1461,6 +1471,11 @@ object StringResources {
         referralYourCode           = "کد شما"
         referralCreditLabel        = "اعتبار شما"
         referralShare              = "اشتراک‌گذاری"
+        swipeHintTabs              = "انگشت خود را چپ یا راست بکشید تا به بخش دیگر بروید."
+        swipeHintExploreFavourites = "انگشت خود را چپ یا راست بکشید تا سالن‌ها یا علاقه‌مندی‌های خود را ببینید."
+        shareTheApp                = "اشتراک‌گذاری SafeBeauty"
+        shareAppText               = "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر در کابل، با نظرات واقعی و قیمت‌هایی که پیش از رزرو می‌بینی. دانلود: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "کد دعوت شما به‌زودی آماده می‌شود — تا آن وقت می‌توانید برنامه را به اشتراک بگذارید."
         referralShareText          = { code -> "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر. هنگام ثبت‌نام کد من $code را وارد کن تا هر دو ۱۰۰ افغانی تخفیف بگیریم! دانلود: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "اشتراک‌گذاری"
         shareSalonText             = { name, url -> "$name را در SafeBeauty ببین — رزرو مطمئن خدمات زیبایی: $url" }
@@ -2086,6 +2101,11 @@ object StringResources {
         referralYourCode           = "ستاسو کوډ"
         referralCreditLabel        = "ستاسو کریډیټ"
         referralShare              = "شریکول"
+        swipeHintTabs              = "خپله ګوته کیڼ یا ښي لور ته وکاږئ ترڅو د برخو ترمنځ واوړئ."
+        swipeHintExploreFavourites = "خپله ګوته کیڼ یا ښي لور ته وکاږئ ترڅو د سالونونو او خپلو خوښو ترمنځ واوړئ."
+        shareTheApp                = "د SafeBeauty شریکول"
+        shareAppText               = "له ما سره په SafeBeauty کې یوځای شئ — په کابل کې د باور وړ ښکلا سالونونه بک کړئ، له ریښتینو نظرونو او هغو بیو سره چې یې د بکینګ دمخه ګورئ. ډاونلوډ: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "ستاسو د بلنې کوډ به ډېر ژر چمتو شي — تر هغه مهاله هم اپ شریکولی شئ."
         referralShareText          = { code -> "له ما سره په SafeBeauty کې یوځای شئ — د باور وړ ښکلا سالونونه بک کړئ. د راجستر پر مهال زما کوډ $code وکاروئ ترڅو دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کړو! ډاونلوډ: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "شریکول"
         shareSalonText             = { name, url -> "$name په SafeBeauty کې وګورئ — د باور وړ ښکلا خدمتونه بک کړئ: $url" }

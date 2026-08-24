@@ -123,6 +123,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -210,6 +212,8 @@ import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
+import com.safebeauty.app.ui.components.SwipeHint
+import kotlin.math.abs
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -610,7 +614,35 @@ fun CustomerDashboardScreen(
                     .fillMaxSize()
                     .background(Gradients.ScreenBg)
                     .padding(padding)
+                    // Explore and Favourites are the same screen with a
+                    // different filter, so a horizontal swipe between them is
+                    // honest. The other three bottom-bar items are not tabs at
+                    // all — two open a sheet and one leaves for another screen —
+                    // and nothing can be paged into a modal sheet, which is why
+                    // this is a two-state toggle and not a pager.
+                    //
+                    // Direction-agnostic on purpose: with two states, any
+                    // decisive horizontal drag means "the other one", and that
+                    // is the same gesture in Dari, Pashto and English rather
+                    // than one that reverses with the layout direction.
+                    .pointerInput(Unit) {
+                        val threshold = 90.dp.toPx()
+                        var travelled = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { travelled = 0f },
+                            onDragEnd   = {
+                                if (abs(travelled) > threshold) viewModel.toggleFavoritesOnly()
+                            },
+                            onDragCancel = { travelled = 0f },
+                            onHorizontalDrag = { _, amount -> travelled += amount },
+                        )
+                    }
             ) {
+
+                SwipeHint(
+                    text    = strings.swipeHintExploreFavourites,
+                    hintKey = "exploreFav",
+                )
 
                 // ── Offline banner ────────────────────────────────────────────
                 AnimatedVisibility(

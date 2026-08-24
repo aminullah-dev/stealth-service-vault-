@@ -133,6 +133,7 @@ import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
+import com.safebeauty.app.ui.components.SwipeHint
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -352,6 +353,14 @@ fun ProviderDashboardScreen(
                         text     = { Text(strings.reviews, fontSize = 14.sp) }
                     )
                 }
+
+                // A swipe is invisible. This pager shipped and was reported
+                // missing, because nothing on the screen said the tabs could be
+                // dragged. The hint says so, three times, and then stops.
+                SwipeHint(
+                    text    = strings.swipeHintTabs,
+                    hintKey = "tabs",
+                )
 
                 // ── Tab content ───────────────────────────────────────────
                 // weight(1f) rather than a height: the Column fills the screen,
