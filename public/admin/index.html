@@ -403,7 +403,7 @@ let lang = (() => {
 // for longer. An operator moving between the two consoles and seeing one word
 // for 'customer' in each is the failure that costs more than a rough phrasing.
 const STR = {
-  btn_close: {en:'Close', fa:'بسته', ps:'بندول'},
+  btn_close: {en:'Close', fa:'بستن', ps:'بندول'},
   btn_confirmForTheSalon: {en:'Confirm for the salon', fa:'تایید به‌جای سالن', ps:'د سالون پر ځای تایید'},
   btn_en: {en:'EN', fa:'EN', ps:'EN'},
   btn_makeAdmin: {en:'Make admin', fa:'تعیین ادمین', ps:'اډمین وټاکئ'},
@@ -488,7 +488,7 @@ const STR = {
   btn_approve: {en:'Approve', fa:'تایید', ps:'تایید'},
   btn_assignMissingBookingReferences: {en:'Assign missing booking references', fa:'تخصیص کد رزرو به رزروهای بدون کد', ps:'بې کوډه بکینګونو ته کوډ ورکول'},
   btn_cancelBooking: {en:'Cancel booking', fa:'لغو رزرو', ps:'بکینګ لغوه کړئ'},
-  btn_closeGeneric: {en:'Close', fa:'بسته', ps:'بندول'},
+  btn_closeGeneric: {en:'Close', fa:'بستن', ps:'بندول'},
   btn_countThemFirst: {en:'Count them first', fa:'شمارش اولیه', ps:'لومړی یې وشمېرئ'},
   btn_createSalon: {en:'Create salon', fa:'ایجاد سالن', ps:'سالون جوړ کړئ'},
   btn_delete: {en:'Delete', fa:'حذف', ps:'ړنګول'},
@@ -634,6 +634,42 @@ const STR = {
   th_verified: {en:'Verified', fa:'تأیید شده', ps:'تایید شوی'},
   th_when: {en:'When', fa:'زمان', ps:'وخت'},
   th_why: {en:'Why', fa:'دلیل', ps:'لامل'},
+
+  hint_derivedLookupKeys: {en:'Accounts write two derived lookup keys: the phone key that resolves a sign-in to a single indexed read, and the name key the user search matches on. A trigger keeps both current, but it only fires on a write — an account nobody has touched since a key was introduced simply does not have it, and is then unfindable by that key. This fills in what is missing. Safe to run repeatedly; reports any two accounts that share a number.', fa:'برای هر حساب دو کلید جستجو نوشته می‌شود که از خود حساب استخراج شده‌اند: کلید شماره تلفن که ورود را به یک بار خواندن از ایندکس تبدیل می‌کند، و کلید نام که جستجوی کاربران با آن مطابقت داده می‌شود. یک روال خودکار هر دو را به‌روز نگه می‌دارد، اما فقط هنگام نوشتن اجرا می‌شود — حسابی که از زمان افزوده‌شدن یک کلید کسی به آن دست نزده باشد، آن کلید را ندارد و دیگر با آن کلید پیدا نمی‌شود. این دکمه موارد جاافتاده را تکمیل می‌کند. اجرای چندبارهٔ آن بی‌خطر است؛ اگر دو حساب یک شماره داشته باشند، گزارش می‌دهد.', ps:'د هر حساب لپاره د لټون دوه استخراج شوي کلیدونه لیکل کیږي: د تلیفون شمېرې کلید چې ننوتل یوې واحدې ایندکس شوې لوستنې ته اړوي، او د نوم کلید چې د کاروونکو لټون ورسره سمون خوري. یوه اتوماتیکه کړنلاره دواړه تازه ساتي، خو یوازې د لیکلو پر مهال چلیږي — هغه حساب چې د یوه کلید له زیاتېدو راهیسې چا ورته لاس نه دی وروړی، هغه کلید نه لري او بیا د هغه کلید له مخې نه پیدا کیږي. دا تڼۍ هغه څه بشپړوي چې کم دي. څو ځله یې چلول خطر نه لري؛ که دوه حسابونه یوه شمېره ولري، راپور یې ورکوي.'},
+  hint_inviteCodeBackfill: {en:'The invite card in a customer\'s profile is the only place in the app that shares SafeBeauty itself, and it renders nothing at all when the account has no invite code &mdash; no card, no message. Codes are written at registration and only since the referral programme shipped in July, so every account older than that has none and cannot invite anyone. Safe to run repeatedly; it only touches accounts that still have no code, and reports any two that wanted the same one. Two things to expect on the first run: every account it touches also has its login and search keys re-derived by a background trigger, which is how they get filled in at last &mdash; and any two old accounts registered under one phone number surface as errors while that happens. Enough of them at once will trip the &ldquo;function errors are spiking&rdquo; alert. That is the backfill finding them, not a failure.', fa:'کارت دعوت در پروفایل مشتری تنها جایی در اپ است که خودِ SafeBeauty را معرفی می‌کند، و وقتی حساب کد دعوت نداشته باشد اصلاً چیزی نشان نمی‌دهد &mdash; نه کارتی، نه پیامی. کدها هنگام ثبت‌نام نوشته می‌شوند، آن هم فقط از زمانی که برنامهٔ دعوت در ماه جولای راه‌اندازی شد؛ بنابراین هر حسابی که قدیمی‌تر از آن باشد کد ندارد و نمی‌تواند کسی را دعوت کند. اجرای چندبارهٔ آن بی‌خطر است؛ فقط حساب‌هایی را تغییر می‌دهد که هنوز کد ندارند، و اگر دو حساب یک کد را خواسته باشند گزارش می‌دهد. در اجرای نخست انتظار دو چیز را داشته باشید: کلیدهای ورود و جستجوی هر حسابی که این دکمه به آن دست می‌زند، توسط یک روال خودکار در پس‌زمینه دوباره استخراج می‌شوند و سرانجام به همین شکل تکمیل می‌گردند &mdash; و در همان حال، هر دو حساب قدیمی که زیر یک شماره تلفن ثبت شده باشند به‌صورت خطا ظاهر می‌شوند. اگر تعدادشان در یک زمان زیاد باشد، هشدار «خطاهای فانکشن به‌شدت در حال افزایش است» فعال می‌شود. این یعنی همین دکمه دارد آن‌ها را پیدا می‌کند، نه اینکه خرابی‌ای رخ داده باشد.', ps:'د پیرودونکي په پروفایل کې د بلنې کارت په اپ کې یوازینی ځای دی چې پخپله SafeBeauty معرفي کوي، او کله چې حساب د بلنې کوډ ونه لري، هیڅ شی نه ښیي &mdash; نه کارت، نه پیغام. کوډونه د راجستر پر مهال لیکل کیږي، هغه هم یوازې له هغه وخته چې د بلنې پروګرام د جولای په میاشت کې پیل شو؛ نو هر هغه حساب چې له دې دمخه جوړ شوی وي، کوډ نه لري او هیچا ته بلنه نه شي ورکولی. څو ځله یې چلول خطر نه لري؛ یوازې هغه حسابونه بدلوي چې لا هم کوډ نه لري، او که دوه حسابونو یو کوډ غوښتی وي، راپور یې ورکوي. په لومړي ځل چلولو کې دوه څیزونو ته تمه ولرئ: د هر هغه حساب د ننوتلو او لټون کلیدونه چې دا تڼۍ ورته لاس وروړي، په شالید کې د یوې اتوماتیکې کړنلارې له خوا بیا استخراج کیږي او په همدې ډول بالاخره بشپړیږي &mdash; او په همدې وخت کې، هغه دوه زاړه حسابونه چې د یوې تلیفون شمېرې لاندې راجستر شوي وي، د تېروتنو په بڼه راښکاره کیږي. که په یو وخت کې د دوی شمېر ډېر شي، د «د فنکشن تېروتنې ډېرې شوې دي» خبرتیا فعالېږي. دا پخپله همدا تڼۍ ده چې هغوی پیدا کوي، نه کومه ناکامي.'},
+  hint_salonTallyRecompute: {en:'Each salon\'s Income tab reads a running tally rather than counting its bookings. A trigger keeps it current, but only from the booking that follows it — bookings taken before it existed were never counted, so a salon that has been trading a while reads zero. This recomputes every tally from the appointments themselves. Safe to run twice; it replaces rather than adds.', fa:'تب درآمد هر سالن به‌جای شمردن رزروها، آماری را می‌خواند که به‌صورت جاری نگهداری می‌شود. یک روال خودکار این آمار را به‌روز نگه می‌دارد، اما فقط از رزروهایی که پس از خودِ آن ثبت شده‌اند — رزروهایی که پیش از وجود آن گرفته شده‌اند هرگز شمرده نشده‌اند، بنابراین سالنی که مدتی است کار می‌کند صفر نشان می‌دهد. این دکمه همهٔ آمارها را دوباره از خود نوبت‌ها محاسبه می‌کند. اجرای دوبارهٔ آن بی‌خطر است؛ مقدار را جایگزین می‌کند، نه اینکه به آن اضافه کند.', ps:'د هر سالون د عاید ټب د بکینګونو د شمېرلو پر ځای یوه روانه احصایه لولي. یوه اتوماتیکه کړنلاره دا احصایه تازه ساتي، خو یوازې هغه بکینګونه پکې شمېري چې له هغې وروسته ثبت شوي وي — هغه بکینګونه چې د هغې له شتون دمخه اخیستل شوي وو، هیڅکله ونه شمېرل شول، نو هغه سالون چې له څه مودې راهیسې کار کوي، صفر ښیي. دا تڼۍ ټولې احصایې بیا له خپلو نوبتونو څخه محاسبه کوي. دوه ځله یې چلول خطر نه لري؛ ځای یې نیسي، نه دا چې ورزیاتوي.'},
+  lbl_backups: {en:'Backups', fa:'پشتیبان‌گیری', ps:'بیک‌اپ'},
+  // ── Modals and the long maintenance copy ─────────────────────────────────
+  // The first sweep scanned only render* functions and capped prose at 400
+  // characters, so the dialogs and the longest explanations were left English.
+  btn_addDefaultReplies: {en:'＋ Add default replies', fa:'＋ افزودن پاسخ‌های پیش‌فرض', ps:'＋ اصلي ځوابونه زیاتول'},
+  btn_addTemplate: {en:'Add template', fa:'افزودن قالب', ps:'کينډۍ زیاتول'},
+  btn_applyBalance: {en:'Apply', fa:'اعمال', ps:'پلي کول'},
+  btn_approveKyc: {en:'Approve KYC', fa:'تایید KYC', ps:'د KYC تایید'},
+  btn_closeSalonModal: {en:'Close', fa:'بستن', ps:'بندول'},
+  btn_copy: {en:'Copy', fa:'کاپی', ps:'کاپي'},
+  btn_deleteTemplate: {en:'Delete', fa:'حذف', ps:'ړنګول'},
+  btn_postStory: {en:'Post story', fa:'انتشار استوری', ps:'سټوري خپرول'},
+  btn_rejectKyc: {en:'Reject KYC', fa:'رد KYC', ps:'د KYC ردول'},
+  btn_resetPassword: {en:'Reset password', fa:'بازنشانی رمز عبور', ps:'د پټنوم بیا ټاکل'},
+  btn_saveDetails: {en:'Save details', fa:'ذخیره اطلاعات', ps:'معلومات خوندي کول'},
+  btn_sharePhoto: {en:'Share photo', fa:'انتشار عکس', ps:'انځور خپرول'},
+  hint_commission: {en:'Commission', fa:'کمیسیون', ps:'کمیشن'},
+  hint_noTemplatesYet: {en:'No templates yet — add one below.', fa:'هنوز قالبی وجود ندارد — در پایین یکی اضافه کنید.', ps:'تر اوسه کينډۍ نشته — لاندې یوه زیاته کړئ.'},
+  hint_seedsDiscover: {en:'Seeds Discover while the owner is still finding their feet. Published under the salon\'s name and recorded in the audit log — only with their consent.', fa:'وقتی مالک هنوز تازه‌کار است و کارش را راه نینداخته، این کار صفحهٔ کشف را پر می‌کند. مطلب به‌نام سالن منتشر و در ثبت اقدامات ثبت می‌شود — فقط با رضایت خود مالک.', ps:'کله چې مالک لا نوی وي او کار یې لا سم روان نه وي، دا کړنه د «کشف» پاڼه ډکوي. مطلب د سالون په نوم خپرېږي او د کړنو په ثبت کې ثبتېږي — یوازې د مالک په رضایت.'},
+  lbl_actions: {en:'Actions', fa:'اقدامات', ps:'کړنې'},
+  lbl_audience: {en:'Audience', fa:'مخاطبان', ps:'ترلاسه کوونکي'},
+  lbl_current: {en:'Current: …', fa:'فعلی: …', ps:'اوسنی: …'},
+  lbl_identityDocuments: {en:'Identity documents', fa:'اسناد هویتی', ps:'د هویت اسناد'},
+  lbl_lastAdmin: {en:'last admin', fa:'تنها ادمین', ps:'یوازینی اډمین'},
+  lbl_newTemplate: {en:'New template', fa:'قالب جدید', ps:'نوې کينډۍ'},
+  lbl_ownerContact: {en:'Owner contact', fa:'اطلاعات تماس مالک', ps:'د مالک د اړیکې معلومات'},
+  lbl_publishForThisSalon: {en:'Publish for this salon', fa:'انتشار به‌نام این سالن', ps:'د دې سالون په نوم خپرول'},
+  lbl_salon: {en:'Salon', fa:'سالن', ps:'سالون'},
+  lbl_searching: {en:'Searching…', fa:'در حال جستجو…', ps:'لټون روان دی…'},
+  lbl_selfie: {en:'Selfie', fa:'سلفی', ps:'سلفي'},
+  lbl_tazkira: {en:'Tazkira', fa:'تذکره', ps:'تذکره'},
+  lbl_templatesLoading: {en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
 };
 
 function t(key, ...args){
@@ -955,7 +991,7 @@ function renderAnnounce(){
         ${ANNOUNCE_TEMPLATES.map((tpl,i)=>`<option value="${i}">${esc(tpl.label)}</option>`).join('')}
       </select>
       <textarea id="amsg" class="field" dir="auto" placeholder="Your message to all users…"></textarea>
-      <div class="mglabel" style="margin-top:4px">Audience</div>
+      <div class="mglabel" style="margin-top:4px">${t('lbl_audience')}</div>
       <div class="mrow">
         <select id="a-role" class="field">
           <option value="">Everyone</option>
@@ -1231,14 +1267,14 @@ async function openTemplates(targetInputId){
     <h2>Message templates</h2>
     <div class="msub">${targetInputId ? 'Insert into the current reply, or copy.' : 'Copy a reply, or manage your saved messages.'}</div>
     <div id="tpl-flash" class="mflash"></div>
-    <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">＋ Add default replies</button></div>
-    <div id="tpl-list"><div class="meta" style="color:var(--muted)">Loading…</div></div>
+    <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">${t('btn_addDefaultReplies')}</button></div>
+    <div id="tpl-list"><div class="meta" style="color:var(--muted)">${t('lbl_templatesLoading')}</div></div>
     <div class="mgroup">
-      <div class="mglabel">New template</div>
+      <div class="mglabel">${t('lbl_newTemplate')}</div>
       <select id="tpl-cat" class="field">${TEMPLATE_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
       <input id="tpl-title" class="field" placeholder="Title (for your reference)" />
       <textarea id="tpl-body" class="field" placeholder="Message text (what gets sent)"></textarea>
-      <button class="btn-sm" id="tpl-add" style="background:var(--rose)">Add template</button>
+      <button class="btn-sm" id="tpl-add" style="background:var(--rose)">${t('btn_addTemplate')}</button>
     </div>
     <button class="btn-sm mclose" id="tpl-close">${t('btn_close')}</button>`);
   $('tpl-close').onclick = hideModal;
@@ -1258,14 +1294,14 @@ async function openTemplates(targetInputId){
     const tpls = []; snap.forEach(d=>tpls.push({ id:d.id, ...d.data() }));
     tpls.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.order||0)-(b.order||0));
     const list = $('tpl-list'); if(!list) return;
-    if(!tpls.length){ list.innerHTML = `<div class="meta" style="color:var(--muted)">No templates yet — add one below.</div>`; return; }
+    if(!tpls.length){ list.innerHTML = `<div class="meta" style="color:var(--muted)">${t('hint_noTemplatesYet')}</div>`; return; }
     list.innerHTML = tpls.map(tp => `<div class="row" style="margin-bottom:8px" data-id="${esc(tp.id)}">
       <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span></h3>
       <div class="meta" style="white-space:pre-wrap;color:var(--ink);margin-top:4px">${esc(tp.body||'')}</div>
       <div class="actions" style="margin-top:9px">
         <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?'Insert':'Copy'}</button>
-        <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">Copy</button>
-        <button class="btn-sm t-del" style="background:var(--red)">Delete</button>
+        <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">${t('btn_copy')}</button>
+        <button class="btn-sm t-del" style="background:var(--red)">${t('btn_deleteTemplate')}</button>
       </div></div>`).join('');
     const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Copied ✓'; };
     list.querySelectorAll('.row').forEach(row => {
@@ -1568,7 +1604,7 @@ async function renderAdmins(){
           <td>${esc(a.phone||'—')}</td>
           <td style="text-align:right">${admins.length>1
             ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">${t('btn_remove')}</button>`
-            : `<span class="meta" style="color:var(--muted)">last admin</span>`}</td>
+            : `<span class="meta" style="color:var(--muted)">${t('lbl_lastAdmin')}</span>`}</td>
         </tr>`).join('')}</tbody></table></div>`;
 
     $('view').querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
@@ -1581,7 +1617,7 @@ async function renderAdmins(){
       const phone = $('aphone').value.trim();
       const found = $('afound');
       if(!phone){ found.innerHTML=''; return; }
-      found.innerHTML = `<div class="meta">Searching…</div>`;
+      found.innerHTML = `<div class="meta">${t('lbl_searching')}</div>`;
       try{
         const res = await httpsCallable(fns,'lookupAccountByPhone')({ phone });
         const m = res.data || {};
@@ -2149,7 +2185,7 @@ async function renderHealth(){
     const ageH = lastGood ? Math.floor((Date.now() - Number(lastGood.finishedAt||0))/3600000) : null;
 
     $('view').innerHTML = `
-      <div class="section-title">Backups</div>
+      <div class="section-title">${t('lbl_backups')}</div>
       <div class="card-pad" style="margin-bottom:8px">
         ${lastGood
           ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">Last verified ${ageH}h ago</span>
@@ -2194,41 +2230,21 @@ async function renderHealth(){
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
-          Accounts write two derived lookup keys: the phone key that resolves a sign-in to a
-          single indexed read, and the name key the user search matches on. A trigger keeps
-          both current, but it only fires on a write — an account nobody has touched since a
-          key was introduced simply does not have it, and is then unfindable by that key.
-          This fills in what is missing. Safe to run repeatedly; reports any two accounts
-          that share a number.
+          ${t('hint_derivedLookupKeys')}
         </div>
         <button class="btn-sm" id="h-phonekeys" style="background:var(--rose)">${t('btn_fillInMissingLookupKeys')}</button>
         <div id="h-pkflash" class="mflash" style="margin-top:8px"></div>
 
         <div class="mlabel" style="margin-top:18px">${t('hint_salonBookingTallies')}</div>
         <div class="mhint">
-          Each salon's Income tab reads a running tally rather than counting its bookings.
-          A trigger keeps it current, but only from the booking that follows it — bookings
-          taken before it existed were never counted, so a salon that has been trading a
-          while reads zero. This recomputes every tally from the appointments themselves.
-          Safe to run twice; it replaces rather than adds.
+          ${t('hint_salonTallyRecompute')}
         </div>
         <button class="btn-sm" id="h-salonstats" style="background:var(--rose)">${t('btn_rebuildSalonBookingTallies')}</button>
         <div id="h-ssflash" class="mflash" style="margin-top:8px"></div>
 
         <div class="mlabel" style="margin-top:18px">${t('hint_inviteCodes')}</div>
         <div class="mhint">
-          The invite card in a customer's profile is the only place in the app that shares
-          SafeBeauty itself, and it renders nothing at all when the account has no invite
-          code &mdash; no card, no message. Codes are written at registration and only since
-          the referral programme shipped in July, so every account older than that has none
-          and cannot invite anyone. Safe to run repeatedly; it only touches accounts that
-          still have no code, and reports any two that wanted the same one.
-          Two things to expect on the first run: every account it touches also has its
-          login and search keys re-derived by a background trigger, which is how they
-          get filled in at last &mdash; and any two old accounts registered under one
-          phone number surface as errors while that happens. Enough of them at once will
-          trip the &ldquo;function errors are spiking&rdquo; alert. That is the backfill
-          finding them, not a failure.
+          ${t('hint_inviteCodeBackfill')}
         </div>
         <button class="btn-sm" id="h-refcodes" style="background:var(--rose)">${t('btn_fillInMissingInviteCodes')}</button>
         <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
@@ -2609,23 +2625,23 @@ async function openSalonModal(salon, onChanged){
     <div id="s-flash" class="mflash"></div>
 
     <div class="mgroup">
-      <div class="mglabel">Salon</div>
+      <div class="mglabel">${t('lbl_salon')}</div>
       <input id="s-district" class="field" value="${esc(salon.district||'')}" placeholder="District / area" />
       <div class="meta" style="color:var(--muted)">★ ${Number(salon.rating||0).toFixed(1)} · ${(salon.services||[]).length} services · ${(salon.staff||[]).length} staff · ${salon.confirmedCount||0} confirmed</div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Owner contact</div>
+      <div class="mglabel">${t('lbl_ownerContact')}</div>
       <input id="s-name" class="field" value="${esc(owner.name||'')}" placeholder="Owner name" />
       <input id="s-phone" class="field" value="${esc(owner.phone||'')}" placeholder="Phone (+93…)" />
       <div class="meta" style="color:var(--muted)">HesabPay: ${esc(owner.hesabAccountNumber||'—')}${owner.email?' · '+esc(owner.email):''}</div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Identity documents</div>
+      <div class="mglabel">${t('lbl_identityDocuments')}</div>
       <div style="display:flex;gap:18px;margin-bottom:13px">
-        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Tazkira</div>${photo(owner.tazkiraPhotoUrl,'Tazkira')}</div>
-        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">Selfie</div>${photo(owner.selfiePhotoUrl,'Selfie')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_tazkira')}</div>${photo(owner.tazkiraPhotoUrl,'Tazkira')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_selfie')}</div>${photo(owner.selfiePhotoUrl,'Selfie')}</div>
       </div>
       <input id="s-tazkira" class="field" value="${esc(owner.tazkiraNumber||'')}" placeholder="Tazkira number" />
       <div class="mrow">
@@ -2636,44 +2652,43 @@ async function openSalonModal(salon, onChanged){
       <input id="s-prov" class="field" value="${esc(owner.addressProvince||'')}" placeholder="Province" />
       <input id="s-addr" class="field" value="${esc(owner.addressDetail||'')}" placeholder="Address detail" />
       <div class="mrow" style="margin-top:2px">
-        <button class="btn-sm" id="s-kyc-ok" style="background:var(--green)">Approve KYC</button>
-        <button class="btn-sm" id="s-kyc-no" style="background:var(--red)">Reject KYC</button>
+        <button class="btn-sm" id="s-kyc-ok" style="background:var(--green)">${t('btn_approveKyc')}</button>
+        <button class="btn-sm" id="s-kyc-no" style="background:var(--red)">${t('btn_rejectKyc')}</button>
       </div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Publish for this salon</div>
+      <div class="mglabel">${t('lbl_publishForThisSalon')}</div>
       <div class="meta" style="color:var(--muted);margin-bottom:9px">
-        Seeds Discover while the owner is still finding their feet. Published under
-        the salon's name and recorded in the audit log — only with their consent.
+        ${t('hint_seedsDiscover')}
       </div>
       <div class="mrow">
         <input id="s-story" class="field" maxlength="200" placeholder="Story — e.g. two chairs free this afternoon (24h)" />
-        <button class="btn-sm" id="s-story-go" style="background:var(--rose)">Post story</button>
+        <button class="btn-sm" id="s-story-go" style="background:var(--rose)">${t('btn_postStory')}</button>
       </div>
       <!-- Three controls, and a file input is naturally wide: .modal .mrow is
            nowrap, which would crush them onto one line on a narrow screen. -->
       <div class="mrow" style="margin-top:8px;flex-wrap:wrap">
         <input id="s-photo" class="field" type="file" accept="image/jpeg,image/png,image/webp" />
         <input id="s-caption" class="field" maxlength="300" placeholder="Caption (optional)" />
-        <button class="btn-sm" id="s-photo-go" style="background:var(--rose)">Share photo</button>
+        <button class="btn-sm" id="s-photo-go" style="background:var(--rose)">${t('btn_sharePhoto')}</button>
       </div>
     </div>
 
     <div class="mgroup">
-      <div class="mglabel">Actions</div>
+      <div class="mglabel">${t('lbl_actions')}</div>
       <div class="mrow" style="flex-wrap:wrap">
         <button class="btn-sm" id="s-verify" style="background:${salon.isVerified?'var(--muted)':'var(--green)'}">${salon.isVerified?'Unverify salon':'Verify salon'}</button>
-        <button class="btn-sm" id="s-pw" style="background:var(--rose)">Reset password</button>
+        <button class="btn-sm" id="s-pw" style="background:var(--rose)">${t('btn_resetPassword')}</button>
       </div>
       <div class="mrow" style="margin-top:8px">
         <input id="s-baldelta" class="field" type="number" placeholder="Balance ± AFN" />
-        <button class="btn-sm" id="s-balbtn" style="background:var(--rose)">Apply</button>
+        <button class="btn-sm" id="s-balbtn" style="background:var(--rose)">${t('btn_applyBalance')}</button>
       </div>
     </div>
 
-    <button class="btn" id="s-save" style="width:100%;margin-top:4px">Save details</button>
-    <button class="btn-sm mclose" id="s-close">Close</button>
+    <button class="btn" id="s-save" style="width:100%;margin-top:4px">${t('btn_saveDetails')}</button>
+    <button class="btn-sm mclose" id="s-close">${t('btn_closeSalonModal')}</button>
   `);
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
@@ -2779,17 +2794,17 @@ async function openSalonModal(salon, onChanged){
 // ── Finance ────────────────────────────────────────────────────────────────────
 async function renderFinance(){
   $('view').innerHTML = `
-    <div class="section-title">Commission</div>
+    <div class="section-title">${t('hint_commission')}</div>
     <div class="card" style="padding:16px;max-width:420px;margin-bottom:22px">
       <div id="cflash"></div>
-      <div class="meta" id="ccur">Current: …</div>
+      <div class="meta" id="ccur">${t('lbl_current')}</div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <input id="cinput" class="field" type="number" min="0" max="100" placeholder="%" style="margin:0" />
         <button id="csave" class="btn-sm" style="background:var(--rose)">${t('btn_save')}</button>
       </div>
     </div>
     <div class="section-title">${t('hint_providerPayoutsOwed')}</div>
-    <div id="balances"><div class="empty">Loading…</div></div>
+    <div id="balances"><div class="empty">${t('lbl_templatesLoading')}</div></div>
     <div class="section-title" style="margin-top:22px">${t('hint_refundRequests')}</div>
     <div id="refunds"><div class="empty">${t('empty_loading')}</div></div>`;
 
