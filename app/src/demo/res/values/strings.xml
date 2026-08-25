@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides the production label so the demo is distinguishable on the
+         launcher. Both can be installed at once — different applicationIds —
+         and two identical icons would be a trap rather than a convenience. -->
+    <string name="app_name">SafeBeauty Demo</string>
+</resources>

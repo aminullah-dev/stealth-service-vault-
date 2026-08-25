@@ -6,7 +6,7 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 
 | What you changed | Command | Then |
 |---|---|---|
-| Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleDebug` | Install the APK from `app/build/outputs/apk/debug/` |
+| Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleProdDebug` | Install the APK from `app/build/outputs/apk/prod/debug/` |
 | Cloud Functions (`functions/index.js`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
 | Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
@@ -32,10 +32,41 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,storag
   confirming deletes it from the cloud. This prompt appears once, on the first
   `firebase deploy --only functions` after the removal.
 
+## The two flavours
+The app builds in two environments, and they are different apps to Android:
+
+| Flavour | applicationId | Firebase project | What it is for |
+|---|---|---|---|
+| `prod` | `com.security.stealthapp` | `safebeauty` | What ships to Play |
+| `demo` | `com.security.stealthapp.demo` | `safebeauty-staging` | The public demo on linumic.com |
+
+Because the applicationIds differ, both install at once and neither can read the
+other's data — which is the point: production holds customers' identity photos,
+and the demo link is public. Each flavour picks up its own
+`google-services.json`; demo's is in `app/src/demo/`, prod falls through to
+`app/google-services.json`.
+
+**Adding a flavour dimension renamed the variant tasks.** `assembleDebug` and
+`assembleRelease` survive as aggregates that build BOTH flavours;
+`testDebugUnitTest` does not exist at all any more. Name the flavour.
+
 ## Release AAB for Google Play
 1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
-2. `./gradlew bundleRelease` (signs with the keystore in `keystore.properties`).
-3. Upload `app/build/outputs/bundle/release/app-release.aab` to the Play Console.
+2. `./gradlew bundleProdRelease` (signs with the keystore in `keystore.properties`).
+3. Upload `app/build/outputs/bundle/prodRelease/app-prod-release.aab` to the Play Console.
+
+## Demo APK for the website
+`./gradlew assembleDemoRelease` → `app/build/outputs/apk/demo/release/app-demo-release.apk`.
+Signed with the same key, so it installs cleanly; points only at
+`safebeauty-staging`. Verify before publishing it anywhere:
+
+```bash
+unzip -p app/build/outputs/apk/demo/release/app-demo-release.apk resources.arsc \
+  | strings | grep -oE 'safebeauty-staging|238802374530' | sort -u
+```
+
+It must print `safebeauty-staging` and must NOT print the production project
+number `238802374530`.
 
 ## Signing key (READ THIS before touching keystores)
 Google Play only accepts uploads signed with the **official upload key**:
@@ -43,8 +74,9 @@ Google Play only accepts uploads signed with the **official upload key**:
     SHA1: A0:04:BE:C3:6A:A0:D8:BF:A6:C8:8B:7F:DB:09:36:E5:1C:68:A6:F5
     alias: safebeauty   (store == key password)
 
-- The build now **guards this automatically**: `bundleRelease`/`assembleRelease`
-  depend on `verifyReleaseSigningKey`, which fails fast with a clear message if the
+- The build now **guards this automatically**: every `assemble…Release` and
+  `bundle…Release` task, flavoured or not, depends on `verifyReleaseSigningKey`,
+  which fails fast with a clear message if the
   keystore in `keystore.properties` doesn't match the SHA1 above. No more finding
   out at upload time.
 - If you ever see `❌ Wrong signing key`, the keystore file at `storeFile` is the

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "938215172040",
+    "project_id": "safebeauty-staging",
+    "storage_bucket": "safebeauty-staging.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938215172040:android:be83b940cf54ec9a3ac2fd",
+        "android_client_info": {
+          "package_name": "com.security.stealthapp.demo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBL-72Iklw1avxbeb5fRtdij4nGdFg5NPE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

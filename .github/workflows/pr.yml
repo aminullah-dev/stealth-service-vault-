@@ -108,12 +108,16 @@ jobs:
       # A debug build needs a Maps key placeholder; local.properties is
       # gitignored, so CI supplies an obviously-fake one. Nothing here calls Maps.
       - run: echo "MAPS_API_KEY=ci-placeholder-not-a-real-key" >> local.properties
-      - run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+      # testDebugUnitTest stopped existing the moment the prod/demo flavour
+      # dimension was added — only the per-flavour tasks remain. The unit tests
+      # are flavour-agnostic, so prod alone runs them all; build-apk.yml's
+      # assembleDebug still compiles both flavours and would catch a demo break.
+      - run: ./gradlew testProdDebugUnitTest --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: android-test-report
-          path: app/build/reports/tests/testDebugUnitTest/
+          path: app/build/reports/tests/testProdDebugUnitTest/
 
   rules:
     name: Security rules compile
