@@ -105,6 +105,8 @@
     <span class="lbl" id="playlbl"></span>
   </a>
 
+  <div class="fine" id="unk" style="margin-top:10px"></div>
+
   <a class="browser" id="salonlink" href="/provider">…</a>
 
   <details>
@@ -121,12 +123,25 @@
   // "not found" page on the store.
   const PLAY = 'https://play.google.com/store/apps/details?id=com.security.stealthapp';
 
+  // The Play listing is not live yet — that URL returns 404 today, and this is
+  // the page every invite lands on. So the button hands over the signed APK
+  // instead, from the same public release the salon installers come from.
+  // Flip PLAY_LIVE the day the listing is published; nothing else changes.
+  const PLAY_LIVE = false;
+  const APK = 'https://github.com/aminullah-dev/stealth-service-vault-/releases/download/android-app/SafeBeauty.apk';
+
   const T = {
     sub:  {fa:'اپ اندروید', ps:'اندروید اپ', en:'Android App'},
     tag:  {fa:'سالن‌های زیبایی معتبر کابل را ببین، ساعت خالی‌شان را همان لحظه رزرو کن، و امن پرداخت کن.',
            ps:'د کابل د باور وړ ښکلا سالونونه وګورئ، خالي وخت یې همدا شېبه بک کړئ، او په خوندي ډول ورکړه وکړئ.',
            en:'Browse trusted beauty salons in Kabul, book a free slot the moment you see it, and pay safely.'},
     play: {fa:'دریافت از Google Play', ps:'له Google Play ترلاسه کړئ', en:'Get it on Google Play'},
+    apk:  {fa:'دانلود برای اندروید — ۲۶ مگابایت',
+           ps:'د اندروید لپاره ډاونلوډ — ۲۶ ميګابايټ',
+           en:'Download for Android — 26 MB'},
+    unk:  {fa:'قبل از باز کردن فایل، نصب از منابع ناشناس را در مرورگرت فعال کن. به‌زودی در Google Play.',
+           ps:'د فایل له پرانیستلو دمخه، په خپل براوزر کې د ناڅرګندو سرچینو نصب فعال کړئ. ژر به په Google Play کې هم وي.',
+           en:'Enable installing from unknown sources in your browser before you open the file. Coming to Google Play.'},
     ck:   {fa:'کد دعوت دوستت', ps:'ستا د ملګري بلنه کوډ', en:"Your friend's invite code"},
     cw:   {fa:'هنگام ثبت‌نام این کد را وارد کن — هر دو ۱۰۰ افغانی تخفیف می‌گیرید.',
            ps:'د راجستر پر مهال دا کوډ ولیکئ — دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کوئ.',
@@ -154,7 +169,6 @@
     document.documentElement.dir  = (l === 'en') ? 'ltr' : 'rtl';
     $('sub').textContent      = T.sub[l];
     $('tag').textContent      = T.tag[l];
-    $('playlbl').textContent  = T.play[l];
     $('ck').textContent       = T.ck[l];
     $('cw').textContent       = T.cw[l];
     $('cbtn').textContent     = T.copy[l];
@@ -162,6 +176,8 @@
     $('hs').textContent       = T.hs[l];
     $('hn').textContent       = T.hn[l];
     $('fine').textContent     = T.fine[l];
+    $('playlbl').textContent  = PLAY_LIVE ? T.play[l] : T.apk[l];
+    $('unk').textContent      = PLAY_LIVE ? '' : T.unk[l];
     document.querySelectorAll('.langpick button')
       .forEach(b => b.classList.toggle('on', b.dataset.l === l));
     $('cbtn').dataset.copy = T.copy[l];
@@ -172,8 +188,13 @@
     .forEach(b => b.onclick = () => draw(b.dataset.l));
 
   // The store link carries the code through, so a friend who installs from the
-  // invite still has it after Play hands them back to the app.
-  $('play').href = CODE ? PLAY + '&referrer=' + encodeURIComponent('code=' + CODE) : PLAY;
+  // invite still has it after Play hands them back to the app. A direct APK
+  // cannot carry a referrer, which is why the code is also shown on the page
+  // for the visitor to type in — that is the path that works today.
+  $('play').href = PLAY_LIVE
+    ? (CODE ? PLAY + '&referrer=' + encodeURIComponent('code=' + CODE) : PLAY)
+    : APK;
+  if (!PLAY_LIVE) $('play').setAttribute('download', 'SafeBeauty.apk');
 
   if (CODE) {
     $('code').classList.add('on');
