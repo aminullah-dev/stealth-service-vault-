@@ -2,6 +2,7 @@ package com.safebeauty.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -40,6 +41,21 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Keeps the app out of the recents thumbnail, and out of screenshots.
+        //
+        // The disguise stopped at the applicationId: com.security.stealthapp is
+        // only visible in Settings, while the task switcher rendered a live
+        // preview of a beauty-booking app to anyone who pressed the square
+        // button. FLAG_SECURE blanks that preview.
+        //
+        // It also blocks screenshots and screen recording app-wide, which is a
+        // real cost — a customer cannot screenshot her booking to send to a
+        // friend. That is the trade this app is for: the same picture in the
+        // wrong gallery is the thing being protected against.
+        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+                        WindowManager.LayoutParams.FLAG_SECURE)
+
         enableEdgeToEdge()
 
         // Lock the app if it returns to the foreground after 5 minutes of inactivity.
