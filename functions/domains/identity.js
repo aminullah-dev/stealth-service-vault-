@@ -193,22 +193,38 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
   const tazkiraNumber   = String(d.tazkiraNumber || "").trim();
   const addressProvince = String(d.addressProvince || "").trim();
   const addressDetail   = String(d.addressDetail || "").trim();
-  const tazkiraPhotoUrl = String(d.tazkiraPhotoUrl || "").trim();
-  const selfiePhotoUrl  = String(d.selfiePhotoUrl || "").trim();
   // Optional identity details (also editable later by the admin). Capped.
   const birthYear         = String(d.birthYear || "").trim().slice(0, 40);
   const tazkiraIssueDate  = String(d.tazkiraIssueDate || "").trim().slice(0, 40);
   const tazkiraExpiryDate = String(d.tazkiraExpiryDate || "").trim().slice(0, 40);
 
-  if (!tazkiraNumber || !addressProvince || !addressDetail ||
-      !tazkiraPhotoUrl || !selfiePhotoUrl) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Tazkira number, address, and both photos are required."
-    );
+  if (!tazkiraNumber || !addressProvince || !addressDetail) {
+    throw new HttpsError("invalid-argument", "Tazkira number and address are required.");
   }
 
   const appUser = await resolveAppUser(request);
+
+  // The photo locations are DERIVED, never sent. The client used to pass two
+  // https download URLs, which it obtained from ref.downloadUrl — a token URL,
+  // served without authentication and outside storage.rules entirely. Those
+  // strings then landed on the user document and were opened in a browser by
+  // both admin surfaces. Deriving the path from the caller's own uid removes
+  // the client-supplied string, and reading it back through the SDK puts the
+  // rules in the path of every access.
+  //
+  // Existence is checked rather than assumed: without the old "both URLs are
+  // non-empty" guard, a caller could otherwise reach PENDING with nothing
+  // uploaded and land in the review queue as two broken images.
+  const tazkiraPhotoPath = `kyc/${appUser.uid}/tazkira.jpg`;
+  const selfiePhotoPath  = `kyc/${appUser.uid}/selfie.jpg`;
+  const bucket = admin.storage().bucket();
+  const [tazkiraThere, selfieThere] = await Promise.all([
+    bucket.file(tazkiraPhotoPath).exists().then((r) => r[0]).catch(() => false),
+    bucket.file(selfiePhotoPath).exists().then((r) => r[0]).catch(() => false),
+  ]);
+  if (!tazkiraThere || !selfieThere) {
+    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.");
+  }
   const current = appUser.kycStatus || "NONE";
   if (current === "PENDING") {
     throw new HttpsError("failed-precondition", "Your verification is already under review.");
@@ -226,8 +242,13 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
     tazkiraExpiryDate,
     addressProvince,
     addressDetail,
-    tazkiraPhotoUrl,
-    selfiePhotoUrl,
+    tazkiraPhotoPath,
+    selfiePhotoPath,
+    // The legacy token URLs are cleared as their owner re-submits, so a
+    // resubmission also revokes the old public link rather than leaving it
+    // beside the new private path.
+    tazkiraPhotoUrl: "",
+    selfiePhotoUrl: "",
   });
   return { submitted: true };
 });
@@ -620,6 +641,96 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
   }
   return { ok: true, scanned: snap.size, written, collisions, ...pageEnd(snap, limit, after) };
 });
+
+// ── adminRevokeKycUrls ───────────────────────────────────────────────────────
+//
+// Closes the exposure the token URLs left behind.
+//
+// Every KYC photo uploaded before today has a download URL on its user
+// document, and that URL is a capability: `?alt=media&token=…` is served
+// without authentication, storage.rules never sees the request, and the string
+// was opened in a browser by both admin surfaces. Changing the code stops new
+// ones being minted; it does nothing about the ones already issued, which stay
+// valid for as long as the token does — which is forever.
+//
+// So this does two things per account, and the second is the one that matters:
+//
+//   1. writes the derived path and clears the stored URL, and
+//   2. rotates `firebaseStorageDownloadTokens` on the object itself, which
+//      invalidates every URL ever handed out for it.
+//
+// Rotating rather than deleting the token keeps the object reachable through
+// the SDK, which is how the app and the console now read it.
+exports.adminRevokeKycUrls = onCall(
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(200, Math.max(1, Number(data.limit || 100)));
+    const dryRun = data.dryRun === true;
+    const after  = typeof data.cursor === "string" ? data.cursor.trim() : "";
+
+    // Ordered by __name__ for the same reason as the referral backfill: an
+    // orderBy on any other field silently drops the documents that lack it, and
+    // the accounts holding the oldest URLs are the likeliest to lack anything.
+    let q = db.collection("users")
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(limit);
+    if (after) q = q.startAfter(db.collection("users").doc(after));
+    const snap = await q.get();
+
+    const bucket = admin.storage().bucket();
+    let cleared = 0;
+    let rotated = 0;
+    const failures = [];
+
+    for (const d of snap.docs) {
+      const u = d.data() || {};
+      const hadUrl = String(u.tazkiraPhotoUrl || "").trim() ||
+                     String(u.selfiePhotoUrl || "").trim();
+      const paths = [`kyc/${d.id}/tazkira.jpg`, `kyc/${d.id}/selfie.jpg`];
+
+      // Rotate whenever an object exists, not only when a URL is on the
+      // document: a URL that was copied out and then removed from Firestore is
+      // exactly the one still circulating.
+      for (const path of paths) {
+        try {
+          const file = bucket.file(path);
+          const [exists] = await file.exists();
+          if (!exists) continue;
+          if (dryRun) { rotated += 1; continue; }
+          await file.setMetadata({
+            metadata: { firebaseStorageDownloadTokens: crypto.randomUUID() },
+          });
+          rotated += 1;
+        } catch (e) {
+          failures.push({ path, error: String((e && e.message) || e) });
+        }
+      }
+
+      if (!hadUrl && u.tazkiraPhotoPath && u.selfiePhotoPath) continue;
+      if (!dryRun) {
+        await d.ref.update({
+          tazkiraPhotoPath: paths[0],
+          selfiePhotoPath:  paths[1],
+          tazkiraPhotoUrl:  "",
+          selfiePhotoUrl:   "",
+        });
+      }
+      cleared += 1;
+    }
+
+    const done = snap.size < limit;
+    const cursor = snap.size ? snap.docs[snap.docs.length - 1].id : after;
+
+    await logAdminAction(me, "REVOKE_KYC_URLS", {
+      scanned: snap.size, cleared, rotated, dryRun, failures: failures.length,
+    });
+    if (failures.length) {
+      logger.error("adminRevokeKycUrls: could not rotate", { failures });
+    }
+    return { ok: true, dryRun, scanned: snap.size, cleared, rotated, failures, cursor, done };
+  });
 
 // ── adminBackfillReferralCodes ───────────────────────────────────────────────
 //

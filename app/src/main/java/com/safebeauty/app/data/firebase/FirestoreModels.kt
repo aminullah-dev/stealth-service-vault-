@@ -36,6 +36,14 @@ data class UserDocument(
     val kycStatus: String = "NONE",         // NONE | PENDING | APPROVED | REJECTED
     val kycRejectionReason: String = "",
     val tazkiraNumber: String = "",
+    // Storage paths, not URLs — "kyc/{uid}/tazkira.jpg". Written by submitKyc,
+    // which derives them from the caller's own uid, and read back through the
+    // Storage SDK so that storage.rules is consulted on every access.
+    val tazkiraPhotoPath: String = "",
+    val selfiePhotoPath: String = "",
+    // The token URLs these replaced. Kept only so a document written before the
+    // change still renders while the backfill works through them; nothing
+    // writes them any more, and adminRevokeKycUrls empties them for good.
     val tazkiraPhotoUrl: String = "",
     val selfiePhotoUrl: String = "",
     val addressProvince: String = "",

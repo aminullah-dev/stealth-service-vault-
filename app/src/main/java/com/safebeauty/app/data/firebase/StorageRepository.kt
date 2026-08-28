@@ -79,24 +79,38 @@ class StorageRepository @Inject constructor() {
 
     /**
      * Uploads the user's national-ID (tazkira) photo to the private KYC path.
-     * Returns the HTTPS download URL (readable only by the owner + admins per
-     * storage.rules), or throws on failure.
+     *
+     * Deliberately returns NOTHING. It used to return `ref.downloadUrl`, and the
+     * comment above it claimed that URL was "readable only by the owner + admins
+     * per storage.rules". That was false. A Firebase download URL carries a
+     * token — `?alt=media&token=…` — and a token URL is a capability: it is
+     * served without authentication and storage.rules never sees the request.
+     * The URL was then written to the user document and opened in a browser by
+     * both admin surfaces, so reviewing one woman's identity card put a
+     * permanent, unauthenticated link to it in the reviewer's history.
+     *
+     * The path is fixed and derivable, so nothing needs to be returned at all:
+     * the server composes `kyc/{uid}/tazkira.jpg` itself, and the readers fetch
+     * the bytes through the SDK, where the rules apply.
      */
-    suspend fun uploadKycTazkira(uid: String, bytes: ByteArray): String {
-        val ref = storage.reference.child("kyc/$uid/tazkira.jpg")
-        ref.putBytes(bytes, JPEG_METADATA).await()
-        return ref.downloadUrl.await().toString()
+    suspend fun uploadKycTazkira(uid: String, bytes: ByteArray) {
+        storage.reference.child("kyc/$uid/tazkira.jpg").putBytes(bytes, JPEG_METADATA).await()
+    }
+
+    /** The selfie half of the same upload. See [uploadKycTazkira]. */
+    suspend fun uploadKycSelfie(uid: String, bytes: ByteArray) {
+        storage.reference.child("kyc/$uid/selfie.jpg").putBytes(bytes, JPEG_METADATA).await()
     }
 
     /**
-     * Uploads the user's verification selfie to the private KYC path.
-     * Returns the HTTPS download URL, or throws on failure.
+     * The bytes at [storagePath], fetched as the signed-in user.
+     *
+     * This is the authenticated read that replaces the token URL: the SDK sends
+     * the caller's ID token, so storage.rules decides — owner or admin for a KYC
+     * path, nobody else — and the bytes never become a shareable address.
      */
-    suspend fun uploadKycSelfie(uid: String, bytes: ByteArray): String {
-        val ref = storage.reference.child("kyc/$uid/selfie.jpg")
-        ref.putBytes(bytes, JPEG_METADATA).await()
-        return ref.downloadUrl.await().toString()
-    }
+    suspend fun downloadBytes(storagePath: String, maxBytes: Long = 8L * 1024 * 1024): ByteArray =
+        storage.reference.child(storagePath).getBytes(maxBytes).await()
 
     /**
      * Deletes the file at [storagePath] (e.g. "salon_gallery/abc/xyz.jpg").

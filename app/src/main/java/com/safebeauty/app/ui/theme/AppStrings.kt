@@ -295,6 +295,7 @@ class AppStrings {
     var kycReviewTazkiraNo: (String) -> String = { "" }
     var kycReviewViewTazkira: String = ""
     var kycReviewViewSelfie: String = ""
+    var kycPhotoUnavailable: String = ""
     var kycReviewApprove: String = ""
     var kycReviewReject: String = ""
     // ── Support + bottom navigation ──────────────────────────────────────────
@@ -981,6 +982,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "Tazkira #: $n" }
         kycReviewViewTazkira       = "View tazkira"
         kycReviewViewSelfie        = "View selfie"
+        kycPhotoUnavailable        = "This photo could not be loaded."
         kycReviewApprove           = "Approve"
         kycReviewReject            = "Reject"
         tabExplore                 = "Salons"
@@ -1611,6 +1613,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "شماره تذکره: $n" }
         kycReviewViewTazkira       = "دیدن تذکره"
         kycReviewViewSelfie        = "دیدن سلفی"
+        kycPhotoUnavailable        = "این عکس بارگذاری نشد. دوباره تلاش کنید."
         kycReviewApprove           = "تأیید"
         kycReviewReject            = "رد"
         tabExplore                 = "سالن‌ها"
@@ -2241,6 +2244,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "د تذکرې شمېره: $n" }
         kycReviewViewTazkira       = "تذکره وګورئ"
         kycReviewViewSelfie        = "سلفي وګورئ"
+        kycPhotoUnavailable        = "دا عکس ونه ښودل شو. بیا هڅه وکړئ."
         kycReviewApprove           = "تصدیق"
         kycReviewReject            = "رد"
         tabExplore                 = "سالونونه"

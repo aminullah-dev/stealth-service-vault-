@@ -80,8 +80,13 @@ class KycViewModel @Inject constructor(
         viewModelScope.launch {
             submitState = SubmitState.Submitting
             runCatching {
-                val tazkiraUrl = storageRepository.uploadKycTazkira(userId, tazkiraBytes!!)
-                val selfieUrl  = storageRepository.uploadKycSelfie(userId, selfieBytes!!)
+                // Upload first, then tell the server. Neither call returns an
+                // address: the KYC path is fixed, so submitKyc composes it from
+                // the caller's own uid and checks the objects are really there.
+                // Nothing about where a woman's identity card lives is taken
+                // from the client any more, and no shareable URL is minted.
+                storageRepository.uploadKycTazkira(userId, tazkiraBytes!!)
+                storageRepository.uploadKycSelfie(userId, selfieBytes!!)
 
                 functions.getHttpsCallable("submitKyc")
                     .call(
@@ -91,9 +96,7 @@ class KycViewModel @Inject constructor(
                             "tazkiraIssueDate"  to tazkiraIssueDate.trim(),
                             "tazkiraExpiryDate" to tazkiraExpiryDate.trim(),
                             "addressProvince"   to addressProvince.trim(),
-                            "addressDetail"     to addressDetail.trim(),
-                            "tazkiraPhotoUrl"   to tazkiraUrl,
-                            "selfiePhotoUrl"    to selfieUrl
+                            "addressDetail"     to addressDetail.trim()
                         )
                     )
                     .await()

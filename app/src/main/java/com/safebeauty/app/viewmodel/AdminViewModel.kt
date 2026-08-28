@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.safebeauty.app.data.firebase.BroadcastDocument
 import com.safebeauty.app.data.firebase.CustomerReportDocument
 import com.safebeauty.app.data.firebase.FirestoreRepository
+import com.safebeauty.app.data.firebase.StorageRepository
 import com.safebeauty.app.data.firebase.PaymentRepository
 import com.safebeauty.app.data.firebase.PayoutDocument
 import com.safebeauty.app.data.firebase.PromoDocument
@@ -50,8 +51,18 @@ class AdminViewModel @Inject constructor(
     savedStateHandle: androidx.lifecycle.SavedStateHandle,
     private val firestoreRepository: FirestoreRepository,
     private val paymentRepository: PaymentRepository,
-    private val vaultRepository: VaultRepository
+    private val vaultRepository: VaultRepository,
+    private val storageRepository: StorageRepository
 ) : ViewModel() {
+
+    /**
+     * The bytes of a KYC photo, read as the signed-in admin so storage.rules
+     * applies. The review screen used to hand a Firebase download URL to the
+     * browser instead; that URL carries a token, which means it is served
+     * without authentication and the rules never see it.
+     */
+    suspend fun kycPhotoBytes(storagePath: String): ByteArray =
+        storageRepository.downloadBytes(storagePath)
 
     /** The signed-in admin's app uid (from the nav route) — used as sender id in support chats. */
     val adminId: String = savedStateHandle.get<String>("userId") ?: ""

@@ -328,7 +328,7 @@ import { getFirestore, collection, query, where, orderBy, limit, getDocs, getDoc
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { getFunctions, httpsCallable }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js';
-import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject }
+import { getStorage, ref as sref, uploadBytes, getDownloadURL, deleteObject, getBlob }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
 
 const firebaseConfig = {
@@ -483,6 +483,29 @@ const STR = {
   bal_settled: {en:'Settled — nothing owed either way', fa:'تسویه — هیچ بدهی از هیچ طرف', ps:'تصفیه — له هیڅ اړخه پور نشته'},
   bal_owedToSalon: {en:(a)=>`${a} owed to the salon`, fa:(a)=>`${a} بدهی به سالن`, ps:(a)=>`${a} سالون ته پور`},
   bal_owedToPlatform: {en:(a)=>`${a} the salon owes the platform`, fa:(a)=>`${a} بدهی سالن به پلتفرم`, ps:(a)=>`${a} د سالون پور پلیټ‌فارم ته`},
+  lbl_notUploaded: {en:'not uploaded', fa:'بارگذاری نشده', ps:'نه دی پورته شوی'},
+  lbl_identityPhotos: {en:'Identity photos', fa:'عکس‌های هویتی', ps:'د هویت عکسونه'},
+  btn_revokePhotoLinks: {en:'Revoke old photo links', fa:'باطل‌کردن لینک‌های قدیمی عکس', ps:'د عکسونو زاړه لینکونه باطل کړئ'},
+  hint_revokeKycLinks: {
+    en:'Photos uploaded before today have a public download link stored on the account — served without authentication, where the storage rules never see the request. The app and this console now read the photo through the SDK instead. This rotates the token on every stored photo, so every link ever issued for it stops working, and clears the links off the records. The photos stay readable here and in the app. Safe to run repeatedly.',
+    fa:'عکس‌هایی که پیش از امروز بارگذاری شده‌اند، یک لینک دانلود عمومی روی حساب دارند — بدون احراز هویت سرو می‌شود و قواعد ذخیره‌سازی آن را نمی‌بینند. اپ و همین کنسول حالا عکس را از راه SDK می‌خوانند. این دکمه توکن هر عکس ذخیره‌شده را عوض می‌کند، پس هر لینکی که تا حالا صادر شده از کار می‌افتد، و لینک‌ها را از حساب‌ها پاک می‌کند. عکس‌ها اینجا و در اپ خوانا می‌مانند. اجرای چندبارهٔ آن بی‌خطر است.',
+    ps:'هغه عکسونه چې له نن دمخه پورته شوي دي، په حساب کې یو عمومي ډاونلوډ لینک لري — پرته له تصدیق وړاندې کیږي او د ذخیرې قواعد یې نه ویني. اپ او همدا کنسول اوس عکس د SDK له لارې لولي. دا تڼۍ د هر ذخیره شوي عکس ټوکن بدلوي، نو هر صادر شوی لینک له کاره لویږي، او لینکونه له حسابونو پاکوي. عکسونه دلته او په اپ کې لوستل کیږي. څو ځله یې چلول خطر نه لري.'},
+  confirm_revokeKycLinks: {
+    en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
+    fa:'توکن دانلود هر عکس هویتی ذخیره‌شده عوض شود؟\n\nهر لینکی که تا حالا برای آن عکس‌ها صادر شده از کار می‌افتد. هدف همین است — آن لینک‌ها عمومی‌اند. عکس‌ها در همین کنسول و در اپ خوانا می‌مانند، چون حالا با اعتبار خود شما گرفته می‌شوند. تکرارش بی‌خطر است.',
+    ps:'د هر ذخیره شوي هویتي عکس د ډاونلوډ ټوکن بدل شي؟\n\nهر هغه لینک چې تر اوسه د دې عکسونو لپاره صادر شوی، له کاره لویږي. موخه هم همدا ده — هغه لینکونه عمومي دي. عکسونه په همدې کنسول او په اپ کې لوستل کیږي، ځکه اوس ستاسو په اعتبار راوړل کیږي. تکرارول یې خطر نه لري.'},
+  flash_kycDry: {en:(n,r)=>`Checked ${n} account(s); ${r} stored photo(s) still have a live link.`,
+                 fa:(n,r)=>`${n} حساب بررسی شد؛ ${r} عکس ذخیره‌شده هنوز لینک زنده دارد.`,
+                 ps:(n,r)=>`${n} حسابونه وکتل شول؛ ${r} ذخیره شوي عکسونه لا هم ژوندی لینک لري.`},
+  flash_kycDone: {en:(n,r,c)=>`Checked ${n} account(s); rotated ${r} photo token(s), cleared ${c} record(s).`,
+                  fa:(n,r,c)=>`${n} حساب بررسی شد؛ توکن ${r} عکس عوض شد، ${c} حساب پاک شد.`,
+                  ps:(n,r,c)=>`${n} حسابونه وکتل شول؛ د ${r} عکسونو ټوکن بدل شو، ${c} حسابونه پاک شول.`},
+  flash_kycFailed: {en:(n)=>`${n} could not be rotated — check the logs.`,
+                    fa:(n)=>`${n} مورد عوض نشد — لاگ‌ها را ببینید.`,
+                    ps:(n)=>`${n} بدل نه شول — لاګونه وګورئ.`},
+  flash_stoppedAfter: {en:(n)=>`Stopped after ${n} — press again to carry on from here.`,
+                       fa:(n)=>`بعد از ${n} متوقف شد — دوباره بزنید تا از همین‌جا ادامه یابد.`,
+                       ps:(n)=>`له ${n} وروسته ودرېد — بیا یې کېکاږئ چې له همدې ځایه دوام ومومي.`},
   // ── Status pills ─────────────────────────────────────────────────────────
   // The coloured chips in table cells. The two earlier sweeps matched <th>,
   // <button> and prose and never looked inside a <span>, so these stayed
@@ -768,12 +791,22 @@ const kycPill = (k) => {
 };
 
 // ── Modal + callable helpers (admin actions) ──────────────────────────────────
+// Anything a modal needs to release on the way out registers here — the KYC
+// blob URLs, today. The backdrop click and Escape call hideModal directly, so
+// per-modal close buttons are not the only exit and cannot be the only cleanup.
+let modalCleanups = [];
+function onModalClose(fn){ modalCleanups.push(fn); }
 function showModal(html){
+  modalCleanups = [];
   const m = $('modal');
   m.innerHTML = `<div class="modal">${html}</div>`;
   m.classList.remove('hidden');
 }
-function hideModal(){ const m=$('modal'); m.classList.add('hidden'); m.innerHTML=''; }
+function hideModal(){
+  modalCleanups.forEach((fn) => { try { fn(); } catch (_) {} });
+  modalCleanups = [];
+  const m=$('modal'); m.classList.add('hidden'); m.innerHTML='';
+}
 // Close when clicking the dark backdrop (but not the card).
 $('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
 document.addEventListener('keydown', e => { if(e.key==='Escape' && !$('modal').classList.contains('hidden')) hideModal(); });
@@ -2283,6 +2316,12 @@ async function renderHealth(){
         <button class="btn-sm" id="h-refcodes" style="background:var(--rose)">${t('btn_fillInMissingInviteCodes')}</button>
         <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-refflash" class="mflash" style="margin-top:8px"></div>
+
+        <div class="mlabel" style="margin-top:18px">${t('lbl_identityPhotos')}</div>
+        <div class="mhint">${t('hint_revokeKycLinks')}</div>
+        <button class="btn-sm" id="h-kycrevoke" style="background:var(--red)">${t('btn_revokePhotoLinks')}</button>
+        <button class="btn-sm" id="h-kycdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
+        <div id="h-kycflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
@@ -2414,6 +2453,50 @@ async function renderHealth(){
         btn.textContent = lbl;
       }
     };
+
+    // Same shape as runRefCodes: a time budget rather than a page count, a
+    // cursor that survives the click, and a message that says when it stopped
+    // short instead of printing the sentence a finished run prints.
+    const runKycRevoke = async (btn, dryRun) => {
+      if (refBusy) return;
+      const flash = $('h-kycflash');
+      const buttons = [$('h-kycrevoke'), $('h-kycdry')];
+      const lbl = btn.textContent;
+      const key = dryRun ? 'kycDry' : 'kycReal';
+      if (!dryRun && !confirm(t('confirm_revokeKycLinks'))) return;
+      refBusy = true;
+      buttons.forEach(b => { b.disabled = true; });
+      const started = Date.now();
+      let scanned = 0, cleared = 0, rotated = 0, complete = false;
+      const failures = [];
+      try{
+        while (Date.now() - started < 120000) {
+          btn.textContent = `${lbl} … ${rotated}`;
+          const { data } = await httpsCallable(fns,'adminRevokeKycUrls')(
+            { limit: 100, dryRun, cursor: refCursors[key] || '' });
+          scanned += data.scanned; cleared += data.cleared; rotated += data.rotated;
+          failures.push(...(data.failures||[]));
+          refCursors[key] = data.cursor;
+          if (data.done) { complete = true; refCursors[key] = ''; break; }
+        }
+        const head = dryRun ? t('flash_kycDry', scanned, rotated)
+                            : t('flash_kycDone', scanned, rotated, cleared);
+        const extra = failures.length ? ' ' + t('flash_kycFailed', failures.length) : '';
+        const tail  = complete ? '' : ' ' + t('flash_stoppedAfter', scanned);
+        flash.className = 'mflash ' + ((failures.length || !complete) ? 'bad' : 'ok');
+        flash.textContent = head + extra + tail;
+      }catch(err){
+        flash.className = 'mflash bad';
+        flash.textContent = fnError(err) + (scanned ? ' ' + t('flash_stoppedAfter', scanned) : '');
+      }finally{
+        refBusy = false;
+        buttons.forEach(b => { b.disabled = false; });
+        btn.textContent = lbl;
+      }
+    };
+    $('h-kycrevoke').onclick = (e) => runKycRevoke(e.target, false);
+    $('h-kycdry').onclick    = (e) => runKycRevoke(e.target, true);
+
     $('h-refcodes').onclick = (e) => runRefCodes(e.target, false);
     $('h-refdry').onclick   = (e) => runRefCodes(e.target, true);
 
@@ -2649,9 +2732,37 @@ async function openSalonModal(salon, onChanged){
   let owner = {};
   try{ const s = await getDoc(doc(db,'users', salon.providerId)); if(s.exists()) owner = { id:s.id, ...s.data() }; }catch(_){}
 
-  const photo = (url,label) => url
-    ? `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${label}" style="width:92px;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--line)"/></a>`
-    : `<div style="width:92px;height:92px;border-radius:11px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">not<br>uploaded</div>`;
+  // A KYC photo is rendered from its Storage PATH, fetched with getBlob so the
+  // request carries the admin's token and storage.rules decides. It used to be
+  // an <img src> and an <a target="_blank"> pointing at a Firebase download
+  // URL — a token URL, served without authentication — so opening one put a
+  // permanent public link to a woman's identity card in the browser history,
+  // and the anchor invited passing it on. The blob URL below is local to this
+  // tab and dies with it.
+  const photo = (path,label) => path
+    ? `<img data-kyc="${esc(path)}" alt="${label}" style="width:92px;height:92px;object-fit:cover;border-radius:11px;border:1px solid var(--line);background:var(--surface)"/>`
+    : `<div style="width:92px;height:92px;border-radius:11px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center">${t('lbl_notUploaded')}</div>`;
+
+  // Blob URLs are revoked when the modal closes, so the bytes do not outlive
+  // the review they were fetched for.
+  const loadKycPhotos = (root) => {
+    const made = [];
+    root.querySelectorAll('img[data-kyc]').forEach(async (img) => {
+      try {
+        const blob = await getBlob(sref(storage, img.dataset.kyc));
+        const u = URL.createObjectURL(blob);
+        made.push(u);
+        img.src = u;
+      } catch (_) {
+        img.replaceWith(Object.assign(document.createElement('div'), {
+          className: 'meta',
+          textContent: t('lbl_notUploaded'),
+          style: 'width:92px;height:92px;border-radius:11px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center',
+        }));
+      }
+    });
+    return () => made.forEach((u) => URL.revokeObjectURL(u));
+  };
 
   showModal(`
     <h2>${esc(salon.salonName||salon.id)}</h2>
@@ -2674,8 +2785,8 @@ async function openSalonModal(salon, onChanged){
     <div class="mgroup">
       <div class="mglabel">${t('lbl_identityDocuments')}</div>
       <div style="display:flex;gap:18px;margin-bottom:13px">
-        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_tazkira')}</div>${photo(owner.tazkiraPhotoUrl,'Tazkira')}</div>
-        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_selfie')}</div>${photo(owner.selfiePhotoUrl,'Selfie')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_tazkira')}</div>${photo(owner.tazkiraPhotoPath||'','Tazkira')}</div>
+        <div style="text-align:center"><div class="meta" style="margin-bottom:5px;color:var(--muted)">${t('lbl_selfie')}</div>${photo(owner.selfiePhotoPath||'','Selfie')}</div>
       </div>
       <input id="s-tazkira" class="field" value="${esc(owner.tazkiraNumber||'')}" placeholder="Tazkira number" />
       <div class="mrow">
@@ -2726,6 +2837,10 @@ async function openSalonModal(salon, onChanged){
   `);
 
   const refresh = () => { if(onChanged) setTimeout(onChanged, 800); };
+  // Fetch the two KYC photos now that the modal is in the DOM, and revoke the
+  // blob URLs on the way out. Every path that closes this modal runs it: the
+  // button, the backdrop and Escape all go through hideModal.
+  onModalClose(loadKycPhotos($('modal')));
   $('s-close').onclick = hideModal;
 
   $('s-story-go').onclick = async (e) => {
