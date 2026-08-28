@@ -120,8 +120,22 @@ echo "── firebase deploy"
 # below is the step that exists to stop a callable going live returning 403 —
 # skipping it exactly when a deploy went wrong is the opposite of what it is for.
 # The failure is not swallowed: it is re-raised at the end, after the check.
+# Functions go out in batches. Cloud Build runs one build per function and the
+# project's concurrent quota is small: asking for seventeen at once put every
+# one of them in a queue none of them left, and they were cancelled at the queue
+# TTL without a single startTime between them. Five at a time, sequentially,
+# stays under it. Slower, and it finishes.
 DEPLOY_STATUS=0
-if [[ -n "$TARGETS" ]]; then
+if [[ "$TARGETS" == functions:* ]]; then
+  IFS=',' read -ra FNS <<<"$TARGETS"
+  TOTAL=${#FNS[@]}
+  BATCH=5
+  for ((i = 0; i < TOTAL; i += BATCH)); do
+    CHUNK="$(IFS=,; echo "${FNS[*]:i:BATCH}")"
+    echo "── batch $((i / BATCH + 1)) of $(((TOTAL + BATCH - 1) / BATCH)): $(tr ',' ' ' <<<"${CHUNK//functions:/}")"
+    npx firebase deploy --project "$PROJECT" --only "$CHUNK" || DEPLOY_STATUS=$?
+  done
+elif [[ -n "$TARGETS" ]]; then
   npx firebase deploy --project "$PROJECT" --only "$TARGETS" || DEPLOY_STATUS=$?
 else
   npx firebase deploy --project "$PROJECT" || DEPLOY_STATUS=$?
