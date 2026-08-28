@@ -13,7 +13,7 @@ fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.ENGLISH) LayoutDirection.Ltr else LayoutDirection.Rtl
 
 class AppStrings {
-    // Active language — lets screens localize data-driven lists (e.g. KabulAreas)
+    // Active language — lets screens localize data-driven lists (e.g. Areas)
     // that live outside these string blocks.
     var language: AppLanguage = AppLanguage.ENGLISH
     // Login screen

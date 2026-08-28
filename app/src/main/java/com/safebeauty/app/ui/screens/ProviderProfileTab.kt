@@ -201,7 +201,7 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                 Text(strings.sectionLocation, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
                 HorizontalDivider(color = BlushPink)
                 // District picker — the salon's `district` is stored as a canonical
-                // KabulAreas key so it always matches the customer neighborhood filter.
+                // Areas key so it always matches the customer neighborhood filter.
                 var showDistrictMenu by remember { mutableStateOf(false) }
                 val hasDistrict = viewModel.editDistrict.isNotBlank()
                 Box(modifier = Modifier.fillMaxWidth()) {
@@ -216,7 +216,7 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                         Spacer(Modifier.width(6.dp))
                         Text(
                             if (hasDistrict)
-                                com.safebeauty.app.util.KabulAreas.labelForKey(viewModel.editDistrict, strings.language)
+                                com.safebeauty.app.util.Areas.labelForKey(viewModel.editDistrict, strings.language)
                             else strings.districtArea,
                             fontSize = 13.sp,
                             modifier = Modifier.weight(1f),
@@ -229,9 +229,9 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
                         onDismissRequest = { showDistrictMenu = false },
                         modifier         = Modifier.background(DashboardSurface)
                     ) {
-                        com.safebeauty.app.util.KabulAreas.areas.forEach { area ->
+                        com.safebeauty.app.util.Areas.areas.forEach { area ->
                             androidx.compose.material3.DropdownMenuItem(
-                                text    = { Text(com.safebeauty.app.util.KabulAreas.labelFor(area, strings.language), fontSize = 13.sp, color = DeepRose) },
+                                text    = { Text(com.safebeauty.app.util.Areas.labelFor(area, strings.language), fontSize = 13.sp, color = DeepRose) },
                                 onClick = { viewModel.onDistrictChanged(area.key); showDistrictMenu = false }
                             )
                         }
