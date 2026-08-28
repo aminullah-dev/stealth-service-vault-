@@ -123,11 +123,9 @@
   // "not found" page on the store.
   const PLAY = 'https://play.google.com/store/apps/details?id=com.security.stealthapp';
 
-  // The Play listing is not live yet — that URL returns 404 today, and this is
-  // the page every invite lands on. So the button hands over the signed APK
-  // instead, from the same public release the salon installers come from.
-  // Flip PLAY_LIVE the day the listing is published; nothing else changes.
-  const PLAY_LIVE = false;
+  // Published 2026-08-28; the listing returns 200. The button is back on the
+  // store, and the APK below stays as the fallback for a phone with no Play.
+  const PLAY_LIVE = true;
   const APK = 'https://github.com/aminullah-dev/stealth-service-vault-/releases/download/android-app/SafeBeauty.apk';
 
   const T = {
@@ -187,13 +185,15 @@
   document.querySelectorAll('.langpick button')
     .forEach(b => b.onclick = () => draw(b.dataset.l));
 
-  // The store link carries the code through, so a friend who installs from the
-  // invite still has it after Play hands them back to the app. A direct APK
-  // cannot carry a referrer, which is why the code is also shown on the page
-  // for the visitor to type in — that is the path that works today.
-  $('play').href = PLAY_LIVE
-    ? (CODE ? PLAY + '&referrer=' + encodeURIComponent('code=' + CODE) : PLAY)
-    : APK;
+  // No referrer parameter, deliberately. It used to append one — and nothing
+  // has ever read it: the app has no com.android.installreferrer dependency and
+  // never calls getInstallReferrer, so referredBy is only ever set by the
+  // visitor typing the code into the sign-up form. A parameter that looks like
+  // attribution and silently does nothing is worse than none, because it is the
+  // reason nobody notices attribution is not happening. The code is printed on
+  // this page for her to type, which is the path that actually works; wiring
+  // the Install Referrer API would make the automatic one real.
+  $('play').href = PLAY_LIVE ? PLAY : APK;
   if (!PLAY_LIVE) $('play').setAttribute('download', 'SafeBeauty.apk');
 
   if (CODE) {
