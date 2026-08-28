@@ -686,18 +686,19 @@ exports.adminRevokeKycUrls = onCall(
 
     for (const d of snap.docs) {
       const u = d.data() || {};
-      const hadUrl = String(u.tazkiraPhotoUrl || "").trim() ||
-                     String(u.selfiePhotoUrl || "").trim();
       const paths = [`kyc/${d.id}/tazkira.jpg`, `kyc/${d.id}/selfie.jpg`];
+      const present = [false, false];
 
       // Rotate whenever an object exists, not only when a URL is on the
       // document: a URL that was copied out and then removed from Firestore is
       // exactly the one still circulating.
-      for (const path of paths) {
+      for (let i = 0; i < paths.length; i += 1) {
+        const path = paths[i];
         try {
           const file = bucket.file(path);
           const [exists] = await file.exists();
           if (!exists) continue;
+          present[i] = true;
           if (dryRun) { rotated += 1; continue; }
           await file.setMetadata({
             metadata: { firebaseStorageDownloadTokens: crypto.randomUUID() },
@@ -708,15 +709,19 @@ exports.adminRevokeKycUrls = onCall(
         }
       }
 
-      if (!hadUrl && u.tazkiraPhotoPath && u.selfiePhotoPath) continue;
-      if (!dryRun) {
-        await d.ref.update({
-          tazkiraPhotoPath: paths[0],
-          selfiePhotoPath:  paths[1],
-          tazkiraPhotoUrl:  "",
-          selfiePhotoUrl:   "",
-        });
-      }
+      // A path is written only where the photo is really there. Writing it for
+      // everyone would be simpler and would quietly destroy the meaning of the
+      // field: every account would then claim a tazkira, the console would
+      // render an <img> for each, and ten of the twelve would fail to load and
+      // read as "not uploaded" — which is what an account with no photo should
+      // say, but arrived at by a broken fetch rather than by an empty field.
+      const patch = {};
+      if (present[0]) patch.tazkiraPhotoPath = paths[0];
+      if (present[1]) patch.selfiePhotoPath  = paths[1];
+      if (String(u.tazkiraPhotoUrl || "")) patch.tazkiraPhotoUrl = "";
+      if (String(u.selfiePhotoUrl || ""))  patch.selfiePhotoUrl  = "";
+      if (!Object.keys(patch).length) continue;
+      if (!dryRun) await d.ref.update(patch);
       cleared += 1;
     }
 
