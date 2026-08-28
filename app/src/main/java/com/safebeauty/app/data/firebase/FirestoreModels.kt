@@ -180,7 +180,16 @@ data class SalonDocument(
     val providerId: String = "",
     val providerName: String = "",
     val salonName: String = "",
+    // The ناحیه — a DISTRICT key, and what the customer's filter and every
+    // composite index match on.
     val district: String = "",
+    // The گذر or محله inside that district, when the salon named one. Optional,
+    // and deliberately NOT what queries filter by: a salon that picked a guzar
+    // must still be found by someone searching its district, which it would not
+    // be if the finer key had been stored in `district` instead. It is for
+    // display and for search; where the salon actually is remains its
+    // coordinates.
+    val areaKey: String = "",
     // Derived server-side by deriveSalonFields from `district` and `services`,
     // and frozen against client writes. These are what the category and
     // neighbourhood filters can actually match on: `district` is free text on

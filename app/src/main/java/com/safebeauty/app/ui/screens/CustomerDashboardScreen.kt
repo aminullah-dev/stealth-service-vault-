@@ -373,11 +373,15 @@ fun CustomerDashboardScreen(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
         strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
     )
-    // "All neighborhoods" + every canonical area (Areas), localized
-    // to the current language. Parallel to the ViewModel's NEIGHBORHOOD_KEYS.
-    val neighborhoodLabels = remember(strings.language) {
+    // "All neighborhoods" + the districts of the selected city, localized.
+    // Must stay index-parallel with the ViewModel's neighborhoodKeysFor — the
+    // filter is chosen by position, so a labels list built from a different set
+    // than the keys list would silently filter by the wrong district.
+    val selectedCity by viewModel.selectedCity.collectAsStateWithLifecycle()
+    val neighborhoodLabels = remember(strings.language, selectedCity) {
         listOf(strings.neighborhoodAll) +
-            com.safebeauty.app.util.Areas.labels(strings.language)
+            com.safebeauty.app.util.Areas.districtsIn(selectedCity)
+                .map { com.safebeauty.app.util.Areas.labelFor(it, strings.language) }
     }
 
     var showNeighborhoodMenu by remember { mutableStateOf(false) }

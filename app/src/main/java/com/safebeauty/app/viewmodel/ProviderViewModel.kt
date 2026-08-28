@@ -287,6 +287,7 @@ class ProviderViewModel @Inject constructor(
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 
     var editDistrict     by mutableStateOf("")
+    var editAreaKey      by mutableStateOf("")
     var editServices     by mutableStateOf<List<String>>(emptyList())
     var newServiceDraft  by mutableStateOf("")
     var showSaveSuccess  by mutableStateOf(false)
@@ -323,6 +324,7 @@ class ProviderViewModel @Inject constructor(
             salon.collect { s ->
                 if (s != null && editDistrict.isEmpty()) {
                     editDistrict = s.district
+                    editAreaKey  = s.areaKey
                     editServices = s.services
                     editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
@@ -398,7 +400,11 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
-    fun onDistrictChanged(v: String)        { editDistrict = v }
+    // Changing the district clears the finer area: a گذر belongs to exactly one
+    // ناحیه, so keeping the old one would leave the salon claiming a guzar that
+    // is not in the district it says it is in.
+    fun onDistrictChanged(v: String)        { if (v != editDistrict) editAreaKey = ""; editDistrict = v }
+    fun onAreaKeyChanged(v: String)         { editAreaKey = v }
     fun onHesabAccountNumberChanged(v: String) { editHesabAccountNumber = v }
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
     fun setPriceForService(service: String, price: Int) {
@@ -534,6 +540,7 @@ class ProviderViewModel @Inject constructor(
                 firestoreRepository.updateSalon(
                     current.copy(
                         district            = editDistrict,
+                        areaKey             = editAreaKey,
                         services            = editServices,
                         workingHours        = editWorkingHours,
                         slotDurationMinutes = editSlotDuration,

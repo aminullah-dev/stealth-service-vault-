@@ -63,10 +63,16 @@ import javax.inject.Inject
 
 // Internal English keys used for Firestore filtering — independent of display language.
 private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
-// Index 0 is the "show everything" sentinel; the rest are the canonical Kabul
-// area keys shared with the provider's district picker (see Areas), so a
-// salon's stored `district` always lines up with a filter option.
-private val NEIGHBORHOOD_KEYS = listOf("All Neighborhoods") + com.safebeauty.app.util.Areas.keys
+// Index 0 is the "show everything" sentinel; the rest are the districts of ONE
+// city, shared with the provider's district picker (see Areas), so a salon's
+// stored district always lines up with a filter option.
+//
+// Scoped to a city rather than listing every area in the country: the flat list
+// was workable with Kabul's 64 and is not with 121 across four cities, and a
+// Kabul customer has no use for Herat's districts. Districts only — a گذر is a
+// level below what anyone filters by.
+private fun neighborhoodKeysFor(cityKey: String): List<String> =
+    listOf("All Neighborhoods") + com.safebeauty.app.util.Areas.districtsIn(cityKey).map { it.key }
 
 data class BookingStatusChange(
     val salonName: String,
@@ -133,7 +139,18 @@ class DashboardViewModel @Inject constructor(
     val customerId: String = checkNotNull(savedStateHandle["userId"])
 
     val categoryCount     = CATEGORY_KEYS.size
-    val neighborhoodCount = NEIGHBORHOOD_KEYS.size
+    /** The city whose salons and districts the customer is looking at. */
+    private val _selectedCity = MutableStateFlow(com.safebeauty.app.util.Areas.KABUL)
+    val selectedCity: StateFlow<String> = _selectedCity
+
+    fun onCityChanged(cityKey: String) {
+        if (cityKey == _selectedCity.value) return
+        _selectedCity.value = cityKey
+        // The district indices belong to the old city's list.
+        _selectedNeighborhoodIndex.value = 0
+    }
+
+    val neighborhoodCount get() = neighborhoodKeysFor(_selectedCity.value).size
 
     private val _selectedCategoryIndex      = MutableStateFlow(0)
     private val _selectedNeighborhoodIndex  = MutableStateFlow(0)
@@ -227,7 +244,8 @@ class DashboardViewModel @Inject constructor(
         val catIdx  = _selectedCategoryIndex.value
         val hoodIdx = _selectedNeighborhoodIndex.value
         return FirestoreRepository.SalonFilter(
-            districtKey = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "" }
+            city        = _selectedCity.value,
+            districtKey = neighborhoodKeysFor(_selectedCity.value).getOrElse(hoodIdx) { "" }
                 .takeIf { hoodIdx > 0 } ?: "",
             category    = CATEGORY_KEYS.getOrElse(catIdx) { "" }
                 .takeIf { catIdx > 0 } ?: "",

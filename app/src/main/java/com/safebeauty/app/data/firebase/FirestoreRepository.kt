@@ -319,6 +319,15 @@ class FirestoreRepository @Inject constructor(
     enum class SalonOrder { RATING, PRICE, NAME }
 
     data class SalonFilter(
+        // Which city's salons to show. Every query carries it, because a
+        // customer in Herat looking at Kabul salons is not a filter she forgot
+        // to apply — it is the wrong list.
+        //
+        // ORDERING DEPENDENCY: this only works once every salon has `city`,
+        // which deriveSalonFields writes and adminNormalizeSalons backfills.
+        // Ship this ahead of that backfill and an equality filter on a field
+        // nothing has yet returns nothing at all, for every customer.
+        val city: String = "",             // "" = every city
         val districtKey: String = "",      // "" = every neighbourhood
         val category: String = "",         // "" = every category
         val favoriteIds: List<String> = emptyList(),  // non-empty = favourites only
@@ -346,6 +355,9 @@ class FirestoreRepository @Inject constructor(
         // product decision, not one to change silently while migrating.
         var q: Query = salonsCol.whereEqualTo("isAvailable", true)
 
+        if (filter.city.isNotBlank()) {
+            q = q.whereEqualTo("city", filter.city)
+        }
         if (filter.districtKey.isNotBlank()) {
             q = q.whereEqualTo("districtKey", filter.districtKey)
         }

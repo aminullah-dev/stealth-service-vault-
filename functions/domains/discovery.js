@@ -3,7 +3,7 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const { normalizeDistrict, cityOf } = require("../lib/areas");
+const { normalizeDistrict, cityOf, AREAS } = require("../lib/areas");
 // `normalize` is imported under a clearer local name — lib/categories has no
 // export called categoryNormalize, and dropping the rename made it undefined.
 const { categoriesFor, normalize: categoryNormalize } = require("../lib/categories");
@@ -218,12 +218,29 @@ function salonMinPrice(salon) {
 
 /** What the derived fields should be for a salon, given what it stores. */
 
+/** Area lookup by key, built once — deriveSalonDiscovery runs on every write. */
+const AREA_BY_KEY = new Map(AREAS.map((a) => [a.key, a]));
+
 function deriveSalonDiscovery(salon) {
   const { categories, unmatched } = categoriesFor(salon && salon.services);
   const area = normalizeDistrict(salon && salon.district);
+  const districtKey = area.key || "";
+
+  // The finer گذر/محله, kept only when it is a real area that actually sits in
+  // the district the salon claims. A salon could otherwise store a guzar from
+  // another district — or another city — and be displayed at an address it is
+  // not at. Where it does not check out the field is emptied rather than
+  // corrected: an unverifiable address should show as absent, not as a guess.
+  const claimed = String((salon && salon.areaKey) || "").trim();
+  const finer = claimed && AREA_BY_KEY.get(claimed);
+  const areaKey = (finer && finer.kind !== "DISTRICT" && finer.parent === districtKey)
+    ? claimed
+    : "";
+
   return {
     categories,
-    districtKey: area.key || "",
+    districtKey,
+    areaKey,
     // Prefix-searchable form of the name. Firestore cannot match a substring,
     // but a range on a normalized name gives prefix search, which is what a
     // customer typing the start of a salon name actually needs.
@@ -248,6 +265,7 @@ function storedDiscoveryFields(derived) {
   return {
     categories:  derived.categories,
     districtKey: derived.districtKey,
+    areaKey:     derived.areaKey,
     // Derived from the district key's prefix rather than stored separately by
     // the salon, so the two can never disagree about which city a salon is in.
     // Empty when the district is unresolved — and empty is the honest value:
@@ -290,6 +308,7 @@ function discoveryUpToDate(salon, derived) {
       // that could be missing — and a field this function does not look at is a
       // field the backfill decides it does not need to write.
       && (salon.city || "") === derived.city
+      && (salon.areaKey || "") === derived.areaKey
       && (salon.nameKey || "") === derived.nameKey
       && Number(salon.minPrice) === derived.minPrice
       && Number(salon.sortRating) === derived.sortRating
