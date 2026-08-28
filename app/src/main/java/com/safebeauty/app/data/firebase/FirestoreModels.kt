@@ -186,6 +186,10 @@ data class SalonDocument(
     // neighbourhood filters can actually match on: `district` is free text on
     // older salons, and `services` is free text on all of them.
     val districtKey: String = "",
+    // Derived server-side from districtKey's prefix (KBL_, HRT_, …). Never set by
+    // the salon: two fields that can disagree about where a salon is would be
+    // one field too many.
+    val city: String = "",
     val categories: List<String> = emptyList(),
     val services: List<String> = emptyList(),
     // Staff who work here. Empty = a solo salon (the classic single-chair case);

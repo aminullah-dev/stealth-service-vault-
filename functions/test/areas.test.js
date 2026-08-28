@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
-const { AREAS, KEYS, normalizeDistrict } = require("../lib/areas");
+const { AREAS, KEYS, CITIES, cityOf, LEGACY_KEYS, normalizeDistrict } = require("../lib/areas");
 
 const KOTLIN = path.join(
   __dirname, "..", "..",
@@ -29,14 +29,33 @@ test("keys are unique", () => {
 });
 
 test("a district already stored as a canonical key passes straight through", () => {
-  assert.deepStrictEqual(normalizeDistrict("D9_Makroryan"), { key: "D9_Makroryan" });
-  assert.deepStrictEqual(normalizeDistrict("Khair_Khana"), { key: "Khair_Khana" });
+  assert.deepStrictEqual(normalizeDistrict("KBL_D9_Makroryan"), { key: "KBL_D9_Makroryan" });
+  assert.deepStrictEqual(normalizeDistrict("KBL_Khair_Khana"), { key: "KBL_Khair_Khana" });
+});
+
+test("a pre-prefix key still resolves, because production is full of them", () => {
+  // Every salon stored its district before the keys carried a city. If these
+  // stopped resolving the day this shipped, every existing salon would drop out
+  // of every neighbourhood filter at once — and the backfill runs after the
+  // deploy, not before it.
+  assert.deepStrictEqual(normalizeDistrict("D9_Makroryan"), { key: "KBL_D9_Makroryan" });
+  assert.deepStrictEqual(normalizeDistrict("Shirpur"), { key: "KBL_Shirpur" });
+  assert.strictEqual(LEGACY_KEYS.size, KEYS.length);
+});
+
+test("every area key names the city it is in", () => {
+  // The whole reason for the prefix: Herat district 1 and Kabul district 1 must
+  // not be one key. Anything that groups by area alone is then safe by
+  // construction rather than by remembering to add a filter.
+  for (const k of KEYS) assert.ok(cityOf(k), `${k} has no city prefix`);
+  assert.strictEqual(new Set(KEYS.map(cityOf)).size, 1, "only Kabul is populated yet");
+  assert.deepStrictEqual(CITIES.filter((c) => c.live).map((c) => c.key), ["KABUL"]);
 });
 
 test("an unambiguous label resolves to its key", () => {
-  assert.deepStrictEqual(normalizeDistrict("شیرپور"), { key: "Shirpur" });
-  assert.deepStrictEqual(normalizeDistrict("Shirpur"), { key: "Shirpur" });
-  assert.deepStrictEqual(normalizeDistrict("  دهبوری "), { key: "Dehbori" });
+  assert.deepStrictEqual(normalizeDistrict("شیرپور"), { key: "KBL_Shirpur" });
+  assert.deepStrictEqual(normalizeDistrict("Shirpur"), { key: "KBL_Shirpur" });
+  assert.deepStrictEqual(normalizeDistrict("  دهبوری "), { key: "KBL_Dehbori" });
 });
 
 test("the live legacy value is reported as ambiguous, not guessed", () => {
@@ -45,12 +64,12 @@ test("the live legacy value is reported as ambiguous, not guessed", () => {
   // salon for anyone searching by neighbourhood, and nobody would know which.
   const r = normalizeDistrict("خیرخانه مینه ناحیه 17");
   assert.strictEqual(r.key, undefined);
-  assert.deepStrictEqual(r.candidates.sort(), ["D17", "Khair_Khana"]);
+  assert.deepStrictEqual(r.candidates.sort(), ["KBL_D17", "KBL_Khair_Khana"]);
 });
 
 test("Persian and Arabic digits are read as digits", () => {
-  assert.deepStrictEqual(normalizeDistrict("ناحیه ۱۷"), { key: "D17" });
-  assert.deepStrictEqual(normalizeDistrict("ناحیه 17"), { key: "D17" });
+  assert.deepStrictEqual(normalizeDistrict("ناحیه ۱۷"), { key: "KBL_D17" });
+  assert.deepStrictEqual(normalizeDistrict("ناحیه 17"), { key: "KBL_D17" });
 });
 
 test("nothing recognisable yields nothing, rather than a wrong key", () => {

@@ -3,7 +3,7 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const { normalizeDistrict } = require("../lib/areas");
+const { normalizeDistrict, cityOf } = require("../lib/areas");
 // `normalize` is imported under a clearer local name — lib/categories has no
 // export called categoryNormalize, and dropping the rename made it undefined.
 const { categoriesFor, normalize: categoryNormalize } = require("../lib/categories");
@@ -248,6 +248,12 @@ function storedDiscoveryFields(derived) {
   return {
     categories:  derived.categories,
     districtKey: derived.districtKey,
+    // Derived from the district key's prefix rather than stored separately by
+    // the salon, so the two can never disagree about which city a salon is in.
+    // Empty when the district is unresolved — and empty is the honest value:
+    // orderBy would drop such a salon anyway, and a guessed city would put it
+    // in a list of salons a customer could not actually reach.
+    city:        cityOf(derived.districtKey),
     nameKey:     derived.nameKey,
     minPrice:    derived.minPrice,
     sortRating:  derived.sortRating,
@@ -278,6 +284,12 @@ function discoveryUpToDate(salon, derived) {
   return stored.length === derived.categories.length
       && stored.every((c, i) => c === derived.categories[i])
       && (salon.districtKey || "") === derived.districtKey
+      // Compared even though it is derived from districtKey, which is compared
+      // one line above. Today that makes it redundant; the moment the districts
+      // are migrated it stops being, because city would then be the only field
+      // that could be missing — and a field this function does not look at is a
+      // field the backfill decides it does not need to write.
+      && (salon.city || "") === derived.city
       && (salon.nameKey || "") === derived.nameKey
       && Number(salon.minPrice) === derived.minPrice
       && Number(salon.sortRating) === derived.sortRating
