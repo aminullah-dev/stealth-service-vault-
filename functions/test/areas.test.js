@@ -15,7 +15,7 @@ test("the server copy still matches Areas.kt exactly", () => {
   // if a key is renamed on one side only, stored districts stop resolving.
   const src = fs.readFileSync(KOTLIN, "utf8");
   const rows = [...src.matchAll(
-    /Area\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*(?:,\s*(DISTRICT|NEIGHBOURHOOD)\s*)?(?:,\s*"([^"]*)"\s*)?\)/g
+    /Area\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*(?:,\s*(DISTRICT|GUZAR|NEIGHBOURHOOD)\s*)?(?:,\s*"([^"]*)"\s*)?\)/g
   )].map((m) => {
     const row = { key: m[1], fa: m[2], en: m[3], kind: m[4] || "NEIGHBOURHOOD" };
     if (m[5]) row.parent = m[5];
@@ -56,8 +56,8 @@ test("every area key names the city it is in", () => {
   // not be one key. Anything that groups by area alone is then safe by
   // construction rather than by remembering to add a filter.
   for (const k of KEYS) assert.ok(cityOf(k), `${k} has no city prefix`);
-  assert.deepStrictEqual([...new Set(KEYS.map(cityOf))].sort(), ["HERAT", "KABUL"]);
-  assert.deepStrictEqual(CITIES.filter((c) => c.live).map((c) => c.key), ["KABUL", "HERAT"]);
+  assert.deepStrictEqual([...new Set(KEYS.map(cityOf))].sort(), ["HERAT", "JALALABAD", "KABUL", "MAZAR"]);
+  assert.deepStrictEqual(CITIES.filter((c) => c.live).map((c) => c.key), ["KABUL", "HERAT", "MAZAR", "JALALABAD"]);
 });
 
 test("an unambiguous label resolves to its key", () => {
@@ -90,12 +90,16 @@ test("a ناحیه and a محله are not the same level", () => {
   // They were flattened into one list, so a form could offer a district and a
   // neighbourhood as if they were alternatives. Kind separates them.
   const kinds = new Set(AREAS.map((a) => a.kind));
-  assert.deepStrictEqual([...kinds].sort(), ["DISTRICT", "NEIGHBOURHOOD"]);
-  assert.strictEqual(AREAS.filter((a) => cityOf(a.key) === "HERAT" && a.kind === "DISTRICT").length, 15);
-  assert.strictEqual(AREAS.filter((a) => cityOf(a.key) === "KABUL" && a.kind === "DISTRICT").length, 22);
+  assert.deepStrictEqual([...kinds].sort(), ["DISTRICT", "GUZAR", "NEIGHBOURHOOD"]);
+  const districts = (c) => AREAS.filter((a) => cityOf(a.key) === c && a.kind === "DISTRICT").length;
+  assert.deepStrictEqual(
+    { KABUL: districts("KABUL"), HERAT: districts("HERAT"),
+      MAZAR: districts("MAZAR"), JALALABAD: districts("JALALABAD") },
+    { KABUL: 22, HERAT: 15, MAZAR: 12, JALALABAD: 9 }
+  );
 });
 
-test("a neighbourhood's parent is a real district in the same city, or absent", () => {
+test("a sub-area's parent is a real district in the same city, or absent", () => {
   // Absent is the honest value where the pairing is not sourced. Kabul's forty-
   // two have none: putting a salon in a district it is not in would be a wrong
   // answer nobody could see. Herat's twelve are named by the municipality.
@@ -104,9 +108,13 @@ test("a neighbourhood's parent is a real district in the same city, or absent", 
     if (!a.parent) continue;
     assert.ok(districts.has(a.parent), `${a.key} names a parent that is not a district`);
     assert.strictEqual(cityOf(a.parent), cityOf(a.key), `${a.key} names a parent in another city`);
-    assert.strictEqual(a.kind, "NEIGHBOURHOOD", `${a.key} is a district with a parent`);
+    assert.notStrictEqual(a.kind, "DISTRICT", `${a.key} is a district with a parent`);
   }
-  assert.strictEqual(AREAS.filter((a) => a.parent).length, 12);
+  // Herat's twelve plus Mazar's nine. Jalalabad's guzars are numbered rather
+  // than named and only two appear in the sources, so none are listed: two of
+  // an unknown number would look like the whole list to anyone using the form.
+  assert.strictEqual(AREAS.filter((a) => a.parent).length, 21);
+  assert.strictEqual(AREAS.filter((a) => a.kind === "GUZAR").length, 5);
 });
 
 test("only cities with real districts are live", () => {
@@ -116,5 +124,5 @@ test("only cities with real districts are live", () => {
       `${c.key} is live with no districts`
     );
   }
-  assert.deepStrictEqual(CITIES.filter((c) => c.live).map((c) => c.key), ["KABUL", "HERAT"]);
+  assert.deepStrictEqual(CITIES.filter((c) => c.live).map((c) => c.key), ["KABUL", "HERAT", "MAZAR", "JALALABAD"]);
 });

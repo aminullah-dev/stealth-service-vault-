@@ -18,13 +18,13 @@
  */
 
 const CITIES = [
-  { key: "KABUL",     fa: "کابل",      en: "Kabul",          live: true  },
-  { key: "HERAT",     fa: "هرات",      en: "Herat",          live: true  },
-  { key: "MAZAR",     fa: "مزار شریف", en: "Mazar-e Sharif", live: false },
-  { key: "JALALABAD", fa: "جلال‌آباد", en: "Jalalabad",      live: false },
+  { key: "KABUL",     fa: "کابل",      en: "Kabul",          live: true },
+  { key: "HERAT",     fa: "هرات",      en: "Herat",          live: true },
+  { key: "MAZAR",     fa: "مزار شریف", en: "Mazar-e Sharif", live: true },
+  { key: "JALALABAD", fa: "جلال‌آباد", en: "Jalalabad",      live: true },
 ];
 
-const CITY_BY_PREFIX = { KBL: "KABUL", HRT: "HERAT", MZR: "MAZAR", JAA: "JALALABAD" };
+const CITY_BY_PREFIX = { KBL: "KABUL", HRT: "HERAT", MZR: "MAZAR", JAL: "JALALABAD" };
 
 /** The city an area key belongs to, read off its prefix. */
 function cityOf(areaKey) {
@@ -123,6 +123,36 @@ const AREAS = [
   { key: "HRT_Karabad",             fa: "کارآباد",                        en: "Karabad",                             kind: "NEIGHBOURHOOD", parent: "HRT_D10" },
   { key: "HRT_PayanAb",             fa: "پایان آب",                       en: "Payan-e Ab",                          kind: "NEIGHBOURHOOD", parent: "HRT_D10" },
   { key: "HRT_Shaidayi",            fa: "شیدایی",                         en: "Shaidayi",                            kind: "NEIGHBOURHOOD", parent: "HRT_D15" },
+  { key: "JAL_D01",                 fa: "ناحیه اول",                      en: "District 1",                          kind: "DISTRICT" },
+  { key: "JAL_D02",                 fa: "ناحیه دوم",                      en: "District 2",                          kind: "DISTRICT" },
+  { key: "JAL_D03",                 fa: "ناحیه سوم",                      en: "District 3",                          kind: "DISTRICT" },
+  { key: "JAL_D04",                 fa: "ناحیه چهارم",                    en: "District 4",                          kind: "DISTRICT" },
+  { key: "JAL_D05",                 fa: "ناحیه پنجم",                     en: "District 5",                          kind: "DISTRICT" },
+  { key: "JAL_D06",                 fa: "ناحیه ششم",                      en: "District 6",                          kind: "DISTRICT" },
+  { key: "JAL_D07",                 fa: "ناحیه هفتم",                     en: "District 7",                          kind: "DISTRICT" },
+  { key: "JAL_D08",                 fa: "ناحیه هشتم",                     en: "District 8",                          kind: "DISTRICT" },
+  { key: "JAL_D09",                 fa: "ناحیه نهم",                      en: "District 9",                          kind: "DISTRICT" },
+  { key: "MZR_D01",                 fa: "ناحیه اول",                      en: "District 1",                          kind: "DISTRICT" },
+  { key: "MZR_D02",                 fa: "ناحیه دوم",                      en: "District 2",                          kind: "DISTRICT" },
+  { key: "MZR_D03",                 fa: "ناحیه سوم",                      en: "District 3",                          kind: "DISTRICT" },
+  { key: "MZR_D04",                 fa: "ناحیه چهارم",                    en: "District 4",                          kind: "DISTRICT" },
+  { key: "MZR_D05",                 fa: "ناحیه پنجم",                     en: "District 5",                          kind: "DISTRICT" },
+  { key: "MZR_D06",                 fa: "ناحیه ششم",                      en: "District 6",                          kind: "DISTRICT" },
+  { key: "MZR_D07",                 fa: "ناحیه هفتم",                     en: "District 7",                          kind: "DISTRICT" },
+  { key: "MZR_D08",                 fa: "ناحیه هشتم",                     en: "District 8",                          kind: "DISTRICT" },
+  { key: "MZR_D09",                 fa: "ناحیه نهم",                      en: "District 9",                          kind: "DISTRICT" },
+  { key: "MZR_D10",                 fa: "ناحیه دهم",                      en: "District 10",                         kind: "DISTRICT" },
+  { key: "MZR_D11",                 fa: "ناحیه یازدهم",                   en: "District 11",                         kind: "DISTRICT" },
+  { key: "MZR_D12",                 fa: "ناحیه دوازدهم",                  en: "District 12",                         kind: "DISTRICT" },
+  { key: "MZR_GuzarQarghan",        fa: "گذر قرغان",                      en: "Guzar-e Qarghan",                     kind: "GUZAR", parent: "MZR_D02" },
+  { key: "MZR_GuzarSeDukan",        fa: "گذر سه‌دکان",                    en: "Guzar-e Se Dukan",                    kind: "GUZAR", parent: "MZR_D03" },
+  { key: "MZR_JoyAjar",             fa: "جوی آجر",                        en: "Joy-e Ajar",                          kind: "NEIGHBOURHOOD", parent: "MZR_D04" },
+  { key: "MZR_Faqirabad",           fa: "فقیرآباد",                       en: "Faqirabad",                           kind: "NEIGHBOURHOOD", parent: "MZR_D05" },
+  { key: "MZR_GuzarHayat",          fa: "گذر حیات",                       en: "Guzar-e Hayat",                       kind: "GUZAR", parent: "MZR_D06" },
+  { key: "MZR_GuzarTokhta",         fa: "گذر توخته",                      en: "Guzar-e Tokhta",                      kind: "GUZAR", parent: "MZR_D07" },
+  { key: "MZR_DashtShor",           fa: "دشت شور",                        en: "Dasht-e Shor",                        kind: "NEIGHBOURHOOD", parent: "MZR_D08" },
+  { key: "MZR_KhalidBinWalid",      fa: "پروژه خالد بن ولید",             en: "Khalid bin Walid Project",            kind: "NEIGHBOURHOOD", parent: "MZR_D08" },
+  { key: "MZR_GuzarSadeqiya",       fa: "گذر صادقیه",                     en: "Guzar-e Sadeqiya",                    kind: "GUZAR", parent: "MZR_D10" },
 ];
 const KEYS = AREAS.map((a) => a.key);
 const KEY_SET = new Set(KEYS);

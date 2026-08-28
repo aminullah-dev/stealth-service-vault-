@@ -42,7 +42,16 @@ import com.safebeauty.app.ui.theme.AppLanguage
  */
 object Areas {
 
-    enum class AreaKind { DISTRICT, NEIGHBOURHOOD }
+    /**
+     * The levels of an Afghan city address, which are not interchangeable.
+     *
+     * ناحیه is the municipal district. گذر is the formal unit below it. محله is
+     * the informal name people actually use, and does not always line up with
+     * either. Flattening them lets a form offer a district and a guzar side by
+     * side as if they were alternatives, which is how a salon ends up filed at
+     * a level nobody searches.
+     */
+    enum class AreaKind { DISTRICT, GUZAR, NEIGHBOURHOOD }
 
     data class City(
         val key: String,
@@ -68,8 +77,8 @@ object Areas {
     val cities: List<City> = listOf(
         City(KABUL,       "کابل",      "Kabul",          live = true),
         City("HERAT",     "هرات",      "Herat",          live = true),
-        City("MAZAR",     "مزار شریف", "Mazar-e Sharif", live = false),
-        City("JALALABAD", "جلال‌آباد", "Jalalabad",      live = false),
+        City("MAZAR",     "مزار شریف", "Mazar-e Sharif", live = true),
+        City("JALALABAD", "جلال‌آباد", "Jalalabad",      live = true),
     )
 
     /** Key prefix → city key. The prefix is the first segment of an area key. */
@@ -77,7 +86,7 @@ object Areas {
         "KBL" to KABUL,
         "HRT" to "HERAT",
         "MZR" to "MAZAR",
-        "JAA" to "JALALABAD",
+        "JAL" to "JALALABAD",
     )
 
     val liveCities: List<City> = cities.filter { it.live }
@@ -87,6 +96,7 @@ object Areas {
             ?: cityKey
 
     private val DISTRICT = AreaKind.DISTRICT
+    private val GUZAR = AreaKind.GUZAR
     private val NEIGHBOURHOOD = AreaKind.NEIGHBOURHOOD
 
     /**
@@ -191,6 +201,36 @@ object Areas {
         Area("HRT_Karabad",             "کارآباد",                        "Karabad"                             , NEIGHBOURHOOD, "HRT_D10"),
         Area("HRT_PayanAb",             "پایان آب",                       "Payan-e Ab"                          , NEIGHBOURHOOD, "HRT_D10"),
         Area("HRT_Shaidayi",            "شیدایی",                         "Shaidayi"                            , NEIGHBOURHOOD, "HRT_D15"),
+        Area("JAL_D01",                 "ناحیه اول",                      "District 1"                          , DISTRICT),
+        Area("JAL_D02",                 "ناحیه دوم",                      "District 2"                          , DISTRICT),
+        Area("JAL_D03",                 "ناحیه سوم",                      "District 3"                          , DISTRICT),
+        Area("JAL_D04",                 "ناحیه چهارم",                    "District 4"                          , DISTRICT),
+        Area("JAL_D05",                 "ناحیه پنجم",                     "District 5"                          , DISTRICT),
+        Area("JAL_D06",                 "ناحیه ششم",                      "District 6"                          , DISTRICT),
+        Area("JAL_D07",                 "ناحیه هفتم",                     "District 7"                          , DISTRICT),
+        Area("JAL_D08",                 "ناحیه هشتم",                     "District 8"                          , DISTRICT),
+        Area("JAL_D09",                 "ناحیه نهم",                      "District 9"                          , DISTRICT),
+        Area("MZR_D01",                 "ناحیه اول",                      "District 1"                          , DISTRICT),
+        Area("MZR_D02",                 "ناحیه دوم",                      "District 2"                          , DISTRICT),
+        Area("MZR_D03",                 "ناحیه سوم",                      "District 3"                          , DISTRICT),
+        Area("MZR_D04",                 "ناحیه چهارم",                    "District 4"                          , DISTRICT),
+        Area("MZR_D05",                 "ناحیه پنجم",                     "District 5"                          , DISTRICT),
+        Area("MZR_D06",                 "ناحیه ششم",                      "District 6"                          , DISTRICT),
+        Area("MZR_D07",                 "ناحیه هفتم",                     "District 7"                          , DISTRICT),
+        Area("MZR_D08",                 "ناحیه هشتم",                     "District 8"                          , DISTRICT),
+        Area("MZR_D09",                 "ناحیه نهم",                      "District 9"                          , DISTRICT),
+        Area("MZR_D10",                 "ناحیه دهم",                      "District 10"                         , DISTRICT),
+        Area("MZR_D11",                 "ناحیه یازدهم",                   "District 11"                         , DISTRICT),
+        Area("MZR_D12",                 "ناحیه دوازدهم",                  "District 12"                         , DISTRICT),
+        Area("MZR_GuzarQarghan",        "گذر قرغان",                      "Guzar-e Qarghan"                     , GUZAR, "MZR_D02"),
+        Area("MZR_GuzarSeDukan",        "گذر سه‌دکان",                    "Guzar-e Se Dukan"                    , GUZAR, "MZR_D03"),
+        Area("MZR_JoyAjar",             "جوی آجر",                        "Joy-e Ajar"                          , NEIGHBOURHOOD, "MZR_D04"),
+        Area("MZR_Faqirabad",           "فقیرآباد",                       "Faqirabad"                           , NEIGHBOURHOOD, "MZR_D05"),
+        Area("MZR_GuzarHayat",          "گذر حیات",                       "Guzar-e Hayat"                       , GUZAR, "MZR_D06"),
+        Area("MZR_GuzarTokhta",         "گذر توخته",                      "Guzar-e Tokhta"                      , GUZAR, "MZR_D07"),
+        Area("MZR_DashtShor",           "دشت شور",                        "Dasht-e Shor"                        , NEIGHBOURHOOD, "MZR_D08"),
+        Area("MZR_KhalidBinWalid",      "پروژه خالد بن ولید",             "Khalid bin Walid Project"            , NEIGHBOURHOOD, "MZR_D08"),
+        Area("MZR_GuzarSadeqiya",       "گذر صادقیه",                     "Guzar-e Sadeqiya"                    , GUZAR, "MZR_D10"),
     )
 
     /** Stable keys only (parallel to [areas]); what gets stored/filtered. */
@@ -203,7 +243,11 @@ object Areas {
 
     /** Neighbourhoods known to sit in [districtKey]. Empty where none are sourced. */
     fun neighbourhoodsIn(districtKey: String): List<Area> =
-        areas.filter { it.kind == NEIGHBOURHOOD && it.parent == districtKey }
+        areas.filter { it.kind != DISTRICT && it.parent == districtKey }
+
+    /** Only the گذرها of [districtKey] — the formal unit, not the colloquial one. */
+    fun guzarsIn(districtKey: String): List<Area> =
+        areas.filter { it.kind == GUZAR && it.parent == districtKey }
 
     fun labelFor(area: Area, lang: AppLanguage): String =
         if (lang == AppLanguage.ENGLISH) area.en else area.fa
