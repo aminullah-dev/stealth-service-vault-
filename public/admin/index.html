@@ -483,6 +483,24 @@ const STR = {
   bal_settled: {en:'Settled — nothing owed either way', fa:'تسویه — هیچ بدهی از هیچ طرف', ps:'تصفیه — له هیڅ اړخه پور نشته'},
   bal_owedToSalon: {en:(a)=>`${a} owed to the salon`, fa:(a)=>`${a} بدهی به سالن`, ps:(a)=>`${a} سالون ته پور`},
   bal_owedToPlatform: {en:(a)=>`${a} the salon owes the platform`, fa:(a)=>`${a} بدهی سالن به پلتفرم`, ps:(a)=>`${a} د سالون پور پلیټ‌فارم ته`},
+  // ── Status pills ─────────────────────────────────────────────────────────
+  // The coloured chips in table cells. The two earlier sweeps matched <th>,
+  // <button> and prose and never looked inside a <span>, so these stayed
+  // English in an otherwise translated console.
+  pill_active: {en:'active', fa:'فعال', ps:'فعال'},
+  pill_byAdmin: {en:'by admin', fa:'از سوی ادمین', ps:'د اډمین له خوا'},
+  pill_cash: {en:'Cash', fa:'پرداخت نقدی', ps:'نغدي ورکړه'},
+  pill_customerReported: {en:'Customer reported', fa:'گزارش دربارهٔ مشتری', ps:'د پیرودونکي په اړه راپور'},
+  pill_flagged: {en:'flagged', fa:'نشان‌دار', ps:'نښه شوی'},
+  pill_neverArrived: {en:'never reached the salon', fa:'هرگز به سالن نرسیده', ps:'سالون ته هیڅکله نه دی رسېدلی'},
+  pill_noBackup: {en:'No verified backup on record', fa:'هیچ پشتیبان‌گیری تأیید شده‌ای ثبت نشده', ps:'هیڅ تایید شوی بیک‌اپ په ثبت کې نشته'},
+  pill_none: {en:'none', fa:'هیچ سالنی نیست', ps:'هیڅ سالون نشته'},
+  pill_off: {en:'off', fa:'غیرفعال', ps:'غیرفعال'},
+  pill_online: {en:'Online', fa:'پرداخت آنلاین', ps:'آنلاین ورکړه'},
+  pill_owesPlatform: {en:'owes platform', fa:'بدهی به پلتفرم', ps:'پلیټ‌فارم ته پور'},
+  pill_unverified: {en:'Unverified', fa:'تأیید نشده', ps:'تایید نشوی'},
+  pill_yes: {en:'yes', fa:'بله', ps:'هو'},
+
   // ── Tab bodies ────────────────────────────────────────────────────────────
   // The chrome was translated first — sidebar, tab names, a handful of buttons.
   // These are what is inside each tab: the column headings, the button labels and
@@ -1551,7 +1569,7 @@ function openUserModal(u, onChanged){
         ${list(r, x => `<tr><td>★ ${Number(x.rating||0)}</td><td>${esc(x.comment||'—')}</td></tr>`, 'None')}
         <div class="mglabel" style="margin-top:12px">${t('hint_reportedBySalonsCount', rep.length)}</div>
         ${list(rep, x => `<tr>
-            <td>${x.noShow?'<span class="pill bad">no-show</span>':'★ '+Number(x.rating||0)}</td>
+            <td>${x.noShow?`<span class="pill bad">${t('th_noShow')}</span>`:'★ '+Number(x.rating||0)}</td>
             <td>${esc(x.comment||'—')}</td><td>${fmtDate(x.createdAt)}</td>
           </tr>`, 'None — nothing has been reported about this account')}
         ${data.balance ? `<div class="mglabel" style="margin-top:12px">${t('hint_salonBalance')}</div>
@@ -1755,7 +1773,7 @@ async function renderSalons(){
           <td>${esc(o.phone||'—')}</td>
           <td>★ ${Number(s.rating||0).toFixed(1)}</td>
           <td>${kycPill(o.kycStatus)}</td>
-          <td>${s.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">No</span>'}</td>
+          <td>${s.isVerified?`<span class="pill ok">${t('th_verified')}</span>`:'<span class="pill info">No</span>'}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">${t('btn_manage')}</button>
             ${s.isVerified
@@ -1800,7 +1818,7 @@ async function renderContent(){
                           .filter(x => (x.expiresAt||0) > Date.now())
                           .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
 
-    const seeded = (x) => x.createdByAdmin ? ' <span class="pill info">by admin</span>' : '';
+    const seeded = (x) => x.createdByAdmin ? ` <span class="pill info">${t('pill_byAdmin')}</span>` : '';
     const hoursLeft = (ms) => {
       const h = Math.floor(((ms||0) - Date.now())/3600000);
       return h < 1 ? '<1h' : h + 'h';
@@ -2087,8 +2105,8 @@ function paintBooking(d){
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px">
         <span style="font-size:19px;font-weight:800;letter-spacing:.5px;color:var(--deep)">${esc(a.bookingCode||a.id)}</span>
         ${pill(a.status)}
-        ${a.paymentMethod === 'CASH' ? '<span class="pill info">Cash</span>' : '<span class="pill info">Online</span>'}
-        ${a.customerReported ? '<span class="pill warn">Customer reported</span>' : ''}
+        ${a.paymentMethod === 'CASH' ? `<span class="pill info">${t('pill_cash')}</span>` : `<span class="pill info">${t('pill_online')}</span>`}
+        ${a.customerReported ? `<span class="pill warn">${t('pill_customerReported')}</span>` : ''}
       </div>
       <div class="meta" style="color:var(--muted);line-height:1.9">
         <b>${esc(a.serviceName||'—')}</b> at <b>${esc(a.salonName||'—')}</b>${a.staffName?` with ${esc(a.staffName)}`:''}<br/>
@@ -2133,7 +2151,7 @@ function paintBooking(d){
     ${(d.reports||[]).length ? `<div class="section-title" style="margin-top:22px">${t('hint_behaviourReportsCount', d.reports.length)}</div>` +
       rowsOrEmpty(d.reports,
         `<th scope="col">${t('th_rating')}</th><th scope="col">${t('th_noShow')}</th><th scope="col">${t('th_comment')}</th><th scope="col">${t('th_when')}</th>`,
-        (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?'<span class="pill bad">yes</span>':'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
+        (r) => `<tr><td>${r.rating>0?'★ '+r.rating:'—'}</td><td>${r.noShow?`<span class="pill bad">${t('pill_yes')}</span>`:'no'}</td><td>${esc(r.comment||'—')}</td><td>${fmtDate(r.createdAt)}</td></tr>`, '') : ''}
 
     ${(d.reviews||[]).length ? `<div class="section-title" style="margin-top:22px">${t('sec_review')}</div>` +
       rowsOrEmpty(d.reviews,
@@ -2206,7 +2224,7 @@ async function renderHealth(){
         ${lastGood
           ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">Last verified ${ageH}h ago</span>
              <span class="meta" style="margin-inline-start:10px;color:var(--muted)">${esc(lastGood.id)} → ${esc(lastGood.outputUri||'')}</span>`
-          : `<span class="pill bad">No verified backup on record</span>`}
+          : `<span class="pill bad">${t('pill_noBackup')}</span>`}
       </div>
       ${backups.length ? `<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">${t('th_day')}</th><th scope="col">${t('th_state')}</th><th scope="col">${t('th_started')}</th><th scope="col">${t('th_finished')}</th><th scope="col">${t('th_error')}</th></tr></thead>
@@ -2474,7 +2492,7 @@ async function renderStuck(){
           <td>${esc(r.customerName||'—')}<div class="meta" style="color:var(--muted)"><bdi dir="ltr">${esc(r.customerPhone||'')}</bdi></div></td>
           <td>${money(r.amount)}</td>
           <td>${r.appointmentStatus === 'AWAITING_PAYMENT'
-                 ? '<span class="pill bad">never reached the salon</span>'
+                 ? `<span class="pill bad">${t('pill_neverArrived')}</span>`
                  : `<span class="pill info">${esc(r.appointmentStatus||'—')}</span>`}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td class="meta" style="word-break:break-all">${esc(r.hesabSessionId||'—')}</td>
@@ -2543,7 +2561,7 @@ async function renderDemand(){
           <td class="name">${esc(r.districtKey)}</td>
           <td>${esc(r.category)}</td>
           <td><b>${r.demand}</b></td>
-          <td><span class="pill bad">none</span></td>
+          <td><span class="pill bad">${t('pill_none')}</span></td>
           <td class="meta">${kinds(r.byKind)}</td>
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_noDemandYetThatNobodyCanServe')}</div>`}
@@ -2637,7 +2655,7 @@ async function openSalonModal(salon, onChanged){
 
   showModal(`
     <h2>${esc(salon.salonName||salon.id)}</h2>
-    <div class="msub">${esc(owner.name||'—')} · ${salon.isVerified?'<span class="pill ok">Verified</span>':'<span class="pill info">Unverified</span>'} · ${kycPill(owner.kycStatus)}</div>
+    <div class="msub">${esc(owner.name||'—')} · ${salon.isVerified?`<span class="pill ok">${t('th_verified')}</span>`:`<span class="pill info">${t('pill_unverified')}</span>`} · ${kycPill(owner.kycStatus)}</div>
     <div id="s-flash" class="mflash"></div>
 
     <div class="mgroup">
@@ -2861,7 +2879,7 @@ async function renderFinance(){
           <td style="text-align:right"><button class="btn-sm" style="background:var(--green)" data-pay="${i}">${t('btn_markPaid')}</button></td>
         </tr>` : `<tr>
           <td class="name">${esc(b.name)}</td>
-          <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">owes platform</span></td>
+          <td><b style="color:var(--red)">${AFN(b.owedAmount)}</b> <span class="pill warn">${t('pill_owesPlatform')}</span></td>
           <td></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_nothingOwed')}</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
@@ -2941,7 +2959,7 @@ function renderPromo(){
         <td class="name">${esc(p.code||p.id)}</td>
         <td>${p.discountPercent>0?p.discountPercent+'% off':''}${p.discountAmount>0?AFN(p.discountAmount)+' off':''}</td>
         <td>${p.usedCount||0}${p.maxUses>0?'/'+p.maxUses:''}</td>
-        <td>${p.active?'<span class="pill ok">active</span>':'<span class="pill info">off</span>'}</td>
+        <td>${p.active?`<span class="pill ok">${t('pill_active')}</span>`:`<span class="pill info">${t('pill_off')}</span>`}</td>
         <td style="text-align:right"><button class="btn-sm" style="background:${p.active?'var(--muted)':'var(--green)'}"
           data-tog="${esc(p.code||p.id)}" data-act="${p.active?'0':'1'}">${p.active?'Disable':'Enable'}</button></td>
       </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPromoCodesYet')}</div>`;
@@ -2963,7 +2981,7 @@ function renderReports(){
           <td><div class="name">${esc(r.customerName||r.customerId)}</div>${r.comment?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.comment)}"</div>`:''}</td>
           <td>${esc(r.salonName||'—')}</td>
           <td>${r.rating>0?'★ '+r.rating:'—'}</td>
-          <td>${r.noShow?'<span class="pill warn">no-show</span>':'<span class="pill bad">flagged</span>'}</td>
+          <td>${r.noShow?`<span class="pill warn">${t('th_noShow')}</span>`:`<span class="pill bad">${t('pill_flagged')}</span>`}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">${t('btn_dismiss')}</button>
