@@ -480,6 +480,9 @@ const STR = {
     en:(n,tr)=>`Built from ${n} signal${n===1?'':'s'}. These take weeks to become useful — capture started recently, so a thin report now is expected, not broken.${tr ? ' Only the most recent 2000 signals were read.' : ''}`,
     fa:(n,tr)=>`برگرفته از ${n} سیگنال. این گزارش‌ها هفته‌ها وقت می‌خواهند تا به کار بیایند — جمع‌آوری سیگنال‌ها تازه شروع شده، پس کم‌بودن داده‌ها در این گزارش طبیعی است، نه نشانهٔ خرابی.${tr ? ' تنها آخرین ۲۰۰۰ سیگنال خوانده شد.' : ''}`,
     ps:(n,tr)=>`دا راپور له ${n} سیګنالونو څخه جوړ شوی دی. دا ډول راپورونه څو اونۍ وخت غواړي چې ګټور شي — د سیګنالونو راټولول یوازې په دې وروستیو کې پیل شوي دي، نو اوس د راپور کم معلومات طبیعي دي، د خرابۍ نښه نه ده.${tr ? ' یوازې وروستي ۲۰۰۰ سیګنالونه لوستل شوي دي.' : ''}`},
+  bal_settled: {en:'Settled — nothing owed either way', fa:'تسویه — هیچ بدهی از هیچ طرف', ps:'تصفیه — له هیڅ اړخه پور نشته'},
+  bal_owedToSalon: {en:(a)=>`${a} owed to the salon`, fa:(a)=>`${a} بدهی به سالن`, ps:(a)=>`${a} سالون ته پور`},
+  bal_owedToPlatform: {en:(a)=>`${a} the salon owes the platform`, fa:(a)=>`${a} بدهی سالن به پلتفرم`, ps:(a)=>`${a} د سالون پور پلیټ‌فارم ته`},
   // ── Tab bodies ────────────────────────────────────────────────────────────
   // The chrome was translated first — sidebar, tab names, a handful of buttons.
   // These are what is inside each tab: the column headings, the button labels and
@@ -719,6 +722,19 @@ function setLang(next){
     // than a brief blank one.
     selectTab(activeTab);
   }
+}
+
+// provider_balances.owedAmount, read the way the Finance tab already reads it:
+// positive means the platform owes the salon, negative means the salon owes the
+// platform, because every cash booking debits its commission and nothing clears
+// it. The dossier used to read `.owed`, a field no writer has ever written, so
+// this line said "0 AFN owed" for every salon on the platform — sitting directly
+// above the input that adjusts the balance.
+function balanceLine(v) {
+  const n = Number(v || 0);
+  if (n === 0) return t('bal_settled');
+  return n > 0 ? t('bal_owedToSalon', AFN(Math.abs(n)))
+               : t('bal_owedToPlatform', AFN(Math.abs(n)));
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -1539,7 +1555,7 @@ function openUserModal(u, onChanged){
             <td>${esc(x.comment||'—')}</td><td>${fmtDate(x.createdAt)}</td>
           </tr>`, 'None — nothing has been reported about this account')}
         ${data.balance ? `<div class="mglabel" style="margin-top:12px">${t('hint_salonBalance')}</div>
-          <div class="meta">${Number(data.balance.owed||0).toLocaleString()} AFN owed</div>` : ''}`;
+          <div class="meta">${balanceLine(data.balance.owedAmount)}</div>` : ''}`;
     }catch(err){
       $('m-dossier-out').innerHTML = `<div class="meta" style="color:var(--bad-ink)">${esc(fnError(err))}</div>`;
     }finally{ btn.disabled = false; btn.textContent = lbl; }

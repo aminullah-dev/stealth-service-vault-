@@ -210,6 +210,14 @@ internal fun BookingsSheetContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // ModalBottomSheet does not scroll its content slot. Without this the
+            // Column simply ran off the bottom and was clipped: a customer with a
+            // few upcoming and past bookings could never reach the waitlist
+            // section below them — and this sheet is the only place in the app
+            // that renders a waitlist entry, while the server kept offering her
+            // slots she had no way to accept. The sibling profile sheet has had
+            // this same line since it shipped.
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 32.dp)
     ) {
