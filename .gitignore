@@ -48,3 +48,8 @@ Thumbs.db
 # ─── Kotlin ──────────────────────────────────────────────────────────────────
 .kotlin/
 .claude/
+
+# What the last successful functions deploy shipped, per project. Local state:
+# a teammate cannot know what your machine deployed, and a stale shared value
+# would narrow the next deploy to nothing.
+.firebase/functions-deployed-*
