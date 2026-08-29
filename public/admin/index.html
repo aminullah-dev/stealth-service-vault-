@@ -1584,8 +1584,10 @@ function openUserModal(u, onChanged){
     const btn = e.target, lbl = btn.textContent;
     btn.disabled = true; btn.textContent = 'Loading…';
     try{
-      const salonId = (u.salons && u.salons[0]) || '';
-      const { data } = await httpsCallable(fns,'adminUserDossier')({ targetUid:u.id, salonId });
+      // No salonId: adminUserDossier resolves the provider's own salon. This
+      // used to read u.salons[0], a field the user document does not have, so
+      // every provider dossier asked for bookings of salon "___none___".
+      const { data } = await httpsCallable(fns,'adminUserDossier')({ targetUid:u.id });
       const b = data.bookings||[], r = data.reviews||[], rep = data.reports||[];
       const list = (rows, body, empty) => rows.length
         ? `<div class="tbl-wrap"><table class="tbl"><tbody>${rows.map(body).join('')}</tbody></table></div>`

@@ -422,7 +422,11 @@ private fun BookingCard(
 ) {
     val strings       = LocalStrings.current
     val canReschedule = appt.status == "PENDING" || appt.status == "CONFIRMED"
-    val canReview     = appt.status == "CONFIRMED" || appt.status == "COMPLETED"
+    // CONFIRMED means the salon accepted it, not that the visit happened. Without
+    // the date check a customer could rate a haircut she is booked in for next
+    // week, and the rating would count toward the salon's average.
+    val canReview     = (appt.status == "CONFIRMED" || appt.status == "COMPLETED") &&
+                        appt.appointmentDate <= System.currentTimeMillis()
     // "Book again" makes sense once a visit is done or was cancelled — not while a
     // payment is still pending.
     val canRebook     = appt.status == "CONFIRMED" || appt.status == "COMPLETED" ||

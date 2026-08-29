@@ -71,8 +71,13 @@ private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare",
 // was workable with Kabul's 64 and is not with 121 across four cities, and a
 // Kabul customer has no use for Herat's districts. Districts only — a گذر is a
 // level below what anyone filters by.
+// With no city chosen there is no district list to offer: districts are only
+// meaningful inside one city, and concatenating four cities' worth would put
+// two "ناحیه اول" entries next to each other with nothing to tell them apart.
 private fun neighborhoodKeysFor(cityKey: String): List<String> =
-    listOf("All Neighborhoods") + com.safebeauty.app.util.Areas.districtsIn(cityKey).map { it.key }
+    listOf("All Neighborhoods") +
+        (if (cityKey.isBlank()) emptyList()
+         else com.safebeauty.app.util.Areas.districtsIn(cityKey).map { it.key })
 
 data class BookingStatusChange(
     val salonName: String,
@@ -140,7 +145,19 @@ class DashboardViewModel @Inject constructor(
 
     val categoryCount     = CATEGORY_KEYS.size
     /** The city whose salons and districts the customer is looking at. */
-    private val _selectedCity = MutableStateFlow(com.safebeauty.app.util.Areas.KABUL)
+    // Blank means every city, and it is the default deliberately.
+    //
+    // Defaulting to KABUL put `whereEqualTo("city", "KABUL")` on every salon
+    // query, and a Firestore equality does not match a document that lacks the
+    // field at all. Every salon in production lacks it until the discovery
+    // backfill runs, so shipping that default would have opened the app on an
+    // empty marketplace — not a narrowed list, nothing — and it would have
+    // depended on a deploy happening in the right order to avoid it.
+    //
+    // It also permanently hid the salons whose district cannot be resolved:
+    // those derive city = "" for good, and an equality never reaches them.
+    // Filtering only on an explicit choice makes both cases visible instead.
+    private val _selectedCity = MutableStateFlow("")
     val selectedCity: StateFlow<String> = _selectedCity
 
     fun onCityChanged(cityKey: String) {

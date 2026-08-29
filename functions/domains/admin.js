@@ -409,18 +409,32 @@ exports.adminUserDossier = onCall({ region: "us-central1" }, async (request) => 
   const { pinHash, salt, firebaseEmail, ...safeUser } = user;
 
   const isProvider = user.role === "PROVIDER";
-  const bookingsQ  = isProvider
-    ? db.collection("appointments").where("salonId", "==", String((request.data || {}).salonId || "___none___"))
+
+  // The salon is resolved here rather than taken from the caller. The console
+  // was sending `u.salons[0]` off the user document, which has no `salons`
+  // field and never has — so salonId arrived empty, became "___none___", and
+  // every provider dossier reported zero bookings. The salons are queried for
+  // the response anyway; this just needs them before the bookings query rather
+  // than beside it. A salonId in the request still wins, so an admin can pin
+  // the dossier to one salon of a provider who has several.
+  const salons = isProvider
+    ? await db.collection("salons").where("providerId", "==", targetUid).get()
+        .catch(() => ({ docs: [] }))
+    : { docs: [] };
+  const salonId = String((request.data || {}).salonId || "").trim() ||
+                  ((salons.docs[0] && salons.docs[0].id) || "");
+
+  const bookingsQ = isProvider
+    ? db.collection("appointments").where("salonId", "==", salonId || "___none___")
     : db.collection("appointments").where("customerId", "==", targetUid);
 
-  const [bookings, reviews, reportsAbout, balance, salons] = await Promise.all([
+  const [bookings, reviews, reportsAbout, balance] = await Promise.all([
     bookingsQ.orderBy("createdAt", "desc").limit(25).get().catch(() => ({ docs: [] })),
     db.collection("reviews").where("customerId", "==", targetUid)
       .limit(15).get().catch(() => ({ docs: [] })),
     db.collection("customer_reports").where("customerId", "==", targetUid)
       .limit(15).get().catch(() => ({ docs: [] })),
     db.doc(`provider_balances/${targetUid}`).get().catch(() => ({ exists: false })),
-    db.collection("salons").where("providerId", "==", targetUid).get().catch(() => ({ docs: [] })),
   ]);
 
   const rows = (q) => (q.docs || []).map((d) => ({ id: d.id, ...d.data() }));

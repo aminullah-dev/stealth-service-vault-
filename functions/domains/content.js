@@ -124,6 +124,14 @@ exports.submitReview = onCall(
       if (appt.status !== "CONFIRMED" && appt.status !== "COMPLETED") {
         throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
       }
+      // CONFIRMED means the salon accepted the booking, not that it happened.
+      // The message above already promised "after your visit"; without this the
+      // status check alone let a customer rate an appointment she is booked in
+      // for next week, and it counted toward the salon's average.
+      const startsAt = Number(appt.appointmentDate || 0);
+      if (Number.isFinite(startsAt) && startsAt > Date.now()) {
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+      }
       if (appt.reviewed === true) {
         throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
       }

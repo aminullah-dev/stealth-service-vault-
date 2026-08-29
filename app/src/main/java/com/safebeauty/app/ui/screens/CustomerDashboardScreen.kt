@@ -818,7 +818,13 @@ fun CustomerDashboardScreen(
                 // squeezed the real list into a sliver, hiding the other salons below
                 // the fold; now they scroll away and the list gets the full height.
                 // The search/filter header above stays pinned.
-                if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
+                // loadingSalons was collected and never read, so the first frame of
+                // Discover said "no providers found" before a single document had
+                // come back — the same sentence a genuinely empty city produces,
+                // which is the one thing it must not be confused with.
+                if (loadingSalons && filteredSalons.isEmpty() && recommendedSalons.isEmpty()) {
+                    LoadingBox()
+                } else if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
                     val narrowing = filtersActive || showFavoritesOnly || searchQuery.isNotBlank() ||
                     selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                     SalonEmptyState(

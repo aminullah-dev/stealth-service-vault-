@@ -241,6 +241,9 @@ function deriveSalonDiscovery(salon) {
     categories,
     districtKey,
     areaKey,
+    // What the salon actually typed, carried so the review flag can tell "left
+    // it blank" apart from "typed something that matched nothing". Not stored.
+    districtRaw: String((salon && salon.district) || "").trim(),
     // Prefix-searchable form of the name. Firestore cannot match a substring,
     // but a range on a normalized name gives prefix search, which is what a
     // customer typing the start of a salon name actually needs.
@@ -284,7 +287,18 @@ function storedDiscoveryFields(derived) {
     // A boolean beside the detail because the nightly sweep queries it, and it
     // lives in another domain: a flag it can filter on is the whole reason this
     // is a field rather than a cross-domain import.
-    needsDiscoveryReview: review.unmatchedServices.length > 0 || review.districtCandidates.length > 0,
+    // The third case, which fell through both of the others: a salon typed an
+    // address that resolves to no key AND to no candidates. Nothing is
+    // ambiguous, so districtCandidates is empty and the flag stayed false —
+    // while districtKey "" derives city "", and an equality filter never
+    // matches a document whose field is empty. Such a salon was invisible in
+    // every filtered query, and absent from the queue meant to catch exactly
+    // that. Blank is not flagged: a salon that has not filled the field in is
+    // not an error to review, and flagging it fills the queue with rows nobody
+    // can act on.
+    needsDiscoveryReview: review.unmatchedServices.length > 0 ||
+                          review.districtCandidates.length > 0 ||
+                          (derived.districtRaw.length > 0 && derived.districtKey === ""),
     discoveryReview:      review,
   };
 }
@@ -435,3 +449,10 @@ exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request)
 
   return { ok: true, scanned: snap.size, updated, needsReview, ...pageEnd(snap, limit, after) };
 });
+
+
+// Exported for functions/test/discovery.test.js. These two are pure — the
+// derivation a salon's queryable fields come from — and a test that cannot
+// import what it tests reports itself as skipped, which reads like a pass.
+exports.deriveSalonDiscovery = deriveSalonDiscovery;
+exports.storedDiscoveryFields = storedDiscoveryFields;
