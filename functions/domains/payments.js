@@ -1102,8 +1102,44 @@ async function settlePaymentInTransaction(tx, ctx) {
   // sweep, FAILED, CANCELLED, REFUND_PENDING) a late webhook must NOT
   // revive it — otherwise an expired booking whose slot was re-sold gets
   // re-opened and the provider double-credited while the customer already
-  // had their reserved credit refunded. Ignore it (200, no-op).
-  if (fresh.status !== "PENDING") return "stale";
+  // had their reserved credit refunded.
+  //
+  // Not reviving it was right. Saying nothing was not. On a slow Afghan
+  // connection a customer can complete a HesabPay checkout after the two-hour
+  // sweep has already expired her booking, and the paid webhook then arrives
+  // for a payment nobody is waiting on. This returned 200 and dropped it: her
+  // money had left her account, the booking was gone, and the only trace was a
+  // log line. Someone has to give it back, so record the debt, put an admin on
+  // it, and tell her it is coming — the slot is still not re-opened.
+  if (fresh.status !== "PENDING") {
+    if (paidSignal && fresh.lateSettlement !== true) {
+      tx.update(paymentRef, {
+        lateSettlement:   true,
+        lateSettlementAt: Date.now(),
+        lateTransactionId: String(transactionId || ""),
+      });
+      const refundRef = db.collection("refund_requests").doc();
+      tx.set(refundRef, {
+        appointmentId: fresh.appointmentId || "",
+        paymentId,
+        customerId:    fresh.customerId || "",
+        providerId:    fresh.providerId || "",
+        salonId:       fresh.salonId || "",
+        amount:        Number(fresh.amount || 0),
+        reason:        "LATE_PAYMENT",
+        status:        "PENDING",
+        createdAt:     Date.now(),
+      });
+      ctx.lateSettlement = {
+        paymentId,
+        refundRequestId: refundRef.id,
+        customerId: fresh.customerId || "",
+        amount: Number(fresh.amount || 0),
+        previousStatus: String(fresh.status || ""),
+      };
+    }
+    return "stale";
+  }
 
   // Replay guard — a webhook settles exactly one payment, ever. Prefer the
   // transaction_id; when the payload omits it (or it isn't path-safe), fall
@@ -1463,6 +1499,7 @@ exports.hesabPayWebhook = onRequest(
       const settleCtx = {
         paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId,
         apptEvent: null,
+        lateSettlement: null,
       };
       const result = await db.runTransaction((tx) => settlePaymentInTransaction(tx, settleCtx));
       apptEventAfter = settleCtx.apptEvent;
@@ -1489,6 +1526,32 @@ exports.hesabPayWebhook = onRequest(
       // credit + promo use that were spent atomically at checkout (best-effort,
       // outside the transaction — mirrors expireAbandonedPayments). Uses the
       // pre-transaction snapshot; the FAILED transition already ran exactly once.
+      // Money arrived for a booking that had already been given up on. The
+      // transaction recorded the refund owed; the customer needs to hear it
+      // from us before she hears it from her bank statement.
+      if (settleCtx.lateSettlement) {
+        const late = settleCtx.lateSettlement;
+        alertable("PAYMENT_FAILED", "Payment arrived after the booking was closed — refund owed", {
+          paymentId: late.paymentId,
+          refundRequestId: late.refundRequestId,
+          amount: late.amount,
+          previousStatus: late.previousStatus,
+        });
+        if (late.customerId) {
+          await db.collection("notifications").add({
+            recipientId: late.customerId,
+            type:        "PAYMENT",
+            msgKey:      "PAYMENT_LATE_REFUND",
+            msgParams:   { amount: late.amount },
+            title:       "Payment received late — refund on the way",
+            body:        `Your payment of ${late.amount} AFN arrived after the booking had already been cancelled, so we are refunding it.`,
+            isRead:      false,
+            createdAt:   Date.now(),
+            relatedId:   late.paymentId,
+          });
+        }
+      }
+
       if (result === "failed" && payment.reserved && !payment.type) {
         await refundReservation({
           customerId:   payment.customerId,
@@ -1846,6 +1909,7 @@ exports.adminSettleStuckPayment = onCall({ region: "us-central1" }, async (reque
     payload: { adminSettled: true, by: me.uid },
     paymentId,
     apptEvent: null,
+    lateSettlement: null,
   };
 
   const outcome = await db.runTransaction((tx) => settlePaymentInTransaction(tx, ctx));
@@ -1865,9 +1929,17 @@ exports.adminSettleStuckPayment = onCall({ region: "us-central1" }, async (reque
   await logAdminAction(me, "SETTLE_STUCK_PAYMENT", {
     paymentId, reference, outcome,
     amount: Number((before.data() || {}).amount || 0),
+    refundRequestId: ctx.lateSettlement ? ctx.lateSettlement.refundRequestId : null,
   });
 
-  return { ok: true, outcome };
+  // "stale" here means the booking was already closed, so the settlement became
+  // a refund the admin now owes the customer. Hand the id back rather than
+  // leaving them to hunt for it in the Refunds tab.
+  return {
+    ok: true,
+    outcome,
+    refundRequestId: ctx.lateSettlement ? ctx.lateSettlement.refundRequestId : null,
+  };
 });
 
 // ── Demand signals ────────────────────────────────────────────────────────────

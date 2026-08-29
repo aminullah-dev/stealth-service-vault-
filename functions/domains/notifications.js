@@ -371,6 +371,17 @@ const NOTIF_I18N = {
     fa: { t: "پرداخت ارسال شد", b: (p) => `${p.amount} افغانی به شما پرداخت شد.` },
     ps: { t: "تادیه واستول شوه",  b: (p) => `${p.amount} افغانۍ تاسو ته تادیه شوې.` },
   },
+  // The money arrived after we had already given up on the booking, so there is
+  // nothing to deliver and everything to give back. She is told before her bank
+  // statement tells her.
+  PAYMENT_LATE_REFUND: {
+    en: { t: "Payment received late — refund on the way",
+          b: (p) => `Your payment of AFN ${p.amount} arrived after the booking had already been cancelled, so we are refunding it.` },
+    fa: { t: "پرداخت با تأخیر رسید — بازپرداخت در راه است",
+          b: (p) => `پرداخت ${p.amount} افغانی شما پس از لغو شدن نوبت رسید، بنابراین آن را بازپرداخت می‌کنیم.` },
+    ps: { t: "تادیه په ځنډ ورسېده — بیرته ورکړه پر لاره ده",
+          b: (p) => `ستاسو د ${p.amount} افغانۍ تادیه له هغې وروسته راورسېده چې بکینګ لغوه شوی و، نو موږ یې بیرته درکوو.` },
+  },
   REFUND_PROCESSED: {
     en: { t: "Refund Processed", b: (p) => `Your refund of AFN ${p.amount} has been processed.` },
     fa: { t: "بازپرداخت انجام شد", b: (p) => `بازپرداخت ${p.amount} افغانی شما انجام شد.` },

@@ -35,8 +35,17 @@ service cloud.firestore {
       return isSignedIn() && myData().role == 'CUSTOMER';
     }
 
+    // Approved AND not suspended. These were two separate ideas written into
+    // two separate fields, and this function only knew about one of them: an
+    // account suspended through adminSuspendUser (which writes `suspended`)
+    // kept every direct write this gates -- creating salons, services, offers,
+    // posts, reviews -- because its `status` was still APPROVED. The callables
+    // refused it and the rules waved it through. See isSuspended() in
+    // functions/shared.js, which is the same check on the other side.
     function isApproved() {
-      return isSignedIn() && myData().status == 'APPROVED';
+      return isSignedIn()
+          && myData().status == 'APPROVED'
+          && myData().get('suspended', false) == false;
     }
 
     function ownsDoc(uid) {
@@ -223,6 +232,13 @@ service cloud.firestore {
                           == resource.data.get('suspended', false)
                      && request.resource.data.get('suspendedReason', '')
                           == resource.data.get('suspendedReason', '')
+                     // What the account's status was before it was suspended,
+                     // so reinstating restores it instead of guessing APPROVED
+                     // and promoting a provider who was still awaiting review.
+                     // A client that could write it could choose its own
+                     // reinstatement.
+                     && request.resource.data.get('statusBeforeSuspension', '')
+                          == resource.data.get('statusBeforeSuspension', '')
                      // The two derived lookup keys, written only by the
                      // deriveUserPhoneKey trigger. authenticateWithPassword
                      // resolves an account by phoneDigits, so a client that

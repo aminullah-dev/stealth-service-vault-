@@ -127,8 +127,32 @@ async function assertAdmin(request) {
  * disputing it is the route that gets closed. What stops is acting.
  */
 
+/**
+ * Suspension has been written two different ways, and each half only ever
+ * closed half the door.
+ *
+ * adminSuspendUser writes `suspended: true`, which this function reads, so
+ * every callable refuses — but the security rules gate direct writes on
+ * `isApproved()`, which reads `status`, so a suspended provider could still
+ * create salons, services, offers and posts straight from the client.
+ *
+ * resolveCustomerReport and the console's Users tab write `status:
+ * "SUSPENDED"`, which the rules read — but nothing on the server did, so a
+ * customer suspended for misconduct through the reports flow, which is the one
+ * place a report leads to action, went on booking and paying as though nothing
+ * had happened. The admin saw a red badge and believed it.
+ *
+ * Both fields now mean suspension on both sides. Reading both is also what
+ * makes every account suspended before today start being enforced without a
+ * migration.
+ */
+function isSuspended(appUser) {
+  if (!appUser) return false;
+  return appUser.suspended === true || appUser.status === "SUSPENDED";
+}
+
 function assertNotSuspended(appUser) {
-  if (appUser && appUser.suspended === true) {
+  if (isSuspended(appUser)) {
     throw new HttpsError(
       "permission-denied",
       "This account is suspended. Please contact support."
@@ -349,6 +373,7 @@ function pageCursor(data) {
 }
 
 module.exports = {
+  isSuspended,
   pbkdf2Hash,
   refundReservation, randomBookingCode, reserveBookingCode,
   admin, db, logger, alertable,

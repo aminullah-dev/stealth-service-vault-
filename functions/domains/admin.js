@@ -37,9 +37,27 @@ exports.resolveCustomerReport = onCall({ region: "us-central1" }, async (request
   });
 
   if (suspend && report.customerId) {
+    // The same shape adminSuspendUser writes, because a suspension decided here
+    // must be the same suspension. This wrote only `status`, which the security
+    // rules read and the callables did not, so a customer suspended for
+    // misconduct kept booking and paying — through the one flow whose entire
+    // purpose is to stop her. Writing both fields also means the Manage modal
+    // can see it and lift it.
     await db.doc(`users/${report.customerId}`).set(
-      { status: "SUSPENDED" }, { merge: true }
+      {
+        status:          "SUSPENDED",
+        suspended:       true,
+        suspendedReason: `Report ${reportId}: ${String(report.comment || "misconduct report")}`.slice(0, 300),
+        suspendedAt:     Date.now(),
+        suspendedBy:     appUser.uid,
+      },
+      { merge: true }
     );
+    await logAdminAction(appUser, "SUSPEND_USER", {
+      targetUid: report.customerId,
+      targetName: report.customerName || "",
+      reason: `Customer report ${reportId}`,
+    });
   }
   return { reportId, actionTaken: suspend ? "SUSPENDED" : "DISMISSED" };
 });
@@ -373,11 +391,24 @@ exports.adminSetUserStatus = onCall({ region: "us-central1" }, async (request) =
     throw new HttpsError("failed-precondition", "Remove admin access before suspending this account.");
   }
 
+  // `status` is carried along because the security rules gate direct writes on
+  // it (isApproved) while the callables gate on `suspended` — one suspension,
+  // two readers. Lifting one restores the status the account had before it was
+  // suspended rather than assuming APPROVED: a provider suspended while still
+  // PENDING approval would otherwise be quietly promoted by being reinstated.
+  const wasSuspended = target.suspended === true || target.status === "SUSPENDED";
+  const restoreTo = String(target.statusBeforeSuspension || "") ||
+    (target.status === "SUSPENDED" ? (target.role === "PROVIDER" ? "PENDING" : "APPROVED") : target.status);
+
   await ref.update({
     suspended:       suspend,
     suspendedReason: suspend ? reason : "",
     suspendedAt:     suspend ? Date.now() : 0,
     suspendedBy:     suspend ? me.uid : "",
+    status:          suspend ? "SUSPENDED" : restoreTo,
+    statusBeforeSuspension: suspend
+      ? (wasSuspended ? String(target.statusBeforeSuspension || "") : String(target.status || ""))
+      : "",
   });
 
   await logAdminAction(me, suspend ? "SUSPEND_USER" : "REINSTATE_USER", {

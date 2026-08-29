@@ -490,6 +490,16 @@ const STR = {
     en:'Photos uploaded before today have a public download link stored on the account — served without authentication, where the storage rules never see the request. The app and this console now read the photo through the SDK instead. This rotates the token on every stored photo, so every link ever issued for it stops working, and clears the links off the records. The photos stay readable here and in the app. Safe to run repeatedly.',
     fa:'عکس‌هایی که پیش از امروز بارگذاری شده‌اند، یک لینک دانلود عمومی روی حساب دارند — بدون احراز هویت سرو می‌شود و قواعد ذخیره‌سازی آن را نمی‌بینند. اپ و همین کنسول حالا عکس را از راه SDK می‌خوانند. این دکمه توکن هر عکس ذخیره‌شده را عوض می‌کند، پس هر لینکی که تا حالا صادر شده از کار می‌افتد، و لینک‌ها را از حساب‌ها پاک می‌کند. عکس‌ها اینجا و در اپ خوانا می‌مانند. اجرای چندبارهٔ آن بی‌خطر است.',
     ps:'هغه عکسونه چې له نن دمخه پورته شوي دي، په حساب کې یو عمومي ډاونلوډ لینک لري — پرته له تصدیق وړاندې کیږي او د ذخیرې قواعد یې نه ویني. اپ او همدا کنسول اوس عکس د SDK له لارې لولي. دا تڼۍ د هر ذخیره شوي عکس ټوکن بدلوي، نو هر صادر شوی لینک له کاره لویږي، او لینکونه له حسابونو پاکوي. عکسونه دلته او په اپ کې لوستل کیږي. څو ځله یې چلول خطر نه لري.'},
+  prompt_suspendReason: {
+    en:(who)=>`Suspend ${who}?\n\nThey keep access to their own history and to support — what stops is acting: booking, paying, posting.\n\nGive a reason. It is kept on the record.`,
+    fa:(who)=>`${who} تعلیق شود؟\n\nدسترسی‌اش به سابقهٔ خودش و به پشتیبانی باقی می‌ماند — آنچه متوقف می‌شود عمل کردن است: نوبت‌گیری، پرداخت، ارسال پست.\n\nدلیل بنویسید. روی سابقه ثبت می‌شود.`,
+    ps:(who)=>`${who} معلق شي؟\n\nخپل تاریخچې او ملاتړ ته یې لاسرسی پاتې کیږي — هغه څه چې درېږي عمل دی: بکینګ، تادیه، پوسټ کول.\n\nدلیل ولیکئ. په ریکارډ کې ساتل کیږي.`},
+  confirm_reinstate: {
+    en:(who)=>`Reinstate ${who}?\n\nThe account returns to the standing it had before it was suspended.`,
+    fa:(who)=>`تعلیق ${who} برداشته شود؟\n\nحساب به همان وضعیتی برمی‌گردد که پیش از تعلیق داشت.`,
+    ps:(who)=>`د ${who} تعلیق لرې شي؟\n\nحساب هغه حالت ته ورګرځي چې تر تعلیق دمخه یې درلود.`},
+  ok_suspended: {en:'Suspended ✓', fa:'تعلیق شد ✓', ps:'معلق شو ✓'},
+  ok_reinstated: {en:'Reinstated ✓', fa:'تعلیق برداشته شد ✓', ps:'تعلیق لرې شو ✓'},
   confirm_revokeKycLinks: {
     en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
     fa:'توکن دانلود هر عکس هویتی ذخیره‌شده عوض شود؟\n\nهر لینکی که تا حالا برای آن عکس‌ها صادر شده از کار می‌افتد. هدف همین است — آن لینک‌ها عمومی‌اند. عکس‌ها در همین کنسول و در اپ خوانا می‌مانند، چون حالا با اعتبار خود شما گرفته می‌شوند. تکرارش بی‌خطر است.',
@@ -1018,7 +1028,13 @@ async function renderStats(){
         countOf(query(users, where('role','==','PROVIDER'))),
         countOf(query(users, where('role','==','CUSTOMER'))),
         countOf(query(users, where('status','==','PENDING'))),
-        countOf(query(users, where('status','==','SUSPENDED'))),
+        // Counted on `suspended`, which is what actually stops an account.
+        // Anything suspended from now on carries both fields, so this is exact
+        // going forward; an account suspended before today through the old
+        // status-only path is enforced (isSuspended reads both) but not counted
+        // here, because Firestore cannot ask for "has status, lacks suspended"
+        // and counting both queries would double every current row.
+        countOf(query(users, where('suspended','==',true))),
         countOf(query(users, where('kycStatus','==','PENDING'))),
         countOf(collection(db,'salons')),
         countOf(collection(db,'appointments')),
@@ -1442,10 +1458,29 @@ async function renderUsers(){
          ${t('hint_showingNewestAccounts', USER_PAGE)}</div>` : '') +
       `<input id="usearch" class="field" placeholder="${t('ph_searchNameOrPhone')}" style="max-width:340px;margin-bottom:16px" />
       <div id="ulist"></div>`;
-    const setStatus = async (uid, status) => {
-      try{ await updateDoc(doc(db,'users',uid), { status });
-        const u = users.find(x=>x.id===uid); if(u) u.status = status; draw($('usearch').value); }
-      catch(e){ alert(e.message); }
+    // Through the audited callable, not a raw updateDoc. This wrote status
+    // directly from the browser: nothing on the server reads that field, so the
+    // badge turned red and the account went on booking and paying; the action
+    // never reached admin_audit; and "unsuspend" wrote APPROVED, promoting any
+    // provider who had been suspended while still awaiting review. The Manage
+    // modal had always done this properly — this was the same button done twice.
+    const setSuspended = async (uid, suspend) => {
+      const u = users.find(x=>x.id===uid);
+      const who = u ? (u.name||u.id) : uid;
+      let reason = '';
+      if (suspend) {
+        reason = (prompt(t('prompt_suspendReason', who)) || '').trim();
+        if (!reason) return;                       // cancelled, or no reason given
+      } else if (!confirm(t('confirm_reinstate', who))) {
+        return;
+      }
+      const payload = suspend ? { targetUid: uid, suspend: true, reason }
+                              : { targetUid: uid, suspend: false };
+      if (await callFn('adminSetUserStatus', payload, null, null,
+                       suspend ? t('ok_suspended') : t('ok_reinstated'))) {
+        if (u) { u.suspended = suspend; u.status = suspend ? 'SUSPENDED' : (u.role==='PROVIDER'?'PENDING':'APPROVED'); }
+        draw($('usearch').value);
+      }
     };
     const draw = (term='') => {
       // Named q, not t: t is the translation function, and shadowing it here
@@ -1458,18 +1493,18 @@ async function renderUsers(){
           <td class="name">${esc(u.name||u.id)}</td>
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
           <td>${esc(u.phone||'—')}</td>
-          <td>${statusPill(u.status)}</td>
+          <td>${statusPill(u.suspended===true ? 'SUSPENDED' : u.status)}</td>
           <td>${kycPill(u.kycStatus)}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">${t('btn_manage')}</button>
-            ${u.status==='SUSPENDED'
+            ${(u.suspended===true || u.status==='SUSPENDED')
               ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">${t('btn_unsuspend')}</button>`
               : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">${t('btn_suspend')}</button>`}
           </td>
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_noMatchingUsers')}</div>`;
-      $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setStatus(b.dataset.sus,'SUSPENDED'));
-      $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setStatus(b.dataset.uns,'APPROVED'));
+      $('ulist').querySelectorAll('[data-sus]').forEach(b=>b.onclick=()=>setSuspended(b.dataset.sus,true));
+      $('ulist').querySelectorAll('[data-uns]').forEach(b=>b.onclick=()=>setSuspended(b.dataset.uns,false));
       $('ulist').querySelectorAll('[data-manage]').forEach(b=>b.onclick=()=>{
         const u = users.find(x=>x.id===b.dataset.manage); if(u) openUserModal(u, ()=>renderUsers());
       });
