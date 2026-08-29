@@ -3,7 +3,7 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const { computeCheckout, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
+const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { cashAllowed } = require("../lib/commitment");
@@ -39,6 +39,23 @@ const DEFAULT_COMMISSION_PERCENT = 10;
 async function getPlatformConfig() {
   const snap = await db.doc("platform_config/general").get();
   return snap.exists ? (snap.data() || {}) : {};
+}
+
+/**
+ * The share of a booking that discounts may take, from platform_config/general.
+ *
+ * A number the admin can move, because how deep a promo may cut is a business
+ * decision and not one to leave buried in a constant. Out-of-range values fall
+ * back to the default rather than being trusted — a 0 there would make every
+ * booking free.
+ */
+async function getMaxDiscountFraction() {
+  const snap = await db.doc("platform_config/general").get();
+  const value = Number(snap.exists ? snap.data().maxDiscountFraction : undefined);
+  if (!Number.isFinite(value) || value <= 0 || value > 1) {
+    return DEFAULT_MAX_DISCOUNT_FRACTION;
+  }
+  return value;
 }
 
 async function getCommissionPercent() {
@@ -369,7 +386,14 @@ exports.createPaymentSession = onCall(
     // booking completes (immediately for cash; in the webhook for online). The
     // arithmetic lives in lib/money.js so it can be unit-tested without Firebase.
     const commissionPercent = await getCommissionPercent();
-    const totalDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
+    // Capped, not just summed. Four discounts land on one booking and three of
+    // them are the salon's own — it may discount itself as deeply as it likes.
+    // The promo code is not: an admin issues it and it stacks on top of whatever
+    // the salon had already given away, and the four together reached the whole
+    // subtotal. computeCheckout clamps at zero, so nothing ever went negative
+    // and the real outcome was hidden: a salon doing the work for nothing.
+    const rawDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
+    const totalDiscount = capDiscount(subtotal, rawDiscount, await getMaxDiscountFraction());
 
     // Reserve referral credit + the promo use ATOMICALLY at checkout, reading the
     // LIVE balance/usedCount inside the transaction — so two of the customer's
@@ -459,6 +483,9 @@ exports.createPaymentSession = onCall(
         status:         "PENDING",
         paymentMethod:  "CASH",
         createdAt:      Date.now(),
+        // When the wait for the salon's confirmation started — reset on
+        // reschedule, which createdAt cannot be. See lib/unconfirmed.js.
+        pendingSince:   Date.now(),
         notes:          safeNotes,
         reminderSent:   false,
         customerReported:    false,
@@ -1191,7 +1218,11 @@ async function settlePaymentInTransaction(tx, ctx) {
       transactionId: transactionId || null,
     });
     // Release the appointment to the provider's pending queue.
-    tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
+    // pendingSince starts here, not at checkout: until the money arrived the
+    // salon had nothing to confirm, and an abandoned-then-paid booking would
+    // otherwise arrive up to two hours into its own confirmation deadline.
+    tx.update(db.doc(`appointments/${fresh.appointmentId}`),
+      { status: "PENDING", pendingSince: Date.now() });
     ctx.apptEvent = { id: fresh.appointmentId, to: "PENDING", reason: "Online payment received" };
     // Track what the provider is owed (platform pays out separately).
     // Guarded: an empty providerId would make db.doc("provider_balances/")

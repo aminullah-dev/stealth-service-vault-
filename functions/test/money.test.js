@@ -2,7 +2,7 @@
 // Firebase — run with `npm test` (uses Node's built-in test runner, no deps).
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("../lib/money");
+const { capDiscount, promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("../lib/money");
 
 test("loyaltyToCredit: exact multiple redeems fully at 1:1", () => {
   assert.deepEqual(loyaltyToCredit(100), { ok: true, spend: 100, credit: 100, reason: "" });
@@ -326,3 +326,44 @@ test("packageDiscountFor: caps at the package subtotal and rounds", () => {
   const pkg = { services: ["nails"], discountPercent: 150 };
   assert.equal(packageDiscountFor(pkg, PKG_SERVICES), 200);
 });
+
+// ── the discount cap ─────────────────────────────────────────────────────────
+//
+// Four discounts land on one booking: the salon's own offer, a package, a
+// last-minute deal, and a promo code. They were summed against the same subtotal
+// with nothing stopping the total reaching it, and computeCheckout clamps at
+// zero — so nothing ever went negative and the real outcome was invisible: a
+// salon doing the work for nothing, on a promo an admin issued that it never
+// agreed to.
+test("capDiscount: a stacked total cannot take the whole subtotal", () => {
+  assert.strictEqual(capDiscount(1000, 1500), 900);
+  assert.strictEqual(capDiscount(1000, 1000), 900);
+});
+
+test("capDiscount: a discount within the cap is untouched", () => {
+  assert.strictEqual(capDiscount(1000, 300), 300);
+  assert.strictEqual(capDiscount(1000, 900), 900);
+});
+
+test("capDiscount: the salon always receives something", () => {
+  for (const subtotal of [1, 50, 380, 1000, 12345]) {
+    const capped = capDiscount(subtotal, subtotal * 10);
+    assert.ok(subtotal - capped > 0, `a ${subtotal} AFN booking was fully discounted`);
+  }
+});
+
+test("capDiscount: the fraction is configurable, and nonsense falls back", () => {
+  assert.strictEqual(capDiscount(1000, 900, 0.5), 500);
+  // A 0 or a negative in platform_config would make every booking free, so an
+  // out-of-range value is refused rather than trusted.
+  assert.strictEqual(capDiscount(1000, 900, 0), 900);
+  assert.strictEqual(capDiscount(1000, 900, -1), 900);
+  assert.strictEqual(capDiscount(1000, 900, 5), 900);
+});
+
+test("capDiscount: nothing to discount, or nothing to discount from", () => {
+  assert.strictEqual(capDiscount(0, 500), 0);
+  assert.strictEqual(capDiscount(1000, 0), 0);
+  assert.strictEqual(capDiscount(1000, -5), 0);
+  assert.strictEqual(capDiscount(NaN, 100), 0);
+})

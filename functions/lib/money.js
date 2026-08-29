@@ -10,6 +10,9 @@
 // Discount (AFN) a promo grants against a booking of [priceAfn].
 // Percentage wins when both are set; the discount can never exceed the price, so
 // the amount the customer pays is always >= 0. Mirrors the original inline logic.
+/** Ten per cent of the subtotal always reaches the salon. */
+const DEFAULT_MAX_DISCOUNT_FRACTION = 0.9;
+
 function promoDiscountFor(promo, priceAfn) {
   const price = Number(priceAfn) || 0;
   let discount = 0;
@@ -162,6 +165,38 @@ function loyaltyToCredit(points, opts) {
 }
 
 module.exports = {
+  capDiscount,
+  DEFAULT_MAX_DISCOUNT_FRACTION,
   promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit,
   offerDiscountFor, lastMinuteDiscount, packageDiscountFor,
-};
+};/**
+ * The most a booking may be discounted, in AFN.
+ *
+ * Four discounts stack on one booking — the salon's own offer, a package, a
+ * last-minute deal, and a promo code — and they were summed against the same
+ * subtotal with nothing stopping the total reaching it. computeCheckout clamps
+ * at zero so the arithmetic never went negative, which hid the real outcome: a
+ * salon doing the work for nothing.
+ *
+ * Three of the four are the salon's own choices and it can discount itself as
+ * deeply as it likes. The promo code is not: an admin issues it, and it lands on
+ * top of whatever the salon had already given away. A floor is what keeps that
+ * from costing a salon a whole appointment without its agreement.
+ *
+ * [maxFraction] is the share of the subtotal that may be discounted away —
+ * 0.9 leaves a tenth. Referral credit is not counted here: it is the customer's
+ * own balance, capped separately at what remains, and the salon is paid from it.
+ */
+function capDiscount(subtotal, discount, maxFraction = DEFAULT_MAX_DISCOUNT_FRACTION) {
+  const base = Number(subtotal);
+  const want = Number(discount);
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  if (!Number.isFinite(want) || want <= 0) return 0;
+  const frac = Number.isFinite(Number(maxFraction)) &&
+               Number(maxFraction) > 0 && Number(maxFraction) <= 1
+    ? Number(maxFraction)
+    : DEFAULT_MAX_DISCOUNT_FRACTION;
+  return Math.min(Math.round(want), Math.floor(base * frac));
+}
+
+

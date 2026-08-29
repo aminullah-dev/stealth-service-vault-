@@ -4,9 +4,10 @@
 // so the deployed function set is unchanged by the move.
 
 const { normalizeBookingCode } = require("../lib/booking");
+const { commissionToReturn, shouldReverseCommission } = require("../lib/commission");
 const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
-const { UNCONFIRMED_ADMIN_AFTER_MS, UNCONFIRMED_NUDGE_AFTER_MS, unconfirmedDeadline } = require("../lib/unconfirmed");
+const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
 const { assertAdmin, assertDocId, assertNotSuspended, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
@@ -81,8 +82,11 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
     if (payment && payment.method === "CASH") {
       // No online money ever moved, so there's nothing to refund — just undo
       // the commission debt that was charged to the provider at booking time.
-      tx.update(payDoc.ref, { status: "CANCELLED" });
-      if (providerId) {
+      tx.update(payDoc.ref, { status: "CANCELLED", commissionReversed: true });
+      // commissionReversed guards the one overlap: a salon that reports a
+      // no-show (reportCustomer gives the commission back) and then cancels the
+      // same booking would otherwise be credited for it twice.
+      if (providerId && payment.commissionReversed !== true) {
         tx.set(
           db.doc(`provider_balances/${providerId}`),
           {
@@ -396,7 +400,20 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
       throw new HttpsError("failed-precondition", "That time is no longer available.");
     }
 
-    tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
+    // Back to PENDING means the wait for the salon's agreement starts over, and
+    // every flag that tracks that wait has to start over with it. Without this,
+    // the hourly sweep judged the new booking by the old one's clock: it was
+    // already nudged, already escalated, and already past its 24h deadline, so
+    // the next run cancelled and refunded an appointment the customer had just
+    // successfully moved.
+    tx.update(apptRef, {
+      appointmentDate: dateMs,
+      status:          "PENDING",
+      reminderSent:    false,
+      pendingSince:    Date.now(),
+      providerNudged:  false,
+      adminAlerted:    false,
+    });
     writeAppointmentEvent(tx, appt, appointmentId, "PENDING", appUser,
       `Rescheduled to ${new Date(dateMs).toISOString()}`);
     if (providerId) {
@@ -547,6 +564,14 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
       throw new HttpsError("failed-precondition", "This booking can't be reviewed.");
     }
 
+    // Read before any write — a transaction allows no read after one. Needed
+    // only for a no-show, but a Firestore transaction cannot fetch it later.
+    const paySnap = noShow
+      ? await tx.get(db.collection("payments").where("appointmentId", "==", appointmentId).limit(1))
+      : null;
+    const payDoc  = paySnap && !paySnap.empty ? paySnap.docs[0] : null;
+    const payment = payDoc ? payDoc.data() : null;
+
     tx.update(apptRef, { customerReported: true });
     writeAppointmentEvent(tx, appt, appointmentId, appt.status,
       { uid: appUser.uid, role: "PROVIDER", name: appUser.name },
@@ -582,10 +607,34 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
         tx.set(db.doc(`users/${appt.customerId}`), agg, { merge: true });
       }
     }
-    return { reportId: reportRef.id };
+
+    // A cash no-show means no cash. The commission was debited to the salon at
+    // booking time (createPaymentSession), on the assumption the customer would
+    // arrive and pay — so a salon that was stood up was left owing the platform
+    // a cut of money it never received. Give it back, exactly as cancelling the
+    // same booking already does.
+    //
+    // Online payments are deliberately untouched: that money did change hands,
+    // the slot was held, and whether the customer gets it back is the refund
+    // flow's decision, not this one's.
+    let commissionReversed = false;
+    if (payDoc && shouldReverseCommission(noShow, payment)) {
+      tx.update(payDoc.ref, { status: "NO_SHOW", commissionReversed: true });
+      tx.set(
+        db.doc(`provider_balances/${payment.providerId}`),
+        {
+          providerId: payment.providerId,
+          owedAmount: admin.firestore.FieldValue.increment(commissionToReturn(payment)),
+          updatedAt:  Date.now(),
+        },
+        { merge: true }
+      );
+      commissionReversed = true;
+    }
+    return { reportId: reportRef.id, commissionReversed };
   });
 
-  return { reported: true, reportId: result.reportId };
+  return { reported: true, reportId: result.reportId, commissionReversed: result.commissionReversed };
 });
 
 // ── sendBookingReminders (scheduled) ──────────────────────────────────────────
@@ -845,7 +894,14 @@ exports.rotateWaitlistOffers = onSchedule(
 exports.nudgeUnconfirmedBookings = onSchedule(
   { schedule: "every 1 hours", region: "us-central1" },
   async () => {
-    const cutoff = Date.now() - UNCONFIRMED_NUDGE_AFTER_MS;
+    const now = Date.now();
+    // Queried on createdAt, judged on pendingSince. createdAt is on every
+    // appointment ever written and pendingSince is not, so querying the newer
+    // field would silently skip every booking that predates it — this codebase
+    // has shipped that bug before. createdAt <= pendingSince always, so this
+    // query is a superset: it can return a rescheduled booking too early, and
+    // isNudgeDue/isAdminDue/unconfirmedDeadline are what decline it.
+    const cutoff = now - UNCONFIRMED_NUDGE_AFTER_MS;
     const snap = await db.collection("appointments")
       .where("status", "==", "PENDING")
       .where("createdAt", "<", cutoff)
@@ -876,7 +932,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     const orphaned = [];
     for (const d of snap.docs) {
       const a = d.data();
-      if (a.providerNudged) continue;            // already chased this one
+      if (!isNudgeDue(a, now)) continue;         // already chased, or freshly rescheduled
       const providerId = await providerFor(a.salonId);
       if (!providerId) {
         // The salon is gone, or the booking predates salons having owners.
@@ -915,7 +971,6 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
     if (byProvider.size === 0) return;
 
-    const now = Date.now();
     let notified = 0;
     for (const [providerId, docs] of byProvider) {
       const batch = db.batch();
@@ -946,11 +1001,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     // With a handful of salons the admin personally onboarded every owner and
     // has their phone number, so one call converts most of these into a
     // confirmed booking. That is worth far more than a refund.
-    const adminCutoff = now - UNCONFIRMED_ADMIN_AFTER_MS;
-    const needsAdmin = snap.docs.filter((d) => {
-      const a = d.data();
-      return !a.adminAlerted && (a.createdAt || 0) < adminCutoff;
-    });
+    const needsAdmin = snap.docs.filter((d) => isAdminDue(d.data(), now));
     if (needsAdmin.length) {
       const admins = await db.collection("users").where("role", "==", "ADMIN").get();
       const batch = db.batch();
