@@ -144,7 +144,8 @@ class DashboardViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
     private val languageRepository: LanguageRepository,
     private val favoritesRepository: FavoritesRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val sessionManager: com.safebeauty.app.security.SessionManager,
 ) : ViewModel() {
 
     val customerId: String = checkNotNull(savedStateHandle["userId"])
@@ -1297,6 +1298,16 @@ class DashboardViewModel @Inject constructor(
             slotsLoading = false
         }
     }
+
+    /**
+     * The customer is about to leave for HesabPay in a browser.
+     *
+     * The five-minute idle lock only sees touches inside this app, so paying —
+     * reading the page, typing a number, waiting for a confirmation — reads as
+     * idleness. Returning to the login screen with the payment dialog gone is
+     * the worst moment for it to fire, because the money may already have moved.
+     */
+    fun beginExternalPayment() = sessionManager.beginExternalPayment()
 
     fun clearSlots() {
         availableSlots = emptyList()

@@ -1399,6 +1399,7 @@ fun CustomerDashboardScreen(
             LaunchedEffect(giftState) {
                 if (giftState is GiftUiState.OpenCheckout) {
                     runCatching {
+                        viewModel.beginExternalPayment()
                         giftCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(giftState.url)))
                     }
                 }
@@ -1469,6 +1470,7 @@ fun CustomerDashboardScreen(
             LaunchedEffect(walletState) {
                 if (walletState is WalletUiState.OpenCheckout) {
                     runCatching {
+                        viewModel.beginExternalPayment()
                         walletCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(walletState.url)))
                     }
                 }
@@ -1941,6 +1943,7 @@ fun CustomerDashboardScreen(
         // ── Payment / HesabPay checkout ───────────────────────────────────────
         run {
             val openCheckout: (String) -> Unit = { url ->
+                viewModel.beginExternalPayment()
                 runCatching {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -2350,7 +2353,8 @@ fun CustomerDashboardScreen(
                 salonName = appt.salonName,
                 tipState  = viewModel.tipState,
                 onSend    = { amount -> viewModel.sendTip(appt.id, amount) },
-                onDismiss = { tipTarget = null; viewModel.resetTip() }
+                onDismiss = { tipTarget = null; viewModel.resetTip() },
+                onLeavingForCheckout = { viewModel.beginExternalPayment() },
             )
         }
 
@@ -2554,7 +2558,9 @@ private fun TipDialog(
     salonName: String,
     tipState: TipUiState,
     onSend: (Long) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Called just before the browser opens, so the idle lock defers. */
+    onLeavingForCheckout: () -> Unit = {},
 ) {
     val strings = LocalStrings.current
     val context = LocalContext.current
@@ -2566,6 +2572,7 @@ private fun TipDialog(
     LaunchedEffect(tipState) {
         if (tipState is TipUiState.OpenCheckout) {
             runCatching {
+                onLeavingForCheckout()
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(tipState.url)))
             }
         }
