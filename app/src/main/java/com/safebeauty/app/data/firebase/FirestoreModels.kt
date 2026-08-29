@@ -290,6 +290,12 @@ data class AppointmentDocument(
     val salonId: String = "",
     val salonName: String = "",
     val serviceName: String = "",
+    // The individual services, as chosen. serviceName is these joined for
+    // display; this is the list itself, which the server has written since
+    // bookings began and the app had never read — so rescheduling could not work
+    // out how long the appointment is and offered a free clock face instead of
+    // the salon's real free times.
+    val services: List<String> = emptyList(),
     // The staff member this booking is for. Empty = "any available" / solo salon.
     val staffId: String = "",
     val staffName: String = "",

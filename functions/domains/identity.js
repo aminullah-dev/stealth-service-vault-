@@ -819,7 +819,9 @@ exports.adminBackfillWorkingHours = onCall(
         alreadyHad += 1;
         continue;
       }
-      if (names.length < 20) names.push(salon.name || d.id);
+      // salonName, not name. Salons have never had a `name` field, so the list
+      // an admin reads before pressing this was always a column of document ids.
+      if (names.length < 20) names.push(salon.salonName || d.id);
       if (!dryRun) await d.ref.update({ workingHours: defaultWorkingHours() });
       filled += 1;
     }

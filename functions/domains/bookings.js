@@ -5,7 +5,7 @@
 
 const { normalizeBookingCode } = require("../lib/booking");
 const { slotFit } = require("../lib/hours");
-const { commissionToReturn, shouldReverseCommission } = require("../lib/commission");
+const { cashLedgerDelta, onlineLedgerDelta, shouldReverseCommission } = require("../lib/commission");
 const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
@@ -92,7 +92,10 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(payment.commissionAmount || 0),
+            // Exactly the negation of what booking it did. The commission goes
+            // back, and so does the wallet-credit portion the platform was
+            // covering — nothing happened, so neither side owes the other.
+            owedAmount: admin.firestore.FieldValue.increment(-cashLedgerDelta(payment)),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -122,7 +125,8 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(-payment.providerNet),
+            // The negation of what settlement credited, wallet portion included.
+            owedAmount: admin.firestore.FieldValue.increment(-onlineLedgerDelta(payment)),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -404,15 +408,25 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     // And on the grid the salon actually keeps. hasSlotConflict cannot see this:
     // an off-grid time between two bookings collides with neither, so a booking
     // could be moved to 03:17 on a Friday and the conflict check would agree.
-    const fit = slotFit(salon, dateMs, Array.isArray(busy) ? busy.length : busy);
+    // `span`, not `busy`. busyOffsets is where the stylist is working; the
+    // customer is in the chair for the whole span, and that is what has to fit
+    // before closing.
+    const fit = slotFit(salon, dateMs, span);
     if (!fit.ok) {
-      throw new HttpsError(
-        "failed-precondition",
-        fit.reason === "SALON_CLOSED"
-          ? "The salon is closed on that day."
-          : "The salon is not open at that time.",
-        { reason: fit.reason }
-      );
+      // Say which way it is wrong. "The salon is not open at that time" for an
+      // off-grid 14:30 is false — she is open at 14:30, the appointment simply
+      // does not start there — and a wrong reason sends the customer looking in
+      // the wrong place. The app now offers only the salon's real free times, so
+      // reaching any of these means the two disagreed and that is worth knowing
+      // from the message alone.
+      const message = {
+        SALON_CLOSED:   "The salon is closed on that day.",
+        BEFORE_OPENING: "That is before the salon opens.",
+        AFTER_CLOSING:  "The appointment would not finish before the salon closes.",
+        OFF_GRID:       "The salon does not start appointments at that time.",
+        BAD_TIME:       "That is not a valid time.",
+      }[fit.reason] || "The salon is not available at that time.";
+      throw new HttpsError("failed-precondition", message, { reason: fit.reason });
     }
 
     // Back to PENDING means the wait for the salon's agreement starts over, and
@@ -639,7 +653,11 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
         db.doc(`provider_balances/${payment.providerId}`),
         {
           providerId: payment.providerId,
-          owedAmount: admin.firestore.FieldValue.increment(commissionToReturn(payment)),
+          // The negation of the cash booking's own entry. The commission comes
+          // back because no money was collected to take a cut of, and the wallet
+          // portion goes back to the platform because the appointment never
+          // happened — she held the slot, but nobody was served.
+          owedAmount: admin.firestore.FieldValue.increment(-cashLedgerDelta(payment)),
           updatedAt:  Date.now(),
         },
         { merge: true }

@@ -106,12 +106,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -202,7 +200,6 @@ import androidx.compose.material.icons.filled.Palette
 import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
@@ -458,7 +455,6 @@ fun CustomerDashboardScreen(
     var showRescheduleDate  by remember { mutableStateOf(false) }
     var showRescheduleTime  by remember { mutableStateOf(false) }
     val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
-    val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
     var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
     var showOverflow        by remember { mutableStateOf(false) }
     var tipTarget           by remember { mutableStateOf<AppointmentDocument?>(null) }
@@ -2336,7 +2332,25 @@ fun CustomerDashboardScreen(
                     Button(
                         onClick = {
                             showRescheduleDate   = false
-                            reschedulePickedDate = rescheduleDateState.selectedDateMillis
+                            val picked = rescheduleDateState.selectedDateMillis
+                            reschedulePickedDate = picked
+                            val target = rescheduleTarget
+                            if (picked != null && target != null) {
+                                // The salon's real free times, exactly as the booking
+                                // flow computes them. A free clock face let a customer
+                                // pick a minute the salon does not open on, an hour it
+                                // is closed, or a slot already taken — and she found
+                                // out only when the server refused, with no reason
+                                // given. The same grid, the same maths, one screen
+                                // later in the same journey.
+                                viewModel.ensureSalonLoaded(target.salonId) { salon ->
+                                    if (salon != null) {
+                                        viewModel.loadSlotsForDate(
+                                            salon, picked, target.staffId, target.services,
+                                        )
+                                    }
+                                }
+                            }
                             showRescheduleTime   = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
@@ -2358,32 +2372,62 @@ fun CustomerDashboardScreen(
                 onDismissRequest = { showRescheduleTime = false; rescheduleTarget = null },
                 title = { Text(strings.rescheduleTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text  = {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
-                        TimePicker(state = rescheduleTimeState)
+                    Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                        when {
+                            viewModel.slotsLoading -> CircularProgressIndicator(
+                                color = RoseGold, modifier = Modifier.align(Alignment.Center)
+                            )
+                            // "We could not find out" and "there is nothing left"
+                            // look identical on screen and mean opposite things.
+                            viewModel.slotsFailed -> Text(
+                                strings.slotsLoadFailed,
+                                color = DangerRed,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
+                            viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> Text(
+                                strings.noSlotsAvailable,
+                                color = RoseGold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
+                            else -> {
+                                val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(viewModel.availableSlots) { slotMs ->
+                                        Button(
+                                            onClick = {
+                                                showRescheduleTime = false
+                                                rescheduleTarget?.let {
+                                                    viewModel.rescheduleAppointment(it.id, slotMs)
+                                                }
+                                                rescheduleTarget = null
+                                                viewModel.clearSlots()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
+                                        ) {
+                                            Text(
+                                                timeFmt.format(Date(slotMs)),
+                                                color = DeepRose,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 15.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showRescheduleTime = false
-                            val target = rescheduleTarget
-                            val dateMs = reschedulePickedDate
-                            if (target != null && dateMs != null) {
-                                val cal = Calendar.getInstance().apply {
-                                    timeInMillis = dateMs
-                                    set(Calendar.HOUR_OF_DAY, rescheduleTimeState.hour)
-                                    set(Calendar.MINUTE,      rescheduleTimeState.minute)
-                                    set(Calendar.SECOND,      0)
-                                }
-                                viewModel.rescheduleAppointment(target.id, cal.timeInMillis)
-                            }
-                            rescheduleTarget = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text(strings.reschedule, color = Color.White) }
-                },
+                confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { showRescheduleTime = false; rescheduleTarget = null }) {
+                    TextButton(onClick = {
+                        showRescheduleTime = false
+                        rescheduleTarget = null
+                        viewModel.clearSlots()
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },

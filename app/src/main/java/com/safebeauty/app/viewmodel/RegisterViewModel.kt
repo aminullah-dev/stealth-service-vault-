@@ -190,7 +190,9 @@ class RegisterViewModel @Inject constructor(
                         // registration the uid_map bridge isn't populated yet, so a
                         // direct client write can't pass the security rules.
                         //
-                        // Deliberately outside the rollback. A failure here used to
+                        // Deliberately shielded from the rollback — it sits inside
+                        // the try, so runCatching is what keeps its failure from
+                        // reaching the catch. A failure here used to
                         // delete the Auth account and leave the users document
                         // behind, and that pair is unrecoverable: the phone now has
                         // an account so registration refuses it, and there is no Auth

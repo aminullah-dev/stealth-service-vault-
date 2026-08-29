@@ -27,12 +27,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class ProviderAnalytics(
@@ -71,22 +74,30 @@ class ProviderViewModel @Inject constructor(
      * the app, the registration screen, which she has already left for good.
      *
      * The details she typed were kept on her user document precisely so this
-     * could finish the job. Attempted once per ViewModel, only when there is
-     * genuinely no salon, and silent either way: if it fails she is no worse off
-     * than she was, and the next sign-in tries again.
+     * could finish the job. Attempted once per ViewModel, and silent either way:
+     * if it fails she is no worse off than she was, and the next sign-in tries
+     * again.
+     *
+     * `salon` starts at null before the listener has answered, so a null on its
+     * own means "not yet", not "there isn't one". Waiting for the first non-null
+     * with a timeout is what distinguishes them — otherwise this fires an extra
+     * read on every ViewModel creation for every salon owner on the platform,
+     * for a case that affects almost none of them.
      */
     private var pendingSalonAttempted = false
 
     init {
         viewModelScope.launch {
-            salon.collect { s ->
-                if (s != null || pendingSalonAttempted) return@collect
-                val user = runCatching { firestoreRepository.getUserById(providerId) }.getOrNull()
-                    ?: return@collect
-                if (user.pendingSalonName.isBlank()) return@collect
-                pendingSalonAttempted = true
-                firestoreRepository.finishPendingSalon(user)
-            }
+            // Long enough for a cold Firestore listener on a slow connection,
+            // short enough that a genuinely missing salon is fixed while she is
+            // still on the screen wondering where it is.
+            val existing = withTimeoutOrNull(8_000) { salon.filterNotNull().first() }
+            if (existing != null || pendingSalonAttempted) return@launch
+            val user = runCatching { firestoreRepository.getUserById(providerId) }.getOrNull()
+                ?: return@launch
+            if (user.pendingSalonName.isBlank()) return@launch
+            pendingSalonAttempted = true
+            firestoreRepository.finishPendingSalon(user)
         }
     }
 

@@ -524,9 +524,18 @@ private fun BookingRequestCard(
                             Text(strings.decline, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                } else if (appointment.status == "CONFIRMED" && !appointment.customerReported) {
+                } else if ((appointment.status == "CONFIRMED" || appointment.status == "COMPLETED") &&
+                    !appointment.customerReported) {
                     // Once a booking is confirmed the provider can leave feedback
                     // about the customer (rating / no-show / misconduct report).
+                    //
+                    // COMPLETED belongs here for the same reason the server accepts
+                    // it (reportCustomer, bookings.js): completePastAppointments
+                    // flips CONFIRMED to COMPLETED about two hours after the start
+                    // time, which is when a salon sits down to rate her day. Gated
+                    // on CONFIRMED alone, the "visits you can rate" section listed
+                    // the card and the card had no button on it — a two-hour window
+                    // to use a feature meant for the evening.
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
                         onClick        = onRate,

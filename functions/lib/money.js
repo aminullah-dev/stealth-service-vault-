@@ -10,7 +10,7 @@
 // Discount (AFN) a promo grants against a booking of [priceAfn].
 // Percentage wins when both are set; the discount can never exceed the price, so
 // the amount the customer pays is always >= 0. Mirrors the original inline logic.
-/** Ten per cent of the subtotal always reaches the salon. */
+/** Ten per cent of the list price is never discounted away. */
 const DEFAULT_MAX_DISCOUNT_FRACTION = 0.9;
 
 function promoDiscountFor(promo, priceAfn) {
@@ -183,9 +183,18 @@ module.exports = {
  * top of whatever the salon had already given away. A floor is what keeps that
  * from costing a salon a whole appointment without its agreement.
  *
- * [maxFraction] is the share of the subtotal that may be discounted away —
- * 0.9 leaves a tenth. Referral credit is not counted here: it is the customer's
- * own balance, capped separately at what remains, and the salon is paid from it.
+ * This is a floor on the DISCOUNT, which is not the same as a floor on what the
+ * salon receives — see maxFraction below for the part wallet credit plays.
+ *
+ * [maxFraction] is the share of the list price that may be discounted away —
+ * 0.9 leaves a tenth.
+ *
+ * Wallet credit is deliberately outside this. It is not a discount: it is the
+ * platform's own money — a gift card someone bought, a referral reward, a KYC
+ * bonus, redeemed loyalty points — spent on the customer's behalf. It can take
+ * what she pays at the checkout to nothing, and it does not reduce what the
+ * salon is owed, because the provider ledger credits that portion separately.
+ * See cashLedgerDelta / onlineLedgerDelta in lib/commission.js.
  */
 function capDiscount(subtotal, discount, maxFraction = DEFAULT_MAX_DISCOUNT_FRACTION) {
   const base = Number(subtotal);

@@ -407,8 +407,24 @@ exports.adminSetUserStatus = onCall({ region: "us-central1" }, async (request) =
   // suspended rather than assuming APPROVED: a provider suspended while still
   // PENDING approval would otherwise be quietly promoted by being reinstated.
   const wasSuspended = target.suspended === true || target.status === "SUSPENDED";
-  const restoreTo = String(target.statusBeforeSuspension || "") ||
-    (target.status === "SUSPENDED" ? (target.role === "PROVIDER" ? "PENDING" : "APPROVED") : target.status);
+
+  // An account suspended before statusBeforeSuspension existed overwrote its own
+  // status with "SUSPENDED", so what it used to be is simply not recorded. The
+  // first attempt here restored a provider to PENDING, which quietly un-approves
+  // a salon that was working — a silent demotion nobody was told about, in the
+  // act of doing someone a favour.
+  //
+  // kycStatus is the evidence that survives: reviewKyc approves the identity,
+  // and no provider reaches APPROVED without it. So a verified provider goes
+  // back to APPROVED and an unverified one stays PENDING, which is where she
+  // would have been anyway. The guess is reported, in the audit log and to the
+  // caller, because a guess an admin cannot see is the part that does the harm.
+  const known = String(target.statusBeforeSuspension || "");
+  const guessed = !known && target.status === "SUSPENDED";
+  const restoreTo = known ||
+    (target.status === "SUSPENDED"
+      ? (target.role === "PROVIDER" && target.kycStatus !== "APPROVED" ? "PENDING" : "APPROVED")
+      : target.status);
 
   await ref.update({
     suspended:       suspend,
@@ -423,8 +439,17 @@ exports.adminSetUserStatus = onCall({ region: "us-central1" }, async (request) =
 
   await logAdminAction(me, suspend ? "SUSPEND_USER" : "REINSTATE_USER", {
     targetUid, targetName: target.name || "", reason,
+    restoredStatus: suspend ? "" : restoreTo,
+    statusGuessed:  suspend ? false : guessed,
   });
-  return { ok: true, suspended: suspend };
+  return {
+    ok: true,
+    suspended: suspend,
+    status: suspend ? "SUSPENDED" : restoreTo,
+    // True when the account predates statusBeforeSuspension and the status it
+    // is going back to was inferred rather than remembered.
+    statusGuessed: suspend ? false : guessed,
+  };
 });
 
 // ── adminUserDossier ──────────────────────────────────────────────────────────

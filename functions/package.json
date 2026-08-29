@@ -6,7 +6,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "eslint . && node --test test/*.test.js",
     "lint": "eslint .",
     "test:emulator:inner": "node --test test/reservation.concurrency.js",
     "test:emulator": "firebase emulators:exec --only firestore --project safebeauty-test \"npm run test:emulator:inner\"",

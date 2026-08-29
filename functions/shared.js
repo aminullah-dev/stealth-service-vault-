@@ -212,6 +212,11 @@ function assertNotSuspended(appUser) {
  *
  * Kinds in use:
  *   BOOKING_FAILED    a customer tried to book and could not
+ *   SLOT_MISMATCH     a booking succeeded at a time the app should not have
+ *                     offered — the client's slot grid and the salon's stored
+ *                     opening hours disagree. Deliberately not BOOKING_FAILED:
+ *                     nothing failed, and conflating them makes a working
+ *                     product page as an outage.
  *   DUPLICATE_PHONE   two accounts claim one number, so login is ambiguous
  *   PAYMENT_FAILED    money moved, or failed to, without the record agreeing
  *   BACKUP_FAILED     the nightly export did not complete

@@ -7,6 +7,7 @@ const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteD
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { cashAllowed } = require("../lib/commitment");
+const { cashLedgerDelta, onlineLedgerDelta } = require("../lib/commission");
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
@@ -272,6 +273,11 @@ exports.createPaymentSession = onCall(
     // What the conflict check compares: the working offsets for an ordinary
     // booking, the whole span for a party.
     const occupies = isParty ? slotSpan : busyOffsets;
+    // What the OPENING-HOURS check compares, which is a different question.
+    // busyOffsets is where the stylist is working; while a colour develops she
+    // is free and the chair is not. The customer is in the salon for the whole
+    // span, so that is what has to fit before closing.
+    const occupiedSpan = slotSpan;
 
     // Resolve the requested staff member (if any) server-side, so the stored
     // staffName can't be spoofed and a booking can't reference a staff member
@@ -319,9 +325,21 @@ exports.createPaymentSession = onCall(
     // So it is measured. The flag rides on the appointment and the alert reaches
     // an admin, which is what makes this a staged change rather than a field
     // nobody reads. rescheduleAppointment, where no money is moving, refuses.
-    const fit = slotFit(salon, appointmentDate, Array.isArray(occupies) ? occupies.length : occupies);
+    // The span, not the busy count. `occupies` is busyOffsets — the slots the
+    // stylist is working — and for anything with processing time that is fewer
+    // than the slots the customer is in the chair for. Passing its length let a
+    // three-slot colour start in the salon's last hour: the client would not
+    // offer it, and the one check that exists to catch that agreed with the
+    // server instead of with her.
+    const fit = slotFit(salon, appointmentDate, occupiedSpan);
     if (!fit.ok) {
-      alertable("BOOKING_FAILED", "A booking was made at a time the salon does not offer", {
+      // Not BOOKING_FAILED. That label is documented as "a customer tried to
+      // book and could not", and the two write-failure alerts below use it — so
+      // a booking that SUCCEEDED would page as an outage and inflate the count
+      // any log-based alert watches. This one succeeded; it is a disagreement
+      // between the app's grid and the salon's hours, and it is a different
+      // thing to be woken up for.
+      alertable("SLOT_MISMATCH", "A booking was made at a time the salon does not offer", {
         salonId, uid, appointmentDate, reason: fit.reason,
         kabulTime: new Date(appointmentDate).toLocaleString("en-CA", { timeZone: "Asia/Kabul" }),
       });
@@ -414,10 +432,10 @@ exports.createPaymentSession = onCall(
     // them are the salon's own — it may discount itself as deeply as it likes.
     // The promo code is not: an admin issues it and it stacks on top of whatever
     // the salon had already given away, and the four together reached the whole
-    // subtotal. computeCheckout clamps at zero, so nothing ever went negative
+    // list price. computeCheckout clamps at zero, so nothing ever went negative
     // and the real outcome was hidden: a salon doing the work for nothing.
     const rawDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
-    const totalDiscount = capDiscount(subtotal, rawDiscount, await getMaxDiscountFraction());
+    const totalDiscount = capDiscount(listPrice, rawDiscount, await getMaxDiscountFraction());
 
     // Reserve referral credit + the promo use ATOMICALLY at checkout, reading the
     // LIVE balance/usedCount inside the transaction — so two of the customer's
@@ -551,7 +569,20 @@ exports.createPaymentSession = onCall(
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(-commissionAmount),
+            // Commission owed, less the part of the price the customer did not
+            // hand over in cash because she spent wallet credit.
+            //
+            // That credit is the platform's obligation, never the salon's. A
+            // gift card was bought with real money the platform is holding; a
+            // referral reward, a KYC bonus and redeemed loyalty points are
+            // promotions the platform chose to run. The salon agreed to a price
+            // and served the appointment either way. Counting only what was
+            // handed over meant a customer with enough credit was served for
+            // nothing — and if the credit came from a gift card, the platform
+            // kept the money and the salon got none of it.
+            owedAmount: admin.firestore.FieldValue.increment(
+              cashLedgerDelta({ referralUsed, commissionAmount })
+            ),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -1296,8 +1327,16 @@ async function settlePaymentInTransaction(tx, ctx) {
       tx.set(
         db.doc(`provider_balances/${fresh.providerId}`),
         {
-          providerId: fresh.providerId,
-          owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
+          // What she is owed for the appointment, plus the part of the price the
+          // customer paid with wallet credit rather than at the checkout.
+          //
+          // That credit is the platform's obligation and never the salon's: a
+          // gift card was bought with real money the platform is holding, and a
+          // referral reward, a KYC bonus or redeemed loyalty points are
+          // promotions the platform chose to run. Counting only what HesabPay
+          // moved meant the platform kept the gift-card money and paid the salon
+          // out of its own price.
+          owedAmount: admin.firestore.FieldValue.increment(onlineLedgerDelta(fresh)),
           updatedAt:  Date.now(),
         },
         { merge: true }

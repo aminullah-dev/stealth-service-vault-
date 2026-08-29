@@ -6,6 +6,7 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, alertable, db, logger } = require("../shared");
 
+const { hasBookableWeek } = require("../lib/hours");
 exports.cleanupRateLimits = onSchedule(
   { schedule: "every 24 hours", region: "us-central1" },
   async () => {
@@ -399,6 +400,29 @@ async function runIntegritySweep() {
       }
       add("SALON_NEEDS_REVIEW", "warn", d.data().salonName || d.id,
         bits.join("; ") || "The discovery fields could not be derived confidently.");
+    });
+
+    // A salon that is listed, searchable, and cannot be booked on any day.
+    //
+    // Nothing fails when this happens. Every screen looks right: she appears in
+    // search, her profile opens, her services and prices are there — and the
+    // date picker offers no times, on any date, forever. Salons were created
+    // with an empty week while the provider editor showed a filled-in one, so
+    // the owner agreed with what she saw and saved nothing. The two creation
+    // paths are fixed and the Health tab can backfill the rest, but a backfill
+    // that was never pressed is exactly the kind of absence that survives here
+    // for months — so it is watched rather than assumed.
+    const listed = await db.collection("salons")
+      .where("isAvailable", "==", true)
+      .limit(200).get();
+    listed.docs.forEach((d) => {
+      const salon = d.data() || {};
+      if (!hasBookableWeek(salon)) {
+        add("SALON_UNBOOKABLE", "critical", salon.salonName || d.id,
+          "Listed and searchable, but open on no day of the week — the date "
+          + "picker offers nothing. Run \u201cFill in missing opening hours\u201d "
+          + "on the Health tab, or ask the owner to set her hours.");
+      }
     });
 
     const critical = findings.filter((f) => f.severity === "critical").length;

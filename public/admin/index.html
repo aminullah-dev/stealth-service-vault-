@@ -516,6 +516,18 @@ const STR = {
   flash_hoursDone: {en:(n,f)=>`Checked ${n} salon(s); gave ${f} a working week.`,
                     fa:(n,f)=>`${n} سالون بررسی شد؛ به ${f} هفتهٔ کاری داده شد.`,
                     ps:(n,f)=>`${n} سالونونه وکتل شول؛ ${f} ته د کار اونۍ ورکړل شوه.`},
+  hint_maxDiscount: {en:'Deepest discount allowed', fa:'بیشترین تخفیف مجاز', ps:'د تخفیف تر ټولو ژوره کچه'},
+  hint_maxDiscountExplain: {
+    en:'Four discounts can land on one booking &mdash; the salon\u2019s own offer, a service package, a last-minute deal, and a promo code. The first three are the salon\u2019s own choice and it may discount itself as deeply as it likes. The promo code is not: you issue it, and it stacks on top of whatever the salon had already given away. Without a floor the four together reached the whole price, and the salon did the work for nothing on a promotion it never agreed to. This is the share of the list price the four may take between them. Wallet credit is separate and is not limited by this &mdash; a gift card or a referral reward can still take what the customer pays to zero, and the salon is paid that part by the platform.',
+    fa:'چهار تخفیف می‌توانند روی یک نوبت جمع شوند &mdash; پیشنهاد خود سالون، بستهٔ خدمات، تخفیف لحظه‌آخری، و کد تخفیف. سه تای اول انتخاب خود سالون است و هر اندازه بخواهد می‌تواند تخفیف بدهد. کد تخفیف این‌طور نیست: آن را شما صادر می‌کنید و روی هر چه سالون از پیش گذشته است سوار می‌شود. بدون یک کف، این چهار با هم به تمام قیمت می‌رسیدند و سالون بابت تبلیغی که هرگز با آن موافقت نکرده بود مجانی کار می‌کرد. این عدد سهمی از قیمت اصلی است که این چهار تخفیف روی هم می‌توانند بردارند. اعتبار کیف پول جداست و مشمول این محدودیت نیست &mdash; کارت هدیه یا پاداش معرفی هنوز می‌تواند پرداخت مشتری را به صفر برساند، و آن بخش را پلتفورم به سالون می‌پردازد.',
+    ps:'څلور تخفیفونه کولی شي پر یوه بکینګ راټول شي &mdash; د سالون خپل وړاندیز، د خدماتو بنڈل، د وروستۍ شېبې تخفیف، او د تخفیف کوډ. لومړني درې د سالون خپله خوښه ده او څومره چې غواړي تخفیف ورکولی شي. د تخفیف کوډ داسې نه دی: تاسو یې صادروئ، او پر هر هغه څه چې سالون یې مخکې لاسه ورکړی و سربېره راژي. پرته له یوې کچې، دا څلور یوڅای ټول بیې ته رسېدل او سالون به یې د هغې اعلاناتي چارې لپاره چې هیڅکله یې منلې نه وه، وړیا کار کاوه. دا شمېره د اصلي بیې هغه برخه ده چې دا څلور تخفیفونه یوڅای اخیستلی شي. د والټ کریډیټ جلا دی او په دې محدودیت کې نه راڅي &mdash; د ڈالۍ کارت یا د بلنې انعام لا هم کولی شي د پیرودونکي تادیه صفر ته ورسوي، او هغه برخه پلیټفارم سالون ته ورکوي.'},
+  lbl_currentMaxDiscount: {en:(p)=>`Current limit: ${p}% of the price`,
+                           fa:(p)=>`حد فعلی: ${p}٪ از قیمت`,
+                           ps:(p)=>`اوسنۍ کچه: د بیې ${p}٪`},
+  err_maxDiscountRange: {en:'Enter 1\u2013100. A 0 would make every booking free.',
+                         fa:'عددی بین ۱ تا ۱۰۰ وارد کنید. صفر یعنی همهٔ نوبت‌ها مجانی.',
+                         ps:'له ۱ تر ۱۰۰ پورې شمېره ولیکئ. صفر یعنې ټول بکینګونه وړیا.'},
+  ok_saved: {en:'Saved ✓', fa:'ذخیره شد ✓', ps:'خوندی شو ✓'},
   confirm_revokeKycLinks: {
     en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
     fa:'توکن دانلود هر عکس هویتی ذخیره‌شده عوض شود؟\n\nهر لینکی که تا حالا برای آن عکس‌ها صادر شده از کار می‌افتد. هدف همین است — آن لینک‌ها عمومی‌اند. عکس‌ها در همین کنسول و در اپ خوانا می‌مانند، چون حالا با اعتبار خود شما گرفته می‌شوند. تکرارش بی‌خطر است.',
@@ -1473,6 +1485,7 @@ async function renderUsers(){
       (capped ? `<div class="meta" style="color:var(--warn-ink);margin-bottom:10px">
          ${t('hint_showingNewestAccounts', USER_PAGE)}</div>` : '') +
       `<input id="usearch" class="field" placeholder="${t('ph_searchNameOrPhone')}" style="max-width:340px;margin-bottom:16px" />
+      <div id="uflash" class="mflash" style="margin-bottom:10px"></div>
       <div id="ulist"></div>`;
     // Through the audited callable, not a raw updateDoc. This wrote status
     // directly from the browser: nothing on the server reads that field, so the
@@ -1492,9 +1505,17 @@ async function renderUsers(){
       }
       const payload = suspend ? { targetUid: uid, suspend: true, reason }
                               : { targetUid: uid, suspend: false };
-      if (await callFn('adminSetUserStatus', payload, null, null,
+      // callFn only shows okMsg when it has a flash element, and this list has
+      // none — so the two translated confirmations were computed and discarded.
+      if (await callFn('adminSetUserStatus', payload, null, 'uflash',
                        suspend ? t('ok_suspended') : t('ok_reinstated'))) {
-        if (u) { u.suspended = suspend; u.status = suspend ? 'SUSPENDED' : (u.role==='PROVIDER'?'PENDING':'APPROVED'); }
+        // Re-read rather than guess. adminSetUserStatus restores the status the
+        // account had before it was suspended, which this cannot know: guessing
+        // APPROVED/PENDING made a working, approved salon read as "pending
+        // review" in the table until someone reloaded the tab.
+        const fresh = await getDoc(doc(db,'users',uid)).catch(()=>null);
+        if (u && fresh && fresh.exists()) Object.assign(u, fresh.data());
+        else if (u) u.suspended = suspend;
         draw($('usearch').value);
       }
     };
@@ -3122,6 +3143,17 @@ async function renderFinance(){
         <button id="csave" class="btn-sm" style="background:var(--rose)">${t('btn_save')}</button>
       </div>
     </div>
+
+    <div class="section-title">${t('hint_maxDiscount')}</div>
+    <div class="card" style="padding:16px;max-width:420px;margin-bottom:22px">
+      <div class="mhint" style="margin-bottom:10px">${t('hint_maxDiscountExplain')}</div>
+      <div id="dflash"></div>
+      <div class="meta" id="dcur">${t('lbl_current')}</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="dinput" class="field" type="number" min="1" max="100" placeholder="%" style="margin:0" />
+        <button id="dsave" class="btn-sm" style="background:var(--rose)">${t('btn_save')}</button>
+      </div>
+    </div>
     <div class="section-title">${t('hint_providerPayoutsOwed')}</div>
     <div id="balances"><div class="empty">${t('lbl_templatesLoading')}</div></div>
     <div class="section-title" style="margin-top:22px">${t('hint_refundRequests')}</div>
@@ -3138,6 +3170,26 @@ async function renderFinance(){
     if(isNaN(v)||v<0||v>100){ alert('Enter 0–100'); return; }
     try{ await setDoc(cref, { commissionPercent:v }, { merge:true });
       $('cflash').innerHTML = `<div class="flash">Saved ✓</div>`; $('ccur').textContent = 'Current commission: '+v+'%'; }
+    catch(e){ alert(e.message); }
+  };
+
+  // The deepest a booking may be discounted, as a percentage of the list price.
+  // Stored as a fraction (0.9) because that is what the arithmetic wants, and
+  // shown as a percentage because that is what a person setting it thinks in.
+  getDoc(cref).then(s => {
+    const f = s.exists() ? Number(s.data().maxDiscountFraction) : NaN;
+    const pct = Number.isFinite(f) && f > 0 && f <= 1 ? Math.round(f * 100) : 90;
+    $('dcur').textContent = t('lbl_currentMaxDiscount', pct);
+    $('dinput').value = pct;
+  }).catch(()=>{ $('dcur').textContent = t('lbl_currentMaxDiscount', 90); });
+  $('dsave').onclick = async () => {
+    const v = parseFloat($('dinput').value);
+    // A 0 here would make every booking free, so it is refused rather than
+    // stored — the server refuses it too, and falls back to 90%.
+    if(isNaN(v)||v<1||v>100){ alert(t('err_maxDiscountRange')); return; }
+    try{ await setDoc(cref, { maxDiscountFraction: v/100 }, { merge:true });
+      $('dflash').innerHTML = `<div class="flash">${t('ok_saved')}</div>`;
+      $('dcur').textContent = t('lbl_currentMaxDiscount', v); }
     catch(e){ alert(e.message); }
   };
 
