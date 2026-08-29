@@ -231,9 +231,22 @@ function deriveSalonDiscovery(salon) {
   // another district — or another city — and be displayed at an address it is
   // not at. Where it does not check out the field is emptied rather than
   // corrected: an unverifiable address should show as absent, not as a guess.
+  // Either what the salon picked, or what its own free text named alongside the
+  // district — "خیرخانه مینه ناحیه ۱۷" states both, and the neighbourhood half
+  // was being discarded.
   const claimed = String((salon && salon.areaKey) || "").trim();
   const finer = claimed && AREA_BY_KEY.get(claimed);
-  const areaKey = (finer && finer.kind !== "DISTRICT" && finer.parent === districtKey)
+  // Accepted when the finer area is recorded as sitting in this district — or
+  // when its parent is simply not recorded and it is at least in the same city.
+  //
+  // Kabul's forty-two neighbourhoods have no parent: nobody published the
+  // pairing and guessing it would place a salon in a district it is not in. But
+  // requiring a parent made every one of them unusable, so a Kabul salon could
+  // never record a محله at all. Same-city is the weaker claim the data actually
+  // supports, and it still refuses a Mazar guzar under a Herat district.
+  const sameCity = finer && cityOf(finer.key) === cityOf(districtKey) && cityOf(districtKey) !== "";
+  const areaKey = (finer && finer.kind !== "DISTRICT" &&
+                   (finer.parent === districtKey || (!finer.parent && sameCity)))
     ? claimed
     : "";
 

@@ -70,3 +70,36 @@ test("a guzar that does sit in the district survives", () => {
   );
   assert.strictEqual(d.areaKey, "MZR_GuzarQarghan");
 });
+
+/**
+ * The provider's own explicit pick is honoured; free text is not second-guessed.
+ */
+test("a neighbourhood with no recorded parent is accepted inside its own city", () => {
+  // Kabul's forty-two have no parent — nobody published the pairing, and
+  // guessing it would place a salon in a district it is not in. Requiring one
+  // made every Kabul محله unusable, so a salon there could never record the one
+  // it had picked from its own dropdown; the value was silently discarded.
+  const d = storedDiscoveryFields(
+    deriveSalonDiscovery({ district: "KBL_D17", areaKey: "KBL_Khair_Khana", services: ["Haircut"] })
+  );
+  assert.strictEqual(d.areaKey, "KBL_Khair_Khana");
+});
+
+test("same-city is still a real constraint, not an absence of one", () => {
+  const d = storedDiscoveryFields(
+    deriveSalonDiscovery({ district: "HRT_D01", areaKey: "MZR_GuzarQarghan", services: ["Haircut"] })
+  );
+  assert.strictEqual(d.areaKey, "", "a Mazar guzar cannot sit in a Herat district");
+});
+
+test("ambiguous free text is still handed to a person, not resolved", () => {
+  // "خیرخانه مینه ناحیه ۱۷" names a district and a neighbourhood. Picking the
+  // district and filing the neighbourhood in areaKey looks like keeping both —
+  // but nothing reads areaKey, so a customer searching خیرخانه would not find
+  // the salon. Until that field is read, resolving this silently loses her.
+  const d = storedDiscoveryFields(
+    deriveSalonDiscovery({ district: "خیرخانه مینه ناحیه 17", services: ["Haircut"] })
+  );
+  assert.strictEqual(d.districtKey, "");
+  assert.strictEqual(d.needsDiscoveryReview, true);
+});

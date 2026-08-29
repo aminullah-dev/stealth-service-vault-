@@ -214,6 +214,7 @@ function normalizeDistrict(stored) {
 
   const candidates = [...hits];
   if (candidates.length === 1) return { key: candidates[0] };
+
   if (candidates.length > 1) return { candidates };
   return {};
 }
