@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import com.safebeauty.app.util.Areas
 import javax.inject.Inject
 
 // Internal English keys used for Firestore filtering — independent of display language.
@@ -71,13 +72,18 @@ private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare",
 // was workable with Kabul's 64 and is not with 121 across four cities, and a
 // Kabul customer has no use for Herat's districts. Districts only — a گذر is a
 // level below what anyone filters by.
-// With no city chosen there is no district list to offer: districts are only
-// meaningful inside one city, and concatenating four cities' worth would put
-// two "ناحیه اول" entries next to each other with nothing to tell them apart.
+// With no city chosen there is no area list to offer: areas are only meaningful
+// inside one city, and concatenating four cities' worth would put two
+// "ناحیه اول" entries next to each other with nothing to tell them apart.
+//
+// Both levels are offered — every ناحیه, and under each the گذرها and محله‌ها
+// recorded inside it. A salon in District 17 whose neighbourhood is Khair Khana
+// has to be findable by someone who thinks in districts and by someone who
+// thinks in neighbourhoods, because both are how people give an address here.
 private fun neighborhoodKeysFor(cityKey: String): List<String> =
     listOf("All Neighborhoods") +
         (if (cityKey.isBlank()) emptyList()
-         else com.safebeauty.app.util.Areas.districtsIn(cityKey).map { it.key })
+         else com.safebeauty.app.util.Areas.filterableIn(cityKey).map { it.key })
 
 data class BookingStatusChange(
     val salonName: String,
@@ -260,10 +266,16 @@ class DashboardViewModel @Inject constructor(
     private fun currentSalonFilter(): FirestoreRepository.SalonFilter {
         val catIdx  = _selectedCategoryIndex.value
         val hoodIdx = _selectedNeighborhoodIndex.value
+        val pickedArea = neighborhoodKeysFor(_selectedCity.value)
+            .getOrElse(hoodIdx) { "" }
+            .takeIf { hoodIdx > 0 } ?: ""
         return FirestoreRepository.SalonFilter(
             city        = _selectedCity.value,
-            districtKey = neighborhoodKeysFor(_selectedCity.value).getOrElse(hoodIdx) { "" }
-                .takeIf { hoodIdx > 0 } ?: "",
+            // The chosen key goes to whichever field holds its level. A ناحیه
+            // is stored in districtKey; a گذر or محله is stored in areaKey, and
+            // constraining the wrong one would silently return nothing.
+            districtKey = pickedArea.takeIf { it.isNotBlank() && Areas.isDistrict(it) } ?: "",
+            areaKey     = pickedArea.takeIf { it.isNotBlank() && !Areas.isDistrict(it) } ?: "",
             category    = CATEGORY_KEYS.getOrElse(catIdx) { "" }
                 .takeIf { catIdx > 0 } ?: "",
             favoriteIds = if (_showFavoritesOnly.value) favoriteIds.value.toList() else emptyList(),

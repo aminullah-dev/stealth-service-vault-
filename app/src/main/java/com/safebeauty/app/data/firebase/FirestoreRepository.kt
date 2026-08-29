@@ -328,7 +328,15 @@ class FirestoreRepository @Inject constructor(
         // Ship this ahead of that backfill and an equality filter on a field
         // nothing has yet returns nothing at all, for every customer.
         val city: String = "",             // "" = every city
-        val districtKey: String = "",      // "" = every neighbourhood
+        val districtKey: String = "",      // "" = every ناحیه
+        // The گذر/محله inside that district, when the customer picked one.
+        //
+        // A separate field rather than a second value in districtKey, because
+        // they are different levels: a salon in District 17 whose neighbourhood
+        // is Khair Khana must be found by someone filtering District 17 AND by
+        // someone filtering Khair Khana, and one field cannot answer both. Only
+        // ever one of the two is set — the finer choice implies its district.
+        val areaKey: String = "",          // "" = anywhere in the district
         val category: String = "",         // "" = every category
         val favoriteIds: List<String> = emptyList(),  // non-empty = favourites only
         val search: String = "",           // prefix match on the salon name
@@ -360,6 +368,9 @@ class FirestoreRepository @Inject constructor(
         }
         if (filter.districtKey.isNotBlank()) {
             q = q.whereEqualTo("districtKey", filter.districtKey)
+        }
+        if (filter.areaKey.isNotBlank()) {
+            q = q.whereEqualTo("areaKey", filter.areaKey)
         }
         if (filter.category.isNotBlank()) {
             q = q.whereArrayContains("categories", filter.category)

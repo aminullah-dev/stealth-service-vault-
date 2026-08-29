@@ -245,6 +245,20 @@ object Areas {
     fun neighbourhoodsIn(districtKey: String): List<Area> =
         areas.filter { it.kind != DISTRICT && it.parent == districtKey }
 
+    /** True when [key] is a ناحیه — the level `districtKey` holds. */
+    fun isDistrict(key: String): Boolean =
+        areas.firstOrNull { it.key == key }?.kind == DISTRICT
+
+    /**
+     * Every area a customer can filter by in [cityKey]: its ناحیه‌ها, and under
+     * each, the گذرها and محله‌ها recorded inside it.
+     *
+     * Ordered district-then-its-children so the list reads as an address rather
+     * than as two alphabetical lists stapled together.
+     */
+    fun filterableIn(cityKey: String): List<Area> =
+        districtsIn(cityKey).flatMap { d -> listOf(d) + neighbourhoodsIn(d.key) }
+
     /** Only the گذرها of [districtKey] — the formal unit, not the colloquial one. */
     fun guzarsIn(districtKey: String): List<Area> =
         areas.filter { it.kind == GUZAR && it.parent == districtKey }
