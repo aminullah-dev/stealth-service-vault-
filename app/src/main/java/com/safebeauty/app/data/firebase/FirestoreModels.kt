@@ -411,7 +411,22 @@ data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",
     val sentBy: String = "admin",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    // The console has written these three since the Announce tab was built, and
+    // the model did not have them — so every announcement reached everybody. A
+    // Pashto message aimed at Pashto speakers appeared, in Pashto, above a Dari
+    // interface. Empty means "everyone", which is what an untargeted send is.
+    val targetRole: String = "",            // "" | CUSTOMER | PROVIDER
+    val targetLang: String = "",            // "" | en | fa | ps
+    val targetDistrict: String = "",        // "" | a district key
+    /**
+     * When this stops being shown. 0 means the console did not set one.
+     *
+     * Announcements had no end: one sent in August was still at the top of the
+     * screen days later for anyone who had not swiped it away, and the only
+     * thing retiring them was each customer dismissing each one by hand.
+     */
+    val expiresAt: Long = 0L
 )
 
 /**

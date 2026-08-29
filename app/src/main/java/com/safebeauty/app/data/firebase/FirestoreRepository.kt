@@ -93,6 +93,8 @@ class FirestoreRepository @Inject constructor(
     private val PROVIDER_PAYOUTS     = 100L   // a provider's payout history
     private val ADMIN_QUEUE          = 200L   // things awaiting an admin decision
     private val ADMIN_HISTORY        = 200L   // admin lists that are a record, not a queue
+    /** An announcement with no expiry set stops showing after this. */
+    private val BROADCAST_MAX_AGE_MS = 14L * 24 * 60 * 60 * 1000
     // provider_balances holds one document per provider, so it is bounded by how
     // many salons the platform has rather than by how long it has been running.
     // This is a backstop against that assumption being wrong, not a page.
@@ -1197,6 +1199,53 @@ class FirestoreRepository @Inject constructor(
     }
 
     // ── Broadcasts ───────────────────────────────────────────────────────────
+
+    /**
+     * The announcements this reader should actually see.
+     *
+     * [role] and [lang] are the reader's own; an empty target matches everyone,
+     * which is what an untargeted send means. A district-targeted one is skipped
+     * unless [districtKey] matches — a customer has no district, and showing it
+     * to her anyway is how a message meant for salons in one ناحیه reaches
+     * everybody in Kabul.
+     */
+    fun visibleBroadcasts(
+        all: List<BroadcastDocument>,
+        role: String,
+        lang: String,
+        districtKey: String = "",
+        now: Long = System.currentTimeMillis(),
+    ): List<BroadcastDocument> = visibleBroadcastsFor(all, role, lang, districtKey, now)
+
+    companion object BroadcastVisibility {
+        /** An announcement with no expiry set stops showing after this. */
+        private const val BROADCAST_MAX_AGE = 14L * 24 * 60 * 60 * 1000
+
+        /**
+         * Pure, and on the companion so a unit test can call it without a
+         * Firestore instance — the rule is the part worth pinning, and a rule
+         * that can only be exercised against a live database is one nobody
+         * exercises.
+         */
+        @JvmStatic
+        fun visibleBroadcastsFor(
+            all: List<BroadcastDocument>,
+            role: String,
+            lang: String,
+            districtKey: String,
+            now: Long,
+        ): List<BroadcastDocument> = all.filter { b ->
+            val notExpired = if (b.expiresAt > 0L) b.expiresAt > now
+                         // No expiry set, so fall back on age: the announcements
+                         // sent before expiries existed would otherwise never
+                         // retire, and one from August was still on screen.
+                             else b.createdAt == 0L || now - b.createdAt <= BROADCAST_MAX_AGE
+            val roleOk = b.targetRole.isBlank() || b.targetRole.equals(role, ignoreCase = true)
+            val langOk = b.targetLang.isBlank() || b.targetLang.equals(lang, ignoreCase = true)
+            val areaOk = b.targetDistrict.isBlank() || b.targetDistrict == districtKey
+            notExpired && roleOk && langOk && areaOk
+        }
+    }
 
     fun observeBroadcasts(): Flow<List<BroadcastDocument>> = callbackFlow {
         val listener = broadcastsCol

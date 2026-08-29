@@ -19,6 +19,8 @@ import com.safebeauty.app.BuildConfig
 import com.safebeauty.app.navigation.AppNavGraph
 import com.safebeauty.app.navigation.NotificationDeeplink
 import com.safebeauty.app.security.SessionManager
+import androidx.compose.foundation.layout.Column
+import com.safebeauty.app.ui.components.UpdateAvailableBanner
 import com.safebeauty.app.ui.components.ForceUpdateDialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -87,12 +89,26 @@ class MainActivity : FragmentActivity() {
             val brand by themeVm.brand.collectAsStateWithLifecycle()
             DashboardTheme(darkTheme = isSystemInDarkTheme(), brand = brand) {
                 val navController = rememberNavController()
+                Column {
+                // A newer version exists and this one still works. Above the nav
+                // graph so it reaches every screen, and inside the theme so it
+                // follows the customer's colour family and language. It occupies
+                // real height rather than floating: a strip over the top of a
+                // booking screen covers the thing she came to use.
+                forceUpdateViewModel.updateAvailable?.let { available ->
+                    UpdateAvailableBanner(
+                        info      = available,
+                        onDismiss = { forceUpdateViewModel.dismissUpdateBanner() },
+                    )
+                }
                 AppNavGraph(
                     navController      = navController,
                     deepLink           = intent?.data?.toString(),
                     notifDeeplink      = pendingDeeplink,
                     onDeeplinkConsumed = { pendingDeeplink = null }
                 )
+
+                }
 
                 // Overlay a non-dismissible dialog if a forced update is required.
                 forceUpdateViewModel.updateInfo?.let { info ->

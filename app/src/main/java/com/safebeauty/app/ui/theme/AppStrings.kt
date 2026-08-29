@@ -3,10 +3,15 @@ package com.safebeauty.app.ui.theme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.LayoutDirection
 
-enum class AppLanguage(val nativeName: String) {
-    ENGLISH("English"),
-    DARI("دری"),
-    PASHTO("پښتو")
+enum class AppLanguage(val nativeName: String, val code: String) {
+    // `code` is the two-letter form everything outside the app uses: the admin
+    // console's audience picker, the notification catalogue on the server, and
+    // the download page. It lives on the enum so the mapping exists once rather
+    // than being re-spelled at each boundary — where "fa" and DARI drifting
+    // apart is a message shown to the wrong reader, silently.
+    ENGLISH("English", "en"),
+    DARI("دری", "fa"),
+    PASHTO("پښتو", "ps")
 }
 
 fun AppLanguage.layoutDirection(): LayoutDirection =
@@ -319,6 +324,9 @@ class AppStrings {
     var districtArea: String = ""
     var cityLabel: String = ""
     var allCities: String = ""
+    var updateAvailableTitle: String = ""
+    var updateAvailableBody: String = ""
+    var updateNow: String = ""
     var guzarOrArea: String = ""
     var pickCityFirst: String = ""
     var addServiceLabel: String = ""
@@ -1008,6 +1016,9 @@ object StringResources {
         registerConsentAnd         = "and"
         registerConsentSuffix      = "."
         districtArea               = "District / Area"
+        updateAvailableTitle       = "A new version is available"
+        updateAvailableBody        = "Update to get the latest SafeBeauty."
+        updateNow                  = "Update"
         allCities                  = "All cities"
         cityLabel                  = "City"
         guzarOrArea                = "Guzar / area (optional)"
@@ -1644,6 +1655,9 @@ object StringResources {
         registerConsentAnd         = "و"
         registerConsentSuffix      = "را می‌پذیرید."
         districtArea               = "ناحیه / منطقه"
+        updateAvailableTitle       = "نسخهٔ جدیدی موجود است"
+        updateAvailableBody        = "برای دریافت آخرین نسخهٔ SafeBeauty به‌روزرسانی کنید."
+        updateNow                  = "به‌روزرسانی"
         allCities                  = "همه شهرها"
         cityLabel                  = "شهر"
         guzarOrArea                = "گذر / منطقه (اختیاری)"
@@ -2280,6 +2294,9 @@ object StringResources {
         registerConsentAnd         = "او"
         registerConsentSuffix      = "مني."
         districtArea               = "سیمه / ناحیه"
+        updateAvailableTitle       = "نوې نسخه شتون لري"
+        updateAvailableBody        = "د SafeBeauty د وروستۍ نسخې لپاره تازه کړئ."
+        updateNow                  = "تازه کړئ"
         allCities                  = "ټول ښارونه"
         cityLabel                  = "ښار"
         guzarOrArea                = "ګذر / سیمه (اختیاري)"

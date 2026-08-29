@@ -203,8 +203,22 @@ class DashboardViewModel @Inject constructor(
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /**
+     * Announcements meant for this customer, in her language.
+     *
+     * The console has always written targetRole/targetLang/targetDistrict and
+     * the app never read any of them, so every announcement reached everybody —
+     * a Pashto message aimed at Pashto readers appeared above a Dari interface.
+     * Combined with the language flow so switching language re-filters, rather
+     * than leaving the wrong message on screen until the next fetch.
+     */
     val broadcasts: StateFlow<List<BroadcastDocument>> =
-        firestoreRepository.observeBroadcasts()
+        combine(
+            firestoreRepository.observeBroadcasts(),
+            languageRepository.language,
+        ) { all, lang ->
+            firestoreRepository.visibleBroadcasts(all, role = "CUSTOMER", lang = lang.code)
+        }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

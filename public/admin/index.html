@@ -506,6 +506,20 @@ const STR = {
   flash_stoppedAfter: {en:(n)=>`Stopped after ${n} — press again to carry on from here.`,
                        fa:(n)=>`بعد از ${n} متوقف شد — دوباره بزنید تا از همین‌جا ادامه یابد.`,
                        ps:(n)=>`له ${n} وروسته ودرېد — بیا یې کېکاږئ چې له همدې ځایه دوام ومومي.`},
+  lbl_announceDays: {en:'Stops showing after (days)', fa:'بعد از چند روز دیگر نشان داده نشود', ps:'له څو ورځو وروسته دې نه ښکاري'},
+  lbl_appVersion: {en:'App version', fa:'نسخهٔ اپ', ps:'د اپ نسخه'},
+  hint_appVersion: {
+    en:'Tells anyone on an older build that a newer one exists. It is a dismissible banner, not a block — someone should not be stopped from booking because a nicer version is out. The note is one line per language and is shown in the reader\u2019s own; leave them empty for a generic message. The app reads this on launch.',
+    fa:'به هر کسی که نسخهٔ قدیمی‌تری دارد می‌گوید نسخهٔ تازه‌ای هست. یک بنر قابل بستن است، نه یک سد — کسی نباید به‌خاطر وجود نسخهٔ بهتر از رزرو بازبماند. یادداشت برای هر زبان یک خط است و به زبان خودِ خواننده نشان داده می‌شود؛ خالی بگذارید تا پیام عمومی بیاید. اپ این را هنگام باز شدن می‌خواند.',
+    ps:'هغه چا ته چې زړه نسخه لري وايي چې نوې نسخه شته. دا یو بند کېدونکی بینر دی، نه خنډ — څوک باید د ښې نسخې د شتون له امله له بکینګ څخه ونه دریږي. یادښت د هرې ژبې لپاره یوه کرښه ده او د لوستونکي په خپله ژبه ښودل کیږي؛ خالي یې پرېږدئ چې عمومي پیغام راشي. اپ دا د پرانیستلو پر مهال لولي.'},
+  ph_whatsNewFa: {en:'What is new — Dari', fa:'تازه چه دارد — دری', ps:'څه نوي دي — دري'},
+  ph_whatsNewPs: {en:'What is new — Pashto', fa:'تازه چه دارد — پښتو', ps:'څه نوي دي — پښتو'},
+  ph_whatsNewEn: {en:'What is new — English', fa:'تازه چه دارد — انگلیسی', ps:'څه نوي دي — انګلیسي'},
+  btn_publishVersion: {en:'Publish version notice', fa:'انتشار اعلان نسخه', ps:'د نسخې خبرتیا خپره کړئ'},
+  flash_versionNeedsBoth: {en:'A version code and a link are both required.', fa:'هم شمارهٔ نسخه لازم است هم لینک.', ps:'د نسخې شمېره او لینک دواړه اړین دي.'},
+  flash_versionPublished: {en:(c)=>`Anyone below versionCode ${c} will see the notice.`,
+                           fa:(c)=>`هر کسی که نسخه‌اش کمتر از ${c} باشد این اعلان را می‌بیند.`,
+                           ps:(c)=>`هر څوک چې نسخه یې له ${c} کمه وي دا خبرتیا به وګوري.`},
   // ── Status pills ─────────────────────────────────────────────────────────
   // The coloured chips in table cells. The two earlier sweeps matched <th>,
   // <button> and prose and never looked inside a <span>, so these stayed
@@ -1071,6 +1085,8 @@ function renderAnnounce(){
           <option value="ps">Pashto readers</option>
           <option value="en">English readers</option>
         </select>
+        <label class="mglabel" style="margin-top:10px">${t('lbl_announceDays')}</label>
+        <input id="a-days" class="field" type="number" min="1" max="90" value="14" />
       </div>
       <select id="a-district" class="field">
         <option value="">Any district (salon owners only)</option><option value="D1_OldCity">D1 — OldCity</option><option value="D2_ShahreNaw">D2 — ShahreNaw</option><option value="D3_KarteChar">D3 — KarteChar</option><option value="D4_KoteSangi">D4 — KoteSangi</option><option value="D5_Company">D5 — Company</option><option value="D6_Darulaman">D6 — Darulaman</option><option value="D7_ChihilSutun">D7 — ChihilSutun</option><option value="D8_KarteNaw">D8 — KarteNaw</option><option value="D9_Makroryan">D9 — Makroryan</option><option value="D10_WazirAkbarKhan">D10 — WazirAkbarKhan</option><option value="D11_KhairKhana">D11 — KhairKhana</option><option value="D12_AhmadShahBaba">D12 — AhmadShahBaba</option><option value="D13_DashteBarchi">D13 — DashteBarchi</option><option value="D14_RahmanMina">D14 — RahmanMina</option><option value="D15_KhwajaBughra">D15 — KhwajaBughra</option><option value="D18_Bagrami">D18 — Bagrami</option>
@@ -1106,11 +1122,17 @@ function renderAnnounce(){
     if(!msg) return;
     $('asend').disabled = true; $('asend').textContent = 'Sending…';
     try{
+      // An announcement now ends. Without expiresAt one sent in August was still
+      // at the top of the customer's screen days later, and the only thing
+      // retiring it was every customer dismissing it by hand. The app falls back
+      // on age for the ones sent before this existed.
+      const days = Math.min(90, Math.max(1, Number($('a-days').value) || 14));
       await addDoc(collection(db,'broadcasts'), {
         message: msg, sentBy:'admin', createdAt: Date.now(),
         targetRole:     $('a-role').value,
         targetLang:     $('a-lang').value,
         targetDistrict: $('a-district').value,
+        expiresAt:      Date.now() + days * 24 * 60 * 60 * 1000,
       });
       $('amsg').value = '';
       $('aflash').innerHTML = `<div class="flash">Announcement sent ✓</div>`;
@@ -2319,6 +2341,19 @@ async function renderHealth(){
         <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-refflash" class="mflash" style="margin-top:8px"></div>
 
+        <div class="mlabel" style="margin-top:18px">${t('lbl_appVersion')}</div>
+        <div class="mhint">${t('hint_appVersion')}</div>
+        <div class="mrow">
+          <input id="v-latest-code" class="field" type="number" min="0" placeholder="latestVersionCode" />
+          <input id="v-latest-name" class="field" placeholder="2.0.1" />
+        </div>
+        <input id="v-note-fa" class="field" placeholder="${t('ph_whatsNewFa')}" />
+        <input id="v-note-ps" class="field" placeholder="${t('ph_whatsNewPs')}" />
+        <input id="v-note-en" class="field" placeholder="${t('ph_whatsNewEn')}" />
+        <input id="v-url" class="field" placeholder="https://play.google.com/store/apps/details?id=..." />
+        <button class="btn-sm" id="h-version" style="background:var(--rose)">${t('btn_publishVersion')}</button>
+        <div id="h-vflash" class="mflash" style="margin-top:8px"></div>
+
         <div class="mlabel" style="margin-top:18px">${t('lbl_identityPhotos')}</div>
         <div class="mhint">${t('hint_revokeKycLinks')}</div>
         <button class="btn-sm" id="h-kycrevoke" style="background:var(--red)">${t('btn_revokePhotoLinks')}</button>
@@ -2498,6 +2533,44 @@ async function renderHealth(){
     };
     $('h-kycrevoke').onclick = (e) => runKycRevoke(e.target, false);
     $('h-kycdry').onclick    = (e) => runKycRevoke(e.target, true);
+
+
+    // Writes platform_config/force_update, which the app has read since it was
+    // built and which nothing has ever written — so the kill switch and the
+    // update notice both existed only in a source comment. minVersionCode is
+    // deliberately not settable here: blocking every installed copy of the app
+    // is not a thing to do from a text field beside a version number.
+    $('h-version').onclick = async (e) => {
+      const btn = e.target, lbl = btn.textContent;
+      const flash = $('h-vflash');
+      const code = Number($('v-latest-code').value) || 0;
+      const url  = $('v-url').value.trim();
+      if (!code || !url) {
+        flash.className = 'mflash bad';
+        flash.textContent = t('flash_versionNeedsBoth');
+        return;
+      }
+      btn.disabled = true; btn.textContent = '…';
+      try{
+        const whatsNew = {};
+        for (const [l, id] of [['fa','v-note-fa'], ['ps','v-note-ps'], ['en','v-note-en']]) {
+          const v = $(id).value.trim();
+          if (v) whatsNew[l] = v;
+        }
+        await setDoc(doc(db,'platform_config','force_update'), {
+          latestVersionCode: code,
+          latestVersionName: $('v-latest-name').value.trim(),
+          updateUrl:         url,
+          whatsNew,
+          updatedAt:         Date.now(),
+        }, { merge: true });
+        flash.className = 'mflash ok';
+        flash.textContent = t('flash_versionPublished', code);
+      }catch(err){
+        flash.className = 'mflash bad';
+        flash.textContent = fnError(err);
+      }finally{ btn.disabled = false; btn.textContent = lbl; }
+    };
 
     $('h-refcodes').onclick = (e) => runRefCodes(e.target, false);
     $('h-refdry').onclick   = (e) => runRefCodes(e.target, true);

@@ -51,7 +51,8 @@ class ProviderViewModel @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val storageRepository: StorageRepository,
     private val paymentRepository: PaymentRepository,
-    private val vaultRepository: VaultRepository
+    private val vaultRepository: VaultRepository,
+    private val languageRepository: com.safebeauty.app.data.repository.LanguageRepository,
 ) : ViewModel() {
 
     val providerId: String = checkNotNull(savedStateHandle["userId"])
@@ -68,8 +69,25 @@ class ProviderViewModel @Inject constructor(
         override ?: (s?.isAvailable ?: false)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /**
+     * Announcements meant for this salon owner, in her language, and — when the
+     * console targeted one ناحیه — only if her salon is in it. All three fields
+     * have been written by the Announce tab since it was built and read by
+     * nothing, so every message went to everybody.
+     */
     val broadcasts: StateFlow<List<BroadcastDocument>> =
-        firestoreRepository.observeBroadcasts()
+        combine(
+            firestoreRepository.observeBroadcasts(),
+            languageRepository.language,
+            salon,
+        ) { all, lang, s ->
+            firestoreRepository.visibleBroadcasts(
+                all,
+                role = "PROVIDER",
+                lang = lang.code,
+                districtKey = s?.districtKey.orEmpty(),
+            )
+        }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
