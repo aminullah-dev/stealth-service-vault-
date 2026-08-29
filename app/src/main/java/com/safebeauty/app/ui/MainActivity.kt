@@ -53,8 +53,16 @@ class MainActivity : FragmentActivity() {
         // real cost — a customer cannot screenshot her booking to send to a
         // friend. That is the trade this app is for: the same picture in the
         // wrong gallery is the thing being protected against.
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE,
-                        WindowManager.LayoutParams.FLAG_SECURE)
+        // Release only. FLAG_SECURE blanks the recents thumbnail AND blocks
+        // every screenshot, adb screencap included — so with it on in debug
+        // builds nobody developing the app can see what they changed, and the
+        // one screen you most want to look at is the one you cannot capture.
+        // The protection matters for the build a customer installs; a debug
+        // build never reaches a phone anyone else picks up.
+        if (!BuildConfig.DEBUG) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE)
+        }
 
         enableEdgeToEdge()
 

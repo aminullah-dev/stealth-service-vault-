@@ -767,6 +767,9 @@ class DashboardViewModel @Inject constructor(
         private set
     var noWorkingHours by mutableStateOf(false)
         private set
+    /** The booked-slot read failed, so no day can be presented as free. */
+    var slotsFailed by mutableStateOf(false)
+        private set
 
     // ── Customer profile editing ──────────────────────────────────────────────
     var editName by mutableStateOf("")
@@ -1263,9 +1266,22 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch {
             slotsLoading = true
             noWorkingHours = false
-            val booked = runCatching {
+            slotsFailed = false
+            // A failed read used to become an empty booked-list, which renders as
+            // a completely free day. The customer picks a time, the server
+            // refuses it — correctly, it does its own conflict check — and she
+            // is told the slot is taken, again, with nothing explaining why.
+            // An unknown day has to say it is unknown.
+            val bookedOrNull = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
-            }.getOrDefault(emptyList())
+            }.getOrNull()
+            if (bookedOrNull == null) {
+                availableSlots = emptyList()
+                slotsFailed    = true
+                slotsLoading   = false
+                return@launch
+            }
+            val booked = bookedOrNull
             // A party is the whole salon working in parallel, so its span is much
             // shorter than the same services one after another. Using the ordinary
             // layout here would offer a bride far fewer start times than the
@@ -1286,6 +1302,7 @@ class DashboardViewModel @Inject constructor(
         availableSlots = emptyList()
         slotsLoading = false
         noWorkingHours = false
+        slotsFailed = false
     }
 
     /**

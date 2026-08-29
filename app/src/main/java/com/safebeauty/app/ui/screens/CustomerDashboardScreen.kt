@@ -1664,6 +1664,16 @@ fun CustomerDashboardScreen(
                     Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         when {
                             viewModel.slotsLoading -> CircularProgressIndicator(color = RoseGold, modifier = Modifier.align(Alignment.Center))
+                            // Before the empty branch: "no times left" and "we
+                            // could not find out" look identical on screen and
+                            // are not the same thing. One means try another day;
+                            // the other means try again.
+                            viewModel.slotsFailed -> Text(
+                                strings.slotsLoadFailed,
+                                color = DangerRed,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
                             viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -2782,7 +2792,7 @@ private fun SalonCard(
                         Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(3.dp))
                         Text(
-                            text     = salon.district,
+                            text     = com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language),
                             fontSize = 12.sp,
                             color    = TextMuted,
                             maxLines = 1,
@@ -3095,7 +3105,7 @@ private fun RecommendedSalonCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(11.dp))
-                Text(salon.district, fontSize = 10.sp, color = UnavailableGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language), fontSize = 10.sp, color = UnavailableGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (salon.rating > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {

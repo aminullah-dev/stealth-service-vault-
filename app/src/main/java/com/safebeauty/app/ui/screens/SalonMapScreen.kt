@@ -120,7 +120,7 @@ fun SalonMapScreen(
                         Marker(
                             state = MarkerState(LatLng(salon.latitude, salon.longitude)),
                             title = salon.salonName,
-                            snippet = salon.district,
+                            snippet = com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language),
                             onClick = { selected = salon; true },
                         )
                     }
@@ -160,7 +160,7 @@ fun SalonMapScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text(salon.district, fontSize = 12.sp, color = TextMuted, modifier = Modifier.weight(1f))
+                                Text(com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language), fontSize = 12.sp, color = TextMuted, modifier = Modifier.weight(1f))
                                 Icon(Icons.Default.Star, null, tint = WarmGold, modifier = Modifier.size(14.dp))
                                 Spacer(Modifier.width(3.dp))
                                 Text(ratingLabel(salon.rating, strings), fontSize = 12.sp, color = WarmGold, fontWeight = FontWeight.Bold)
