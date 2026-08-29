@@ -528,6 +528,10 @@ const STR = {
                          fa:'عددی بین ۱ تا ۹۹ وارد کنید. با ۱۰۰ برای سالون چیزی باقی نمی‌ماند.',
                          ps:'له ۱ تر ۹۹ پورې شمېره ولیکئ. په ۱۰۰ کې به سالون ته هیڅ پاتې نه شي.'},
   ok_saved: {en:'Saved ✓', fa:'ذخیره شد ✓', ps:'خوندی شو ✓'},
+  hint_statusGuessed: {
+    en:'the standing it had before was never recorded, so this was inferred from the identity check &mdash; confirm it is right',
+    fa:'وضعیت پیشین این حساب هرگز ثبت نشده بود، پس از روی بررسی هویت حدس زده شد &mdash; درستی‌اش را تأیید کنید',
+    ps:'د دې حساب پخوانی حالت هیڅکله ثبت شوی نه و، نو د هویت له کتنې څخه اټکل شو &mdash; سموالی یې تایید کړئ'},
   confirm_revokeKycLinks: {
     en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
     fa:'توکن دانلود هر عکس هویتی ذخیره‌شده عوض شود؟\n\nهر لینکی که تا حالا برای آن عکس‌ها صادر شده از کار می‌افتد. هدف همین است — آن لینک‌ها عمومی‌اند. عکس‌ها در همین کنسول و در اپ خوانا می‌مانند، چون حالا با اعتبار خود شما گرفته می‌شوند. تکرارش بی‌خطر است.',
@@ -2877,6 +2881,10 @@ const AUDIT_META = {
   CREATE_SALON:   { icon:'🏠', cls:'ok'   },
   POST_FOR_SALON: { icon:'📸', cls:'info' },
   SETTLE_STUCK_PAYMENT: { icon:'🧯', cls:'warn' },
+  SUSPEND_USER:   { icon:'🚷', cls:'bad'  },
+  REINSTATE_USER: { icon:'↩️', cls:'ok'   },
+  BACKFILL_CODES: { icon:'🔤', cls:'info' },
+  BACKFILL_WORKING_HOURS: { icon:'🕘', cls:'info' },
 };
 function describeAudit(a){
   const d = a.details || {};
@@ -2891,6 +2899,14 @@ function describeAudit(a){
     case 'CREATE_SALON':   return `Added the salon <b>${esc(d.salonName||'')}</b>${d.district?` in ${esc(d.district)}`:''} for <b>${who}</b>`;
     case 'POST_FOR_SALON': return `Published a ${d.kind==='STORY'?'story':'photo'} for <b>${esc(d.salonName||d.salonId||'')}</b>`;
     case 'SETTLE_STUCK_PAYMENT': return `Settled a stuck payment of ${esc(String(d.amount||0))} AFN by hand — HesabPay ref <b>${esc(d.reference||'')}</b> (${esc(d.outcome||'')})`;
+    // Suspensions were written to this log and had no case here, so the most
+    // consequential thing an admin can do to a person rendered as a bare
+    // "SUSPEND USER" — no name, no reason, and no sign of what was restored.
+    case 'SUSPEND_USER':   return `Suspended <b>${who}</b>${d.reason?` — ${esc(d.reason)}`:''}`;
+    case 'REINSTATE_USER': return `Reinstated <b>${who}</b> as <b>${esc(d.restoredStatus||'?')}</b>`
+      + (d.statusGuessed ? ` — ${t('hint_statusGuessed')}` : '');
+    case 'BACKFILL_CODES': return `Assigned ${esc(String(d.assigned||0))} booking reference(s) across ${esc(String(d.scanned||0))} booking(s)`;
+    case 'BACKFILL_WORKING_HOURS': return `Gave ${esc(String(d.filled||0))} salon(s) a working week, of ${esc(String(d.scanned||0))} checked`;
     default:               return esc(a.action || '');
   }
 }

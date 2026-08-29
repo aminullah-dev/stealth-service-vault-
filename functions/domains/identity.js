@@ -9,7 +9,7 @@ const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../li
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
-const { assertAdmin, assertDocId, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -378,6 +378,7 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   if (appUser.role !== "PROVIDER") {
     throw new HttpsError("permission-denied", "Only providers can create a salon.");
   }

@@ -80,18 +80,26 @@ test("slotsForAppointment: invalid appointmentDate -> no slots", () => {
 
 test("expandBooked: flattens every appointment's slots, tagged with staff", () => {
   const appts = [
-    { appointmentDate: T, services: ["A", "B"], staffId: "s1" },  // 2 slots
-    { appointmentDate: T + 180 * MIN, services: ["C"], staffId: "s2" }, // 1 slot
+    { id: "a1", appointmentDate: T, services: ["A", "B"], staffId: "s1" },  // 2 slots
+    { id: "a2", appointmentDate: T + 180 * MIN, services: ["C"], staffId: "s2" }, // 1 slot
   ];
   const { slots, booked } = expandBooked(appts, 30);
   assert.deepEqual(slots, [T, T + 30 * MIN, T + 180 * MIN]);
   // isParty is part of the shape now: the customer's picker needs to tell a
   // party's slots from an ordinary booking's, because a party holds every chair.
+  // So is id: a customer moving her own booking must not be blocked by it.
   assert.deepEqual(booked, [
-    { time: T, staffId: "s1", isParty: false },
-    { time: T + 30 * MIN, staffId: "s1", isParty: false },
-    { time: T + 180 * MIN, staffId: "s2", isParty: false },
+    { time: T, staffId: "s1", isParty: false, id: "a1" },
+    { time: T + 30 * MIN, staffId: "s1", isParty: false, id: "a1" },
+    { time: T + 180 * MIN, staffId: "s2", isParty: false, id: "a2" },
   ]);
+});
+
+test("expandBooked: an appointment with no id still expands", () => {
+  // getBookedSlots supplies one, but the shape must not depend on it — a
+  // missing id becomes "", which matches no exclusion and so blocks normally.
+  const { booked } = expandBooked([{ appointmentDate: T, services: ["A"], staffId: "" }], 30);
+  assert.deepEqual(booked, [{ time: T, staffId: "", isParty: false, id: "" }]);
 });
 
 test("expandBooked: empty / missing input -> empty result", () => {

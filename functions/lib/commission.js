@@ -24,7 +24,12 @@ function shouldReverseCommission(noShow, payment) {
   if (payment.method !== "CASH") return false;
   if (payment.commissionReversed === true) return false;
   if (!payment.providerId) return false;
-  return commissionToReturn(payment) > 0;
+  // Anything the booking moved, in either direction — not just the commission.
+  // Gated on the commission alone, a booking paid entirely from a customer's
+  // wallet has no commission to return and reversed nothing at all, so the
+  // salon kept a positive balance for an appointment nobody attended and the
+  // platform paid for it.
+  return cashLedgerDelta(payment) !== 0;
 }
 
 /**
@@ -50,6 +55,9 @@ function shouldReverseCommission(noShow, payment) {
  */
 function cashLedgerDelta(payment) {
   const p = payment || {};
+  // `|| 0` collapses -0, which is a real value in JavaScript, compares unequal
+  // to 0 under Object.is, and has no business in a money ledger.
+  if (!writtenWithWalletCredit(p)) return -whole(p.commissionAmount) || 0;
   return whole(p.referralUsed) - whole(p.commissionAmount);
 }
 
@@ -60,13 +68,43 @@ function cashLedgerDelta(payment) {
  */
 function onlineLedgerDelta(payment) {
   const p = payment || {};
+  if (!writtenWithWalletCredit(p)) return whole(p.providerNet);
   return whole(p.providerNet) + whole(p.referralUsed);
 }
 
-/** A stored amount as whole AFN, treating anything malformed as nothing. */
+/**
+ * Which formula wrote this payment's balance entry.
+ *
+ * Every reversal has to undo exactly what the booking did, and the booking may
+ * have happened before this release. A cash booking made yesterday debited only
+ * its commission; cancelled tomorrow under the new formula, it would be reversed
+ * by commission-minus-wallet-credit and leave the salon short by the whole
+ * credit — silently, on a balance nobody recomputes.
+ *
+ * So the payment says which arithmetic created it. LEDGER_VERSION is stamped at
+ * write time by createPaymentSession, and a payment without the stamp is one
+ * from before, reversed the way it was made. No migration, and no window where
+ * the two disagree.
+ */
+const LEDGER_VERSION = 2;
+
+function writtenWithWalletCredit(payment) {
+  return Number(payment && payment.ledgerVersion) >= LEDGER_VERSION;
+}
+
+/**
+ * A stored amount as whole AFN, treating anything malformed as nothing.
+ *
+ * Floored at zero. All three amounts this reads — commissionAmount, providerNet,
+ * referralUsed — are non-negative by construction, so a negative one is a
+ * corrupt document rather than a number to be honoured. Passed through, it
+ * changes the SIGN of a ledger entry: a commissionAmount of -50 would make a
+ * cancellation credit the salon fifty afghani it was never charged.
+ */
 function whole(value) {
   const n = Number(value);
-  return Number.isFinite(n) ? Math.round(n) : 0;
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.round(n);
 }
 
 /** The amount to credit back, floored at zero so a malformed doc can't debit. */
@@ -77,6 +115,8 @@ function commissionToReturn(payment) {
 }
 
 module.exports = {
+  LEDGER_VERSION,
+  writtenWithWalletCredit,
   shouldReverseCommission,
   commissionToReturn,
   cashLedgerDelta,

@@ -47,6 +47,8 @@ CATCH_ALL=(
 # kind|human description|why it is worth waking someone
 ALERTS=(
   "BOOKING_FAILED|Booking failed|A customer tried to book and could not. This is lost revenue and a lost customer, one per event."
+  "SLOT_MISMATCH|A booking landed at a time the salon does not offer|The booking SUCCEEDED — this is not an outage. The app builds its slot grid from the device clock and the server checks it against the salon's stored hours in Kabul time, so this fires when the two disagree: a phone on another timezone, or a salon whose week changed under a live booking. Deliberately not BOOKING_FAILED, which is documented as a customer who could not book; conflating them makes a working product page as a failure and inflates any count watching that label."
+  "DUPLICATE_PHONE|Two accounts share one phone number|Login resolves by subscriber number, so both people are ambiguous to it: whoever the index returns first wins and the other is locked out of an account that still exists. Cannot be resolved automatically — only a person knows whether it is one customer twice or two customers who typed the same number."
   "PAYMENT_FAILED|Payment path failed|Money moved, or failed to, without the record agreeing. Every event is someone's money."
   "BACKUP_FAILED|Backup failed|The nightly export did not complete. Discovered any later than now means discovering it during a restore."
   "INTEGRITY_CRITICAL|Integrity sweep found something critical|Two records that should agree do not, in a way that costs money."

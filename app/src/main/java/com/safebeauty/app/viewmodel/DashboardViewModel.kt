@@ -1289,6 +1289,16 @@ class DashboardViewModel @Inject constructor(
         services: List<String> = emptyList(),
         /** A wedding party's guests, when this is one. Everyone works at once. */
         party: List<Pair<String, List<String>>> = emptyList(),
+        /**
+         * The booking being moved, when this is a reschedule.
+         *
+         * Its own slots are not obstacles to itself — the server says so too
+         * (hasSlotConflict takes the same exclusion) — and without this a woman
+         * rescheduling her 10:00 appointment saw 10:00, and every slot her
+         * booking spans, as taken. At a solo salon with no other customers that
+         * is most of her day, offered back to her as unavailable.
+         */
+        excludeAppointmentId: String = "",
     ) {
         viewModelScope.launch {
             slotsLoading = true
@@ -1318,7 +1328,12 @@ class DashboardViewModel @Inject constructor(
                 com.safebeauty.app.util.SlotMath.partyLayoutFor(salon, party)
             else
                 com.safebeauty.app.util.SlotMath.layoutFor(salon, services)
-            val slots = computeSlots(salon, dateMs, booked, selectedStaffId, layout)
+            val slots = computeSlots(
+                salon, dateMs,
+                if (excludeAppointmentId.isBlank()) booked
+                else booked.filterNot { it.id == excludeAppointmentId },
+                selectedStaffId, layout,
+            )
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false
@@ -1340,6 +1355,29 @@ class DashboardViewModel @Inject constructor(
         slotsLoading = false
         noWorkingHours = false
         slotsFailed = false
+    }
+
+    /**
+     * Clear the list and say so, before anything asynchronous starts.
+     *
+     * A reschedule has to fetch the salon before it can compute a single slot,
+     * and in that gap an empty list with slotsLoading false reads as "no times
+     * on this day" — the salon is closed, try another. Which is a different
+     * sentence from "one moment", and the wrong one.
+     */
+    fun beginSlotLoad() {
+        availableSlots = emptyList()
+        noWorkingHours = false
+        slotsFailed = false
+        slotsLoading = true
+    }
+
+    /** The salon itself could not be read, so no day can be judged. */
+    fun slotLoadFailed() {
+        availableSlots = emptyList()
+        noWorkingHours = false
+        slotsLoading = false
+        slotsFailed = true
     }
 
     /**

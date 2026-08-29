@@ -83,9 +83,15 @@ function expandBooked(appointments, slotMinutes) {
     // salon as having two free during somebody's wedding, and offer times the
     // server then refuses at checkout.
     const isParty = a && a.isParty === true;
+    // The booking's own id, so a customer moving one is not blocked by it.
+    // hasSlotConflict already excludes it server-side (excludeId), but the
+    // picker had no way to: a woman rescheduling her 10:00 appointment saw
+    // 10:00 — and every slot her own booking spans — as taken, by herself, and
+    // at a solo salon with no other bookings that is most of her day.
+    const id = String((a && a.id) || "");
     for (const t of slotsForAppointment(a, slotMinutes)) {
       slots.push(t);
-      booked.push({ time: t, staffId, isParty });
+      booked.push({ time: t, staffId, isParty, id });
     }
   }
   return { slots, booked };

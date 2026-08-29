@@ -167,8 +167,27 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("status", status).await()
     }
 
-    suspend fun suspendUser(uid: String)   = setUserStatus(uid, "SUSPENDED")
-    suspend fun unsuspendUser(uid: String) = setUserStatus(uid, "APPROVED")
+    /**
+     * Suspend or reinstate an account, through the audited callable.
+     *
+     * This used to write users.status directly from the device — the same defect
+     * the web console had. Nothing on the server reads that field to decide
+     * whether an account may act, so the badge turned red and the person went on
+     * booking and paying; the action never reached admin_audit; and reinstating
+     * wrote APPROVED unconditionally, promoting any provider who had been
+     * suspended while still awaiting review.
+     *
+     * adminSetUserStatus writes both halves of a suspension, records who did it
+     * and why, and restores the standing the account actually had.
+     */
+    suspend fun setSuspended(uid: String, suspend: Boolean, reason: String = "") {
+        val payload = hashMapOf<String, Any>("targetUid" to uid, "suspend" to suspend)
+        if (suspend) payload["reason"] = reason
+        functions.getHttpsCallable("adminSetUserStatus").call(payload).await()
+    }
+
+    suspend fun suspendUser(uid: String, reason: String) = setSuspended(uid, true, reason)
+    suspend fun unsuspendUser(uid: String)               = setSuspended(uid, false)
 
     /** Rejects a pending provider application with a reason shown on their AccountStatusScreen. */
     suspend fun rejectProvider(uid: String, reason: String) {
@@ -690,7 +709,16 @@ class FirestoreRepository @Inject constructor(
      * chair. Without it the picker counts chairs and offers a time during
      * somebody's wedding that checkout then refuses.
      */
-    data class BookedSlot(val time: Long, val staffId: String, val isParty: Boolean = false)
+    // `id` is the appointment that occupies this slot, so a customer moving one
+    // is not blocked by her own booking. hasSlotConflict already excludes it
+    // server-side; the picker could not, and at a solo salon her own appointment
+    // was most of what made her day look full.
+    data class BookedSlot(
+        val time: Long,
+        val staffId: String,
+        val isParty: Boolean = false,
+        val id: String = "",
+    )
 
     /**
      * Taken time-slots for a salon on the day containing [dateMs]. Served by
@@ -723,7 +751,12 @@ class FirestoreRepository @Inject constructor(
             return booked.mapNotNull { entry ->
                 val m = entry as? Map<*, *> ?: return@mapNotNull null
                 val time = (m["time"] as? Number)?.toLong() ?: return@mapNotNull null
-                BookedSlot(time, m["staffId"] as? String ?: "", m["isParty"] == true)
+                BookedSlot(
+                    time,
+                    m["staffId"] as? String ?: "",
+                    m["isParty"] == true,
+                    m["id"] as? String ?: "",
+                )
             }
         }
         return (map["slots"] as? List<*>)

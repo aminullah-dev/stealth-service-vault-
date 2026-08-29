@@ -468,16 +468,21 @@ class AdminViewModel @Inject constructor(
         }
     }
 
-    fun suspendUser(uid: String) {
+    /**
+     * A suspension needs a reason on the record, the same as the web console
+     * requires. The callable stores it, shows it back on the account, and it is
+     * what an admin reads months later when someone asks why.
+     */
+    fun suspendUser(uid: String, reason: String = "Suspended from the admin app") {
         viewModelScope.launch {
-            firestoreRepository.suspendUser(uid)
+            runCatching { firestoreRepository.suspendUser(uid, reason) }
             vaultRepository.log("ADMIN_SUSPEND", "uid=$uid")
         }
     }
 
     fun unsuspendUser(uid: String) {
         viewModelScope.launch {
-            firestoreRepository.unsuspendUser(uid)
+            runCatching { firestoreRepository.unsuspendUser(uid) }
             vaultRepository.log("ADMIN_UNSUSPEND", "uid=$uid")
         }
     }

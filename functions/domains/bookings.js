@@ -300,7 +300,9 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
     .where("appointmentDate", "<=", end)
     .get();
   const inWindow = snap.docs
-    .map((d) => d.data())
+    // The id comes along so the picker can leave out the booking being moved,
+    // exactly as hasSlotConflict does server-side.
+    .map((d) => ({ id: d.id, ...d.data() }))
     .filter((a) =>
       a.status !== "CANCELLED" &&
       Number(a.appointmentDate) >= start &&

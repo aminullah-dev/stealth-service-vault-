@@ -332,11 +332,19 @@ async function runIntegritySweep() {
 
     // 6. Negative provider balances. A payout that overshot, or commission debt
     //    that never cleared — either way the arithmetic has drifted.
+    // owedAmount, not owed. This has read a field no writer has ever written —
+    // Number(undefined || 0) is 0, and 0 is not below 0 — so the only automated
+    // guard on the provider ledger has never fired once in its existence. Every
+    // balance the arithmetic has ever drifted on was invisible, and a check that
+    // cannot fail is indistinguishable from a ledger that never breaks.
     const balances = await db.collection("provider_balances").get();
     balances.docs.forEach((d) => {
-      const owed = Number(d.data().owed || 0);
+      const owed = Number((d.data() || {}).owedAmount || 0);
       if (owed < 0) {
-        add("NEGATIVE_BALANCE", "warn", d.id, `Provider balance is ${owed} AFN.`);
+        add("NEGATIVE_BALANCE", "warn", d.id,
+          `Provider balance is ${owed} AFN — the platform is owed money by this `
+          + "salon, or a payout overshot. A commission debt on an unpaid cash "
+          + "booking is normal and clears itself; a large or growing one is not.");
       }
     });
 

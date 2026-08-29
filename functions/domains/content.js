@@ -4,7 +4,7 @@
 // so the deployed function set is unchanged by the move.
 
 const { averageRating } = require("../lib/reviews");
-const { assertAdmin, assertDocId, logAdminAction, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, resolveAppUser } = require("../shared");
 const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -87,6 +87,7 @@ exports.submitReview = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const user = await resolveAppUser(request);
+    assertNotSuspended(user);
 
     const { appointmentId, salonId, rating, comment, imageUrls } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "A valid appointmentId is required.");

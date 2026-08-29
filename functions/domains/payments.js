@@ -7,7 +7,7 @@ const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteD
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { cashAllowed } = require("../lib/commitment");
-const { cashLedgerDelta, onlineLedgerDelta } = require("../lib/commission");
+const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta } = require("../lib/commission");
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
@@ -559,6 +559,9 @@ exports.createPaymentSession = onCall(
         packageId:         appliedPackageId,
         referralUsed,
         reserved:          true,
+        // Which balance formula wrote this payment's entry, so a reversal
+        // undoes exactly what the booking did even across this release.
+        ledgerVersion:     LEDGER_VERSION,
         commissionPercent,
         commissionAmount,
         providerNet,
@@ -697,6 +700,9 @@ exports.createPaymentSession = onCall(
       reserved:          true,
       // Legacy flag, kept so any in-flight pre-reservation payment still settles.
       promoCounted:      false,
+      // Which balance formula wrote this payment's entry, so a reversal undoes
+      // exactly what the booking did even across this release.
+      ledgerVersion:     LEDGER_VERSION,
       commissionPercent,
       commissionAmount,
       providerNet,
@@ -808,6 +814,7 @@ exports.createGiftCardSession = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
+    assertNotSuspended(buyer);
 
     const { recipientPhone, amount, message } = request.data || {};
     const gift = validateGiftAmount(amount);
@@ -907,6 +914,7 @@ exports.createWalletTopUp = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
+    assertNotSuspended(buyer);
 
     const { amount } = request.data || {};
     const top = validateGiftAmount(amount);
@@ -973,6 +981,7 @@ exports.createTipSession = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const customer = await resolveAppUser(request);
+    assertNotSuspended(customer);
 
     const { appointmentId, amount } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");
@@ -1051,6 +1060,7 @@ exports.createTipSession = onCall(
 exports.redeemLoyaltyPoints = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
 
   const conv = loyaltyToCredit((request.data || {}).points);
   if (!conv.ok) {
@@ -1097,6 +1107,7 @@ const PROFILE_REWARD_POINTS = 20;
 exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   const userRef = db.doc(`users/${appUser.uid}`);
 
   const result = await db.runTransaction(async (tx) => {

@@ -2326,7 +2326,9 @@ fun CustomerDashboardScreen(
         // ── Reschedule: date picker ───────────────────────────────────────────
         if (showRescheduleDate) {
             DatePickerDialog(
-                onDismissRequest = { showRescheduleDate = false; rescheduleTarget = null },
+                onDismissRequest = {
+                    showRescheduleDate = false; rescheduleTarget = null; viewModel.clearSlots()
+                },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -2334,7 +2336,15 @@ fun CustomerDashboardScreen(
                             val picked = rescheduleDateState.selectedDateMillis
                             reschedulePickedDate = picked
                             val target = rescheduleTarget
-                            if (picked != null && target != null) {
+                            // Cleared and marked loading first: ensureSalonLoaded is
+                            // asynchronous, and until it answers the dialog would
+                            // otherwise render the previous flow's times as this
+                            // appointment's — or, once cleared, claim the salon has no
+                            // times on this day at all.
+                            if (picked == null || target == null) {
+                                viewModel.slotLoadFailed()
+                            } else {
+                                viewModel.beginSlotLoad()
                                 // The salon's real free times, exactly as the booking
                                 // flow computes them. A free clock face let a customer
                                 // pick a minute the salon does not open on, an hour it
@@ -2343,7 +2353,12 @@ fun CustomerDashboardScreen(
                                 // given. The same grid, the same maths, one screen
                                 // later in the same journey.
                                 viewModel.ensureSalonLoaded(target.salonId) { salon ->
-                                    if (salon != null) {
+                                    if (salon == null) {
+                                        // The salon could not be read, so no day can be
+                                        // judged. Said plainly, rather than spinning for
+                                        // ever or claiming she is fully booked.
+                                        viewModel.slotLoadFailed()
+                                    } else {
                                         // The services recovered from the display name, the
                                         // same way "Book again" above does it — the stored
                                         // `services` array holds {name, price} maps, and a
@@ -2352,6 +2367,7 @@ fun CustomerDashboardScreen(
                                         viewModel.loadSlotsForDate(
                                             salon, picked, target.staffId,
                                             serviceNamesFrom(target.serviceName, salon.pricePerService),
+                                            excludeAppointmentId = target.id,
                                         )
                                     }
                                 }
@@ -2362,7 +2378,9 @@ fun CustomerDashboardScreen(
                     ) { Text(strings.next, color = Color.White) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showRescheduleDate = false; rescheduleTarget = null }) {
+                    TextButton(onClick = {
+                        showRescheduleDate = false; rescheduleTarget = null; viewModel.clearSlots()
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 }
@@ -2374,7 +2392,12 @@ fun CustomerDashboardScreen(
         // ── Reschedule: time picker ───────────────────────────────────────────
         if (showRescheduleTime) {
             AlertDialog(
-                onDismissRequest = { showRescheduleTime = false; rescheduleTarget = null },
+                // Cleared on every exit, including the back gesture. A slot list left
+                // behind is a list of times computed for another salon on another day,
+                // and the next reschedule would open showing them as bookable.
+                onDismissRequest = {
+                    showRescheduleTime = false; rescheduleTarget = null; viewModel.clearSlots()
+                },
                 title = { Text(strings.rescheduleTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text  = {
                     Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
