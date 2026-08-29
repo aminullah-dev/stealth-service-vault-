@@ -373,6 +373,19 @@ fun ProviderDashboardScreen(
                 when (page) {
                     0 -> BookingRequestsTab(
                         appointments = pendingAppointments,
+                        // From the month the calendar already loads, so this
+                        // costs no extra read and no new index: visits that have
+                        // started, that the salon accepted, and that it has not
+                        // yet reported on. Newest first — the one she just
+                        // finished is the one she wants to rate.
+                        finishedVisits = monthAppointments
+                            .filter {
+                                (it.status == "CONFIRMED" || it.status == "COMPLETED") &&
+                                    it.appointmentDate <= System.currentTimeMillis() &&
+                                    !it.customerReported
+                            }
+                            .sortedByDescending { it.appointmentDate }
+                            .take(20),
                         salonId      = salon?.id ?: "",
                         providerName = salon?.salonName ?: "",
                         providerId   = viewModel.providerId,

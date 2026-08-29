@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
@@ -2458,6 +2459,21 @@ fun CustomerDashboardScreen(
         }
 
         // ── Review thanks confirmation ────────────────────────────────────────
+        if (viewModel.reviewFailed) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissReviewError() },
+                icon  = { Icon(Icons.Default.ErrorOutline, null, tint = DangerRed, modifier = Modifier.size(40.dp)) },
+                title = { Text(strings.reviewFailedMessage, fontSize = 14.sp, color = DeepRose, textAlign = TextAlign.Center) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissReviewError() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         if (viewModel.reviewThanksShown) {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissReviewThanks() },

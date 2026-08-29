@@ -236,6 +236,9 @@ class DashboardViewModel @Inject constructor(
 
     var reviewThanksShown by mutableStateOf(false)
         private set
+    /** The review could not be sent. Shown instead of the thanks dialog. */
+    var reviewFailed by mutableStateOf(false)
+        private set
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -1047,11 +1050,20 @@ class DashboardViewModel @Inject constructor(
                     "salonId=$salonId rating=$rating photos=${imageUrls.size}"
                 )
                 reviewThanksShown = true
+            }.onFailure {
+                // runCatching with nothing after it: a review that failed to send
+                // showed no thanks dialog and no error, so the customer saw her
+                // tap do nothing. She writes it again, and if the first attempt
+                // had in fact landed the second is refused as a duplicate — one
+                // silent failure becoming two.
+                reviewFailed = true
             }
         }
     }
 
     fun dismissReviewThanks() { reviewThanksShown = false }
+
+    fun dismissReviewError() { reviewFailed = false }
 
     private fun scheduleReminders(appt: AppointmentDocument) {
         val strings = StringResources.forLanguage(languageRepository.language.value)
