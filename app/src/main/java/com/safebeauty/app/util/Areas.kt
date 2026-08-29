@@ -268,6 +268,25 @@ object Areas {
 
     fun labels(lang: AppLanguage): List<String> = areas.map { labelFor(it, lang) }
 
-    fun labelForKey(key: String, lang: AppLanguage): String =
-        areas.firstOrNull { it.key == key }?.let { labelFor(it, lang) } ?: key
+    /**
+     * Every salon in production stored its district before the keys carried a
+     * city, so "D9_Makroryan" is what is on the document and "KBL_D9_Makroryan"
+     * is what the list holds. The server resolves these through LEGACY_KEYS;
+     * without the same map here the customer reads the raw key on the card.
+     * Kabul only — it was the only city when those rows were written.
+     */
+    private val legacyKeys: Map<String, String> =
+        areas.filter { it.key.startsWith("KBL_") }.associate { it.key.removePrefix("KBL_") to it.key }
+
+    /**
+     * The label for [key], or [key] itself when it is not one.
+     *
+     * Falling back to the key is deliberate: older salons hold free text like
+     * "خیرخانه مینه ناحیه ۱۷", and showing what the salon actually wrote is
+     * better than showing nothing.
+     */
+    fun labelForKey(key: String, lang: AppLanguage): String {
+        val canonical = if (areas.any { it.key == key }) key else legacyKeys[key] ?: key
+        return areas.firstOrNull { it.key == canonical }?.let { labelFor(it, lang) } ?: key
+    }
 }

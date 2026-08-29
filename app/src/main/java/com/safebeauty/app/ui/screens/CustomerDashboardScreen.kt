@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
@@ -733,6 +734,60 @@ fun CustomerDashboardScreen(
                                 labelColor             = DeepRose
                             )
                         )
+                    }
+                }
+
+                // ── City picker ───────────────────────────────────────────────
+                //
+                // The view model has carried a city for a while and nothing on
+                // screen could set it, so it sat blank and the neighbourhood
+                // menu below opened onto a single "all" row — districts only
+                // exist inside a city, so with none chosen there was nothing to
+                // list. A customer saw an empty dropdown and no way to fix it.
+                //
+                // Blank stays a real option: with four cities and a handful of
+                // salons, "everywhere" is the honest default, and picking a city
+                // is narrowing rather than a gate to get past.
+                var showCityMenu by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
+                    OutlinedButton(
+                        onClick  = { showCityMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape    = RoundedCornerShape(12.dp),
+                        border   = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                    ) {
+                        Icon(Icons.Default.LocationCity, null, modifier = Modifier.size(15.dp), tint = RoseGold)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (selectedCity.isBlank()) strings.allCities
+                            else com.safebeauty.app.util.Areas.cityLabel(selectedCity, strings.language),
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f),
+                            color    = DeepRose
+                        )
+                        Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
+                    }
+                    DropdownMenu(
+                        expanded         = showCityMenu,
+                        onDismissRequest = { showCityMenu = false },
+                        modifier         = Modifier.background(ElegantCream)
+                    ) {
+                        DropdownMenuItem(
+                            text    = { Text(strings.allCities, fontSize = 13.sp, color = DeepRose) },
+                            onClick = { viewModel.onCityChanged(""); showCityMenu = false }
+                        )
+                        com.safebeauty.app.util.Areas.liveCities.forEach { city ->
+                            DropdownMenuItem(
+                                text    = {
+                                    Text(
+                                        com.safebeauty.app.util.Areas.cityLabel(city.key, strings.language),
+                                        fontSize = 13.sp, color = DeepRose,
+                                    )
+                                },
+                                onClick = { viewModel.onCityChanged(city.key); showCityMenu = false }
+                            )
+                        }
                     }
                 }
 
@@ -2961,6 +3016,7 @@ private fun SalonCard(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
     val context = LocalContext.current
+    val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
     // Track swiped-away ids in state so the banner disappears immediately; seed
     // from prefs so a dismissed announcement stays gone across restarts. Showing
@@ -3026,7 +3082,24 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
                             color    = RoseGold
                         )
                     }
-                    Icon(Icons.Default.Close, null, tint = RoseGold.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                    // A real button, not decoration. This was a plain Icon, and
+                    // the only way to dismiss the banner was to swipe it — so a
+                    // customer saw a close cross, tapped it, and nothing
+                    // happened. An × that does not close is worse than no ×.
+                    IconButton(
+                        onClick = {
+                            AnnouncementPrefs.dismiss(context, newest.id)
+                            dismissed = dismissed + newest.id
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = strings.close,
+                            tint = RoseGold,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }

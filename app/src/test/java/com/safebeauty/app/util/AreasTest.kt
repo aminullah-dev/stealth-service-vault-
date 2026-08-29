@@ -1,5 +1,6 @@
 package com.safebeauty.app.util
 
+import com.safebeauty.app.ui.theme.AppLanguage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -94,5 +95,25 @@ class AreasTest {
             assertTrue("${a.key} names a parent that is not a district", Areas.isDistrict(a.parent))
             assertEquals("${a.key} names a parent in another city", a.cityKey, parent!!.cityKey)
         }
+    }
+    @Test
+    fun `a pre-prefix key still shows a label, because that is what production holds`() {
+        // Every salon stored its district before the keys carried a city, so the
+        // document says D9_Makroryan and the list holds KBL_D9_Makroryan. Without
+        // the fallback the customer reads the raw key on the salon card, which is
+        // exactly what she was reading tonight.
+        assertEquals(
+            Areas.labelForKey("KBL_D9_Makroryan", AppLanguage.DARI),
+            Areas.labelForKey("D9_Makroryan", AppLanguage.DARI)
+        )
+        assertFalse(Areas.labelForKey("D9_Makroryan", AppLanguage.DARI) == "D9_Makroryan")
+    }
+
+    @Test
+    fun `free text is shown as the salon wrote it, not replaced or blanked`() {
+        // Older salons hold an address rather than a key. Showing it is better
+        // than showing nothing, and better than pretending it resolves.
+        val typed = "خیرخانه مینه ناحیه 17"
+        assertEquals(typed, Areas.labelForKey(typed, AppLanguage.DARI))
     }
 }
