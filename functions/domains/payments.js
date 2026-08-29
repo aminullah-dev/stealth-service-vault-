@@ -54,7 +54,13 @@ async function getPlatformConfig() {
 async function getMaxDiscountFraction() {
   const snap = await db.doc("platform_config/general").get();
   const value = Number(snap.exists ? snap.data().maxDiscountFraction : undefined);
-  if (!Number.isFinite(value) || value <= 0 || value > 1) {
+  // Strictly below 1. A fraction of exactly 1 discounts the whole price away,
+  // which is the outcome this cap exists to prevent — so it is refused like any
+  // other out-of-range value rather than honoured as a deliberate choice. There
+  // is no version of "the salon receives nothing" that is a business decision;
+  // a free appointment is a promotion someone has to fund, and that is what
+  // wallet credit is for.
+  if (!Number.isFinite(value) || value <= 0 || value >= 1) {
     return DEFAULT_MAX_DISCOUNT_FRACTION;
   }
   return value;

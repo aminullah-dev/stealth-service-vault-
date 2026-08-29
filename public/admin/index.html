@@ -524,9 +524,9 @@ const STR = {
   lbl_currentMaxDiscount: {en:(p)=>`Current limit: ${p}% of the price`,
                            fa:(p)=>`حد فعلی: ${p}٪ از قیمت`,
                            ps:(p)=>`اوسنۍ کچه: د بیې ${p}٪`},
-  err_maxDiscountRange: {en:'Enter 1\u2013100. A 0 would make every booking free.',
-                         fa:'عددی بین ۱ تا ۱۰۰ وارد کنید. صفر یعنی همهٔ نوبت‌ها مجانی.',
-                         ps:'له ۱ تر ۱۰۰ پورې شمېره ولیکئ. صفر یعنې ټول بکینګونه وړیا.'},
+  err_maxDiscountRange: {en:'Enter 1\u201399. At 100 the salon would be left with nothing.',
+                         fa:'عددی بین ۱ تا ۹۹ وارد کنید. با ۱۰۰ برای سالون چیزی باقی نمی‌ماند.',
+                         ps:'له ۱ تر ۹۹ پورې شمېره ولیکئ. په ۱۰۰ کې به سالون ته هیڅ پاتې نه شي.'},
   ok_saved: {en:'Saved ✓', fa:'ذخیره شد ✓', ps:'خوندی شو ✓'},
   confirm_revokeKycLinks: {
     en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
@@ -3150,7 +3150,7 @@ async function renderFinance(){
       <div id="dflash"></div>
       <div class="meta" id="dcur">${t('lbl_current')}</div>
       <div style="display:flex;gap:8px;margin-top:8px">
-        <input id="dinput" class="field" type="number" min="1" max="100" placeholder="%" style="margin:0" />
+        <input id="dinput" class="field" type="number" min="1" max="99" placeholder="%" style="margin:0" />
         <button id="dsave" class="btn-sm" style="background:var(--rose)">${t('btn_save')}</button>
       </div>
     </div>
@@ -3186,7 +3186,9 @@ async function renderFinance(){
     const v = parseFloat($('dinput').value);
     // A 0 here would make every booking free, so it is refused rather than
     // stored — the server refuses it too, and falls back to 90%.
-    if(isNaN(v)||v<1||v>100){ alert(t('err_maxDiscountRange')); return; }
+    // Not 100. That leaves the salon nothing, which is the outcome this setting
+    // exists to prevent; the server refuses it too and falls back to 90%.
+    if(isNaN(v)||v<1||v>99){ alert(t('err_maxDiscountRange')); return; }
     try{ await setDoc(cref, { maxDiscountFraction: v/100 }, { merge:true });
       $('dflash').innerHTML = `<div class="flash">${t('ok_saved')}</div>`;
       $('dcur').textContent = t('lbl_currentMaxDiscount', v); }

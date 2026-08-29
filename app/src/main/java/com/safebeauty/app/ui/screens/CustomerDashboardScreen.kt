@@ -153,6 +153,7 @@ import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.activeStaff
+import com.safebeauty.app.data.firebase.serviceNamesFrom
 import com.safebeauty.app.data.firebase.hasLocation
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
@@ -2302,9 +2303,7 @@ fun CustomerDashboardScreen(
                         // booking without needing the structured breakdown.
                         val salon = viewModel.findSalon(appt.salonId)
                         if (salon != null) {
-                            val prev = appt.serviceName.split("،", ",")
-                                .map { it.trim() }
-                                .filter { it.isNotBlank() && salon.pricePerService.containsKey(it) }
+                            val prev = serviceNamesFrom(appt.serviceName, salon.pricePerService)
                             showBookingsSheet = false
                             selectedServices.clear()
                             selectedServices.addAll(prev)
@@ -2345,8 +2344,14 @@ fun CustomerDashboardScreen(
                                 // later in the same journey.
                                 viewModel.ensureSalonLoaded(target.salonId) { salon ->
                                     if (salon != null) {
+                                        // The services recovered from the display name, the
+                                        // same way "Book again" above does it — the stored
+                                        // `services` array holds {name, price} maps, and a
+                                        // Kotlin field reading it as strings crashes the
+                                        // snapshot listener rather than being ignored.
                                         viewModel.loadSlotsForDate(
-                                            salon, picked, target.staffId, target.services,
+                                            salon, picked, target.staffId,
+                                            serviceNamesFrom(target.serviceName, salon.pricePerService),
                                         )
                                     }
                                 }

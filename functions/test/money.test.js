@@ -359,6 +359,19 @@ test("capDiscount: the fraction is configurable, and nonsense falls back", () =>
   assert.strictEqual(capDiscount(1000, 900, 0), 900);
   assert.strictEqual(capDiscount(1000, 900, -1), 900);
   assert.strictEqual(capDiscount(1000, 900, 5), 900);
+  // Exactly 1 is refused too: it discounts the whole price away, which is the
+  // one outcome this function exists to prevent. The admin console offers 1-99
+  // for the same reason.
+  assert.strictEqual(capDiscount(1000, 1000, 1), 900);
+});
+
+test("capDiscount: whatever the setting, the salon is never left with nothing", () => {
+  for (const frac of [0.01, 0.5, 0.9, 0.99, 1, 1.5, 0, -1, NaN, null, undefined, "0.9"]) {
+    for (const subtotal of [1, 380, 1000, 99999]) {
+      const kept = subtotal - capDiscount(subtotal, subtotal * 10, frac);
+      assert.ok(kept > 0, `fraction ${String(frac)} left a ${subtotal} AFN booking with ${kept}`);
+    }
+  }
 });
 
 test("capDiscount: nothing to discount, or nothing to discount from", () => {

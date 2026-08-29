@@ -290,12 +290,17 @@ data class AppointmentDocument(
     val salonId: String = "",
     val salonName: String = "",
     val serviceName: String = "",
-    // The individual services, as chosen. serviceName is these joined for
-    // display; this is the list itself, which the server has written since
-    // bookings began and the app had never read — so rescheduling could not work
-    // out how long the appointment is and offered a free clock face instead of
-    // the salon's real free times.
-    val services: List<String> = emptyList(),
+    // There is deliberately no `services` field here.
+    //
+    // The server does write one, but it holds [{name, price}] maps, not strings
+    // (resolveServicesTotal in functions/lib/money.js). Declaring it as
+    // List<String> does not make Firestore skip it — CustomClassMapper walks
+    // into the array and throws converting a HashMap to a String, out of a
+    // snapshot listener on the main thread, so every customer and every salon
+    // owner with a single booking loses the screen. Nothing in the app needs the
+    // prices, and splitting serviceName recovers the names for every booking
+    // ever made, including those written before the field existed — which is
+    // what "Book again" has always done. See serviceNamesFrom below.
     // The staff member this booking is for. Empty = "any available" / solo salon.
     val staffId: String = "",
     val staffName: String = "",
@@ -315,6 +320,19 @@ data class AppointmentDocument(
     @get:PropertyName("customerReported") @set:PropertyName("customerReported")
     var customerReported: Boolean = false
 )
+
+/**
+ * The services this booking was made from, recovered from the display name.
+ *
+ * [serviceName] is the chosen services joined with "، " at booking time, so
+ * splitting it back is exact for every booking ever made. Filtered against what
+ * the salon offers today, because a service she has since removed has no price
+ * and no duration and cannot be part of a slot calculation.
+ */
+fun serviceNamesFrom(serviceName: String, offered: Map<String, Int>): List<String> =
+    serviceName.split("،", ",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() && offered.containsKey(it) }
 
 /** Snapshotted average customer rating for this booking (0.0 if never rated). */
 fun AppointmentDocument.customerRating(): Double =

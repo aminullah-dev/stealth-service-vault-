@@ -201,8 +201,11 @@ function capDiscount(subtotal, discount, maxFraction = DEFAULT_MAX_DISCOUNT_FRAC
   const want = Number(discount);
   if (!Number.isFinite(base) || base <= 0) return 0;
   if (!Number.isFinite(want) || want <= 0) return 0;
+  // Strictly below 1: at exactly 1 the whole price is discounted away, which is
+  // the one outcome this function exists to prevent. Refused like any other
+  // out-of-range value rather than honoured.
   const frac = Number.isFinite(Number(maxFraction)) &&
-               Number(maxFraction) > 0 && Number(maxFraction) <= 1
+               Number(maxFraction) > 0 && Number(maxFraction) < 1
     ? Number(maxFraction)
     : DEFAULT_MAX_DISCOUNT_FRACTION;
   return Math.min(Math.round(want), Math.floor(base * frac));
