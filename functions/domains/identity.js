@@ -4,11 +4,12 @@
 // so the deployed function set is unchanged by the move.
 
 const { phoneKey } = require("../lib/phone");
+const { defaultWorkingHours } = require("../lib/hours");
 const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
-const { assertAdmin, assertDocId, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -394,6 +395,7 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
   const existing = await db.collection("salons")
     .where("providerId", "==", appUser.uid).limit(1).get();
   if (!existing.empty) {
+    await clearPendingSalon(appUser.uid);
     return { salonId: existing.docs[0].id, alreadyExisted: true };
   }
 
@@ -406,14 +408,32 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     services:            services.map(String),
     isAvailable:         false,   // hidden until an admin approves the provider
     rating:              0,
-    workingHours:        [],
+    // The same week the provider editor shows by default, so the owner who
+    // opens her profile, sees Saturday to Thursday 9–18 and changes nothing has
+    // a salon that can actually be booked. Stored empty, it never could be.
+    workingHours:        defaultWorkingHours(),
     slotDurationMinutes: 60,
     pricePerService:     {},
     confirmedCount:      0,
     isVerified:          false,
   });
+  await clearPendingSalon(appUser.uid);
   return { salonId: ref.id };
 });
+
+/**
+ * Forget the salon details registration parked on the account.
+ *
+ * They exist only so a sign-in can finish a salon that registration could not
+ * (see UserDocument.pendingSalonName). Once the salon is real they are stale
+ * copies of data that now lives on the salon itself, and a stale copy is
+ * something that will eventually be read as current.
+ */
+async function clearPendingSalon(uid) {
+  await db.doc(`users/${uid}`)
+    .update({ pendingSalonName: "", pendingSalonDistrict: "", pendingSalonServices: [] })
+    .catch(() => {});   // the salon exists either way; this is only tidying
+}
 
 /**
  * Pre-auth lookup of an account's Firebase Auth email by phone, for the
@@ -434,14 +454,12 @@ exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request)
   await enforceRateLimit(`lookup:${callerIp(request)}`, 20, 10 * 60 * 1000);
   const phone = normalizePhone(raw);
 
-  let q = await db.collection("users").where("phone", "==", phone).limit(1).get();
-  if (q.empty && phone !== raw) {
-    q = await db.collection("users").where("phone", "==", raw).limit(1).get();
-  }
-  if (q.empty) return { found: false };
-
-  const doc = q.docs[0];
-  const u   = doc.data();
+  // phoneDigits first, then both stored spellings — the same order the login
+  // itself resolves in, so "this number has no account" here and "wrong phone
+  // number" at sign-in can never disagree about the same person.
+  const doc = await findAccountByPhone(phone, raw);
+  if (!doc) return { found: false };
+  const u = doc.data();
   return {
     found:         true,
     uid:           doc.id,
@@ -760,6 +778,64 @@ exports.adminRevokeKycUrls = onCall(
 //      referralCode is exactly the kind of account that predates createdAt too.
 //      Ordering by __name__ can never drop a document, because every document
 //      has one.
+// ── adminBackfillWorkingHours ─────────────────────────────────────────────────
+//
+// Every salon created before today was stored with `workingHours: []`, while
+// the provider's own editor filled the screen with a default week. So an owner
+// opened her profile, saw Saturday to Thursday 9–18, agreed with it, changed
+// nothing — and saved nothing. computeSlots then produced no slots on any day
+// and her salon could not be booked at all. Not a failure: an absence, and the
+// one screen that could have shown it showed the opposite.
+//
+// Fixing the two creation paths only helps salons made from now on. These are
+// the ones already listed, already found in search, and already unbookable.
+//
+// Walks by document id rather than a field, because a missing field cannot be
+// queried for and a salon old enough to lack workingHours is exactly the kind
+// that predates whatever else we might have ordered by. Skips any salon whose
+// owner has set real hours, so it is safe to run repeatedly and safe to run
+// after someone has already fixed theirs by hand.
+exports.adminBackfillWorkingHours = onCall(
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(400, Math.max(1, Number(data.limit || 200)));
+    const dryRun = data.dryRun === true;
+    const after  = pageCursor(data);
+
+    const snap = await idPage("salons", limit, after);
+
+    let filled = 0;
+    let alreadyHad = 0;
+    const names = [];
+    for (const d of snap.docs) {
+      const salon = d.data() || {};
+      // An owner who has deliberately closed every day still has entries, and
+      // that is a decision rather than an absence — hasBookableWeek would call
+      // it unbookable, which it is, but it is hers to make. Only a genuinely
+      // empty array is filled in.
+      if (Array.isArray(salon.workingHours) && salon.workingHours.length > 0) {
+        alreadyHad += 1;
+        continue;
+      }
+      if (names.length < 20) names.push(salon.name || d.id);
+      if (!dryRun) await d.ref.update({ workingHours: defaultWorkingHours() });
+      filled += 1;
+    }
+
+    if (!dryRun) {
+      await logAdminAction(me, "BACKFILL_WORKING_HOURS", {
+        scanned: snap.size, filled, alreadyHad,
+      });
+    }
+    return {
+      ok: true, dryRun, scanned: snap.size, filled, alreadyHad, names,
+      ...pageEnd(snap, limit, after),
+    };
+  }
+);
+
 exports.adminBackfillReferralCodes = onCall(
   // A page costs up to two sequential round trips per account — a uniqueness
   // query and a write — so 100 accounts is a few hundred RPCs in series. The

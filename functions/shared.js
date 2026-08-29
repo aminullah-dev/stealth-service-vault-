@@ -14,6 +14,7 @@
 const { HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { isValidDocId } = require("./lib/validate");
+const { phoneKey } = require("./lib/phone");
 const { bookingCodeFromBytes } = require("./lib/booking");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
@@ -116,6 +117,46 @@ async function assertAdmin(request) {
     throw new HttpsError("permission-denied", "Admins only.");
   }
   return appUser;
+}
+
+/**
+ * Find the account that already owns a phone number, in any shape it was stored.
+ *
+ * The uniqueness checks queried `phone` with the normalized `+93…` form, but
+ * authenticateWithPassword resolves a login by `phoneDigits` — the subscriber
+ * tail, which is normalization-independent. An account written before
+ * normalization existed is stored as "0700123456", so the check found nothing
+ * and let a second account be created on the same number. Both people then
+ * share one login key, whoever the index returns first wins, and the other is
+ * locked out of an account that still exists. That is not recoverable by the
+ * person it happens to.
+ *
+ * So this asks the question the login actually asks. phoneDigits is written by
+ * the deriveUserPhoneKey trigger and backfilled by adminBackfillPhoneKeys, but
+ * an account it has not reached yet simply lacks the field — and equality on a
+ * missing field matches nothing — so the two stored spellings of `phone` are
+ * still checked behind it. Three limit(1) reads on an admin action is nothing;
+ * a permanent lockout is not.
+ *
+ * @param {string} phone normalized (+93…)
+ * @param {string} [raw] whatever the caller typed, if it differed
+ * @param {string} [exceptUid] an account allowed to keep its own number
+ * @returns {Promise<FirebaseFirestore.QueryDocumentSnapshot|null>}
+ */
+async function findAccountByPhone(phone, raw = "", exceptUid = "") {
+  const users = db.collection("users");
+  const key = phoneKey(phone || raw);
+  const attempts = [];
+  if (key) attempts.push(users.where("phoneDigits", "==", key).limit(2));
+  if (phone) attempts.push(users.where("phone", "==", phone).limit(2));
+  if (raw && raw !== phone) attempts.push(users.where("phone", "==", raw).limit(2));
+
+  for (const q of attempts) {
+    const snap = await q.get();
+    const hit = snap.docs.find((d) => d.id !== exceptUid);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /**
@@ -373,6 +414,7 @@ function pageCursor(data) {
 }
 
 module.exports = {
+  findAccountByPhone,
   isSuspended,
   pbkdf2Hash,
   refundReservation, randomBookingCode, reserveBookingCode,

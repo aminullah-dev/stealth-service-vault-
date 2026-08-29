@@ -99,6 +99,7 @@ exports.lookupAccountByPhone     = identity.lookupAccountByPhone;
 exports.requestAccountDeletion   = identity.requestAccountDeletion;
 exports.adminBackfillPhoneKeys   = identity.adminBackfillPhoneKeys;
 exports.adminBackfillReferralCodes = identity.adminBackfillReferralCodes;
+exports.adminBackfillWorkingHours  = identity.adminBackfillWorkingHours;
 exports.adminRevokeKycUrls       = identity.adminRevokeKycUrls;
 exports.deriveUserPhoneKey       = identity.deriveUserPhoneKey;
 

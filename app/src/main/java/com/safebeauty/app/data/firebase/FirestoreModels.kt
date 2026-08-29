@@ -83,7 +83,19 @@ data class UserDocument(
     // to COMPLETED; sendReengagementNudges scans for customers idle ≥30 days and
     // stamps lastNudgedAt so a "we miss you" nudge fires at most once per 30 days.
     val lastVisitAt: Long = 0L,
-    val lastNudgedAt: Long = 0L
+    val lastNudgedAt: Long = 0L,
+    // ── A salon that was promised and not yet created ───────────────────────────
+    // Registration writes this document and then calls createProviderSalon. When
+    // that second call failed — a dropped connection on the one screen where a
+    // dropped connection is most likely — the account existed with no salon and
+    // no way to make one, because createProviderSalon is called from exactly one
+    // place in the app and that place has already been left behind. The details
+    // she typed are kept here so the next sign-in can finish what registration
+    // started. createProviderSalon is idempotent, so retrying costs nothing and
+    // a stale copy creates no second salon.
+    val pendingSalonName: String = "",
+    val pendingSalonDistrict: String = "",
+    val pendingSalonServices: List<String> = emptyList()
 )
 
 /** Average customer rating (0.0 if never rated). */

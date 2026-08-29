@@ -4,7 +4,8 @@
 // so the deployed function set is unchanged by the move.
 
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { defaultWorkingHours } = require("../lib/hours");
+const { assertAdmin, findAccountByPhone, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { admin, alertable, db, logger } = require("../shared");
@@ -158,9 +159,14 @@ exports.adminUpdateUser = onCall({ region: "us-central1" }, async (request) => {
     if (!phone || phone.replace(/\D/g, "").length < 7) {
       throw new HttpsError("invalid-argument", "Invalid phone number.");
     }
-    const dup = await db.collection("users").where("phone", "==", phone).limit(1).get();
-    if (!dup.empty && dup.docs[0].id !== targetUid) {
-      throw new HttpsError("already-exists", "Another account already uses that phone.");
+    // Asked the way a login asks it — see findAccountByPhone. Matching only the
+    // normalized spelling missed accounts stored before normalization existed,
+    // which let an admin hand one number to two accounts and lock both owners
+    // out of the one they could no longer reach.
+    const dup = await findAccountByPhone(phone, String(d.phone), targetUid);
+    if (dup) {
+      throw new HttpsError("already-exists",
+        `Another account (${dup.data().name || dup.id}) already uses that phone.`);
     }
     updates.phone = phone;
   }
@@ -259,9 +265,10 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
   const phone = normalizePhone(rawPhone);
 
   // The phone is the login identifier, so it must be unique platform-wide.
-  const clash = await db.collection("users").where("phone", "==", phone).limit(1).get();
-  if (!clash.empty) {
-    throw new HttpsError("already-exists", "An account with this phone number already exists.");
+  const clash = await findAccountByPhone(phone, rawPhone);
+  if (clash) {
+    throw new HttpsError("already-exists",
+      `An account (${clash.data().name || clash.id}) already uses this phone number.`);
   }
 
   // Mirror PinHasher / RegisterViewModel exactly so the owner can sign in from
@@ -302,7 +309,10 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
       pricePerService:     prices,
       isAvailable:         false,   // owner opens for business by setting hours
       rating:              0,
-      workingHours:        [],
+      // The same week the provider editor shows by default, so the owner who
+      // opens her profile, sees Saturday to Thursday 9–18 and changes nothing has
+      // a salon that can actually be booked. Stored empty, it never could be.
+      workingHours:        defaultWorkingHours(),
       slotDurationMinutes: 60,
       confirmedCount:      0,
       isVerified:          true,    // vouched for by the admin who added it

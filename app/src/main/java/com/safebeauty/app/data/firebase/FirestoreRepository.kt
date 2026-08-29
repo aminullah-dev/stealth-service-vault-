@@ -132,6 +132,32 @@ class FirestoreRepository @Inject constructor(
             !usersCol.whereEqualTo("phone", phone).limit(1).get().await().isEmpty
         }.getOrDefault(false)
 
+    /**
+     * Finish a salon that registration started and never completed.
+     *
+     * The account is real, the details she typed are on her user document, and
+     * the salon simply is not there — because createProviderSalon is called from
+     * exactly one place, the registration screen, and a dropped connection there
+     * used to end the story. Called once when a provider signs in and has no
+     * salon; the callable is idempotent, so a retry that races another retry
+     * returns the same salon rather than making a second one.
+     *
+     * Returns true when a salon now exists.
+     */
+    suspend fun finishPendingSalon(user: UserDocument): Boolean {
+        if (user.pendingSalonName.isBlank() || user.pendingSalonDistrict.isBlank()) return false
+        return runCatching {
+            functions.getHttpsCallable("createProviderSalon")
+                .call(hashMapOf(
+                    "salonName" to user.pendingSalonName,
+                    "district"  to user.pendingSalonDistrict,
+                    "services"  to user.pendingSalonServices
+                ))
+                .await()
+            true
+        }.getOrElse { false }
+    }
+
     suspend fun getUserById(uid: String): UserDocument? {
         return usersCol.document(uid).get().await()
             .toObject(UserDocument::class.java)?.copy(uid = uid)

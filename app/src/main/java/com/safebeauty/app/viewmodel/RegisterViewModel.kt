@@ -174,7 +174,13 @@ class RegisterViewModel @Inject constructor(
                             firebaseEmail = firebaseEmail,
                             createdAt     = System.currentTimeMillis(),
                             referralCode  = referralCode,
-                            referredBy    = referredBy
+                            referredBy    = referredBy,
+                            // Written before the salon call, so if that call never
+                            // lands the details survive on the account and the next
+                            // sign-in can finish the job. See ProviderViewModel.
+                            pendingSalonName     = if (isProvider) salonName.trim() else "",
+                            pendingSalonDistrict = if (isProvider) district.trim() else "",
+                            pendingSalonServices = if (isProvider) services else emptyList()
                         )
                     )
 
@@ -183,14 +189,22 @@ class RegisterViewModel @Inject constructor(
                         // providerId must be the authoritative app-level uid, and at
                         // registration the uid_map bridge isn't populated yet, so a
                         // direct client write can't pass the security rules.
-                        functions
-                            .getHttpsCallable("createProviderSalon")
-                            .call(hashMapOf(
-                                "salonName" to salonName.trim(),
-                                "district"  to district.trim(),
-                                "services"  to services
-                            ))
-                            .await()
+                        //
+                        // Deliberately outside the rollback. A failure here used to
+                        // delete the Auth account and leave the users document
+                        // behind, and that pair is unrecoverable: the phone now has
+                        // an account so registration refuses it, and there is no Auth
+                        // credential behind it so signing in cannot work either. The
+                        // number is burned, and the person cannot tell why.
+                        //
+                        // The account itself is complete and correct by this point;
+                        // only the salon is missing, and the details for it are on
+                        // the document. So this retries — the usual cause is a
+                        // dropped connection, and createProviderSalon returns the
+                        // existing salon rather than making a second one — and then
+                        // gets out of the way. ProviderViewModel finishes it at her
+                        // next sign-in if all three attempts failed.
+                        runCatching { createSalonWithRetry(salonName.trim(), district.trim(), services) }
                         state = RegisterState.ProviderPending
                     } else {
                         state = RegisterState.CustomerSuccess(name.trim())
@@ -203,5 +217,41 @@ class RegisterViewModel @Inject constructor(
                 state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
             }
         }
+    }
+
+    /**
+     * Three attempts, widening the gap between them.
+     *
+     * The one call in registration that reaches the network after the account is
+     * already real, made on a connection that in Kabul or Herat may simply stop
+     * for a few seconds. One attempt made that a permanent outcome.
+     */
+    private suspend fun createSalonWithRetry(
+        salonName: String,
+        district: String,
+        services: List<String>,
+    ) {
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                functions
+                    .getHttpsCallable("createProviderSalon")
+                    .call(hashMapOf(
+                        "salonName" to salonName,
+                        "district"  to district,
+                        "services"  to services
+                    ))
+                    .await()
+                return
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt < 2) kotlinx.coroutines.delay(1_000L * (attempt + 1))
+            }
+        }
+        com.safebeauty.app.util.CrashReporter.recordNonFatal(
+            lastError ?: Exception("createProviderSalon failed"),
+            "createProviderSalon failed after 3 attempts; the salon will be created at next sign-in"
+        )
+        throw lastError ?: Exception("createProviderSalon failed")
     }
 }

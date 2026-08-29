@@ -10,7 +10,7 @@ const { cashAllowed } = require("../lib/commitment");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
-const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
@@ -754,9 +754,11 @@ exports.createGiftCardSession = onCall(
 
     // Recipient must be a registered user (we credit their existing wallet).
     const phone = normalizePhone(recipientPhone);
-    const q = await db.collection("users").where("phone", "==", phone).limit(1).get();
-    if (q.empty) throw new HttpsError("not-found", "No account uses that phone number.");
-    const recipient = q.docs[0];
+    // Matched the way a login matches — an account stored before normalization
+    // existed could not be sent a gift card, and the buyer was told no such
+    // account existed while looking at the person's number in her contacts.
+    const recipient = await findAccountByPhone(phone, String(recipientPhone || ""));
+    if (!recipient) throw new HttpsError("not-found", "No account uses that phone number.");
     if (recipient.id === buyer.uid) {
       throw new HttpsError("failed-precondition", "You can't send a gift card to yourself.");
     }

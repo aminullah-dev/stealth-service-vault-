@@ -62,6 +62,34 @@ class ProviderViewModel @Inject constructor(
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * A salon owner signing in to find no salon.
+     *
+     * Registration creates the account and then, in a separate call, the salon.
+     * When that second call failed she was left with a working account and
+     * nothing to run — createProviderSalon is invoked from exactly one place in
+     * the app, the registration screen, which she has already left for good.
+     *
+     * The details she typed were kept on her user document precisely so this
+     * could finish the job. Attempted once per ViewModel, only when there is
+     * genuinely no salon, and silent either way: if it fails she is no worse off
+     * than she was, and the next sign-in tries again.
+     */
+    private var pendingSalonAttempted = false
+
+    init {
+        viewModelScope.launch {
+            salon.collect { s ->
+                if (s != null || pendingSalonAttempted) return@collect
+                val user = runCatching { firestoreRepository.getUserById(providerId) }.getOrNull()
+                    ?: return@collect
+                if (user.pendingSalonName.isBlank()) return@collect
+                pendingSalonAttempted = true
+                firestoreRepository.finishPendingSalon(user)
+            }
+        }
+    }
+
     // Optimistic override: set immediately on toggle, cleared when Firestore confirms.
     private val _availableOverride = MutableStateFlow<Boolean?>(null)
 

@@ -500,6 +500,22 @@ const STR = {
     ps:(who)=>`د ${who} تعلیق لرې شي؟\n\nحساب هغه حالت ته ورګرځي چې تر تعلیق دمخه یې درلود.`},
   ok_suspended: {en:'Suspended ✓', fa:'تعلیق شد ✓', ps:'معلق شو ✓'},
   ok_reinstated: {en:'Reinstated ✓', fa:'تعلیق برداشته شد ✓', ps:'تعلیق لرې شو ✓'},
+  hint_workingHours: {en:'Salon opening hours', fa:'ساعات کاری سالون‌ها', ps:'د سالون د کار ساعتونه'},
+  hint_workingHoursBackfill: {
+    en:'A salon created before today was stored with no opening hours at all, while the salon owner\u2019s own profile screen showed her a filled-in week &mdash; Saturday to Thursday, 9 to 18. So she opened it, agreed with what she saw, changed nothing, and saved nothing. Her salon then offered no free time on any day and could not be booked, and the one screen that could have told her showed the opposite. This writes that same default week onto every salon whose hours are still empty. A salon whose owner has set her own hours &mdash; including one who has deliberately closed every day &mdash; is left alone, so it is safe to run repeatedly. Count them first if you want to know how many are affected before writing anything.',
+    fa:'هر سالونی که پیش از امروز ساخته شده، بدون هیچ ساعت کاری ذخیره شده است، در حالی که صفحهٔ پروفایل خودِ صاحب سالون یک هفتهٔ پر شده را به او نشان می‌داد &mdash; شنبه تا پنجشنبه، ۹ تا ۱۸. پس او آن را باز کرد، با آنچه دید موافق بود، چیزی را تغییر نداد و چیزی هم ذخیره نشد. سالون او در نتیجه هیچ وقت خالی‌ای در هیچ روزی نشان نمی‌داد و قابل رزرو نبود، و تنها صفحه‌ای که می‌توانست این را به او بگوید، خلافش را نشان می‌داد. این دکمه همان هفتهٔ پیش‌فرض را روی هر سالونی که ساعاتش هنوز خالی است می‌نویسد. سالونی که صاحبش ساعات خودش را تعیین کرده &mdash; حتی اگر عمداً همهٔ روزها را بسته گذاشته باشد &mdash; دست‌نخورده می‌ماند، پس اجرای چندبارهٔ آن بی‌خطر است. اگر می‌خواهید پیش از نوشتن بدانید چند سالون درگیرند، اول بشمارید.',
+    ps:'هر هغه سالون چې له نن دمخه جوړ شوی، پرته له کوم د کار ساعت ذخیره شوی و، په داسې حال کې چې پخپله د سالون د څښتنې د پروفایل پاڼې ورته ډکه اونۍ ښودله &mdash; له شنبې تر پنجشنبې، له ۹ تر ۱۸. نو هغې پرانیسته، له هغه څه سره چې ولیدل موافقه وه، هیڅ یې بدل نه کړل او هیڅ هم ذخیره نه شول. د هغې سالون بیا په هیڅ ورځ کې خالي وخت نه ښوده او نه شو بک کیدلی، او هغه یوازینۍ پاڼه چې کولی یې شول دا ورته ووایي، برعکس یې ښودله. دا تڼۍ هماغه اونۍ پر هر هغه سالون لیکي چې ساعتونه یې لا خالي دي. هغه سالون چې څښتنې یې خپل ساعتونه ټاکلي &mdash; حتی که یې په قصدي توګه ټولې ورځې تړلې پرېښې وي &mdash; نه بدلیږي، نو څو ځله یې چلول خطر نه لري. که غواړئ تر لیکلو دمخه پوه شئ چې څومره سالونونه اغیزمن دي، لومړی یې وشمېرئ.'},
+  btn_fillInMissingHours: {en:'Fill in missing opening hours', fa:'ساعات کاری جاافتاده را پر کن', ps:'نه شته د کار ساعتونه ډک کړه'},
+  confirm_fillHours: {
+    en:'Write the default week onto every salon that still has no opening hours?\n\nSaturday to Thursday, 9 to 18, Friday closed \u2014 the same week the salon owner\u2019s own editor shows her. A salon whose owner has set her own hours is skipped. Safe to repeat.',
+    fa:'هفتهٔ پیش‌فرض روی هر سالونی که هنوز ساعت کاری ندارد نوشته شود؟\n\nشنبه تا پنجشنبه، ۹ تا ۱۸، جمعه تعطیل \u2014 همان هفته‌ای که ویرایشگر خودِ صاحب سالون به او نشان می‌دهد. سالونی که صاحبش ساعات خودش را تعیین کرده رد می‌شود. تکرارش بی‌خطر است.',
+    ps:'اونیزه تلواله پر هر هغه سالون ولیکل شي چې لا د کار ساعتونه نه لري؟\n\nله شنبې تر پنجشنبې، ۹ تر ۱۸، جمعه تړلې \u2014 هماغه اونۍ چې پخپله د سالون د څښتنې ایډیټر ورته ښیي. هغه سالون چې څښتنې یې خپل ساعتونه ټاکلي، پرېښودل کیږي. تکرارول یې خطر نه لري.'},
+  flash_hoursDry: {en:(n,f)=>`Checked ${n} salon(s); ${f} still have no opening hours and cannot be booked.`,
+                   fa:(n,f)=>`${n} سالون بررسی شد؛ ${f} هنوز ساعت کاری ندارند و قابل رزرو نیستند.`,
+                   ps:(n,f)=>`${n} سالونونه وکتل شول؛ ${f} لا د کار ساعتونه نه لري او نه شي بک کیدلی.`},
+  flash_hoursDone: {en:(n,f)=>`Checked ${n} salon(s); gave ${f} a working week.`,
+                    fa:(n,f)=>`${n} سالون بررسی شد؛ به ${f} هفتهٔ کاری داده شد.`,
+                    ps:(n,f)=>`${n} سالونونه وکتل شول؛ ${f} ته د کار اونۍ ورکړل شوه.`},
   confirm_revokeKycLinks: {
     en:'Rotate the download token on every stored identity photo?\n\nEvery link ever issued for those photos stops working. That is the point — those links are public. The photos stay readable in this console and in the app, which now fetch them with your credentials. Safe to repeat.',
     fa:'توکن دانلود هر عکس هویتی ذخیره‌شده عوض شود؟\n\nهر لینکی که تا حالا برای آن عکس‌ها صادر شده از کار می‌افتد. هدف همین است — آن لینک‌ها عمومی‌اند. عکس‌ها در همین کنسول و در اپ خوانا می‌مانند، چون حالا با اعتبار خود شما گرفته می‌شوند. تکرارش بی‌خطر است.',
@@ -2376,6 +2392,14 @@ async function renderHealth(){
         <button class="btn-sm" id="h-refdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-refflash" class="mflash" style="margin-top:8px"></div>
 
+        <div class="mlabel" style="margin-top:18px">${t('hint_workingHours')}</div>
+        <div class="mhint">
+          ${t('hint_workingHoursBackfill')}
+        </div>
+        <button class="btn-sm" id="h-hours" style="background:var(--rose)">${t('btn_fillInMissingHours')}</button>
+        <button class="btn-sm" id="h-hoursdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
+        <div id="h-hoursflash" class="mflash" style="margin-top:8px"></div>
+
         <div class="mlabel" style="margin-top:18px">${t('lbl_appVersion')}</div>
         <div class="mhint">${t('hint_appVersion')}</div>
         <div class="mrow">
@@ -2629,6 +2653,42 @@ async function renderHealth(){
         $('h-pkflash').textContent = fnError(err);
       }finally{ btn.disabled = false; btn.textContent = lbl; }
     };
+
+    let hoursBusy = false;
+    const runHours = async (e, dryRun) => {
+      if (hoursBusy) return;
+      const btn = e.target, lbl = btn.textContent;
+      const flash = $('h-hoursflash');
+      const buttons = [$('h-hours'), $('h-hoursdry')];
+      if (!dryRun && !confirm(t('confirm_fillHours'))) return;
+
+      hoursBusy = true;
+      buttons.forEach(b => { b.disabled = true; });
+      let scanned = 0, filled = 0, complete = false;
+      const names = [];
+      try{
+        complete = await runPaged('adminBackfillWorkingHours', 200, d => {
+          scanned += d.scanned; filled += d.filled;
+          if (names.length < 20) names.push(...(d.names||[]).slice(0, 20 - names.length));
+          btn.textContent = `${dryRun ? 'Counting' : 'Working'}… ${scanned}`;
+        }, { cursorKey: 'adminBackfillWorkingHours:' + (dryRun?'dry':'run'), extra: { dryRun } });
+
+        flash.className = 'mflash ' + (complete ? 'ok' : 'bad');
+        flash.textContent = (dryRun ? t('flash_hoursDry', scanned, filled)
+                                    : t('flash_hoursDone', scanned, filled))
+          + (names.length ? ' ' + names.join(', ') + (filled > names.length ? '…' : '') : '')
+          + moreToGo(complete, scanned);
+      }catch(err){
+        flash.className = 'mflash bad';
+        flash.textContent = fnError(err);
+      }finally{
+        hoursBusy = false;
+        buttons.forEach(b => { b.disabled = false; });
+        btn.textContent = lbl;
+      }
+    };
+    $('h-hours').onclick    = (e) => runHours(e, false);
+    $('h-hoursdry').onclick = (e) => runHours(e, true);
 
     $('h-backfill').onclick = async (e) => {
       const btn = e.target, lbl = btn.textContent;
