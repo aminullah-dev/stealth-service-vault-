@@ -232,8 +232,16 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             when (val r = ImageUtils.uriToCompressedBytes(context, uri)) {
-                is ImageUtils.BytesResult.Success -> viewModel.tazkiraBytes = r.bytes
-                else -> {}
+                is ImageUtils.BytesResult.Success -> {
+                    viewModel.tazkiraBytes = r.bytes
+                    viewModel.dismissState()
+                }
+                // A photo that was too big or could not be decoded used to do
+                // nothing at all: the row still read "not chosen", and the woman
+                // had no way to know the app had rejected her picture. She would
+                // pick the same one again.
+                ImageUtils.BytesResult.TooLarge -> viewModel.reportPhotoProblem(tooLarge = true)
+                ImageUtils.BytesResult.Failed   -> viewModel.reportPhotoProblem(tooLarge = false)
             }
         }
     }
@@ -252,8 +260,14 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
         if (bitmap == null) return@rememberLauncherForActivityResult
         scope.launch {
             val out = java.io.ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, out)
-            viewModel.selfieBytes = out.toByteArray()
+            val ok = bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, out)
+            val bytes = out.toByteArray()
+            if (ok && bytes.isNotEmpty()) {
+                viewModel.selfieBytes = bytes
+                viewModel.dismissState()
+            } else {
+                viewModel.reportPhotoProblem(tooLarge = false)
+            }
         }
     }
     PhotoRow(
@@ -266,7 +280,20 @@ private fun SubmitForm(viewModel: KycViewModel, status: String) {
 
     val submitState = viewModel.submitState
     (submitState as? KycViewModel.SubmitState.Error)?.let {
-        Text(it.message, color = DangerRed, fontSize = 13.sp)
+        Text(
+            when (it.reason) {
+                KycViewModel.SubmitError.TAZKIRA_NUMBER_REQUIRED -> strings.kycErrTazkiraNumber
+                KycViewModel.SubmitError.PROVINCE_REQUIRED       -> strings.kycErrProvince
+                KycViewModel.SubmitError.ADDRESS_REQUIRED        -> strings.kycErrAddress
+                KycViewModel.SubmitError.TAZKIRA_PHOTO_REQUIRED  -> strings.kycErrTazkiraPhoto
+                KycViewModel.SubmitError.SELFIE_REQUIRED         -> strings.kycErrSelfie
+                KycViewModel.SubmitError.PHOTO_TOO_LARGE         -> strings.kycErrPhotoTooLarge
+                KycViewModel.SubmitError.PHOTO_UNREADABLE        -> strings.kycErrPhotoUnreadable
+                KycViewModel.SubmitError.NO_CONNECTION           -> strings.kycErrNoConnection
+                KycViewModel.SubmitError.UPLOAD_FAILED           -> strings.kycErrUploadFailed
+            },
+            color = DangerRed, fontSize = 13.sp
+        )
     }
 
     Spacer(Modifier.height(4.dp))

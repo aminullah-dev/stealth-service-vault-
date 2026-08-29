@@ -831,15 +831,26 @@ private fun AvailabilityCard(isAvailable: Boolean, onToggle: () -> Unit) {
 @Composable
 internal fun ProviderStatusBadge(status: String) {
     val strings = LocalStrings.current
+    // COMPLETED had no case and fell through to gold "Pending".
+    // completePastAppointments flips CONFIRMED to COMPLETED about two hours after
+    // the start time, so every appointment a salon has actually served has been
+    // labelled as still waiting for her — her whole past calendar reads as a
+    // backlog of work she has not done.
     val (bg, fg) = when (status.uppercase()) {
         "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+        "COMPLETED" -> Pair(DeepRose.copy(alpha = 0.12f), DeepRose)
         "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
         else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     val label = when (status.uppercase()) {
-        "CONFIRMED" -> strings.analyticsConfirmed
-        "CANCELLED" -> strings.analyticsCancelled
-        else        -> strings.pending
+        "CONFIRMED"        -> strings.analyticsConfirmed
+        "COMPLETED"        -> strings.timelineCompleted
+        "CANCELLED"        -> strings.analyticsCancelled
+        // A booking whose payment never landed is not one waiting on the salon,
+        // and telling her it is puts her on the phone to a customer who owes
+        // nothing and has been charged nothing.
+        "AWAITING_PAYMENT" -> strings.statusAwaitingPayment
+        else               -> strings.pending
     }
     Box(
         modifier = Modifier

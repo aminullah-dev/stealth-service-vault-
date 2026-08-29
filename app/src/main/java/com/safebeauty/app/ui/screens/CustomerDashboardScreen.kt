@@ -2445,13 +2445,23 @@ fun CustomerDashboardScreen(
                         }
                     },
                     onBookPackage = { pkg ->
-                        // Package services are fixed — skip service selection and go
-                        // straight to date/time; the server applies the bundle discount.
-                        showSalonDetail = null
-                        selectedServices.clear()
-                        selectedServices.addAll(pkg.services)
-                        bookingIntent  = BookingIntent(salon, pkg.services, packageId = pkg.id)
-                        showDatePicker = true
+                        // The same gate the ordinary booking button applies. This one
+                        // went straight to the date picker, so a customer who had not
+                        // verified her identity could book a package — the one path
+                        // that skipped the check, and the cheaper one, which is
+                        // exactly the path someone avoiding it would find.
+                        if (viewModel.needsKycBeforeBooking()) {
+                            showSalonDetail = null
+                            showKycNotice   = true
+                        } else {
+                            // Package services are fixed — skip service selection and go
+                            // straight to date/time; the server applies the bundle discount.
+                            showSalonDetail = null
+                            selectedServices.clear()
+                            selectedServices.addAll(pkg.services)
+                            bookingIntent  = BookingIntent(salon, pkg.services, packageId = pkg.id)
+                            showDatePicker = true
+                        }
                     },
                     onDismiss = { showSalonDetail = null }
                 )

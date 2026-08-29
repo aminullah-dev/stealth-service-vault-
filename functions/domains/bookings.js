@@ -4,6 +4,7 @@
 // so the deployed function set is unchanged by the move.
 
 const { normalizeBookingCode } = require("../lib/booking");
+const { slotFit } = require("../lib/hours");
 const { commissionToReturn, shouldReverseCommission } = require("../lib/commission");
 const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
@@ -398,6 +399,20 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes,
                         appointmentId, appt.isParty === true)) {
       throw new HttpsError("failed-precondition", "That time is no longer available.");
+    }
+
+    // And on the grid the salon actually keeps. hasSlotConflict cannot see this:
+    // an off-grid time between two bookings collides with neither, so a booking
+    // could be moved to 03:17 on a Friday and the conflict check would agree.
+    const fit = slotFit(salon, dateMs, Array.isArray(busy) ? busy.length : busy);
+    if (!fit.ok) {
+      throw new HttpsError(
+        "failed-precondition",
+        fit.reason === "SALON_CLOSED"
+          ? "The salon is closed on that day."
+          : "The salon is not open at that time.",
+        { reason: fit.reason }
+      );
     }
 
     // Back to PENDING means the wait for the salon's agreement starts over, and

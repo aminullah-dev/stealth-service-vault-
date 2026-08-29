@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.model.LoggedInUser
@@ -34,11 +35,23 @@ class AuthViewModel @Inject constructor(
 
     private val functions = FirebaseFunctions.getInstance()
 
+    /**
+     * Why a sign-in did not work.
+     *
+     * Every failure read "Wrong phone number or password", including the ones
+     * that were nothing of the sort. A woman on a dropped connection was told
+     * her password was wrong, so she tried it again, and again — and the tenth
+     * attempt in fifteen minutes locks her out for the rest of the window, which
+     * she is also told is a wrong password. The advice the message gives is the
+     * one thing that makes her situation worse.
+     */
+    enum class FailureReason { WRONG_CREDENTIALS, NO_CONNECTION, TOO_MANY_ATTEMPTS, SERVER_ERROR }
+
     sealed class AuthState {
         object Idle           : AuthState()
         object Authenticating : AuthState()
         data class Success(val user: LoggedInUser) : AuthState()
-        object Failure        : AuthState()
+        data class Failure(val reason: FailureReason = FailureReason.WRONG_CREDENTIALS) : AuthState()
     }
 
     var authState: AuthState by mutableStateOf(AuthState.Idle)
@@ -127,17 +140,56 @@ class AuthViewModel @Inject constructor(
                         )
                     }
 
-                    // Wrong phone/password — show an explicit error on the form.
-                    else -> authState = AuthState.Failure
+                    // The server looked, and there is no such account or the
+                    // password does not match. This is the only case that message
+                    // was ever true for.
+                    else -> authState = AuthState.Failure(FailureReason.WRONG_CREDENTIALS)
                 }
-            }.onFailure {
-                // Network error, or the derived password didn't match Firebase Auth.
-                authState = AuthState.Failure
+            }.onFailure { e ->
+                authState = AuthState.Failure(failureReasonFor(e))
             }
         }
     }
 
     fun resetState() {
         authState = AuthState.Idle
+    }
+
+    /**
+     * What actually went wrong, from the exception the callable threw.
+     *
+     * UNAVAILABLE and DEADLINE_EXCEEDED are the connection — common here, and
+     * the reason the old blanket message did real harm. RESOURCE_EXHAUSTED is
+     * authenticateWithPassword's own rate limit (ten attempts per number per
+     * fifteen minutes), which is reached precisely by someone retrying a
+     * password that was never the problem. UNAUTHENTICATED comes from Firebase
+     * Auth refusing the derived password, which genuinely is the credential.
+     */
+    private fun failureReasonFor(e: Throwable): FailureReason {
+        val fx = e as? FirebaseFunctionsException
+        if (fx != null) {
+            return when (fx.code) {
+                FirebaseFunctionsException.Code.UNAVAILABLE,
+                FirebaseFunctionsException.Code.DEADLINE_EXCEEDED -> FailureReason.NO_CONNECTION
+                FirebaseFunctionsException.Code.RESOURCE_EXHAUSTED -> FailureReason.TOO_MANY_ATTEMPTS
+                FirebaseFunctionsException.Code.UNAUTHENTICATED,
+                FirebaseFunctionsException.Code.PERMISSION_DENIED,
+                FirebaseFunctionsException.Code.NOT_FOUND -> FailureReason.WRONG_CREDENTIALS
+                else -> FailureReason.SERVER_ERROR
+            }
+        }
+        // Firebase Auth's own refusal of the derived password, and anything else
+        // that names the network. A bare IOException on this screen is almost
+        // always the connection, not the credential.
+        val name = e.javaClass.simpleName
+        return when {
+            name.contains("InvalidUserException") ||
+            name.contains("InvalidCredentials")    -> FailureReason.WRONG_CREDENTIALS
+            name.contains("UnknownHost") ||
+            name.contains("Timeout") ||
+            name.contains("IOException") ||
+            name.contains("NetworkException")      -> FailureReason.NO_CONNECTION
+            else                                   -> FailureReason.SERVER_ERROR
+        }
     }
 }

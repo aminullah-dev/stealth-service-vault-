@@ -7,6 +7,7 @@ const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteD
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { cashAllowed } = require("../lib/commitment");
+const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
@@ -304,6 +305,29 @@ exports.createPaymentSession = onCall(
     const slotMinutes = Number(salon.slotDurationMinutes) || 60;
     const conflictWindow = slotConflictWindow(appointmentDate);
 
+    // Whether this start time exists on the salon's own grid.
+    //
+    // Recorded rather than refused, deliberately, and only here. The customer
+    // app builds the grid from the device clock, so a phone set to another
+    // timezone computes a real-looking time that is half an hour off Kabul's —
+    // and today that booking succeeds and lands in the salon's calendar at an
+    // hour she may not be open. Refusing it outright is the right end state and
+    // the wrong thing to ship into a payment path hours before a release: it
+    // turns a rare wrong-time booking into a hard failure at the till, for a
+    // population I cannot measure from here.
+    //
+    // So it is measured. The flag rides on the appointment and the alert reaches
+    // an admin, which is what makes this a staged change rather than a field
+    // nobody reads. rescheduleAppointment, where no money is moving, refuses.
+    const fit = slotFit(salon, appointmentDate, Array.isArray(occupies) ? occupies.length : occupies);
+    if (!fit.ok) {
+      alertable("BOOKING_FAILED", "A booking was made at a time the salon does not offer", {
+        salonId, uid, appointmentDate, reason: fit.reason,
+        kabulTime: new Date(appointmentDate).toLocaleString("en-CA", { timeZone: "Asia/Kabul" }),
+      });
+    }
+    const offGridReason = fit.ok ? "" : fit.reason;
+
     const readNearbyAppointments = async (reader) => {
       const q = db.collection("appointments")
         .where("salonId", "==", salonId)
@@ -465,6 +489,7 @@ exports.createPaymentSession = onCall(
       const batch = pendingWrites();
       batch.set(apptRef, {
         bookingCode,
+        offGridReason,
         customerId:     uid,
         customerName:   user.name  || "",
         customerPhone:  user.phone || "",
@@ -587,6 +612,7 @@ exports.createPaymentSession = onCall(
     const createBatch = pendingWrites();
     createBatch.set(apptRef, {
       bookingCode,
+      offGridReason,
       customerId:    uid,
       customerName:  user.name  || "",
       customerPhone: user.phone || "",

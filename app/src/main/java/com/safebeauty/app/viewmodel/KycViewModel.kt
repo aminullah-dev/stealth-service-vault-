@@ -42,11 +42,27 @@ class KycViewModel @Inject constructor(
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * What is wrong, as something the screen can translate.
+     *
+     * These were English literals — "Tazkira number is required", and whatever
+     * Firebase happened to put in an exception message — on the one screen a
+     * woman cannot get past without completing. The app is trilingual precisely
+     * because most of the people using it do not read English, and this was the
+     * gate where that mattered most.
+     */
+    enum class SubmitError {
+        TAZKIRA_NUMBER_REQUIRED, PROVINCE_REQUIRED, ADDRESS_REQUIRED,
+        TAZKIRA_PHOTO_REQUIRED, SELFIE_REQUIRED,
+        PHOTO_TOO_LARGE, PHOTO_UNREADABLE,
+        NO_CONNECTION, UPLOAD_FAILED,
+    }
+
     sealed class SubmitState {
         object Idle       : SubmitState()
         object Submitting : SubmitState()
         object Success    : SubmitState()
-        data class Error(val message: String) : SubmitState()
+        data class Error(val reason: SubmitError) : SubmitState()
     }
 
     // ── Form fields ─────────────────────────────────────────────────────────────
@@ -64,13 +80,20 @@ class KycViewModel @Inject constructor(
 
     fun dismissState() { submitState = SubmitState.Idle }
 
-    private fun validate(): String? {
-        if (tazkiraNumber.isBlank())   return "Tazkira number is required"
-        if (addressProvince.isBlank()) return "Province is required"
-        if (addressDetail.isBlank())   return "Full address is required"
-        if (tazkiraBytes == null)      return "Tazkira photo is required"
-        if (selfieBytes == null)       return "Selfie is required"
-        return null
+    /** Report a photo the picker could not turn into something uploadable. */
+    fun reportPhotoProblem(tooLarge: Boolean) {
+        submitState = SubmitState.Error(
+            if (tooLarge) SubmitError.PHOTO_TOO_LARGE else SubmitError.PHOTO_UNREADABLE
+        )
+    }
+
+    private fun validate(): SubmitError? = when {
+        tazkiraNumber.isBlank()   -> SubmitError.TAZKIRA_NUMBER_REQUIRED
+        addressProvince.isBlank() -> SubmitError.PROVINCE_REQUIRED
+        addressDetail.isBlank()   -> SubmitError.ADDRESS_REQUIRED
+        tazkiraBytes == null      -> SubmitError.TAZKIRA_PHOTO_REQUIRED
+        selfieBytes == null       -> SubmitError.SELFIE_REQUIRED
+        else                      -> null
     }
 
     fun submit() {
@@ -104,7 +127,14 @@ class KycViewModel @Inject constructor(
                 tazkiraBytes = null; selfieBytes = null
                 submitState = SubmitState.Success
             }.onFailure { e ->
-                submitState = SubmitState.Error(e.message ?: "Submission failed. Try again.")
+                val fx = e as? com.google.firebase.functions.FirebaseFunctionsException
+                val offline = fx?.code == com.google.firebase.functions.FirebaseFunctionsException.Code.UNAVAILABLE ||
+                    fx?.code == com.google.firebase.functions.FirebaseFunctionsException.Code.DEADLINE_EXCEEDED ||
+                    e.javaClass.simpleName.contains("UnknownHost") ||
+                    e.javaClass.simpleName.contains("Timeout")
+                submitState = SubmitState.Error(
+                    if (offline) SubmitError.NO_CONNECTION else SubmitError.UPLOAD_FAILED
+                )
             }
         }
     }
