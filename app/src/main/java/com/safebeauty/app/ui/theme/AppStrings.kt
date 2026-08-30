@@ -641,6 +641,10 @@ class AppStrings {
     // Email & booking history
     var emailAddress: String = ""
     var bookingHistoryTitle: String = ""
+    // Spoken by the chevron on a foldable section, for a screen reader — the
+    // arrow alone says nothing to someone who cannot see it.
+    var expandSection: String = ""
+    var collapseSection: String = ""
     // Photo confirmation dialog
     var photoConfirmTitle: String = ""
     var photoConfirmBody: String = ""
@@ -1310,6 +1314,8 @@ object StringResources {
         providerReplied            = "Our response:"
         emailAddress               = "Email Address (optional)"
         bookingHistoryTitle        = "Booking History"
+        expandSection              = "Show"
+        collapseSection            = "Hide"
         photoConfirmTitle          = "Is this your photo?"
         photoConfirmBody           = "Please make sure your face is clearly visible. If not, please choose a different photo."
         photoConfirmYes            = "Yes, save it"
@@ -1964,6 +1970,8 @@ object StringResources {
         providerReplied            = "پاسخ ما:"
         emailAddress               = "آدرس ایمیل (اختیاری)"
         bookingHistoryTitle        = "تاریخچه رزروها"
+        expandSection              = "نمایش"
+        collapseSection            = "بستن"
         photoConfirmTitle          = "آیا این عکس شما است؟"
         photoConfirmBody           = "لطفاً مطمئن شوید که چهره شما به وضوح مشخص است. اگر نه، عکس دیگری انتخاب کنید."
         photoConfirmYes            = "بله، ذخیره کن"
@@ -2618,6 +2626,8 @@ object StringResources {
         providerReplied            = "زموږ ځواب:"
         emailAddress               = "د ایمیل پته (اختیاري)"
         bookingHistoryTitle        = "د بکینګونو تاریخچه"
+        expandSection              = "ښودل"
+        collapseSection            = "پټول"
         photoConfirmTitle          = "ایا دا ستاسو عکس دی؟"
         photoConfirmBody           = "مهرباني وکړئ ډاډ ترلاسه کړئ چې ستاسو مخ واضح ښکاري. که نه، بل عکس غوره کړئ."
         photoConfirmYes            = "هو، خوندي کړه"

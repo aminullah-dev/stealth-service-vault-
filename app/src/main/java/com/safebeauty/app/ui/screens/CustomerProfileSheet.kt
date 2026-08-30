@@ -12,6 +12,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +59,7 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
@@ -113,11 +116,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -326,14 +331,62 @@ internal fun CustomerProfileSheetContent(
         if (historyItems.isNotEmpty()) {
             val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
             Spacer(Modifier.height(4.dp))
-            Text(
-                text       = strings.bookingHistoryTitle,
-                fontWeight = FontWeight.Bold,
-                fontSize   = 14.sp,
-                color      = DeepRose
+            // Folded away by default.
+            //
+            // Ten past bookings, each three lines tall, sat open between the save
+            // button and the wallet — so on a normal phone the wallet, the invite
+            // card and everything below them were off the bottom of a sheet nobody
+            // had a reason to keep scrolling. History is something you look up
+            // occasionally; the things under it are things you use.
+            var historyOpen by rememberSaveable { mutableStateOf(false) }
+            val chevronTurn by animateFloatAsState(
+                targetValue   = if (historyOpen) 180f else 0f,
+                animationSpec = tween(180),
+                label         = "historyChevron",
             )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { historyOpen = !historyOpen }
+                    .padding(vertical = 4.dp),
+            ) {
+                Text(
+                    text       = strings.bookingHistoryTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 14.sp,
+                    color      = DeepRose,
+                )
+                Spacer(Modifier.width(6.dp))
+                // The count is what makes a closed section honest: it says there is
+                // something in here without making you open it to find out.
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(BlushPink)
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        text       = historyItems.size.toString(),
+                        fontSize   = 10.sp,
+                        color      = DeepRose,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector        = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (historyOpen) strings.collapseSection
+                                         else strings.expandSection,
+                    tint               = RoseGold,
+                    modifier           = Modifier.size(22.dp).rotate(chevronTurn),
+                )
+            }
             HorizontalDivider(color = BlushPink)
-            historyItems.forEach { appt ->
+            AnimatedVisibility(visible = historyOpen) {
+              Column(modifier = Modifier.fillMaxWidth()) {
+                historyItems.forEach { appt ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier          = Modifier
@@ -381,6 +434,8 @@ internal fun CustomerProfileSheetContent(
                         )
                     }
                 }
+                }
+              }
             }
         }
     }
