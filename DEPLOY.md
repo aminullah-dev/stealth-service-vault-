@@ -11,13 +11,46 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
 | Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
 | Web admin / salon console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
+| One console only | `firebase deploy --only hosting:admin` (or `:salon`, or `:app`) | — |
 | Desktop admin app (`desktop/main.js`, `desktop/preload.js`, `desktop/package.json`) | `cd desktop && npm run dist:mac` | Reinstall the `.dmg` from `desktop/dist/` |
 | Desktop salon app (`desktop-provider/main.js`, `desktop-provider/preload.js`, `desktop-provider/package.json`) | `cd desktop-provider && npm run dist:mac` | Reinstall the `.dmg` from `desktop-provider/dist/` |
 
 Deploy several at once: `firebase deploy --only functions,firestore:rules,storage,hosting`
 
+## Hosting: three sites, one `public/` tree
+
+| Target | Site | Serves | Public dir |
+|---|---|---|---|
+| `app` | `safebeauty` | `safebeauty.web.app` — the app-facing pages | `public` |
+| `admin` | `safebeauty-admin` | `admin.linumic.com` | `public/admin` |
+| `salon` | `safebeauty-salon` | `salon.linumic.com` | `public/provider` |
+
+A Firebase custom domain attaches to a site's **root**, not to a path, which is
+why the two consoles needed sites of their own rather than a domain pointed at
+`safebeauty.web.app/admin`.
+
+`app` is deliberately unchanged and must stay that way: `safebeauty.web.app/admin`
+and `/provider` are hardcoded in `desktop/main.js` and `desktop-provider/main.js`,
+and those apps are already installed on people's machines. `/get` is in every
+invite ever sent. So the consoles are served from **two** places on purpose —
+the old paths and the new subdomains — and neither can be retired without
+shipping new desktop builds first.
+
+`firebase deploy --only hosting` deploys all three. Targets live in `.firebaserc`;
+if a clone ever loses them, restore with:
+
+    firebase target:apply hosting app   safebeauty
+    firebase target:apply hosting admin safebeauty-admin
+    firebase target:apply hosting salon safebeauty-salon
+
 ## Common gotchas
 - **App-only change?** No Firebase deploy needed — just rebuild the app.
+- **A new custom domain says "Records not yet detected" even though `dig` finds
+  it.** Firebase asked before the record existed and cached the "no such name"
+  answer. `linumic.com`'s SOA minimum is 600 seconds, so wait ten minutes and
+  press Verify again — it is not a misconfiguration and re-adding the record
+  does not help. Check what the world sees with
+  `dig +short admin.linumic.com @8.8.8.8`.
 - **Rules changed but not deployed** → the app silently gets "permission denied"
   (errors are swallowed, so nothing shows). Always deploy rules after editing them.
 - **Desktop apps** (`desktop/` admin, `desktop-provider/` salon): each loads its
