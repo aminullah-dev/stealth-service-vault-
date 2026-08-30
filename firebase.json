@@ -1,29 +1,66 @@
 {
-  "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
-  "storage": {
-    "rules": "storage.rules"
-  },
-  "functions": [
+  "//": "Three hosting sites, one directory tree. `app` is the original site and is unchanged: safebeauty.web.app still serves /admin and /provider, because the two Electron wrappers hardcode those URLs (desktop/main.js, desktop-provider/main.js) and are already installed on people's machines. `admin` and `salon` serve the same two consoles at the root of their own subdomains, so admin.linumic.com opens the console directly rather than admin.linumic.com/admin. Deploy all three with `firebase deploy --only hosting`, or one with `--only hosting:admin`.",
+  "hosting": [
     {
-      "source": "functions",
-      "codebase": "default",
-      "runtime": "nodejs22"
+      "target": "app",
+      "public": "public",
+      "cleanUrls": true,
+      "redirects": [
+        {
+          "//": "Every invite sent from a build older than versionCode 15 ends in the bare root, which served Firebase's own Page Not Found. Those invites are already in people's hands and no app update reaches them, so the root has to resolve on its own.",
+          "source": "/",
+          "destination": "/get",
+          "type": 302
+        }
+      ],
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ]
+    },
+    {
+      "//": "The platform admin console, at the root of admin.linumic.com.",
+      "target": "admin",
+      "public": "public/admin",
+      "cleanUrls": true,
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "//": "A console that can suspend accounts, move balances and read identity documents now answers on a short, memorable, public domain — which is exactly the address someone would try framing inside a page of their own. DENY costs nothing here: neither console is embedded anywhere, by anything.",
+          "source": "**",
+          "headers": [
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+          ]
+        }
+      ]
+    },
+    {
+      "//": "The salon owner's console, at the root of salon.linumic.com.",
+      "target": "salon",
+      "public": "public/provider",
+      "cleanUrls": true,
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            { "key": "X-Frame-Options", "value": "DENY" },
+            { "key": "X-Content-Type-Options", "value": "nosniff" },
+            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+          ]
+        }
+      ]
     }
-  ],
-  "hosting": {
-    "public": "public",
-    "cleanUrls": true,
-    "redirects": [
-      {
-        "//": "Every invite sent from a build older than versionCode 15 ends in the bare root, which served Firebase's own Page Not Found. Those invites are already in people's hands and no app update reaches them, so the root has to resolve on its own.",
-        "source": "/",
-        "destination": "/get",
-        "type": 302
-      }
-    ],
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
-  }
+  ]
 }

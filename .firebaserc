@@ -3,5 +3,21 @@
     "default": "safebeauty",
     "prod": "safebeauty",
     "staging": "safebeauty-staging"
-  }
+  },
+  "targets": {
+    "safebeauty": {
+      "hosting": {
+        "app": [
+          "safebeauty"
+        ],
+        "admin": [
+          "safebeauty-admin"
+        ],
+        "salon": [
+          "safebeauty-salon"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
