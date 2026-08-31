@@ -22,7 +22,7 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,storag
 | Target | Site | Serves | Public dir |
 |---|---|---|---|
 | `app` | `safebeauty` | `safebeauty.web.app` — the app-facing pages | `public` |
-| `admin` | `safebeauty-admin` | `admin.linumic.com` | `public/admin` |
+| `admin` | `safebeauty-admin` | `9sg9ceuj.linumic.com` | `public/admin` |
 | `salon` | `safebeauty-salon` | `salon.linumic.com` | `public/provider` |
 
 A Firebase custom domain attaches to a site's **root**, not to a path, which is
@@ -50,7 +50,8 @@ if a clone ever loses them, restore with:
   answer. `linumic.com`'s SOA minimum is 600 seconds, so wait ten minutes and
   press Verify again — it is not a misconfiguration and re-adding the record
   does not help. Check what the world sees with
-  `dig +short admin.linumic.com @8.8.8.8`.
+  `dig +short 9sg9ceuj.linumic.com @8.8.8.8`.
+
 - **Rules changed but not deployed** → the app silently gets "permission denied"
   (errors are swallowed, so nothing shows). Always deploy rules after editing them.
 - **Desktop apps** (`desktop/` admin, `desktop-provider/` salon): each loads its
@@ -64,6 +65,25 @@ if a clone ever loses them, restore with:
   removed on purpose (a security fix — it was a pre-auth account-takeover oracle);
   confirming deletes it from the cloud. This prompt appears once, on the first
   `firebase deploy --only functions` after the removal.
+
+
+## The admin console's hostname
+
+`9sg9ceuj.linumic.com` is deliberately not `admin.` — that is the first name
+anyone tries. Be clear about what it buys, which is less than it looks:
+
+- It stops wordlist guessing. That is all it stops.
+- It is **not** a secret. A publicly-trusted certificate is logged to the
+  Certificate Transparency logs the moment it is issued, and those logs are
+  public and searchable. Any hostname served over HTTPS by Firebase is
+  discoverable within minutes.
+- The repository is private, so the hostname is not readable there — but that is
+  a second lock on a door the CT logs have already described.
+
+What actually keeps people out of that console: phone + password verified
+server-side, the `ADMIN` role check in `assertAdmin`, and the rate limit of ten
+attempts per number per fifteen minutes. Treat the hostname as convenience, and
+never as the thing standing between a stranger and the identity documents.
 
 ## The two flavours
 The app builds in two environments, and they are different apps to Android:

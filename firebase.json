@@ -31,12 +31,25 @@
       ],
       "headers": [
         {
-          "//": "A console that can suspend accounts, move balances and read identity documents now answers on a short, memorable, public domain — which is exactly the address someone would try framing inside a page of their own. DENY costs nothing here: neither console is embedded anywhere, by anything.",
+          "//": "A console that can suspend accounts, move balances and read identity documents answers on a public domain — exactly the address someone would try framing inside a page of their own. DENY costs nothing here: neither console is embedded anywhere, by anything. The admin host is deliberately not guessable, which is a speed bump rather than a secret: a public certificate puts any hostname into the Certificate Transparency logs within minutes of issue.",
           "source": "**",
           "headers": [
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "X-Robots-Tag",
+              "value": "noindex, nofollow, noarchive"
+            }
           ]
         }
       ]
@@ -55,9 +68,22 @@
         {
           "source": "**",
           "headers": [
-            { "key": "X-Frame-Options", "value": "DENY" },
-            { "key": "X-Content-Type-Options", "value": "nosniff" },
-            { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+            {
+              "key": "X-Frame-Options",
+              "value": "DENY"
+            },
+            {
+              "key": "X-Content-Type-Options",
+              "value": "nosniff"
+            },
+            {
+              "key": "Referrer-Policy",
+              "value": "strict-origin-when-cross-origin"
+            },
+            {
+              "key": "X-Robots-Tag",
+              "value": "noindex, nofollow, noarchive"
+            }
           ]
         }
       ]

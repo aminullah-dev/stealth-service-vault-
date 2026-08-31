@@ -5,7 +5,12 @@ const path = require('path');
 // The desktop app is a thin native shell around the hosted admin console, so it
 // always shows the latest deployed version and Firebase Auth works normally
 // (the page loads from a real https origin, not file://).
-const ADMIN_URL = 'https://admin.linumic.com/';
+// Deliberately not "admin." — that is the first name anyone tries. This buys
+// only that: the hostname still appears in the public Certificate Transparency
+// logs the moment its certificate is issued, so it is a speed bump and not a
+// secret. What actually keeps people out is the phone + password, the ADMIN
+// role check on the server, and the ten-attempts-per-quarter-hour limit.
+const ADMIN_URL = 'https://9sg9ceuj.linumic.com/';
 // The Firebase address the console has always also answered on. A desktop
 // app sits on someone's machine and cannot be updated when a domain lapses,
 // a registrar account locks, or a DNS record is edited by mistake — so a
@@ -80,7 +85,7 @@ function createWindow() {
   win.webContents.on('did-fail-load', (_e, code, desc, failedUrl) => {
     if (code === -3) return; // aborted (e.g. redirect) — ignore
     // The parsed origin, not a prefix: startsWith() would also accept
-    // "admin.linumic.com.evil.example", which merely starts with the same characters.
+    // "<host>.evil.example", which merely starts with the same characters.
     if (originOf(failedUrl) === ADMIN_URL_ORIGIN) {
       win.loadURL(ADMIN_URL_FALLBACK);
       return;

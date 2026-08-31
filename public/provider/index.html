@@ -2,6 +2,12 @@
 <html lang="fa">
 <head>
 <meta charset="utf-8" />
+  <!-- A staff console has no business in a search result. noindex is what
+       actually removes a URL Google has already found; robots.txt only stops
+       the crawl, and a URL discovered elsewhere still gets listed. The same
+       instruction is sent as an X-Robots-Tag header in firebase.json, so it
+       covers every response and not just this document. -->
+  <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>SafeBeauty · Salon Console</title>
 <style>
