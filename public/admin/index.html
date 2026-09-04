@@ -142,8 +142,16 @@
   .row .meta{color:var(--muted);font-size:12px;line-height:1.5}
   .row .actions{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
   @media(min-width:680px){
+    /* inset-inline-end, not right. The padding beside it is logical, so in an
+       RTL document it reserved space on the LEFT while the buttons stayed
+       pinned to the physical RIGHT — straight on top of the text they were
+       meant to sit beside. The console is RTL in both of its own languages
+       (documentElement.dir is 'rtl' for anything but English), so this was
+       every row on every wide screen for every Dari and Pashto admin, not a
+       corner case. Mixing a logical property with a physical one is the whole
+       bug: either both mirror or neither does. */
     .row:not(.ticket){padding-inline-end:168px}
-    .row:not(.ticket) .actions{position:absolute;top:13px;right:15px;margin-top:0;flex-direction:column;align-items:stretch;width:142px}
+    .row:not(.ticket) .actions{position:absolute;top:13px;inset-inline-end:15px;margin-top:0;flex-direction:column;align-items:stretch;width:142px}
     .row .actions .btn-sm{width:100%}
   }
   .row.ticket{padding-inline-end:16px}
@@ -755,6 +763,17 @@ const STR = {
   btn_closeSalonModal: {en:'Close', fa:'بستن', ps:'بندول'},
   btn_copy: {en:'Copy', fa:'کاپی', ps:'کاپي'},
   btn_deleteTemplate: {en:'Delete', fa:'حذف', ps:'ړنګول'},
+  btn_insertTemplate: {en:'Insert', fa:'درج', ps:'ننویستل'},
+  ttl_messageTemplates: {en:'Message templates', fa:'قالب‌های پیام', ps:'د پیغامونو کينډۍ'},
+  hint_templatesInsert: {en:'Insert into the current reply, or copy.', fa:'در پاسخ فعلی درج کنید، یا کاپی بگیرید.', ps:'اوسني ځواب کې یې ننویسئ، یا یې کاپي کړئ.'},
+  hint_templatesManage: {en:'Copy a reply, or manage your saved messages.', fa:'یک پاسخ را کاپی کنید، یا پیام‌های ذخیره‌شده را مدیریت کنید.', ps:'یو ځواب کاپي کړئ، یا خپل خوندي شوي پیغامونه سم کړئ.'},
+  ph_templateTitle: {en:'Title (for your reference)', fa:'عنوان (برای یادآوری خودتان)', ps:'سرلیک (ستاسو د یادونې لپاره)'},
+  ph_templateBody: {en:'Message text (what gets sent)', fa:'متن پیام (آنچه فرستاده می‌شود)', ps:'د پیغام متن (هغه څه چې لېږل کېږي)'},
+  msg_copied: {en:'Copied ✓', fa:'کاپی شد ✓', ps:'کاپي شو ✓'},
+  msg_templateAdded: {en:'Added ✓', fa:'اضافه شد ✓', ps:'زیات شو ✓'},
+  msg_titleBodyRequired: {en:'Title and message are required.', fa:'عنوان و متن پیام لازم است.', ps:'سرلیک او د پیغام متن اړین دي.'},
+  msg_defaultsPresent: {en:'All defaults already present.', fa:'همهٔ پاسخ‌های پیش‌فرض از قبل موجودند.', ps:'ټول اصلي ځوابونه لا دمخه شته.'},
+  confirm_deleteTemplate: {en:'Delete this template?', fa:'این قالب حذف شود؟', ps:'دا کينډۍ ړنګه شي؟'},
   btn_postStory: {en:'Post story', fa:'انتشار استوری', ps:'سټوري خپرول'},
   btn_rejectKyc: {en:'Reject KYC', fa:'رد KYC', ps:'د KYC ردول'},
   btn_resetPassword: {en:'Reset password', fa:'بازنشانی رمز عبور', ps:'د پټنوم بیا ټاکل'},
@@ -1407,16 +1426,16 @@ async function seedTemplatesIfEmpty(){
  *  that composer input; otherwise it copies to the clipboard. */
 async function openTemplates(targetInputId){
   showModal(`
-    <h2>Message templates</h2>
-    <div class="msub">${targetInputId ? 'Insert into the current reply, or copy.' : 'Copy a reply, or manage your saved messages.'}</div>
+    <h2>${t('ttl_messageTemplates')}</h2>
+    <div class="msub">${targetInputId ? t('hint_templatesInsert') : t('hint_templatesManage')}</div>
     <div id="tpl-flash" class="mflash"></div>
     <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">${t('btn_addDefaultReplies')}</button></div>
     <div id="tpl-list"><div class="meta" style="color:var(--muted)">${t('lbl_templatesLoading')}</div></div>
     <div class="mgroup">
       <div class="mglabel">${t('lbl_newTemplate')}</div>
       <select id="tpl-cat" class="field">${TEMPLATE_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
-      <input id="tpl-title" class="field" placeholder="Title (for your reference)" />
-      <textarea id="tpl-body" class="field" placeholder="Message text (what gets sent)"></textarea>
+      <input id="tpl-title" class="field" placeholder="${t('ph_templateTitle')}" />
+      <textarea id="tpl-body" class="field" placeholder="${t('ph_templateBody')}"></textarea>
       <button class="btn-sm" id="tpl-add" style="background:var(--rose)">${t('btn_addTemplate')}</button>
     </div>
     <button class="btn-sm mclose" id="tpl-close">${t('btn_close')}</button>`);
@@ -1426,7 +1445,7 @@ async function openTemplates(targetInputId){
     try{
       const n = await addMissingDefaults();
       $('tpl-flash').className='mflash ok';
-      $('tpl-flash').textContent = n ? `Added ${n} default repl${n>1?'ies':'y'} ✓` : 'All defaults already present.';
+      $('tpl-flash').textContent = n ? `${t('msg_templateAdded')} (${n})` : t('msg_defaultsPresent');
       load();
     }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
     finally{ e.target.disabled = false; }
@@ -1442,11 +1461,11 @@ async function openTemplates(targetInputId){
       <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span></h3>
       <div class="meta" style="white-space:pre-wrap;color:var(--ink);margin-top:4px">${esc(tp.body||'')}</div>
       <div class="actions" style="margin-top:9px">
-        <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?'Insert':'Copy'}</button>
+        <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?t('btn_insertTemplate'):t('btn_copy')}</button>
         <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">${t('btn_copy')}</button>
         <button class="btn-sm t-del" style="background:var(--red)">${t('btn_deleteTemplate')}</button>
       </div></div>`).join('');
-    const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Copied ✓'; };
+    const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent=t('msg_copied'); };
     list.querySelectorAll('.row').forEach(row => {
       const tp = tpls.find(x=>x.id===row.dataset.id);
       row.querySelector('.t-ins').onclick = () => {
@@ -1456,7 +1475,7 @@ async function openTemplates(targetInputId){
       };
       row.querySelector('.t-cpy').onclick = () => copy(tp.body);
       row.querySelector('.t-del').onclick = async () => {
-        if(!confirm('Delete this template?')) return;
+        if(!confirm(t('confirm_deleteTemplate'))) return;
         try{ await deleteDoc(doc(db,'support_templates',tp.id)); load(); }
         catch(e){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=e.message; }
       };
@@ -1465,12 +1484,12 @@ async function openTemplates(targetInputId){
 
   $('tpl-add').onclick = async (e) => {
     const title=$('tpl-title').value.trim(), body=$('tpl-body').value.trim(), category=$('tpl-cat').value;
-    if(!title || !body){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent='Title and message are required.'; return; }
+    if(!title || !body){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=t('msg_titleBodyRequired'); return; }
     e.target.disabled=true;
     try{
       await addDoc(collection(db,'support_templates'), { category, title, body, order: Date.now(), createdAt: Date.now() });
       $('tpl-title').value=''; $('tpl-body').value='';
-      $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent='Added ✓'; load();
+      $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent=t('msg_templateAdded'); load();
     }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
     finally{ e.target.disabled=false; }
   };
