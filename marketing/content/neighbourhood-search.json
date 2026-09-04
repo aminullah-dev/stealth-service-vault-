@@ -2,20 +2,20 @@
   "slug": "neighbourhood-search",
   "type": "post",
   "audience": "customers",
-  "note": "Grounded in the city -> district -> guzar/neighbourhood picker shipped 2026-08-28 (Areas.kt: Kabul's districts and neighbourhoods, Herat's districts with the twelve neighbourhoods sourced from the municipality, Mazar-e Sharif's districts and guzars, Jalalabad's districts). Search now narrows by real area, not just by city.",
+  "note": "The provider/customer area pickers went from one flat list to a city -> district (ناحیه) -> guzar/neighbourhood (گذر/محله) cascade, sourced from each municipality's own district counts (commits 2f89524, 10e2112: 121 areas across the four cities). Worth telling customers because it's a real precision win, not just an internal data-model fix: she can now search her own guzar instead of scrolling every district in her city.",
   "text": {
     "fa": {
-      "sub": "رزرو خصوصی خدمات زیبایی",
-      "headline": "سالن را در محلهٔ خودتان پیدا کنید",
-      "body": "دیگر تنها بر اساس شهر جستجو نکنید. ناحیه و محلهٔ خود را انتخاب کنید و سالن‌های نزدیک به خود را ببینید. رزرو همچنان خصوصی می‌ماند.",
-      "cta": "رایگان دانلود کنید",
+      "sub": "جستجوی دقیق‌تر",
+      "headline": "سالن نزدیک محل خود را پیدا کنید",
+      "body": "به جای گشتن در فهرست کل شهر، ناحیه و گذر خود را انتخاب کنید. فهرست نواحی و گذرها در هر چهار شهر از شاروالی گرفته شده — نه یک لیست حدسی.",
+      "cta": "همین حالا در اپ ببینید",
       "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
     },
     "ps": {
-      "sub": "د ښکلا خدمتونو شخصي بکینګ",
-      "headline": "سالون په خپله سیمه کې ومومئ",
-      "body": "نور یوازې د ښار له مخې مه لټوئ. خپله ناحیه او سیمه وټاکئ او نږدې سالونونه وګورئ. بکینګ ستاسو شخصي پاتې کیږي.",
-      "cta": "وړیا یې ډاونلوډ کړئ",
+      "sub": "دقیق لټون",
+      "headline": "سالون د خپلې سیمې سره نږدې ومومئ",
+      "body": "د ټول ښار د لست پر ځای، خپله ناحیه او ګذر وټاکئ. په هرو څلورو ښارونو کې د ناحیو او ګذرونو لست د ښاروالۍ خپل دی — نه یوه اټکلي لیست.",
+      "cta": "همدا اوس یې په اېپ کې وګورئ",
       "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
     }
   }
