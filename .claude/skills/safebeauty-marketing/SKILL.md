@@ -44,6 +44,33 @@ the owner saying so explicitly, in the conversation, for that specific piece.
 - Anything that moves conversation from a channel (where followers are hidden)
   into a group (where they are not). See the channel table.
 
+### Instagram is not a customer channel
+
+**An Instagram account's following list is public.** A woman who follows
+SafeBeauty is visible, to anyone who opens her profile, as someone who follows a
+beauty app. That is the same disclosure the VIP group makes — her number there,
+her interest here.
+
+It is also ineffective: the safety rules forbid her from resharing, tagging or
+commenting, so the one audience the posts would be aimed at cannot engage with
+them. Non-zero risk, zero growth.
+
+So Instagram carries salon recruitment, product and brand — copy addressed to
+businesses, not to her. Customers are reached through the WhatsApp channel
+(followers hidden) and, mainly, from inside the salon: a QR or a link handed
+over in person.
+
+### Supply is the bottleneck, not demand
+
+As of September 2026 there are **two salons, both in Kabul**. Herat,
+Mazar-e-Sharif and Jalalabad have none.
+
+Marketing to customers before that changes means sending a woman to an empty
+screen, and she does not come back — on a product whose only asset is trust.
+So the weighting is salon-first until a city has several salons, the four-city
+claim stays out of customer-facing copy, and **every number in a post is checked
+against the database before it ships**.
+
 ### The WhatsApp VIP group is the sharp edge
 
 In a normal WhatsApp **group**, every member's phone number is visible to every
@@ -71,7 +98,8 @@ Raise this before producing VIP-group content. Do not quietly design around it.
 | WhatsApp **channel** | Customers | Followers hidden from each other and from admin — safest | New salons, new cities, offers, feature news. One-way. |
 | WhatsApp **VIP group** | Customers | **Members see each other's numbers** — see above | Nothing, until reshaped. |
 | Community | Mixed | Depends on platform — check before posting | Announcements, salon spotlights (with permission). |
-| Instagram / social | Public | Fully public | Brand, cities, features. Never anything user-specific. |
+| Instagram / social | **Salon owners and brand** | Public — **and a follower list is public too** | Salon recruitment, product, brand. Never customer-facing "for you" copy. |
+| In-salon | Customers | Private, face to face | The main customer path: a QR or link handed over by the salon owner. |
 | `linumic.com` | Partners, press, investors | Public | Company narrative, English-first, the parent-brand story. |
 | Play Store listing | Discovery | Public | `play-store/store_listing.md` — see "known stale copy" below. |
 
@@ -82,15 +110,18 @@ Raise this before producing VIP-group content. Do not quietly design around it.
 **Customers (women).** The product promise is *privacy, then convenience*. Lead
 with what stays hidden and what she does not have to do: no phone call, no
 waiting, no one told. Never lead with discounts alone — this audience is
-choosing on trust. Dari first, Pashto equal, English not needed.
+choosing on trust. Dari first, Pashto equal, English not needed. Reached through
+the WhatsApp channel and from inside the salon, never through a public feed.
 
 **Salon owners.** They want more bookings, fewer no-shows and no admin. Lead
 with filled empty slots and the calendar that manages itself. This audience can
 be marketed to openly — they are businesses. Dari and Pashto.
 
-**Partners and investors (`linumic.com`).** Lead with the market and the
-discipline: four cities, three languages, server-authoritative money, identity
-verification, an audit log. English.
+**Partners and investors (`linumic.com`).** Lead with the discipline, not the
+footprint: three languages, server-authoritative money, identity verification, an
+audit log. **Say "built for four cities, live in Kabul" — never "four cities".**
+This is the audience that checks, and being caught rounding up costs more than
+the small number would have. English.
 
 ---
 
@@ -103,6 +134,9 @@ own launcher vector, so a post cannot drift from the product:
 python3 marketing/generate.py marketing/content/<slug>.json
 python3 marketing/generate.py --all
 ```
+
+The canonical, standalone copy of this generator lives in `~/Documents/SafeBeauty
+Marketing/` with its own `assets/`. Change one, change the other.
 
 Write a spec in `marketing/content/<slug>.json`:
 
@@ -131,9 +165,8 @@ Output lands in `marketing/out/`. **Look at every image before it goes out** —
 the generator guarantees size and brand, not that a headline wrapped well or
 that a long Pashto word did not overflow.
 
-Keep the four cities current: `کابل · هرات · مزارشریف · جلال‌آباد`. When a city
-is added to `app/.../util/Areas.kt`, it changes here, in
-`play-store/generate_feature_graphic.py`, and in the store listing.
+The four cities are `کابل · هرات · مزارشریف · جلال‌آباد` — but see the supply
+note above before putting them in customer-facing copy.
 
 ## Brand constants
 
