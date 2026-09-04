@@ -103,3 +103,71 @@ test("ambiguous free text is still handed to a person, not resolved", () => {
   assert.strictEqual(d.districtKey, "");
   assert.strictEqual(d.needsDiscoveryReview, true);
 });
+
+/**
+ * An ambiguous district is not an ambiguous city.
+ *
+ * This is the case the live data hit. "خیرخانه مینه ناحیه ۱۷" names both a
+ * neighbourhood and a district number, so the derivation returns two
+ * candidates and refuses to pick — correctly, because they are different
+ * points on a map.
+ *
+ * But that refusal was also emptying `city`, and the two candidates are
+ * KBL_D17 and KBL_Khair_Khana. Whichever one it is, the salon is in Kabul.
+ * Emptying city there is not caution; it is a wrong answer in the other
+ * direction, and an expensive one: `where("city", "==", "KABUL")` matches no
+ * document whose city is "". Half the live catalogue was invisible to anyone
+ * filtering by city, while the salon sat in the review queue looking handled.
+ */
+test("an ambiguous district still yields a city when the candidates agree on one", () => {
+  const d = storedDiscoveryFields(
+    deriveSalonDiscovery({ district: "خیرخانه مینه ناحیه 17", services: ["ناخن"] })
+  );
+  assert.deepStrictEqual(
+    d.discoveryReview.districtCandidates, ["KBL_D17", "KBL_Khair_Khana"],
+    "the ambiguity is real and must still be reported"
+  );
+  assert.strictEqual(d.districtKey, "", "and the district must still not be guessed");
+  assert.strictEqual(d.city, "KABUL", "but the city was never in doubt");
+  assert.strictEqual(d.needsDiscoveryReview, true, "a human still has to pick the district");
+});
+
+test("a district ambiguous across two cities yields no city", () => {
+  // The guard on the rule above. If the candidates disagree about the city,
+  // there is nothing shared to fall back to and "" is the honest answer —
+  // otherwise this fix would put salons in cities they are not in, which is
+  // the exact failure the original refusal existed to prevent.
+  //
+  // "ناحیه اول" is district one in Herat, Jalalabad and Mazar alike, so it
+  // resolves to candidates in three cities and nothing is shared. Asserted
+  // unconditionally: a test that skips its own assertion when the fixture
+  // stops being ambiguous would keep passing after the fix regressed.
+  const d = deriveSalonDiscovery({ district: "ناحیه اول", services: [] });
+
+  const cities = new Set(d.districtCandidates.map((k) => k.split("_")[0]));
+  assert.ok(cities.size > 1, `fixture must span cities, got ${[...cities]}`);
+  assert.strictEqual(d.districtKey, "", "and must not resolve to a district");
+  assert.strictEqual(d.city, "", "candidates spanning cities must not resolve to one");
+});
+
+/**
+ * `discoveryUpToDate` compares `salon.city` against `derived.city`, and the
+ * derivation did not return a `city` at all — only storedDiscoveryFields
+ * computed one. So the comparison was `"KABUL" === undefined` on every salon
+ * that had a city, the check never returned true, and the trigger and the
+ * nightly sweep both attempted a write on every pass. Firestore absorbing
+ * identical writes is the only reason that was invisible, and the comment
+ * above the trigger credits the up-to-date check with stopping a loop it was
+ * not in fact stopping.
+ */
+test("the derivation returns the same city that gets stored", () => {
+  for (const district of ["KBL_D9_Makroryan", "خیرخانه مینه ناحیه 17", "", "پشت مسجد آبی"]) {
+    const derived = deriveSalonDiscovery({ district, services: ["Haircut"] });
+    assert.strictEqual(
+      storedDiscoveryFields(derived).city, derived.city,
+      `stored and derived city must agree for ${JSON.stringify(district)}, ` +
+      "or discoveryUpToDate can never return true"
+    );
+    assert.strictEqual(typeof derived.city, "string", "and it must not be undefined");
+  }
+});

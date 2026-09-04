@@ -221,6 +221,24 @@ function salonMinPrice(salon) {
 /** Area lookup by key, built once — deriveSalonDiscovery runs on every write. */
 const AREA_BY_KEY = new Map(AREAS.map((a) => [a.key, a]));
 
+/**
+ * The city a salon is in, which is knowable more often than its district.
+ *
+ * A resolved district answers it outright. An unresolved one still answers it
+ * whenever every candidate sits in the same city — ambiguity about which of two
+ * Kabul areas it is says nothing about whether it is Kabul.
+ *
+ * Returns "" only when that genuinely cannot be told: no candidates, or
+ * candidates spanning more than one city.
+ */
+function cityOfCandidates(districtKey, candidates) {
+  if (districtKey) return cityOf(districtKey);
+  const cities = new Set(
+    (Array.isArray(candidates) ? candidates : []).map(cityOf).filter(Boolean)
+  );
+  return cities.size === 1 ? [...cities][0] : "";
+}
+
 function deriveSalonDiscovery(salon) {
   const { categories, unmatched } = categoriesFor(salon && salon.services);
   const area = normalizeDistrict(salon && salon.district);
@@ -254,6 +272,21 @@ function deriveSalonDiscovery(salon) {
     categories,
     districtKey,
     areaKey,
+    // Widened past the district on purpose.
+    //
+    // Refusing to pick between two candidate districts is right — they place a
+    // salon at different points on the map. But that refusal was being spent on
+    // the city too, and the city was never in doubt: "خیرخانه مینه ناحیه ۱۷"
+    // resolves to KBL_D17 and KBL_Khair_Khana, and whichever one it is, the
+    // salon is in Kabul. Emptying city there is not caution, it is a guess in
+    // the other direction — and a costly one, because an equality filter on
+    // city matches no document whose field is "", so the salon vanished from
+    // every city-filtered search rather than merely lacking a district.
+    //
+    // So: the shared prefix when every candidate agrees on one city, "" when
+    // they disagree or there are none. The district stays empty and the review
+    // flag stays raised either way — this decides only what is already decided.
+    city: cityOfCandidates(districtKey, area.candidates),
     // What the salon actually typed, carried so the review flag can tell "left
     // it blank" apart from "typed something that matched nothing". Not stored.
     districtRaw: String((salon && salon.district) || "").trim(),
@@ -282,12 +315,14 @@ function storedDiscoveryFields(derived) {
     categories:  derived.categories,
     districtKey: derived.districtKey,
     areaKey:     derived.areaKey,
-    // Derived from the district key's prefix rather than stored separately by
-    // the salon, so the two can never disagree about which city a salon is in.
-    // Empty when the district is unresolved — and empty is the honest value:
-    // orderBy would drop such a salon anyway, and a guessed city would put it
-    // in a list of salons a customer could not actually reach.
-    city:        cityOf(derived.districtKey),
+    // Derived alongside the district rather than stored separately by the
+    // salon, so the two can never disagree about which city a salon is in.
+    // Taken from the derivation, not recomputed from districtKey here: those
+    // two were the same value until the city learned to resolve from ambiguous
+    // candidates, and recomputing would have silently kept the old narrow
+    // answer while discoveryUpToDate compared against the new one — a salon
+    // rewritten on every sweep and never correct.
+    city:        derived.city,
     nameKey:     derived.nameKey,
     minPrice:    derived.minPrice,
     sortRating:  derived.sortRating,
