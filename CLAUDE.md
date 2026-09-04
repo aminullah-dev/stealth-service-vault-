@@ -113,6 +113,11 @@ silently hit "permission denied".
 
 - Work on branch `claude/stealth-android-vault-4zr1d3`. Commit + push each
   finished change. Don't open PRs unless asked.
+- **`main` is stale** — it sits many commits behind and has none of the current
+  work. Anything that clones this repository fresh lands on `main` and finds an
+  old tree: a cloud routine did exactly that and reported "file does not exist"
+  for a skill that had been pushed minutes earlier. Check out the working branch
+  before doing anything else.
 
 ## Gotchas
 - `context.packageName` returns the **applicationId** (`com.security.stealthapp`),
