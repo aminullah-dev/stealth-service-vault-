@@ -11,6 +11,7 @@ import com.safebeauty.app.data.firebase.FirebaseAuthManager
 import com.safebeauty.app.data.firebase.FirestoreRepository
 import com.safebeauty.app.data.firebase.UserDocument
 import com.safebeauty.app.security.PinHasher
+import com.safebeauty.app.util.CrashReporter
 import com.safebeauty.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -125,6 +126,7 @@ class RegisterViewModel @Inject constructor(
                     .await()
                 (r.getData() as? Map<*, *>)?.get("found") == true
             }.getOrElse {
+                CrashReporter.recordNonFatal(it, "register:phone-lookup")
                 state = RegisterState.Error(ErrorReason.PHONE_CHECK_FAILED)
                 return@launch
             }
@@ -132,6 +134,19 @@ class RegisterViewModel @Inject constructor(
                 state = RegisterState.Error(ErrorReason.PHONE_EXISTS)
                 return@launch
             }
+
+            // Which network round trip we are on when something throws.
+            //
+            // Registration is three separate calls — Auth create, Firestore
+            // write, compensating delete — and until now every one of them
+            // surfaced as the same REGISTRATION_FAILED with the exception
+            // dropped. 99 of the first 117 Auth accounts have no users document
+            // and no activity of any kind behind them, which is to say the most
+            // common outcome in the product was also the one carrying no signal.
+            //
+            // Static labels only: CrashReporter forbids anything identifying,
+            // and a stage name is a call site, not a person.
+            var stage = "auth-create"
 
             runCatching {
                 val uid           = UUID.randomUUID().toString()
@@ -155,6 +170,7 @@ class RegisterViewModel @Inject constructor(
                     .orEmpty()
 
                 firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
+                stage = "user-doc"
 
                 // Once the Auth account exists, any failure of the following steps
                 // must roll it back — otherwise an orphaned Auth account (no user
@@ -212,10 +228,20 @@ class RegisterViewModel @Inject constructor(
                         state = RegisterState.CustomerSuccess(name.trim())
                     }
                 } catch (e: Exception) {
-                    firebaseAuth.deleteCurrentUser()
+                    // The rollback travels over the same connection that just
+                    // failed, and its Result was being dropped — so the one
+                    // outcome that decides whether this person is merely
+                    // inconvenienced or permanently orphaned went unrecorded.
+                    // Distinguished here because the two need different fixes:
+                    // "rolled-back" is a retry, "ORPHANED" is a support case.
+                    stage = if (firebaseAuth.deleteCurrentUser().isSuccess)
+                        "user-doc:rolled-back"
+                    else
+                        "user-doc:ORPHANED"
                     throw e
                 }
             }.onFailure { e ->
+                CrashReporter.recordNonFatal(e, "register:$stage")
                 state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
             }
         }
