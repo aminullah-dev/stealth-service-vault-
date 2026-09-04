@@ -91,8 +91,9 @@ service cloud.firestore {
       allow get:  if isSignedIn() && (ownsDoc(uid) || isAdmin());
       allow list: if isAdmin();
 
-      // {uid} is a UUID the CLIENT generates at registration (see
-      // RegisterViewModel) — independent of Firebase Auth's own uid, and
+      // {uid} is a UUID generated at registration — by registerAccount on the
+      // server for every account created since that callable landed, and by
+      // the client before it. Independent of Firebase Auth's own uid, and
       // uid_map (which backs me()) can't be populated yet at this point
       // anyway, since it's only ever written by looking up an EXISTING
       // users/{uid} doc. So this can't check "me() == uid"; what actually

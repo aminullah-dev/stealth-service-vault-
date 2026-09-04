@@ -7,21 +7,18 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.functions.FirebaseFunctions
+import com.google.firebase.functions.FirebaseFunctionsException
 import com.safebeauty.app.data.firebase.FirebaseAuthManager
-import com.safebeauty.app.data.firebase.FirestoreRepository
-import com.safebeauty.app.data.firebase.UserDocument
 import com.safebeauty.app.security.PinHasher
 import com.safebeauty.app.util.CrashReporter
 import com.safebeauty.app.util.PhoneUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
 class RegisterViewModel @Inject constructor(
-    private val firestoreRepository: FirestoreRepository,
     private val firebaseAuth: FirebaseAuthManager,
     private val pinHasher: PinHasher
 ) : ViewModel() {
@@ -35,7 +32,7 @@ class RegisterViewModel @Inject constructor(
         NAME_REQUIRED, PHONE_REQUIRED, PHONE_INVALID, EMAIL_INVALID,
         PIN_TOO_SHORT, PIN_MISMATCH,
         SALON_NAME_REQUIRED, DISTRICT_REQUIRED, SERVICES_REQUIRED,
-        PHONE_CHECK_FAILED, PHONE_EXISTS, REGISTRATION_FAILED
+        PHONE_CHECK_FAILED, PHONE_EXISTS, EMAIL_EXISTS, REGISTRATION_FAILED
     }
 
     sealed class RegisterState {
@@ -116,170 +113,82 @@ class RegisterViewModel @Inject constructor(
 
         viewModelScope.launch {
             state = RegisterState.Loading
-            val normalizedPhone = PhoneUtils.normalizeAfghan(phone)
-            // The phone is the login identifier, so it must be unique. This MUST be
-            // checked server-side: the users collection is not client-listable, so
-            // the old client query was silently denied and always "passed".
-            val exists = runCatching {
-                val r = functions.getHttpsCallable("lookupAccountByPhone")
-                    .call(hashMapOf("phone" to normalizedPhone))
-                    .await()
-                (r.getData() as? Map<*, *>)?.get("found") == true
-            }.getOrElse {
-                CrashReporter.recordNonFatal(it, "register:phone-lookup")
-                state = RegisterState.Error(ErrorReason.PHONE_CHECK_FAILED)
-                return@launch
-            }
-            if (exists) {
-                state = RegisterState.Error(ErrorReason.PHONE_EXISTS)
-                return@launch
-            }
 
-            // Which network round trip we are on when something throws.
+            // One call. The device derives the password material and hands the
+            // whole registration to the server, which creates the credential,
+            // the profile and (for a provider) the salon inside a single
+            // invocation — and cleans up after itself if any of it fails.
             //
-            // Registration is three separate calls — Auth create, Firestore
-            // write, compensating delete — and until now every one of them
-            // surfaced as the same REGISTRATION_FAILED with the exception
-            // dropped. 99 of the first 117 Auth accounts have no users document
-            // and no activity of any kind behind them, which is to say the most
-            // common outcome in the product was also the one carrying no signal.
+            // It used to be three calls from here: create the Auth account,
+            // write users/{uid}, and delete the account again if the write
+            // failed. The last of those needed the connection whose loss was
+            // the reason it was running, and its Result was discarded. 99 of
+            // the first 117 Auth accounts ended up with no profile and no
+            // activity of any kind behind them — registrations that stopped
+            // between the first call and the second.
             //
-            // Static labels only: CrashReporter forbids anything identifying,
-            // and a stage name is a call site, not a person.
-            var stage = "auth-create"
+            // The password itself does not travel: PinHasher still runs here,
+            // and what goes over the wire is the salt, the stored hash and the
+            // derived auth password — the same three values that already went
+            // to Firebase Auth and to updatePinHash.
+            val salt         = pinHasher.generateSalt()
+            val pinHash      = pinHasher.hash(password, salt)
+            val authPassword = pinHasher.deriveAuthPassword(password, salt)
 
-            runCatching {
-                val uid           = UUID.randomUUID().toString()
-                val salt          = pinHasher.generateSalt()
-                // pinHash/salt now hash the chosen PASSWORD (same PBKDF2 machinery
-                // as before; only the human-facing credential changed).
-                val pinHash       = pinHasher.hash(password, salt)
-                val authPassword  = pinHasher.deriveAuthPassword(password, salt)
-                // Real email → Firebase Auth email (enables password recovery via
-                // email). Synthetic fallback for users who skip the optional field.
-                // Lowercased because Firebase Auth normalizes emails to lowercase.
-                val firebaseEmail = email.trim().lowercase().ifBlank { "${uid.replace("-", "")}@sb.app" }
-                val role          = if (isProvider) "PROVIDER" else "CUSTOMER"
-                val status        = if (isProvider) "PENDING" else "APPROVED"
-                // This user's own shareable referral code, derived from their uid
-                // (unique). referralCredit stays 0 — it's granted only server-side
-                // (reviewKyc) once identity is verified, so it can't be self-seeded.
-                val referralCode  = "SB" + uid.replace("-", "").take(6).uppercase()
-                val referredBy    = referralCodeInput.trim().uppercase()
-                    .takeIf { it != referralCode }   // can't refer yourself
-                    .orEmpty()
-
-                firebaseAuth.createAccount(firebaseEmail, authPassword).getOrThrow()
-                stage = "user-doc"
-
-                // Once the Auth account exists, any failure of the following steps
-                // must roll it back — otherwise an orphaned Auth account (no user
-                // doc) permanently bricks the person: every retry hits "email
-                // already in use" and login-by-phone finds nothing.
-                try {
-                    firestoreRepository.createUser(
-                        UserDocument(
-                            uid           = uid,
-                            name          = name.trim(),
-                            phone         = normalizedPhone,
-                            email         = email.trim(),
-                            role          = role,
-                            pinHash       = pinHash,
-                            salt          = salt,
-                            status        = status,
-                            firebaseEmail = firebaseEmail,
-                            createdAt     = System.currentTimeMillis(),
-                            referralCode  = referralCode,
-                            referredBy    = referredBy,
-                            // Written before the salon call, so if that call never
-                            // lands the details survive on the account and the next
-                            // sign-in can finish the job. See ProviderViewModel.
-                            pendingSalonName     = if (isProvider) salonName.trim() else "",
-                            pendingSalonDistrict = if (isProvider) district.trim() else "",
-                            pendingSalonServices = if (isProvider) services else emptyList()
-                        )
+            val result = runCatching {
+                functions.getHttpsCallable("registerAccount").call(
+                    hashMapOf(
+                        "name"         to name.trim(),
+                        "phone"        to PhoneUtils.normalizeAfghan(phone),
+                        "email"        to email.trim(),
+                        "role"         to if (isProvider) "PROVIDER" else "CUSTOMER",
+                        "salt"         to salt,
+                        "pinHash"      to pinHash,
+                        "authPassword" to authPassword,
+                        "referredBy"   to referralCodeInput.trim().uppercase(),
+                        "salonName"    to if (isProvider) salonName.trim() else "",
+                        "district"     to if (isProvider) district.trim() else "",
+                        "services"     to if (isProvider) services else emptyList()
                     )
-
-                    if (isProvider) {
-                        // Salon creation is server-side (createProviderSalon): the
-                        // providerId must be the authoritative app-level uid, and at
-                        // registration the uid_map bridge isn't populated yet, so a
-                        // direct client write can't pass the security rules.
-                        //
-                        // Deliberately shielded from the rollback — it sits inside
-                        // the try, so runCatching is what keeps its failure from
-                        // reaching the catch. A failure here used to
-                        // delete the Auth account and leave the users document
-                        // behind, and that pair is unrecoverable: the phone now has
-                        // an account so registration refuses it, and there is no Auth
-                        // credential behind it so signing in cannot work either. The
-                        // number is burned, and the person cannot tell why.
-                        //
-                        // The account itself is complete and correct by this point;
-                        // only the salon is missing, and the details for it are on
-                        // the document. So this retries — the usual cause is a
-                        // dropped connection, and createProviderSalon returns the
-                        // existing salon rather than making a second one — and then
-                        // gets out of the way. ProviderViewModel finishes it at her
-                        // next sign-in if all three attempts failed.
-                        runCatching { createSalonWithRetry(salonName.trim(), district.trim(), services) }
-                        state = RegisterState.ProviderPending
-                    } else {
-                        state = RegisterState.CustomerSuccess(name.trim())
-                    }
-                } catch (e: Exception) {
-                    // The rollback travels over the same connection that just
-                    // failed, and its Result was being dropped — so the one
-                    // outcome that decides whether this person is merely
-                    // inconvenienced or permanently orphaned went unrecorded.
-                    // Distinguished here because the two need different fixes:
-                    // "rolled-back" is a retry, "ORPHANED" is a support case.
-                    stage = if (firebaseAuth.deleteCurrentUser().isSuccess)
-                        "user-doc:rolled-back"
-                    else
-                        "user-doc:ORPHANED"
-                    throw e
+                ).await().getData() as? Map<*, *>
+            }.getOrElse { e ->
+                // Both collisions arrive as "already-exists", and telling her
+                // the wrong one is worse than telling her nothing: someone whose
+                // email is taken but whose phone is free will go and change the
+                // phone number, which was the field that worked. The server says
+                // which in details.field for exactly this reason.
+                val ffe   = e as? FirebaseFunctionsException
+                val taken = ffe?.code == FirebaseFunctionsException.Code.ALREADY_EXISTS
+                val field = (ffe?.details as? Map<*, *>)?.get("field") as? String
+                val reason = when {
+                    taken && field == "email" -> ErrorReason.EMAIL_EXISTS
+                    taken                     -> ErrorReason.PHONE_EXISTS
+                    else                      -> ErrorReason.REGISTRATION_FAILED
                 }
-            }.onFailure { e ->
-                CrashReporter.recordNonFatal(e, "register:$stage")
-                state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
+                if (!taken) CrashReporter.recordNonFatal(e, "register:callable")
+                state = RegisterState.Error(reason)
+                return@launch
             }
-        }
-    }
 
-    /**
-     * Three attempts, widening the gap between them.
-     *
-     * The one call in registration that reaches the network after the account is
-     * already real, made on a connection that in Kabul or Herat may simply stop
-     * for a few seconds. One attempt made that a permanent outcome.
-     */
-    private suspend fun createSalonWithRetry(
-        salonName: String,
-        district: String,
-        services: List<String>,
-    ) {
-        var lastError: Exception? = null
-        repeat(3) { attempt ->
-            try {
-                functions
-                    .getHttpsCallable("createProviderSalon")
-                    .call(hashMapOf(
-                        "salonName" to salonName,
-                        "district"  to district,
-                        "services"  to services
-                    ))
-                    .await()
-                return
-            } catch (e: Exception) {
-                lastError = e
-                if (attempt < 2) kotlinx.coroutines.delay(1_000L * (attempt + 1))
+            val firebaseEmail = result?.get("firebaseEmail") as? String
+            if (firebaseEmail.isNullOrBlank()) {
+                CrashReporter.recordNonFatal(
+                    IllegalStateException("registerAccount returned no firebaseEmail"),
+                    "register:no-email"
+                )
+                state = RegisterState.Error(ErrorReason.REGISTRATION_FAILED)
+                return@launch
             }
+
+            // Signing in is the only step left on the device, and it is the one
+            // step that is safe to fail: the account is complete and correct on
+            // the server, so a person whose connection drops here opens the app
+            // and logs in normally rather than being stranded half-registered.
+            firebaseAuth.signIn(firebaseEmail, authPassword)
+                .onFailure { CrashReporter.recordNonFatal(it, "register:sign-in") }
+
+            state = if (isProvider) RegisterState.ProviderPending
+                    else RegisterState.CustomerSuccess(name.trim())
         }
-        com.safebeauty.app.util.CrashReporter.recordNonFatal(
-            lastError ?: Exception("createProviderSalon failed"),
-            "createProviderSalon failed after 3 attempts; the salon will be created at next sign-in"
-        )
-        throw lastError ?: Exception("createProviderSalon failed")
     }
 }

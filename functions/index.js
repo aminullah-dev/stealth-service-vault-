@@ -94,6 +94,7 @@ exports.syncUidMap               = identity.syncUidMap;
 exports.updatePinHash            = identity.updatePinHash;
 exports.submitKyc                = identity.submitKyc;
 exports.reviewKyc                = identity.reviewKyc;
+exports.registerAccount          = identity.registerAccount;
 exports.createProviderSalon      = identity.createProviderSalon;
 exports.lookupAccountByPhone     = identity.lookupAccountByPhone;
 exports.requestAccountDeletion   = identity.requestAccountDeletion;

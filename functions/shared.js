@@ -48,8 +48,9 @@ function assertDocId(id, field) {
   }
 }
 
-// The app's `users/{uid}` documents are keyed by a UUID the client generates
-// at registration (see RegisterViewModel) — NOT by the Firebase Auth uid that
+// The app's `users/{uid}` documents are keyed by a UUID generated at
+// registration — by registerAccount on the server now, by the client for
+// accounts that predate it — NOT by the Firebase Auth uid that
 // `request.auth.uid` carries. The two are only linked via `firebaseEmail`.
 // Every callable that needs "who is this app user" must resolve through here
 // instead of using request.auth.uid directly, or it silently tags data with

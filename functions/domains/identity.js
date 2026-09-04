@@ -6,6 +6,7 @@
 const { phoneKey } = require("../lib/phone");
 const { defaultWorkingHours } = require("../lib/hours");
 const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
+const { acceptedReferral, buildRegistrationDocument, selfRegisterRole } = require("../lib/registration");
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
@@ -363,6 +364,223 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
+ * Registration, in one call.
+ *
+ * The device used to do this in three: create the Firebase Auth account, write
+ * users/{uid}, and — if the second failed — delete the first again. Three round
+ * trips from a handset on Afghan mobile data, where the compensating delete
+ * needs the same connection whose loss is the reason it is running. Its Result
+ * was discarded, so when it failed nothing recorded that it had.
+ *
+ * What that produced, measured on 2026-09-04: 117 Firebase Auth accounts, 12
+ * users documents. Of the 106 accounts with no profile, 99 have no trace
+ * anywhere else either — no appointment, payment, notification, favourite,
+ * review, message or ticket under the appUid their synthetic address encodes.
+ * An account that never did anything is not someone who left; it is a
+ * registration that stopped between step one and step two. Four of them used
+ * real Gmail addresses, so these are people, not fixtures.
+ *
+ * Here the whole sequence is one server invocation. The rollback runs on the
+ * server, over a connection that did not just fail. The users write goes
+ * through Admin credentials, so the fourteen conditions on the rules' create
+ * path cannot reject a document the server itself composed.
+ *
+ * The double-registration race is narrowed, not closed, and the difference
+ * matters. The uniqueness check and the write are in one invocation instead of
+ * two round trips, so the window is tens of milliseconds rather than seconds —
+ * but they are not in a transaction and no document is keyed on the phone, so
+ * two concurrent invocations can still both read empty and both write.
+ * deriveUserPhoneKey raises DUPLICATE_PHONE afterwards, which is detection, and
+ * that alert's own text says a person has to resolve it. Closing it properly
+ * needs a transaction on a phone-keyed index document; until then this is an
+ * improvement in odds, not a guarantee.
+ *
+ * The password never appears here in plaintext. The device still runs PinHasher
+ * and sends salt, pinHash and the derived auth password — the same three values
+ * it already sends to Firebase Auth and to updatePinHash, over the same TLS.
+ * Moving the orchestration does not move the secret.
+ */
+exports.registerAccount = onCall({ region: "us-central1" }, async (request) => {
+  const d        = request.data || {};
+  const rawPhone = String(d.phone || "").trim();
+  const phone    = normalizePhone(rawPhone);
+
+  // Unauthenticated by necessity — this IS the sign-up. Throttled on both axes
+  // for the same reason authenticateWithPassword is: one IP must not mint
+  // accounts in bulk, and one number must not be ground at indefinitely.
+  //
+  // The two limits are deliberately far apart. An IP is not a person here:
+  // Afghan mobile operators egress whole cities through a handful of NAT
+  // addresses, so every customer of one carrier in Kabul shares a counter. A
+  // limit tight enough to be interesting to an attacker would refuse real women
+  // during exactly the moment a campaign is working, and it would reach them as
+  // the generic failure. 60/hour matches what login and lookup already allow
+  // from one address (120/hour each) rather than sitting an order of magnitude
+  // under them for no stated reason.
+  //
+  // The phone is the axis that actually identifies someone, is not shared by
+  // NAT, and is required to be unused — so it stays tight. That is where
+  // repeated abuse of this endpoint has to show up.
+  await enforceRateLimit(`register-ip:${callerIp(request)}`, 60, 60 * 60 * 1000);
+  await enforceRateLimit(`register-phone:${phone || "unknown"}`, 5, 60 * 60 * 1000);
+
+  const name         = String(d.name || "").trim();
+  const email        = String(d.email || "").trim();
+  const salt         = String(d.salt || "");
+  const pinHash      = String(d.pinHash || "");
+  const authPassword = String(d.authPassword || "");
+
+  // Stated explicitly rather than coerced. The rules' create path refuses an
+  // ADMIN self-registration and this is now the writer that path was guarding
+  // against, so the refusal has to exist here too — as a rejection, not as a
+  // silent downgrade to CUSTOMER that would hide the attempt.
+  const role = selfRegisterRole(d.role);
+  if (!role) {
+    throw new HttpsError("permission-denied", "Accounts may self-register only as CUSTOMER or PROVIDER.");
+  }
+  const isProvider = role === "PROVIDER";
+
+  if (!name || !rawPhone || !salt || !pinHash || !authPassword) {
+    throw new HttpsError("invalid-argument", "name, phone, salt, pinHash and authPassword are required.");
+  }
+
+  const salonName = String(d.salonName || "").trim();
+  const district  = String(d.district || "").trim();
+  const services  = Array.isArray(d.services) ? d.services.map(String).filter(Boolean) : [];
+  if (isProvider && (!salonName || !district || services.length === 0)) {
+    throw new HttpsError("invalid-argument", "A provider needs a salon name, a district and at least one service.");
+  }
+
+  // The phone is the login identifier, so it must be unique — and unlike the
+  // client's pre-check, this one runs in the same invocation as the write it
+  // guards.
+  // Which field collided, carried in details. Both collisions are
+  // "already-exists" and the client used to render either as "this phone number
+  // is taken" — which is the wrong sentence for the exact people this callable
+  // exists to rescue. Someone holding an orphaned credential under a real email
+  // has no profile, so the phone check passes and the Auth create fails; being
+  // told her PHONE is taken sends her to change the one field that was fine.
+  if (await findAccountByPhone(phone, rawPhone)) {
+    throw new HttpsError("already-exists", "An account already uses this phone number.",
+      { field: "phone" });
+  }
+
+  const uid           = crypto.randomUUID();
+  const firebaseEmail = email ? email.toLowerCase() : `${uid.replace(/-/g, "")}@sb.app`;
+
+  // The uniqueness check registration has never been able to do.
+  //
+  // lib/referral records why: the device "writes it with no uniqueness check of
+  // any kind ... it cannot do one, because the users collection is not
+  // client-listable". True of a client; not true here. Six hex characters is
+  // 16.7 million codes and collides at a few percent by a thousand accounts,
+  // and a duplicate credits whichever document the referral lookup's limit(1)
+  // happens to return first — an invite that pays the wrong person, with
+  // nothing on either side showing why.
+  //
+  // Only this writer is fixed. adminCreateSalon still builds the code inline
+  // and unchecked, so a collision remains reachable from that direction; it is
+  // a separate change and is not made here.
+  let referralCode = "";
+  const codeAttempts = maxAttempts(uid);
+  for (let attempt = 0; attempt < codeAttempts; attempt += 1) {
+    const candidate = deriveReferralCode(uid, attempt);
+    if (!candidate) break;
+    const taken = await db.collection("users")
+      .where("referralCode", "==", candidate).limit(1).get();
+    if (taken.empty) { referralCode = candidate; break; }
+  }
+
+  const referredBy = acceptedReferral(d.referredBy, referralCode);
+
+  let authUid = "";
+  try {
+    const created = await admin.auth().createUser({ email: firebaseEmail, password: authPassword });
+    authUid = created.uid;
+  } catch (e) {
+    if (e && e.code === "auth/email-already-exists") {
+      throw new HttpsError("already-exists", "An account already uses this email address.",
+        { field: "email" });
+    }
+    logger.error("registerAccount: auth create failed", e);
+    throw new HttpsError("internal", "Could not create the account. Please try again.");
+  }
+
+  try {
+    await db.doc(`users/${uid}`).set(buildRegistrationDocument({
+      uid, name, phone, email, role,
+      pinHash, salt, firebaseEmail,
+      createdAt: Date.now(),
+      referralCode, referredBy,
+      salonName, district, services,
+    }));
+  } catch (e) {
+    // The compensation the handset could not be trusted with, run where the
+    // network did not just fail.
+    //
+    // BOTH halves are deleted, not just the credential. A single-document set()
+    // can raise DEADLINE_EXCEEDED or UNAVAILABLE after the commit has actually
+    // landed — that uncertainty is the whole reason compensating deletes are
+    // fragile — so "the write threw" does not mean "the document is absent".
+    // Deleting only the Auth account would then leave users/{uid} holding her
+    // phone number with no credential behind it, which is precisely the pair
+    // the salon step below refuses to create: findAccountByPhone would refuse
+    // her number forever, sign-in would fail, and deleteUser having SUCCEEDED
+    // means nothing would have alerted. adminDeleteUser removes both for the
+    // same reason (domains/admin.js).
+    //
+    // Worse if left: that document carries a real firebaseEmail with no Auth
+    // account, so a later registration on the same address succeeds and
+    // resolveAppUser's where("firebaseEmail","==",…).limit(1) — no orderBy —
+    // starts resolving two people to whichever id sorts first. The users create
+    // rule was written against exactly that.
+    //
+    // Nothing references the document yet: uid_map and the salon come after.
+    const failed = [];
+    await admin.auth().deleteUser(authUid)
+      .catch((err) => failed.push(`auth:${err && err.code ? err.code : err}`));
+    await db.doc(`users/${uid}`).delete()
+      .catch((err) => failed.push(`users:${err && err.code ? err.code : err}`));
+
+    if (failed.length) {
+      // The one outcome nobody can discover on their own: she holds a login
+      // that resolves to nothing, or a number that can never be registered
+      // again, and no screen anywhere explains either.
+      alertable("REGISTRATION_ORPHANED",
+        "registerAccount: rollback incomplete after the profile write failed",
+        { authUid, uid, failed });
+    }
+    logger.error("registerAccount: users write failed", e);
+    throw new HttpsError("internal", "Could not create the account. Please try again.");
+  }
+
+  // Best effort from here down: the account exists and is correct, and nothing
+  // below is worth undoing it for.
+
+  // The bridge, written now rather than left to the client's first syncUidMap
+  // call — one less round trip that has to survive the same connection.
+  await db.doc(`uid_map/${authUid}`).set({ appUid: uid, updatedAt: Date.now() })
+    .catch((e) => logger.warn("registerAccount: uid_map write failed; login will retry", e));
+
+  let salonId = "";
+  if (isProvider) {
+    // Deliberately not rolled back on failure, and deliberately not fatal.
+    // Deleting the Auth account here would leave the users document behind, and
+    // that pair is unrecoverable: the phone now has an account so registration
+    // refuses it, and there is no credential behind it so signing in cannot
+    // work either. The number is burned and the person cannot tell why. The
+    // details are on the document, so the next sign-in finishes the job.
+    try {
+      ({ salonId } = await createSalonForProvider(uid, name, { salonName, district, services }));
+    } catch (e) {
+      logger.error("registerAccount: salon creation failed; a later sign-in will finish it", e);
+    }
+  }
+
+  return { uid, firebaseEmail, role, salonId };
+});
+
+/**
  * Creates a provider's salon at registration. Server-side because the salon's
  * providerId must be authoritative (the app-level uid, not the Firebase Auth
  * uid) and because at registration time the uid_map bridge isn't populated yet,
@@ -391,19 +609,34 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     );
   }
 
+  return createSalonForProvider(appUser.uid, appUser.name || "", {
+    salonName, district, services,
+  });
+});
+
+/**
+ * The salon itself, shared by the two callers that can create one.
+ *
+ * registerAccount makes it in the same server call that makes the account;
+ * createProviderSalon makes it afterwards, for a provider whose registration
+ * got as far as her user document and no further. Both need identical
+ * defaults — a salon that differs depending on which path produced it is a
+ * salon that behaves differently for reasons nobody can see.
+ */
+async function createSalonForProvider(uid, providerName, { salonName, district, services }) {
   // One salon per provider — return the existing one instead of duplicating
   // (e.g. if the client retries after a dropped response).
   const existing = await db.collection("salons")
-    .where("providerId", "==", appUser.uid).limit(1).get();
+    .where("providerId", "==", uid).limit(1).get();
   if (!existing.empty) {
-    await clearPendingSalon(appUser.uid);
+    await clearPendingSalon(uid);
     return { salonId: existing.docs[0].id, alreadyExisted: true };
   }
 
   const ref = db.collection("salons").doc();
   await ref.set({
-    providerId:          appUser.uid,
-    providerName:        appUser.name || "",
+    providerId:          uid,
+    providerName:        providerName || "",
     salonName:           String(salonName),
     district:            String(district),
     services:            services.map(String),
@@ -418,9 +651,9 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     confirmedCount:      0,
     isVerified:          false,
   });
-  await clearPendingSalon(appUser.uid);
+  await clearPendingSalon(uid);
   return { salonId: ref.id };
-});
+}
 
 /**
  * Forget the salon details registration parked on the account.

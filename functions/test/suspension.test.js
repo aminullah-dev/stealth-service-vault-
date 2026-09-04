@@ -56,6 +56,12 @@ const MAY_PROCEED = {
   // it would make a suspension look like a wrong password.
   authenticateWithPassword: "signing in — a suspension must not read as a wrong password",
   lookupAccountByPhone:     "pre-auth, and answers only whether an account exists",
+  // There is no account yet, so there is nobody to be suspended. A suspended
+  // person registering a second account under another number is a real gap, but
+  // not one this check could close: the caller is anonymous by definition, and
+  // the only handle on them is the phone, which is required to be unused.
+  // Rate limiting is what bounds this endpoint, not suspension.
+  registerAccount:          "pre-auth — the account it would check does not exist until it returns",
   getBookedSlots:           "read-only, and the same answer for everyone",
   previewPromo:             "read-only; the discount is recomputed server-side at checkout anyway",
 };
