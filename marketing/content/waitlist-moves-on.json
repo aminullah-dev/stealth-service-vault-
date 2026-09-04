@@ -1,0 +1,22 @@
+{
+  "slug": "waitlist-moves-on",
+  "type": "post",
+  "audience": "customers",
+  "note": "Grounded in commit 7b3dc2b (2026-08-22): a waitlist offer now expires after six hours and automatically passes to the next person waiting for the same salon and day, instead of stalling the queue. Describes the resulting behaviour, not the prior bug.",
+  "text": {
+    "fa": {
+      "sub": "رزرو خصوصی خدمات زیبایی",
+      "headline": "جای خالی شد؟ صف انتظار به شما خبر می‌دهد",
+      "body": "وقتی سالن پر است، وارد صف انتظار شوید. اگر جای خالی پیدا شود، به شما اطلاع داده می‌شود؛ اگر همان لحظه نتوانید رزرو کنید، نوبت به نفر بعدی می‌رسد.",
+      "cta": "رایگان دانلود کنید",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    },
+    "ps": {
+      "sub": "د ښکلا خدمتونو شخصي بکینګ",
+      "headline": "ځای خالي شو؟ د انتظار لیست خبر درکوي",
+      "body": "کله چې سالون ډک وي، د انتظار لیست ته ورشئ. که ځای خالي شي، خبر به شئ؛ که سمدلاسه بکینګ ونشئ کولی، وار بل چا ته رسیږي.",
+      "cta": "وړیا یې ډاونلوډ کړئ",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    }
+  }
+}

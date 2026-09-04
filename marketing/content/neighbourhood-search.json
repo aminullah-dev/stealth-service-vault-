@@ -1,0 +1,22 @@
+{
+  "slug": "neighbourhood-search",
+  "type": "post",
+  "audience": "customers",
+  "note": "Grounded in the city -> district -> guzar/neighbourhood picker shipped 2026-08-28 (Areas.kt: Kabul's districts and neighbourhoods, Herat's districts with the twelve neighbourhoods sourced from the municipality, Mazar-e Sharif's districts and guzars, Jalalabad's districts). Search now narrows by real area, not just by city.",
+  "text": {
+    "fa": {
+      "sub": "رزرو خصوصی خدمات زیبایی",
+      "headline": "سالن را در محلهٔ خودتان پیدا کنید",
+      "body": "دیگر تنها بر اساس شهر جستجو نکنید. ناحیه و محلهٔ خود را انتخاب کنید و سالن‌های نزدیک به خود را ببینید. رزرو همچنان خصوصی می‌ماند.",
+      "cta": "رایگان دانلود کنید",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    },
+    "ps": {
+      "sub": "د ښکلا خدمتونو شخصي بکینګ",
+      "headline": "سالون په خپله سیمه کې ومومئ",
+      "body": "نور یوازې د ښار له مخې مه لټوئ. خپله ناحیه او سیمه وټاکئ او نږدې سالونونه وګورئ. بکینګ ستاسو شخصي پاتې کیږي.",
+      "cta": "وړیا یې ډاونلوډ کړئ",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    }
+  }
+}
