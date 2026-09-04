@@ -1,0 +1,23 @@
+{
+  "//": "A template, not content. Copy it to a real slug and fill it in. What belongs in each field is decided by .claude/skills/safebeauty-marketing/SKILL.md — read that first; its safety rules are not style preferences.",
+  "slug": "kebab-case-name",
+  "type": "post",
+  "audience": "customers | salons | partners",
+  "note": "Why this piece exists, and what shipped to justify it. A future reader needs this.",
+  "text": {
+    "fa": {
+      "sub": "small line under the wordmark",
+      "headline": "the one thing this post says",
+      "body": "two sentences at most",
+      "cta": "what she does next",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    },
+    "ps": {
+      "sub": "",
+      "headline": "",
+      "body": "",
+      "cta": "",
+      "cities": "کابل · هرات · مزارشریف · جلال‌آباد"
+    }
+  }
+}

@@ -271,8 +271,11 @@ def main():
     if not args:
         sys.exit(__doc__.strip().split("\n\n")[1])
     if args[0] == "--all":
+        # TEMPLATE.json is the shape to copy, not a piece to render. Left in,
+        # --all would quietly produce a post whose headline reads "the one thing
+        # this post says".
         specs = sorted(os.path.join(CONTENT, f) for f in os.listdir(CONTENT)
-                       if f.endswith(".json"))
+                       if f.endswith(".json") and f != "TEMPLATE.json")
         if not specs:
             sys.exit("No specs in marketing/content/")
     else:
