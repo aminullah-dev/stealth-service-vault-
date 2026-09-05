@@ -216,6 +216,29 @@ exports.createPaymentSession = onCall(
     }
     const salon = salonSnap.data();
 
+    // A provider may not book her own salon.
+    //
+    // Nothing else in the chain stops it, and the chain pays out. confirmAppointment
+    // authorises on salon.providerId === caller and then unconditionally credits the
+    // CUSTOMER ten loyalty points and increments the salon's confirmedCount — where
+    // the customer may be the same person. Since pricePerService is provider-editable,
+    // she can set a service to 1 AFN, where commission rounds to zero, so each cycle
+    // is free; staff[] is provider-editable too, and hasSlotConflict treats a
+    // different staffId as a different chair, so the cycles run in parallel. At a
+    // hundred points redeemLoyaltyPoints converts them 1:1 into referralCredit, and
+    // spending that credit on a cash booking at her own salon makes cashLedgerDelta
+    // add it to owedAmount — a real balance recordProviderPayout pays in cash.
+    //
+    // Every step is individually legitimate and the result is platform money out of
+    // nothing, indistinguishable in any report from ordinary cash bookings. It also
+    // hands over confirmedCount, which firestore.rules freezes specifically so a
+    // provider cannot self-award a GOLD or SILVER badge.
+    //
+    // createGiftCardSession already refuses the same shape of self-dealing.
+    if (salon.providerId && salon.providerId === uid) {
+      throw new HttpsError("failed-precondition", "You can't book your own salon.");
+    }
+
     // Reject bookings on a day the provider blocked off (time-off/holiday). The
     // client already hides these days; this is defense in depth. Dates are stored
     // as "yyyy-MM-dd" in Kabul-local time, so map the requested instant the same way.

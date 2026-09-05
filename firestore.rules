@@ -105,46 +105,41 @@ service cloud.firestore {
       // awaiting admin approval) — never an ADMIN, and a provider may not
       // self-approve. The first ADMIN is bootstrapped out-of-band (console /
       // setup), not through this path.
-      allow create: if isSignedIn()
-                 && (
-                      (request.resource.data.role == 'CUSTOMER'
-                       && request.resource.data.status == 'APPROVED')
-                   || (request.resource.data.role == 'PROVIDER'
-                       && request.resource.data.status == 'PENDING')
-                    )
-                 // Referral credit is server-granted only — a self-registration
-                 // may not seed itself any balance or pre-mark itself rewarded.
-                 && request.resource.data.get('referralCredit', 0) == 0
-                 && request.resource.data.get('referralRewarded', false) == false
-                 // A fresh account may not seed itself server-authoritative balances
-                 // or reputation: no loyalty points (redeemable for real credit), no
-                 // customer rating / no-show history, no self-asserted KYC, no
-                 // pre-claimed profile bonus. All written only by Cloud Functions.
-                 && request.resource.data.get('loyaltyPoints', 0) == 0
-                 && request.resource.data.get('customerRatingSum', 0) == 0
-                 && request.resource.data.get('customerRatingCount', 0) == 0
-                 && request.resource.data.get('noShowCount', 0) == 0
-                 && request.resource.data.get('kycStatus', 'NONE') == 'NONE'
-                 && request.resource.data.get('profileRewardClaimed', false) == false
-                 // Nor may it seed either derived lookup key — see the update rule.
-                 && request.resource.data.get('phoneDigits', '') == ''
-                 && request.resource.data.get('nameKey', '') == ''
-                 // The account may only claim the identity the caller is already
-                 // signed in as.
-                 //
-                 // resolveAppUser decides who every callable is talking to with
-                 // users.where('firebaseEmail','==',token.email).limit(1) — so
-                 // this field IS the server's notion of identity. It was
-                 // unconstrained on create and unfrozen on update, and the
-                 // document id is chosen by the client, which made planting one
-                 // enough to capture another account's resolution: a limit(1)
-                 // with no orderBy breaks ties by ascending __name__, so a low id
-                 // wins deterministically and forever.
-                 //
-                 // Not a takeover — the password still derives from the victim's
-                 // own salt, and role/status stay frozen — but a permanent,
-                 // silent lockout, and the one variant nothing anywhere alerts on.
-                 && request.resource.data.get('firebaseEmail', '') == request.auth.token.email;
+      // No client may create a users document. Registration is registerAccount
+      // (Admin SDK, which bypasses these rules), and after that move the only
+      // remaining caller of the client-side createUser was FirestoreSeeder,
+      // whose isAdminMissing() read is denied by `allow list: if isAdmin()`
+      // above and has therefore never reached its write.
+      //
+      // The long list of constraints this replaces did close the variant its
+      // own comment described — a second document claiming someone else's
+      // firebaseEmail — but only that one. Two fields it never constrained were
+      // `phone` and the DOCUMENT ID, and both server resolvers break ties by
+      // ascending __name__ on a limit(1) with no orderBy:
+      //
+      //   shared.js   users.where('firebaseEmail','==',token.email).limit(1)
+      //   identity.js users.where('phone','==',…).limit(1)
+      //
+      // So a signed-in customer could create users/! or users/0 — any id
+      // sorting below a UUID — carrying their OWN firebaseEmail, which
+      // satisfied every condition here, and:
+      //
+      //   * escape a suspension, since a suspended account can still sign in
+      //     and the new document carries status APPROVED and a clean
+      //     noShowCount, and resolveAppUser then returns it for every callable;
+      //   * put a VICTIM's phone number on it and lock her out permanently —
+      //     authenticateWithPassword resolves the plant first, so her password
+      //     is checked against the attacker's hash and always fails, while
+      //     findAccountByPhone hands password recovery the attacker's address;
+      //   * claim another account's referralCode, which is frozen on update and
+      //     was unconstrained here, and collect its credit;
+      //   * and choose an id like `x" onfocus=…`, which the admin console wrote
+      //     unescaped into a data attribute — stored XSS in a live admin
+      //     session, from any customer account.
+      //
+      // None of that needed a second constraint. It needed this rule to stop
+      // existing, which it now has.
+      allow create: if false;
 
       // Users can update their own profile; admins can change status / verify.
       // A self-update may NOT change privileged fields — role and status are
@@ -550,12 +545,33 @@ service cloud.firestore {
     match /post_comments/{commentId} {
       allow read: if isSignedIn();
 
+      // salonId must be the one on the post this comment claims to be under.
+      //
+      // Delete authorises the moderator with resource.data.salonId, while the
+      // app renders a thread by querying postId — two different fields, and
+      // nothing tied them together. A comment carrying the target's postId and
+      // somebody else's salonId therefore appeared under that salon's photo and
+      // outside its owner's delete permission: unmoderatable by the one person
+      // whose photo it sat on. Reading it through the post also forces postId
+      // to name a real post, which was never checked either.
+      //
+      // createdAt is bounded for the same thread: it is what the client orders
+      // by, so an arbitrary value pins a comment to the top of a conversation
+      // it was not part of. A window, not an equality — FeedViewModel sends
+      // System.currentTimeMillis() from the handset, and a device clock never
+      // equals the server's to the millisecond, so `== request.time` would have
+      // rejected every comment ever written. Five minutes each way tolerates a
+      // badly-set phone and still leaves no room to pin.
       allow create: if isSignedIn()
                  && request.resource.data.userId == me()
                  && request.resource.data.authorName == myData().name
                  && request.resource.data.text is string
                  && request.resource.data.text.size() > 0
-                 && request.resource.data.text.size() <= 300;
+                 && request.resource.data.text.size() <= 300
+                 && request.resource.data.salonId ==
+                      get(/databases/$(database)/documents/salon_posts/$(request.resource.data.postId)).data.salonId
+                 && request.resource.data.createdAt >= request.time.toMillis() - 300000
+                 && request.resource.data.createdAt <= request.time.toMillis() + 300000;
 
       // Immutable, for the same reason a story is: editing a comment after
       // people have read or answered it rewrites a conversation they saw.

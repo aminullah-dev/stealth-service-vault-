@@ -1,5 +1,12 @@
 {
   "//": "Three hosting sites, one directory tree. `app` is the original site and is unchanged: safebeauty.web.app still serves /admin and /provider, because the two Electron wrappers hardcode those URLs (desktop/main.js, desktop-provider/main.js) and are already installed on people's machines. `admin` and `salon` serve the same two consoles at the root of their own subdomains, so admin.linumic.com opens the console directly rather than admin.linumic.com/admin. Deploy all three with `firebase deploy --only hosting`, or one with `--only hosting:admin`.",
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "functions": [
     {
       "source": "functions",

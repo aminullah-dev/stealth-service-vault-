@@ -103,10 +103,28 @@ exports.submitReview = onCall(
     // Only accept photo URLs that live under THIS user's own reviews/ storage
     // path (the download URL embeds the path, url-encoded), so a client can't
     // pass arbitrary strings to trigger the photo bonus. Max 3.
-    const ownPathFragment = `/reviews%2F${user.uid}%2F`;
+    // Anchored to the bucket, not merely containing the path.
+    //
+    // This was `u.includes("/reviews%2F" + uid + "%2F")`, and a substring test
+    // constrains nothing about where the URL points:
+    // "https://attacker.example/px.gif#/reviews%2F<own-uid>%2F" passes it. The
+    // string is stored verbatim on a review that every signed-in user can read,
+    // and the app renders each entry with AsyncImage — so every woman who opens
+    // that salon's page fetches it, handing the host her IP, coarse location,
+    // User-Agent and the time she was looking at a beauty salon. That is
+    // precisely the tracking this product exists to avoid, delivered through
+    // the product itself.
+    //
+    // submitKyc solved the same problem by deriving the location server-side
+    // rather than accepting one. Reviews cannot quite do that (the client
+    // uploads before the review exists), so the check is a real prefix against
+    // this bucket's own download host.
+    const bucket = admin.storage().bucket().name;
+    const ownPrefix =
+      `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/reviews%2F${user.uid}%2F`;
     const urls = Array.isArray(imageUrls)
       ? imageUrls
-          .filter((u) => typeof u === "string" && u.includes(ownPathFragment))
+          .filter((u) => typeof u === "string" && u.startsWith(ownPrefix))
           .slice(0, 3)
       : [];
 

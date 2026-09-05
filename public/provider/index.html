@@ -627,7 +627,11 @@ let salon    = null;   // latest salon snapshot data
 let hesab    = '';     // provider's HesabPay account number (users doc)
 let salonUnsub = null; // always-on salon listener
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Covers ' as well as & < > ". No interpolation here currently sits in a
+// single-quoted attribute, so the apostrophe is defence in depth — but this is
+// the helper people reach for without checking which quote style the
+// surrounding template used, and it should be safe for the one they pick.
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
 const fmtDT = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
 const fmtD  = (ms) => ms ? new Date(Number(ms)).toLocaleDateString() : '—';

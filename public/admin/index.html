@@ -869,7 +869,11 @@ function balanceLine(v) {
                : t('bal_owedToPlatform', AFN(Math.abs(n)));
 }
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Covers ' as well as & < > ". No interpolation in this file currently sits in a
+// single-quoted attribute, so the apostrophe is defence in depth — but the
+// helper is the thing people reach for without checking which quote style the
+// surrounding template used, and it should be safe for the one they pick.
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate = (ms) => ms ? new Date(Number(ms)).toLocaleString() : '—';
 const statusPill = (s) => {
   const c = { APPROVED:'ok', PENDING:'warn', SUSPENDED:'bad', REJECTED:'bad' }[s] || 'info';
@@ -1243,8 +1247,8 @@ function renderApprovals(){
           <td>${esc(u.phone||'—')}</td>
           <td>${fmtDate(u.createdAt)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">${t('btn_approve')}</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">${t('btn_reject')}</button>
+            <button class="btn-sm" style="background:var(--green)" data-ok="${esc(u.id)}">${t('btn_approve')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${esc(u.id)}">${t('btn_reject')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     $('view').querySelectorAll('[data-ok]').forEach(b => b.onclick = () =>
@@ -1272,8 +1276,8 @@ function renderKyc(){
           <td><span class="pill info">${esc(u.role||'—')}</span></td>
           <td>${esc(u.phone||'—')}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--green)" data-ok="${u.id}">${t('btn_approve')}</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${u.id}">${t('btn_reject')}</button>
+            <button class="btn-sm" style="background:var(--green)" data-ok="${esc(u.id)}">${t('btn_approve')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-no="${esc(u.id)}">${t('btn_reject')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     const review = (uid, approve, reason='') =>
@@ -1575,10 +1579,10 @@ async function renderUsers(){
           <td>${statusPill(u.suspended===true ? 'SUSPENDED' : u.status)}</td>
           <td>${kycPill(u.kycStatus)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--rose)" data-manage="${u.id}">${t('btn_manage')}</button>
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${esc(u.id)}">${t('btn_manage')}</button>
             ${(u.suspended===true || u.status==='SUSPENDED')
-              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${u.id}">${t('btn_unsuspend')}</button>`
-              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${u.id}">${t('btn_suspend')}</button>`}
+              ? `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-uns="${esc(u.id)}">${t('btn_unsuspend')}</button>`
+              : `<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-sus="${esc(u.id)}">${t('btn_suspend')}</button>`}
           </td>
         </tr>`).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_noMatchingUsers')}</div>`;
@@ -1808,7 +1812,7 @@ async function renderAdmins(){
           <td class="name">${esc(a.name||a.id)}</td>
           <td>${esc(a.phone||'—')}</td>
           <td style="text-align:right">${admins.length>1
-            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${a.id}">${t('btn_remove')}</button>`
+            ? `<button class="btn-sm" style="background:var(--red)" data-rev="${esc(a.id)}">${t('btn_remove')}</button>`
             : `<span class="meta" style="color:var(--muted)">${t('lbl_lastAdmin')}</span>`}</td>
         </tr>`).join('')}</tbody></table></div>`;
 
@@ -1946,10 +1950,10 @@ async function renderSalons(){
           <td>${kycPill(o.kycStatus)}</td>
           <td>${s.isVerified?`<span class="pill ok">${t('th_verified')}</span>`:'<span class="pill info">No</span>'}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--rose)" data-manage="${s.id}">${t('btn_manage')}</button>
+            <button class="btn-sm" style="background:var(--rose)" data-manage="${esc(s.id)}">${t('btn_manage')}</button>
             ${s.isVerified
-              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${s.id}">${t('btn_unverify')}</button>`
-              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${s.id}">${t('btn_verify')}</button>`}
+              ? `<button class="btn-sm" style="background:var(--muted);margin-inline-start:6px" data-unv="${esc(s.id)}">${t('btn_unverify')}</button>`
+              : `<button class="btn-sm" style="background:var(--green);margin-inline-start:6px" data-ver="${esc(s.id)}">${t('btn_verify')}</button>`}
           </td>
         </tr>`; }).join('') + `</tbody></table></div>`
         : `<div class="empty">${t('empty_noMatchingSalons')}</div>`;
@@ -2245,20 +2249,20 @@ function BOOKING_ACTIONS(a){
   }
 
   const confirm = a.status === 'PENDING'
-    ? `<button class="btn-sm" data-act="confirm" data-id="${id}" style="background:var(--rose)">${t('btn_confirmForTheSalon')}</button>`
+    ? `<button class="btn-sm" data-act="confirm" data-id="${esc(id)}" style="background:var(--rose)">${t('btn_confirmForTheSalon')}</button>`
     : '';
 
   return `<div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:8px">
             ${confirm}
             <input type="datetime-local" id="bk-newdate"
               style="padding:7px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
-            <button class="btn-sm" data-act="move" data-id="${id}"
+            <button class="btn-sm" data-act="move" data-id="${esc(id)}"
               style="background:var(--surface);color:var(--deep)">${t('btn_moveToThisTime')}</button>
           </div>
           <div style="display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:11px">
             <input id="bk-reason" placeholder="Why is this being cancelled?" maxlength="300"
               style="flex:1;min-width:230px;padding:8px 11px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)" />
-            <button class="btn-sm" data-act="cancel" data-id="${id}" style="background:#B4404F">${t('btn_cancelBooking')}</button>
+            <button class="btn-sm" data-act="cancel" data-id="${esc(id)}" style="background:#B4404F">${t('btn_cancelBooking')}</button>
           </div>`;
 }
 
@@ -3377,8 +3381,8 @@ function renderReports(){
           <td>${r.noShow?`<span class="pill warn">${t('th_noShow')}</span>`:`<span class="pill bad">${t('pill_flagged')}</span>`}</td>
           <td>${fmtDate(r.createdAt)}</td>
           <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--muted)" data-dis="${r.id}">${t('btn_dismiss')}</button>
-            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${r.id}">${t('btn_suspendAccount')}</button>
+            <button class="btn-sm" style="background:var(--muted)" data-dis="${esc(r.id)}">${t('btn_dismiss')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-left:6px" data-sus="${esc(r.id)}">${t('btn_suspendAccount')}</button>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     const resolve = (id, suspend) =>

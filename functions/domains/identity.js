@@ -765,7 +765,13 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
   for (const [coll, field] of [
     ["favorites",     "customerId"],
     ["waitlist",      "customerId"],
-    ["notifications", "uid"],
+    // recipientId, not uid. Every one of the notification writers uses
+    // recipientId and no document has ever carried a `uid` field, so an
+    // equality on it matched nothing: this loop committed cleanly, reported
+    // success, and left the departing account's entire notification history
+    // in place — salon names, service names, amounts and timestamps, on a
+    // path whose whole job is erasing exactly that.
+    ["notifications", "recipientId"],
   ]) {
     try {
       const snap = await db.collection(coll).where(field, "==", uid).get();
