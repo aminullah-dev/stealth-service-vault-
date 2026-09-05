@@ -447,13 +447,22 @@ fun RegisterScreen(
                     RegisterViewModel.ErrorReason.PHONE_EXISTS        -> strings.regPhoneExists
                     RegisterViewModel.ErrorReason.EMAIL_EXISTS        -> strings.regEmailExists
                     RegisterViewModel.ErrorReason.REGISTRATION_FAILED -> strings.regFailed
+                    RegisterViewModel.ErrorReason.REGISTERED_NOW_SIGN_IN -> strings.regRegisteredNowSignIn
                 }
                 AlertDialog(
                     onDismissRequest = { viewModel.dismissState() },
                     title = { Text(strings.pleaseCheckTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                     text  = { Text(message, fontSize = 14.sp, color = TextStrong) },
                     confirmButton = {
-                        TextButton(onClick = { viewModel.dismissState() }) {
+                        TextButton(onClick = {
+                            viewModel.dismissState()
+                            // Her account exists; everything on this screen is
+                            // now the wrong thing to offer her. Dismissing back
+                            // onto the register form would leave "sign in"
+                            // above a button that says Register, which returns
+                            // PHONE_EXISTS and reads as a contradiction.
+                            if (s.reason == RegisterViewModel.ErrorReason.REGISTERED_NOW_SIGN_IN) onBack()
+                        }) {
                             Text(strings.ok, color = RoseGold)
                         }
                     },

@@ -32,7 +32,10 @@ class RegisterViewModel @Inject constructor(
         NAME_REQUIRED, PHONE_REQUIRED, PHONE_INVALID, EMAIL_INVALID,
         PIN_TOO_SHORT, PIN_MISMATCH,
         SALON_NAME_REQUIRED, DISTRICT_REQUIRED, SERVICES_REQUIRED,
-        PHONE_CHECK_FAILED, PHONE_EXISTS, EMAIL_EXISTS, REGISTRATION_FAILED
+        PHONE_CHECK_FAILED, PHONE_EXISTS, EMAIL_EXISTS, REGISTRATION_FAILED,
+        // The account EXISTS. She must not register again — that comes back
+        // PHONE_EXISTS and reads as a contradiction — she signs in.
+        REGISTERED_NOW_SIGN_IN
     }
 
     sealed class RegisterState {
@@ -184,8 +187,36 @@ class RegisterViewModel @Inject constructor(
             // step that is safe to fail: the account is complete and correct on
             // the server, so a person whose connection drops here opens the app
             // and logs in normally rather than being stranded half-registered.
-            firebaseAuth.signIn(firebaseEmail, authPassword)
+            //
+            // Safe to fail, but NOT safe to report as success. This recorded the
+            // failure and then set a success state anyway, so she was shown
+            // "welcome" and dropped into an app where Firebase held no
+            // credential: every rule check fails isSignedIn(), every callable is
+            // unauthenticated, nothing loads, and nothing says why. She is told
+            // instead, and told the one thing that matters — the account exists,
+            // so sign in rather than registering again.
+            val signedIn = firebaseAuth.signIn(firebaseEmail, authPassword)
                 .onFailure { CrashReporter.recordNonFatal(it, "register:sign-in") }
+                .isSuccess
+            if (!signedIn) {
+                state = RegisterState.Error(ErrorReason.REGISTERED_NOW_SIGN_IN)
+                return@launch
+            }
+
+            // The bridge firestore.rules resolves me() through. registerAccount
+            // writes it server-side too, but that write is best-effort and its
+            // own comment defers the retry to "login" — and registration is the
+            // one path that never logs in afterwards. Without this, a failed
+            // bridge write leaves her signed in with every personal read denied.
+            // Best-effort here for the same reason it is on the login path.
+            val appUid = result?.get("uid") as? String
+            if (!appUid.isNullOrBlank()) {
+                runCatching {
+                    functions.getHttpsCallable("syncUidMap")
+                        .call(hashMapOf("appUid" to appUid))
+                        .await()
+                }
+            }
 
             state = if (isProvider) RegisterState.ProviderPending
                     else RegisterState.CustomerSuccess(name.trim())
