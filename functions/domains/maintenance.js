@@ -6,6 +6,7 @@
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, alertable, db, logger } = require("../shared");
 
+const { hasBookableWeek } = require("../lib/hours");
 exports.cleanupRateLimits = onSchedule(
   { schedule: "every 24 hours", region: "us-central1" },
   async () => {
@@ -101,6 +102,51 @@ exports.scheduledFirestoreBackup = onSchedule(
   }
 );
 
+/**
+ * Split "gs://bucket/prefix" into its two halves, or null if it is not one.
+ *
+ * Pure and exported so the parsing can be tested without a bucket. It decides
+ * which objects get counted, and counting the wrong prefix would report an
+ * empty backup for a good one — or, worse, a healthy count for a prefix that
+ * belongs to a different day.
+ */
+function parseGsUri(uri) {
+  const s = String(uri == null ? "" : uri).trim();
+  if (!s.startsWith("gs://")) return null;
+  const rest = s.slice("gs://".length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0) return null;
+  const bucketName = rest.slice(0, slash);
+  const path = rest.slice(slash + 1).replace(/\/+$/, "");
+  if (!bucketName || !path) return null;
+  return { bucketName, prefix: path + "/" };
+}
+
+/**
+ * What actually landed in the bucket for one export.
+ *
+ * Returns zeroes rather than throwing when the bucket cannot be read: a
+ * verifier that dies on a listing error stops verifying every OTHER backup in
+ * the same run, and the states it would have written are the only record that
+ * any of this happened. A zero is reported as a failed backup, which is the
+ * conservative reading of "we could not confirm one exists".
+ */
+async function measureBackup(outputUri) {
+  const parsed = parseGsUri(outputUri);
+  if (!parsed) return { objects: 0, bytes: 0 };
+  const { bucketName, prefix } = parsed;
+
+  try {
+    const [files] = await admin.storage().bucket(bucketName).getFiles({ prefix });
+    let bytes = 0;
+    for (const f of files) bytes += Number((f.metadata && f.metadata.size) || 0);
+    return { objects: files.length, bytes };
+  } catch (e) {
+    logger.error(`measureBackup: could not list ${outputUri}`, e);
+    return { objects: 0, bytes: 0 };
+  }
+}
+
 // ── verifyFirestoreBackup ─────────────────────────────────────────────────────
 //
 // The export is asynchronous: scheduledFirestoreBackup only learns that it
@@ -149,8 +195,34 @@ exports.verifyFirestoreBackup = onSchedule(
             });
             logger.error(`verifyFirestoreBackup: ${doc.id} failed`, op.error);
           } else {
-            await doc.ref.update({ state: "DONE", finishedAt: Date.now(), error: "" });
-            logger.log(`verifyFirestoreBackup: ${doc.id} completed`);
+            // The operation says it finished. That is not the same claim as
+            // "there is a backup", and this file already records what the
+            // difference costs: the export used to point at a bucket in another
+            // project, every run failed, and the folder stayed empty for the
+            // life of the project. An operation reporting success is a fact
+            // about an API call; only the objects are the backup.
+            //
+            // So the artefact is measured before DONE is written, and the size
+            // is stored — a Health tab that says "last good backup: 11 objects,
+            // 179 KiB" can be disbelieved by a person reading it, which "DONE"
+            // cannot.
+            const measured = await measureBackup(doc.data().outputUri || "");
+            if (measured.objects === 0) {
+              await doc.ref.update({
+                state: "FAILED", finishedAt: Date.now(),
+                objects: 0, bytes: 0,
+                error: `Export reported success but wrote no objects to ${doc.data().outputUri || "(no uri)"}.`,
+              });
+              alertable("BACKUP_FAILED", "verifyFirestoreBackup: export completed but the bucket is empty",
+                { stamp: doc.id, outputUri: doc.data().outputUri || "" });
+              logger.error(`verifyFirestoreBackup: ${doc.id} completed with an empty bucket`);
+            } else {
+              await doc.ref.update({
+                state: "DONE", finishedAt: Date.now(), error: "",
+                objects: measured.objects, bytes: measured.bytes,
+              });
+              logger.log(`verifyFirestoreBackup: ${doc.id} completed — ${measured.objects} object(s), ${measured.bytes} byte(s)`);
+            }
           }
         } else if (stuck) {
           await doc.ref.update({
@@ -331,11 +403,104 @@ async function runIntegritySweep() {
 
     // 6. Negative provider balances. A payout that overshot, or commission debt
     //    that never cleared — either way the arithmetic has drifted.
+    // owedAmount, not owed. This has read a field no writer has ever written —
+    // Number(undefined || 0) is 0, and 0 is not below 0 — so the only automated
+    // guard on the provider ledger has never fired once in its existence. Every
+    // balance the arithmetic has ever drifted on was invisible, and a check that
+    // cannot fail is indistinguishable from a ledger that never breaks.
     const balances = await db.collection("provider_balances").get();
     balances.docs.forEach((d) => {
-      const owed = Number(d.data().owed || 0);
+      const owed = Number((d.data() || {}).owedAmount || 0);
       if (owed < 0) {
-        add("NEGATIVE_BALANCE", "warn", d.id, `Provider balance is ${owed} AFN.`);
+        add("NEGATIVE_BALANCE", "warn", d.id,
+          `Provider balance is ${owed} AFN — the platform is owed money by this `
+          + "salon, or a payout overshot. A commission debt on an unpaid cash "
+          + "booking is normal and clears itself; a large or growing one is not.");
+      }
+    });
+
+    // 7. Live bookings whose salon no longer exists.
+    //
+    //    Deleting a salon leaves its appointments behind, which is right for
+    //    history — a customer's past visit should not vanish, and the salon name
+    //    is stored on the booking so it still reads correctly. A booking that has
+    //    not happened yet is a different thing: nobody is going to answer it, and
+    //    nobody is watching it. That is not hypothetical, it is what made
+    //    nudgeUnconfirmedBookings alert every hour on two June bookings whose
+    //    salon had been removed — the nudge had nowhere to send and no way to say
+    //    so. Finished bookings are deliberately not flagged; there are 18 of them
+    //    in production and they are simply the past.
+    const live = await db.collection("appointments")
+      .where("status", "in", ["PENDING", "CONFIRMED", "AWAITING_PAYMENT"])
+      .limit(200).get();
+    const liveSalonIds = [...new Set(
+      live.docs.map((d) => String(d.data().salonId || "")).filter(Boolean)
+    )];
+    if (liveSalonIds.length) {
+      const salonDocs = await db.getAll(
+        ...liveSalonIds.map((id) => db.doc(`salons/${id}`))
+      );
+      const missing = new Set(
+        salonDocs.filter((d) => !d.exists).map((d) => d.id)
+      );
+      live.docs.forEach((d) => {
+        const a = d.data();
+        if (missing.has(String(a.salonId || ""))) {
+          add("SALON_GONE", "critical", a.bookingCode || d.id,
+            `Booking is still open but its salon (${a.salonName || a.salonId}) no longer exists.`);
+        }
+      });
+    }
+
+    // 8. Salons the derivation could not place confidently.
+    //
+    //    deriveSalonDiscovery refuses to guess when a service matches no category
+    //    or a district could be two places, which is right — but it was reporting
+    //    that refusal to a log line, and a log line is not a queue. Nobody read
+    //    it, so nobody knew that a salon whose only earning service is called
+    //    "mo" appears under no category chip at all: a customer searching for
+    //    what it actually does is told there are no providers, while it sits on
+    //    the previous screen.
+    //
+    //    Not critical. Nothing is lost or wrong — it is work waiting for a
+    //    person, and paging someone at three in the morning about a category
+    //    mapping is how a list gets ignored.
+    const unplaced = await db.collection("salons")
+      .where("needsDiscoveryReview", "==", true)
+      .limit(50).get();
+    unplaced.docs.forEach((d) => {
+      const r = d.data().discoveryReview || {};
+      const bits = [];
+      if ((r.unmatchedServices || []).length) {
+        bits.push(`services matching no category: ${r.unmatchedServices.join(", ")}`);
+      }
+      if ((r.districtCandidates || []).length) {
+        bits.push(`district could be ${r.districtCandidates.join(" or ")}`);
+      }
+      add("SALON_NEEDS_REVIEW", "warn", d.data().salonName || d.id,
+        bits.join("; ") || "The discovery fields could not be derived confidently.");
+    });
+
+    // A salon that is listed, searchable, and cannot be booked on any day.
+    //
+    // Nothing fails when this happens. Every screen looks right: she appears in
+    // search, her profile opens, her services and prices are there — and the
+    // date picker offers no times, on any date, forever. Salons were created
+    // with an empty week while the provider editor showed a filled-in one, so
+    // the owner agreed with what she saw and saved nothing. The two creation
+    // paths are fixed and the Health tab can backfill the rest, but a backfill
+    // that was never pressed is exactly the kind of absence that survives here
+    // for months — so it is watched rather than assumed.
+    const listed = await db.collection("salons")
+      .where("isAvailable", "==", true)
+      .limit(200).get();
+    listed.docs.forEach((d) => {
+      const salon = d.data() || {};
+      if (!hasBookableWeek(salon)) {
+        add("SALON_UNBOOKABLE", "critical", salon.salonName || d.id,
+          "Listed and searchable, but open on no day of the week — the date "
+          + "picker offers nothing. Run \u201cFill in missing opening hours\u201d "
+          + "on the Health tab, or ask the owner to set her hours.");
       }
     });
 
@@ -375,3 +540,5 @@ async function runIntegritySweep() {
 // stored English title/body, so nothing regresses.
 //
 // `type` is NOT the key: several distinct messages share type "SYSTEM".
+
+exports.parseGsUri = parseGsUri;

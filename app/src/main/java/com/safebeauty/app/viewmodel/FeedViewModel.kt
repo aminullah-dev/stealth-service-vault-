@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -38,9 +40,19 @@ class FeedViewModel @Inject constructor(
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Which posts this user has liked — one query for the whole grid. */
+    /**
+     * Which of the posts currently on screen this user has liked.
+     *
+     * Keyed on the set of post ids rather than on the posts themselves: a post
+     * document changes every time anyone likes it, and rebuilding the listeners
+     * on each of those would thrash. distinctUntilChanged means they are rebuilt
+     * only when the feed actually shows different posts.
+     */
     val likedPostIds: StateFlow<Set<String>> =
-        repo.observeMyLikes(userId)
+        posts
+            .map { list -> list.map { it.id } }
+            .distinctUntilChanged()
+            .flatMapLatest { ids -> repo.observeMyLikes(userId, ids) }
             .catch { emit(emptySet()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 

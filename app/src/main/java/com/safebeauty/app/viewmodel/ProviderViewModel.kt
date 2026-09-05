@@ -27,12 +27,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.zip
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class ProviderAnalytics(
@@ -51,7 +54,8 @@ class ProviderViewModel @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val storageRepository: StorageRepository,
     private val paymentRepository: PaymentRepository,
-    private val vaultRepository: VaultRepository
+    private val vaultRepository: VaultRepository,
+    private val languageRepository: com.safebeauty.app.data.repository.LanguageRepository,
 ) : ViewModel() {
 
     val providerId: String = checkNotNull(savedStateHandle["userId"])
@@ -61,6 +65,42 @@ class ProviderViewModel @Inject constructor(
             .catch { emit(null) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /**
+     * A salon owner signing in to find no salon.
+     *
+     * Registration creates the account and then, in a separate call, the salon.
+     * When that second call failed she was left with a working account and
+     * nothing to run — createProviderSalon is invoked from exactly one place in
+     * the app, the registration screen, which she has already left for good.
+     *
+     * The details she typed were kept on her user document precisely so this
+     * could finish the job. Attempted once per ViewModel, and silent either way:
+     * if it fails she is no worse off than she was, and the next sign-in tries
+     * again.
+     *
+     * `salon` starts at null before the listener has answered, so a null on its
+     * own means "not yet", not "there isn't one". Waiting for the first non-null
+     * with a timeout is what distinguishes them — otherwise this fires an extra
+     * read on every ViewModel creation for every salon owner on the platform,
+     * for a case that affects almost none of them.
+     */
+    private var pendingSalonAttempted = false
+
+    init {
+        viewModelScope.launch {
+            // Long enough for a cold Firestore listener on a slow connection,
+            // short enough that a genuinely missing salon is fixed while she is
+            // still on the screen wondering where it is.
+            val existing = withTimeoutOrNull(8_000) { salon.filterNotNull().first() }
+            if (existing != null || pendingSalonAttempted) return@launch
+            val user = runCatching { firestoreRepository.getUserById(providerId) }.getOrNull()
+                ?: return@launch
+            if (user.pendingSalonName.isBlank()) return@launch
+            pendingSalonAttempted = true
+            firestoreRepository.finishPendingSalon(user)
+        }
+    }
+
     // Optimistic override: set immediately on toggle, cleared when Firestore confirms.
     private val _availableOverride = MutableStateFlow<Boolean?>(null)
 
@@ -68,8 +108,25 @@ class ProviderViewModel @Inject constructor(
         override ?: (s?.isAvailable ?: false)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    /**
+     * Announcements meant for this salon owner, in her language, and — when the
+     * console targeted one ناحیه — only if her salon is in it. All three fields
+     * have been written by the Announce tab since it was built and read by
+     * nothing, so every message went to everybody.
+     */
     val broadcasts: StateFlow<List<BroadcastDocument>> =
-        firestoreRepository.observeBroadcasts()
+        combine(
+            firestoreRepository.observeBroadcasts(),
+            languageRepository.language,
+            salon,
+        ) { all, lang, s ->
+            firestoreRepository.visibleBroadcasts(
+                all,
+                role = "PROVIDER",
+                lang = lang.code,
+                districtKey = s?.districtKey.orEmpty(),
+            )
+        }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -81,13 +138,41 @@ class ProviderViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val allAppointments: StateFlow<List<AppointmentDocument>> = salon
-        .flatMapLatest { s ->
-            if (s != null) firestoreRepository.observeAllForSalon(s.id)
-            else flowOf(emptyList())
+    // ── Calendar: one month at a time ────────────────────────────────────────
+    //
+    // The calendar used to receive every appointment the salon had ever taken
+    // and keep the ones falling in the month on screen. The month it is showing
+    // is now part of the query, so paging back through a busy salon's history
+    // costs one month at a time instead of all of it at once.
+
+    private val _calendarMonth = MutableStateFlow(
+        java.util.Calendar.getInstance().let {
+            it.get(java.util.Calendar.YEAR) to it.get(java.util.Calendar.MONTH)
         }
-        .catch { emit(emptyList()) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    )
+
+    /** Called by the calendar when the provider pages to a different month. */
+    fun showCalendarMonth(year: Int, month: Int) {
+        _calendarMonth.value = year to month
+    }
+
+    val monthAppointments: StateFlow<List<AppointmentDocument>> =
+        combine(salon, _calendarMonth) { s, ym -> s to ym }
+            .flatMapLatest { (s, ym) ->
+                if (s == null) flowOf(emptyList())
+                else {
+                    val (year, month) = ym
+                    // Device timezone, matching the grid the calendar draws.
+                    val cal = java.util.Calendar.getInstance().apply {
+                        clear(); set(year, month, 1, 0, 0, 0)
+                    }
+                    val start = cal.timeInMillis
+                    cal.add(java.util.Calendar.MONTH, 1)
+                    firestoreRepository.observeAppointmentsForMonth(s.id, start, cal.timeInMillis)
+                }
+            }
+            .catch { emit(emptyList()) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val reviews: StateFlow<List<ReviewDocument>> = salon
         .flatMapLatest { s ->
@@ -97,21 +182,41 @@ class ProviderViewModel @Inject constructor(
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val analytics: StateFlow<ProviderAnalytics> = allAppointments
-        .map { appointments ->
-            ProviderAnalytics(
-                total             = appointments.size,
-                // COMPLETED is a finished CONFIRMED booking (a scheduled function
-                // flips past ones over), so it still counts as an accepted booking.
-                confirmed         = appointments.count { it.status == "CONFIRMED" || it.status == "COMPLETED" },
-                pending           = appointments.count { it.status == "PENDING" },
-                cancelled         = appointments.count { it.status == "CANCELLED" },
-                byService         = appointments.groupingBy { it.serviceName }.eachCount(),
-                confirmedByService = appointments
-                    .filter { it.status == "CONFIRMED" || it.status == "COMPLETED" }
-                    .groupingBy { it.serviceName }.eachCount()
-            )
+    /**
+     * Lifetime totals, read from the tally rather than counted here.
+     *
+     * These used to be computed over every appointment the salon had ever taken,
+     * downloaded to the phone for the purpose. The numbers are the same; what
+     * changed is that reading them no longer costs more each year the salon
+     * stays in business.
+     */
+    val analytics: StateFlow<ProviderAnalytics> = salon
+        .flatMapLatest { s ->
+            if (s == null) flowOf(null) else firestoreRepository.observeSalonStats(s.id)
         }
+        .map { stats ->
+            if (stats == null) ProviderAnalytics()
+            else {
+                fun n(key: String) = (stats.byStatus[key] ?: 0L).toInt()
+                ProviderAnalytics(
+                    total = stats.total.toInt(),
+                    // COMPLETED is a finished CONFIRMED booking (a scheduled
+                    // function flips past ones over), so it still counts as an
+                    // accepted booking.
+                    confirmed          = n("CONFIRMED") + n("COMPLETED"),
+                    pending            = n("PENDING"),
+                    cancelled          = n("CANCELLED"),
+                    // Emptied buckets are dropped. Firestore's increment leaves a
+                    // key behind at zero once its last booking moves away, and a
+                    // service with no bookings is not a row in the breakdown.
+                    byService          = stats.byService.filterValues { it > 0L }
+                                              .mapValues { (_, v) -> v.toInt() },
+                    confirmedByService = stats.confirmedByService.filterValues { it > 0L }
+                                              .mapValues { (_, v) -> v.toInt() }
+                )
+            }
+        }
+        .catch { emit(ProviderAnalytics()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ProviderAnalytics())
 
     val estimatedRevenue: StateFlow<Int> = combine(analytics, salon) { a, s ->
@@ -239,6 +344,7 @@ class ProviderViewModel @Inject constructor(
     // ── Profile-edit UI state ─────────────────────────────────────────────────
 
     var editDistrict     by mutableStateOf("")
+    var editAreaKey      by mutableStateOf("")
     var editServices     by mutableStateOf<List<String>>(emptyList())
     var newServiceDraft  by mutableStateOf("")
     var showSaveSuccess  by mutableStateOf(false)
@@ -275,6 +381,7 @@ class ProviderViewModel @Inject constructor(
             salon.collect { s ->
                 if (s != null && editDistrict.isEmpty()) {
                     editDistrict = s.district
+                    editAreaKey  = s.areaKey
                     editServices = s.services
                     editWorkingHours = s.workingHours.ifEmpty { defaultWorkingHours() }
                     editSlotDuration = s.slotDurationMinutes.takeIf { it > 0 } ?: 60
@@ -350,7 +457,11 @@ class ProviderViewModel @Inject constructor(
         }
     }
 
-    fun onDistrictChanged(v: String)        { editDistrict = v }
+    // Changing the district clears the finer area: a گذر belongs to exactly one
+    // ناحیه, so keeping the old one would leave the salon claiming a guzar that
+    // is not in the district it says it is in.
+    fun onDistrictChanged(v: String)        { if (v != editDistrict) editAreaKey = ""; editDistrict = v }
+    fun onAreaKeyChanged(v: String)         { editAreaKey = v }
     fun onHesabAccountNumberChanged(v: String) { editHesabAccountNumber = v }
     fun onNewServiceDraftChanged(v: String) { newServiceDraft = v }
     fun setPriceForService(service: String, price: Int) {
@@ -486,6 +597,7 @@ class ProviderViewModel @Inject constructor(
                 firestoreRepository.updateSalon(
                     current.copy(
                         district            = editDistrict,
+                        areaKey             = editAreaKey,
                         services            = editServices,
                         workingHours        = editWorkingHours,
                         slotDurationMinutes = editSlotDuration,

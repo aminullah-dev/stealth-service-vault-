@@ -142,7 +142,7 @@ fun AdminDashboardScreen(
     val currentLanguage  by langVm.language.collectAsStateWithLifecycle()
     val pendingProviders by viewModel.pendingProviders.collectAsStateWithLifecycle()
     val approvalsLoaded  by viewModel.approvalsLoaded.collectAsStateWithLifecycle()
-    val allUsers         by viewModel.allUsers.collectAsStateWithLifecycle()
+    val users            by viewModel.users.collectAsStateWithLifecycle()
     val usersLoaded      by viewModel.usersLoaded.collectAsStateWithLifecycle()
     val allSalons        by viewModel.allSalons.collectAsStateWithLifecycle()
     val stats            by viewModel.stats.collectAsStateWithLifecycle()
@@ -246,7 +246,7 @@ fun AdminDashboardScreen(
                 when (selectedTab) {
                     0 -> ApprovalsTab(pendingProviders, approvalsLoaded, viewModel)
                     1 -> KycReviewTab(kycPending, kycLoaded, viewModel)
-                    2 -> UsersTab(allUsers, usersLoaded, viewModel)
+                    2 -> UsersTab(users, usersLoaded, viewModel)
                     3 -> SalonsTab(allSalons, viewModel)
                     4 -> StatsTab(stats, statsLoaded)
                     5 -> BroadcastTab(broadcasts, viewModel)

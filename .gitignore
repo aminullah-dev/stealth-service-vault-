@@ -47,4 +47,17 @@ Thumbs.db
 
 # ─── Kotlin ──────────────────────────────────────────────────────────────────
 .kotlin/
-.claude/
+
+# ─── Claude Code ─────────────────────────────────────────────────────────────
+# Local session state stays out; the agents and skills do not. They are project
+# assets written to be shared — a cloud routine clones this repository and reads
+# .claude/skills/ to learn the marketing safety rules, so an ignored skill is a
+# routine that runs with no rules at all.
+.claude/*
+!.claude/agents/
+!.claude/skills/
+
+# What the last successful functions deploy shipped, per project. Local state:
+# a teammate cannot know what your machine deployed, and a stale shared value
+# would narrow the next deploy to nothing.
+.firebase/functions-deployed-*

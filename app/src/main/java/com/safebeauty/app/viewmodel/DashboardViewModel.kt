@@ -59,14 +59,31 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import com.safebeauty.app.util.Areas
 import javax.inject.Inject
 
 // Internal English keys used for Firestore filtering — independent of display language.
 private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare", "Eyebrows")
-// Index 0 is the "show everything" sentinel; the rest are the canonical Kabul
-// area keys shared with the provider's district picker (see KabulAreas), so a
-// salon's stored `district` always lines up with a filter option.
-private val NEIGHBORHOOD_KEYS = listOf("All Neighborhoods") + com.safebeauty.app.util.KabulAreas.keys
+// Index 0 is the "show everything" sentinel; the rest are the districts of ONE
+// city, shared with the provider's district picker (see Areas), so a salon's
+// stored district always lines up with a filter option.
+//
+// Scoped to a city rather than listing every area in the country: the flat list
+// was workable with Kabul's 64 and is not with 121 across four cities, and a
+// Kabul customer has no use for Herat's districts. Districts only — a گذر is a
+// level below what anyone filters by.
+// With no city chosen there is no area list to offer: areas are only meaningful
+// inside one city, and concatenating four cities' worth would put two
+// "ناحیه اول" entries next to each other with nothing to tell them apart.
+//
+// Both levels are offered — every ناحیه, and under each the گذرها and محله‌ها
+// recorded inside it. A salon in District 17 whose neighbourhood is Khair Khana
+// has to be findable by someone who thinks in districts and by someone who
+// thinks in neighbourhoods, because both are how people give an address here.
+private fun neighborhoodKeysFor(cityKey: String): List<String> =
+    listOf("All Neighborhoods") +
+        (if (cityKey.isBlank()) emptyList()
+         else com.safebeauty.app.util.Areas.filterableIn(cityKey).map { it.key })
 
 data class BookingStatusChange(
     val salonName: String,
@@ -127,13 +144,37 @@ class DashboardViewModel @Inject constructor(
     private val vaultRepository: VaultRepository,
     private val languageRepository: LanguageRepository,
     private val favoritesRepository: FavoritesRepository,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val sessionManager: com.safebeauty.app.security.SessionManager,
 ) : ViewModel() {
 
     val customerId: String = checkNotNull(savedStateHandle["userId"])
 
     val categoryCount     = CATEGORY_KEYS.size
-    val neighborhoodCount = NEIGHBORHOOD_KEYS.size
+    /** The city whose salons and districts the customer is looking at. */
+    // Blank means every city, and it is the default deliberately.
+    //
+    // Defaulting to KABUL put `whereEqualTo("city", "KABUL")` on every salon
+    // query, and a Firestore equality does not match a document that lacks the
+    // field at all. Every salon in production lacks it until the discovery
+    // backfill runs, so shipping that default would have opened the app on an
+    // empty marketplace — not a narrowed list, nothing — and it would have
+    // depended on a deploy happening in the right order to avoid it.
+    //
+    // It also permanently hid the salons whose district cannot be resolved:
+    // those derive city = "" for good, and an equality never reaches them.
+    // Filtering only on an explicit choice makes both cases visible instead.
+    private val _selectedCity = MutableStateFlow("")
+    val selectedCity: StateFlow<String> = _selectedCity
+
+    fun onCityChanged(cityKey: String) {
+        if (cityKey == _selectedCity.value) return
+        _selectedCity.value = cityKey
+        // The district indices belong to the old city's list.
+        _selectedNeighborhoodIndex.value = 0
+    }
+
+    val neighborhoodCount get() = neighborhoodKeysFor(_selectedCity.value).size
 
     private val _selectedCategoryIndex      = MutableStateFlow(0)
     private val _selectedNeighborhoodIndex  = MutableStateFlow(0)
@@ -162,8 +203,22 @@ class DashboardViewModel @Inject constructor(
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
+    /**
+     * Announcements meant for this customer, in her language.
+     *
+     * The console has always written targetRole/targetLang/targetDistrict and
+     * the app never read any of them, so every announcement reached everybody —
+     * a Pashto message aimed at Pashto readers appeared above a Dari interface.
+     * Combined with the language flow so switching language re-filters, rather
+     * than leaving the wrong message on screen until the next fetch.
+     */
     val broadcasts: StateFlow<List<BroadcastDocument>> =
-        firestoreRepository.observeBroadcasts()
+        combine(
+            firestoreRepository.observeBroadcasts(),
+            languageRepository.language,
+        ) { all, lang ->
+            firestoreRepository.visibleBroadcasts(all, role = "CUSTOMER", lang = lang.code)
+        }
             .catch { emit(emptyList()) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -180,6 +235,9 @@ class DashboardViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     var reviewThanksShown by mutableStateOf(false)
+        private set
+    /** The review could not be sent. Shown instead of the thanks dialog. */
+    var reviewFailed by mutableStateOf(false)
         private set
 
     private val connectivityManager =
@@ -226,9 +284,16 @@ class DashboardViewModel @Inject constructor(
     private fun currentSalonFilter(): FirestoreRepository.SalonFilter {
         val catIdx  = _selectedCategoryIndex.value
         val hoodIdx = _selectedNeighborhoodIndex.value
+        val pickedArea = neighborhoodKeysFor(_selectedCity.value)
+            .getOrElse(hoodIdx) { "" }
+            .takeIf { hoodIdx > 0 } ?: ""
         return FirestoreRepository.SalonFilter(
-            districtKey = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "" }
-                .takeIf { hoodIdx > 0 } ?: "",
+            city        = _selectedCity.value,
+            // The chosen key goes to whichever field holds its level. A ناحیه
+            // is stored in districtKey; a گذر or محله is stored in areaKey, and
+            // constraining the wrong one would silently return nothing.
+            districtKey = pickedArea.takeIf { it.isNotBlank() && Areas.isDistrict(it) } ?: "",
+            areaKey     = pickedArea.takeIf { it.isNotBlank() && !Areas.isDistrict(it) } ?: "",
             category    = CATEGORY_KEYS.getOrElse(catIdx) { "" }
                 .takeIf { catIdx > 0 } ?: "",
             favoriteIds = if (_showFavoritesOnly.value) favoriteIds.value.toList() else emptyList(),
@@ -301,43 +366,12 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    val filteredSalons: StateFlow<List<SalonDocument>> = combine(
-        combine(
-            _allAvailableSalons,
-            _selectedCategoryIndex,
-            _selectedNeighborhoodIndex,
-            favoriteIds,
-            _showFavoritesOnly
-        ) { salons, catIdx, hoodIdx, favorites, favOnly ->
-            val category     = CATEGORY_KEYS.getOrElse(catIdx) { "All" }
-            val neighborhood = NEIGHBORHOOD_KEYS.getOrElse(hoodIdx) { "All Neighborhoods" }
-            salons.filter { salon ->
-                // `categories` is the server-derived canonical list. The old
-                // substring check is kept as a fallback rather than replaced:
-                // it compared an English key against whatever a salon typed, so
-                // a salon offering "ناخن" never matched "Nails" and every chip
-                // returned nothing. Keeping it means this is strictly better
-                // than before for a salon the backfill has not reached yet, and
-                // never worse.
-                val catMatch  = category == "All" ||
-                    salon.categories.contains(category) ||
-                    salon.services.any { it.contains(category, ignoreCase = true) }
-                // Same shape: districtKey when it has been derived, the raw
-                // stored value otherwise, so a legacy free-text district is no
-                // less findable than it is today.
-                val hoodMatch = neighborhood == "All Neighborhoods" ||
-                    salon.districtKey == neighborhood ||
-                    salon.district == neighborhood
-                val favMatch  = !favOnly || favorites.contains(salon.id)
-                catMatch && hoodMatch && favMatch
-            }
-        },
-        _searchQuery
-    ) { preFilt, query ->
-        if (query.isBlank()) preFilt
-        else preFilt.filter { it.salonName.contains(query, ignoreCase = true) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
+    // filteredSalons lived here: the whole salons collection, filtered on the
+    // device by category, neighbourhood, favourites and search. Server-side
+    // discovery replaced every one of those filters, and the UI switched to
+    // displayedSalons — but this was left behind, still subscribed. Nothing read
+    // it, so it was thirty-six lines whose only effect was to keep a listener on
+    // every salon alive.
     // ── Advanced filter + sort (rating / price / distance) ──────────────────────
     private val _customerLoc = MutableStateFlow<Pair<Double, Double>?>(null)
     val customerLoc: StateFlow<Pair<Double, Double>?> = _customerLoc
@@ -380,7 +414,7 @@ class DashboardViewModel @Inject constructor(
         s.pricePerService.values.filter { it > 0 }.minOrNull()
 
     /**
-     * The salon list actually shown: [filteredSalons] narrowed by the minimum
+     * The salon list actually shown: the loaded pages narrowed by the minimum
      * rating and maximum price, then ordered by the chosen sort (nearest / top
      * rated / cheapest). Salons missing the sort key fall to the end.
      */
@@ -441,7 +475,11 @@ class DashboardViewModel @Inject constructor(
     // Salons scored by how well they match the customer's booking history.
     // Requires ≥1 past appointment; shows up to 5 recommendations.
     val recommendedSalons: StateFlow<List<SalonDocument>> = combine(
-        _allAvailableSalons, myAppointments
+        // Recommends from the pages already loaded rather than from every salon
+        // on the platform. The scoring is a ranking of candidates, so a smaller
+        // candidate set changes which five come back, not whether the feature
+        // works — and it is the same set the customer is scrolling.
+        _pagedSalons, myAppointments
     ) { salons, appointments ->
         if (appointments.isEmpty()) return@combine emptyList()
         val serviceFreq   = appointments.groupingBy { it.serviceName }.eachCount()
@@ -747,6 +785,9 @@ class DashboardViewModel @Inject constructor(
         private set
     var noWorkingHours by mutableStateOf(false)
         private set
+    /** The booked-slot read failed, so no day can be presented as free. */
+    var slotsFailed by mutableStateOf(false)
+        private set
 
     // ── Customer profile editing ──────────────────────────────────────────────
     var editName by mutableStateOf("")
@@ -1009,11 +1050,20 @@ class DashboardViewModel @Inject constructor(
                     "salonId=$salonId rating=$rating photos=${imageUrls.size}"
                 )
                 reviewThanksShown = true
+            }.onFailure {
+                // runCatching with nothing after it: a review that failed to send
+                // showed no thanks dialog and no error, so the customer saw her
+                // tap do nothing. She writes it again, and if the first attempt
+                // had in fact landed the second is refused as a duplicate — one
+                // silent failure becoming two.
+                reviewFailed = true
             }
         }
     }
 
     fun dismissReviewThanks() { reviewThanksShown = false }
+
+    fun dismissReviewError() { reviewFailed = false }
 
     private fun scheduleReminders(appt: AppointmentDocument) {
         val strings = StringResources.forLanguage(languageRepository.language.value)
@@ -1067,6 +1117,7 @@ class DashboardViewModel @Inject constructor(
     private var lastAttemptNotes: String = ""
     private var lastAttemptStaffId: String = ""
     private var lastAttemptPackageId: String = ""
+    private var lastAttemptParty: List<Map<String, Any>> = emptyList()
     val lastAttemptServiceList: List<String> get() = lastAttemptServices
     val lastAttemptStaff: String   get() = lastAttemptStaffId
     val lastAttemptPackage: String get() = lastAttemptPackageId
@@ -1079,7 +1130,8 @@ class DashboardViewModel @Inject constructor(
         notes: String = "",
         paymentMethod: String = "ONLINE",
         staffId: String = "",
-        packageId: String = ""
+        packageId: String = "",
+        party: List<Map<String, Any>> = emptyList()
     ) {
         // Funnel step 3: the moment of intent, logged before the network call so
         // it counts even when checkout then fails.
@@ -1097,6 +1149,7 @@ class DashboardViewModel @Inject constructor(
         lastAttemptNotes     = notes
         lastAttemptStaffId   = staffId
         lastAttemptPackageId = packageId
+        lastAttemptParty     = party
         // Only send a code that was actually validated for THIS service, so a
         // stale/mismatched code can't slip into the charge.
         val appliedCode = promoApplied?.code.orEmpty()
@@ -1110,7 +1163,8 @@ class DashboardViewModel @Inject constructor(
                 method            = paymentMethod,
                 promoCode         = appliedCode,
                 staffId           = staffId,
-                packageId         = packageId
+                packageId         = packageId,
+                party             = party
             )
             if (outcome is CheckoutOutcome.Failure) {
                 // Keep the attempt so the Failed dialog can offer a specific retry.
@@ -1138,7 +1192,19 @@ class DashboardViewModel @Inject constructor(
      *  online charge 0 (HesabPay can't charge 0). Keeps every other selection. */
     fun retryLastAsCash() {
         val salon = lastAttemptSalon ?: return
-        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "CASH", lastAttemptStaffId, lastAttemptPackageId)
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "CASH", lastAttemptStaffId, lastAttemptPackageId, lastAttemptParty)
+    }
+
+    /**
+     * Retry the last rejected booking online — used when the server refused cash.
+     *
+     * The refusal is the whole point of the rule, so the recovery is not to argue
+     * with it but to make the alternative one tap away. Losing the booking here
+     * would punish the salon a second time.
+     */
+    fun retryLastAsOnline() {
+        val salon = lastAttemptSalon ?: return
+        bookService(salon, lastAttemptServices, lastAttemptSlotMs, lastAttemptNotes, "ONLINE", lastAttemptStaffId, lastAttemptPackageId, lastAttemptParty)
     }
 
     /** Retry the last rejected booking after dropping the promo code — used when
@@ -1208,34 +1274,110 @@ class DashboardViewModel @Inject constructor(
      * whole slot; the total is divided by the slot granularity and rounded up
      * (min 1). With no durations set this equals the service count — unchanged.
      */
-    fun slotSpanFor(salon: SalonDocument, serviceNames: List<String>): Int {
-        if (serviceNames.isEmpty()) return 1
-        val step = salon.slotDurationMinutes.coerceAtLeast(1)
-        val totalMinutes = serviceNames.sumOf { name ->
-            val d = salon.durationPerService[name] ?: 0
-            if (d > 0) d else step
-        }
-        return ((totalMinutes + step - 1) / step).coerceAtLeast(1)
-    }
-
-    fun loadSlotsForDate(salon: SalonDocument, dateMs: Long, selectedStaffId: String = "", slotSpan: Int = 1) {
+    /**
+     * Load the start times a booking of [services] could take on [dateMs].
+     *
+     * Takes the services rather than a pre-computed span so the layout is worked
+     * out in one place. The screen used to compute the span and pass it in, which
+     * is one more copy of the rule than there should be — and the copy that is
+     * wrong is the one that offers a customer a slot the server then refuses.
+     */
+    fun loadSlotsForDate(
+        salon: SalonDocument,
+        dateMs: Long,
+        selectedStaffId: String = "",
+        services: List<String> = emptyList(),
+        /** A wedding party's guests, when this is one. Everyone works at once. */
+        party: List<Pair<String, List<String>>> = emptyList(),
+        /**
+         * The booking being moved, when this is a reschedule.
+         *
+         * Its own slots are not obstacles to itself — the server says so too
+         * (hasSlotConflict takes the same exclusion) — and without this a woman
+         * rescheduling her 10:00 appointment saw 10:00, and every slot her
+         * booking spans, as taken. At a solo salon with no other customers that
+         * is most of her day, offered back to her as unavailable.
+         */
+        excludeAppointmentId: String = "",
+    ) {
         viewModelScope.launch {
             slotsLoading = true
             noWorkingHours = false
-            val booked = runCatching {
+            slotsFailed = false
+            // A failed read used to become an empty booked-list, which renders as
+            // a completely free day. The customer picks a time, the server
+            // refuses it — correctly, it does its own conflict check — and she
+            // is told the slot is taken, again, with nothing explaining why.
+            // An unknown day has to say it is unknown.
+            val bookedOrNull = runCatching {
                 firestoreRepository.getBookedSlotsForSalon(salon.id, dateMs)
-            }.getOrDefault(emptyList())
-            val slots = computeSlots(salon, dateMs, booked, selectedStaffId, slotSpan)
+            }.getOrNull()
+            if (bookedOrNull == null) {
+                availableSlots = emptyList()
+                slotsFailed    = true
+                slotsLoading   = false
+                return@launch
+            }
+            val booked = bookedOrNull
+            // A party is the whole salon working in parallel, so its span is much
+            // shorter than the same services one after another. Using the ordinary
+            // layout here would offer a bride far fewer start times than the
+            // server would actually accept — safe, but it would hide the salon's
+            // afternoon from her.
+            val layout = if (party.isNotEmpty())
+                com.safebeauty.app.util.SlotMath.partyLayoutFor(salon, party)
+            else
+                com.safebeauty.app.util.SlotMath.layoutFor(salon, services)
+            val slots = computeSlots(
+                salon, dateMs,
+                if (excludeAppointmentId.isBlank()) booked
+                else booked.filterNot { it.id == excludeAppointmentId },
+                selectedStaffId, layout,
+            )
             if (salon.workingHours.isEmpty()) noWorkingHours = true
             availableSlots = slots
             slotsLoading = false
         }
     }
 
+    /**
+     * The customer is about to leave for HesabPay in a browser.
+     *
+     * The five-minute idle lock only sees touches inside this app, so paying —
+     * reading the page, typing a number, waiting for a confirmation — reads as
+     * idleness. Returning to the login screen with the payment dialog gone is
+     * the worst moment for it to fire, because the money may already have moved.
+     */
+    fun beginExternalPayment() = sessionManager.beginExternalPayment()
+
     fun clearSlots() {
         availableSlots = emptyList()
         slotsLoading = false
         noWorkingHours = false
+        slotsFailed = false
+    }
+
+    /**
+     * Clear the list and say so, before anything asynchronous starts.
+     *
+     * A reschedule has to fetch the salon before it can compute a single slot,
+     * and in that gap an empty list with slotsLoading false reads as "no times
+     * on this day" — the salon is closed, try another. Which is a different
+     * sentence from "one moment", and the wrong one.
+     */
+    fun beginSlotLoad() {
+        availableSlots = emptyList()
+        noWorkingHours = false
+        slotsFailed = false
+        slotsLoading = true
+    }
+
+    /** The salon itself could not be read, so no day can be judged. */
+    fun slotLoadFailed() {
+        availableSlots = emptyList()
+        noWorkingHours = false
+        slotsLoading = false
+        slotsFailed = true
     }
 
     /**
@@ -1262,7 +1404,7 @@ class DashboardViewModel @Inject constructor(
         dateMs: Long,
         booked: List<FirestoreRepository.BookedSlot>,
         selectedStaffId: String,
-        slotSpan: Int = 1
+        layout: com.safebeauty.app.util.SlotLayout,
     ): List<Long> {
         // Days the provider blocked off (time-off/holiday) offer no slots.
         if (salon.blockedDates.contains(com.safebeauty.app.util.DateUtils.kabulDateKey(dateMs))) {
@@ -1279,6 +1421,12 @@ class DashboardViewModel @Inject constructor(
         val activeStaff = salon.activeStaff()
         val capacity = if (activeStaff.isEmpty()) 1 else activeStaff.size
         val bookedByTime: Map<Long, List<FirestoreRepository.BookedSlot>> = booked.groupBy { it.time }
+        // Two sets, because a booking needs different things from each slot it
+        // covers. Every slot has to be inside opening hours — the client is in
+        // the salon for all of them. Only the slots the stylist is working have
+        // to be free; while a colour develops she can be booked by someone else,
+        // and that is the capacity this whole feature exists to sell.
+        val inHours = mutableListOf<Long>()
         val slots = mutableListOf<Long>()
         val openCal = Calendar.getInstance().apply {
             timeInMillis = dateMs
@@ -1300,6 +1448,17 @@ class DashboardViewModel @Inject constructor(
             if (slotMs > now) {
                 val atSlot = bookedByTime[slotMs].orEmpty()
                 val free = when {
+                    // Somebody else's wedding takes the salon, so nothing fits
+                    // beside it whatever the chair count says. Checked before the
+                    // capacity arithmetic, which would otherwise report two of
+                    // three stylists free during a party that has all of them.
+                    atSlot.any { it.isParty }    -> false
+                    // A party needs everyone. hasSlotConflict widens to every
+                    // chair when the request is one, so a slot with two of three
+                    // stylists free is a slot the server will refuse — and a
+                    // start time offered and then refused is worse than one
+                    // never offered, because it is refused at the till.
+                    layout.wholeSalon            -> atSlot.isEmpty()
                     // A specific stylist was chosen: free unless that stylist is
                     // already booked at this time.
                     selectedStaffId.isNotEmpty() -> atSlot.none { it.staffId == selectedStaffId }
@@ -1308,20 +1467,22 @@ class DashboardViewModel @Inject constructor(
                     // "Any available": free while a chair is still open.
                     else                         -> atSlot.size < capacity
                 }
+                inHours.add(slotMs)
                 if (free) slots.add(slotMs)
             }
             openCal.add(Calendar.MINUTE, slotDuration)
         }
-        // A multi-service / group booking needs [slotSpan] back-to-back free slots,
-        // so a start time only qualifies when every slot it would occupy is also
-        // free (and still within opening hours). This mirrors the server-side
-        // expansion in lib/slots.js so the customer can't start a long booking that
-        // would run into an existing appointment or past closing time.
-        if (slotSpan <= 1) return slots
-        val freeSet = slots.toHashSet()
-        val stepMs  = slotDuration * 60_000L
+        // A start time qualifies when the stylist is free for every slot she is
+        // working, and the whole booking — development gap included — still fits
+        // inside opening hours. Mirrors serviceLayout + hasSlotConflict on the
+        // server, so the customer is not offered a slot she would be refused.
+        if (layout.span <= 1 && layout.busyOffsets.size <= 1) return slots
+        val freeSet    = slots.toHashSet()
+        val inHoursSet = inHours.toHashSet()
+        val stepMs     = slotDuration * 60_000L
         return slots.filter { start ->
-            (0 until slotSpan).all { i -> freeSet.contains(start + i * stepMs) }
+            layout.busyOffsets.all { i -> freeSet.contains(start + i * stepMs) } &&
+                (0 until layout.span).all { i -> inHoursSet.contains(start + i * stepMs) }
         }
     }
 

@@ -3,9 +3,11 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const { normalizeDistrict } = require("../lib/areas");
-const { categoriesFor, categoryNormalize } = require("../lib/categories");
-const { assertAdmin, logAdminAction } = require("../shared");
+const { normalizeDistrict, cityOf, AREAS } = require("../lib/areas");
+// `normalize` is imported under a clearer local name — lib/categories has no
+// export called categoryNormalize, and dropping the rename made it undefined.
+const { categoriesFor, normalize: categoryNormalize } = require("../lib/categories");
+const { assertAdmin, idPage, logAdminAction, pageCursor, pageEnd } = require("../shared");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -216,12 +218,78 @@ function salonMinPrice(salon) {
 
 /** What the derived fields should be for a salon, given what it stores. */
 
+/** Area lookup by key, built once — deriveSalonDiscovery runs on every write. */
+const AREA_BY_KEY = new Map(AREAS.map((a) => [a.key, a]));
+
+/**
+ * The city a salon is in, which is knowable more often than its district.
+ *
+ * A resolved district answers it outright. An unresolved one still answers it
+ * whenever every candidate sits in the same city — ambiguity about which of two
+ * Kabul areas it is says nothing about whether it is Kabul.
+ *
+ * Returns "" only when that genuinely cannot be told: no candidates, or
+ * candidates spanning more than one city.
+ */
+function cityOfCandidates(districtKey, candidates) {
+  if (districtKey) return cityOf(districtKey);
+  const cities = new Set(
+    (Array.isArray(candidates) ? candidates : []).map(cityOf).filter(Boolean)
+  );
+  return cities.size === 1 ? [...cities][0] : "";
+}
+
 function deriveSalonDiscovery(salon) {
   const { categories, unmatched } = categoriesFor(salon && salon.services);
   const area = normalizeDistrict(salon && salon.district);
+  const districtKey = area.key || "";
+
+  // The finer گذر/محله, kept only when it is a real area that actually sits in
+  // the district the salon claims. A salon could otherwise store a guzar from
+  // another district — or another city — and be displayed at an address it is
+  // not at. Where it does not check out the field is emptied rather than
+  // corrected: an unverifiable address should show as absent, not as a guess.
+  // Either what the salon picked, or what its own free text named alongside the
+  // district — "خیرخانه مینه ناحیه ۱۷" states both, and the neighbourhood half
+  // was being discarded.
+  const claimed = String((salon && salon.areaKey) || "").trim();
+  const finer = claimed && AREA_BY_KEY.get(claimed);
+  // Accepted when the finer area is recorded as sitting in this district — or
+  // when its parent is simply not recorded and it is at least in the same city.
+  //
+  // Kabul's forty-two neighbourhoods have no parent: nobody published the
+  // pairing and guessing it would place a salon in a district it is not in. But
+  // requiring a parent made every one of them unusable, so a Kabul salon could
+  // never record a محله at all. Same-city is the weaker claim the data actually
+  // supports, and it still refuses a Mazar guzar under a Herat district.
+  const sameCity = finer && cityOf(finer.key) === cityOf(districtKey) && cityOf(districtKey) !== "";
+  const areaKey = (finer && finer.kind !== "DISTRICT" &&
+                   (finer.parent === districtKey || (!finer.parent && sameCity)))
+    ? claimed
+    : "";
+
   return {
     categories,
-    districtKey: area.key || "",
+    districtKey,
+    areaKey,
+    // Widened past the district on purpose.
+    //
+    // Refusing to pick between two candidate districts is right — they place a
+    // salon at different points on the map. But that refusal was being spent on
+    // the city too, and the city was never in doubt: "خیرخانه مینه ناحیه ۱۷"
+    // resolves to KBL_D17 and KBL_Khair_Khana, and whichever one it is, the
+    // salon is in Kabul. Emptying city there is not caution, it is a guess in
+    // the other direction — and a costly one, because an equality filter on
+    // city matches no document whose field is "", so the salon vanished from
+    // every city-filtered search rather than merely lacking a district.
+    //
+    // So: the shared prefix when every candidate agrees on one city, "" when
+    // they disagree or there are none. The district stays empty and the review
+    // flag stays raised either way — this decides only what is already decided.
+    city: cityOfCandidates(districtKey, area.candidates),
+    // What the salon actually typed, carried so the review flag can tell "left
+    // it blank" apart from "typed something that matched nothing". Not stored.
+    districtRaw: String((salon && salon.district) || "").trim(),
     // Prefix-searchable form of the name. Firestore cannot match a substring,
     // but a range on a normalized name gives prefix search, which is what a
     // customer typing the start of a salon name actually needs.
@@ -239,12 +307,47 @@ function deriveSalonDiscovery(salon) {
 /** The subset of derived values that actually get stored on the document. */
 
 function storedDiscoveryFields(derived) {
+  const review = {
+    unmatchedServices:  derived.unmatchedServices,
+    districtCandidates: derived.districtCandidates,
+  };
   return {
     categories:  derived.categories,
     districtKey: derived.districtKey,
+    areaKey:     derived.areaKey,
+    // Derived alongside the district rather than stored separately by the
+    // salon, so the two can never disagree about which city a salon is in.
+    // Taken from the derivation, not recomputed from districtKey here: those
+    // two were the same value until the city learned to resolve from ambiguous
+    // candidates, and recomputing would have silently kept the old narrow
+    // answer while discoveryUpToDate compared against the new one — a salon
+    // rewritten on every sweep and never correct.
+    city:        derived.city,
     nameKey:     derived.nameKey,
     minPrice:    derived.minPrice,
     sortRating:  derived.sortRating,
+    // Stored, not only logged. The derivation refuses to guess when it cannot
+    // decide confidently, which is right — but it was reporting that refusal to
+    // a log line, and a log line is not a queue. A salon whose only earning
+    // service matches no category does not appear under any category chip, and
+    // nobody was ever going to find that out.
+    //
+    // A boolean beside the detail because the nightly sweep queries it, and it
+    // lives in another domain: a flag it can filter on is the whole reason this
+    // is a field rather than a cross-domain import.
+    // The third case, which fell through both of the others: a salon typed an
+    // address that resolves to no key AND to no candidates. Nothing is
+    // ambiguous, so districtCandidates is empty and the flag stayed false —
+    // while districtKey "" derives city "", and an equality filter never
+    // matches a document whose field is empty. Such a salon was invisible in
+    // every filtered query, and absent from the queue meant to catch exactly
+    // that. Blank is not flagged: a salon that has not filled the field in is
+    // not an error to review, and flagging it fills the queue with rows nobody
+    // can act on.
+    needsDiscoveryReview: review.unmatchedServices.length > 0 ||
+                          review.districtCandidates.length > 0 ||
+                          (derived.districtRaw.length > 0 && derived.districtKey === ""),
+    discoveryReview:      review,
   };
 }
 
@@ -252,12 +355,30 @@ function storedDiscoveryFields(derived) {
 
 function discoveryUpToDate(salon, derived) {
   const stored = Array.isArray(salon.categories) ? salon.categories : [];
+  const sameList = (a, b) => {
+    const x = Array.isArray(a) ? a : [];
+    const y = Array.isArray(b) ? b : [];
+    return x.length === y.length && x.every((v, i) => v === y[i]);
+  };
+  const review = salon.discoveryReview || {};
   return stored.length === derived.categories.length
       && stored.every((c, i) => c === derived.categories[i])
       && (salon.districtKey || "") === derived.districtKey
+      // Compared even though it is derived from districtKey, which is compared
+      // one line above. Today that makes it redundant; the moment the districts
+      // are migrated it stops being, because city would then be the only field
+      // that could be missing — and a field this function does not look at is a
+      // field the backfill decides it does not need to write.
+      && (salon.city || "") === derived.city
+      && (salon.areaKey || "") === derived.areaKey
       && (salon.nameKey || "") === derived.nameKey
       && Number(salon.minPrice) === derived.minPrice
-      && Number(salon.sortRating) === derived.sortRating;
+      && Number(salon.sortRating) === derived.sortRating
+      // Also compared, or a salon whose services stop matching a category would
+      // keep its old derived fields, look up to date, and never be written —
+      // so the flag that says a person should look would never be raised.
+      && sameList(review.unmatchedServices, derived.unmatchedServices)
+      && sameList(review.districtCandidates, derived.districtCandidates);
 }
 
 // Keeps the derived fields correct as salons edit themselves, so the backfill is
@@ -340,8 +461,12 @@ exports.normalizeSalonsDaily = onSchedule(
 exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+  const after = pageCursor(request.data);
 
-  const snap = await db.collection("salons").orderBy("createdAt", "asc").limit(limit).get();
+  // Was orderBy("createdAt").limit(limit) with no cursor — the same first 300
+  // salons on every press, and none of the salons registered before createdAt
+  // existed. Those are the ones whose filter chips match nothing. See idPage.
+  const snap = await idPage("salons", limit, after);
 
   let updated = 0;
   const needsReview = [];
@@ -370,11 +495,12 @@ exports.adminNormalizeSalons = onCall({ region: "us-central1" }, async (request)
     scanned: snap.size, updated, needsReview: needsReview.length,
   });
 
-  return {
-    ok: true,
-    scanned: snap.size,
-    updated,
-    needsReview,
-    done: snap.size < limit,
-  };
+  return { ok: true, scanned: snap.size, updated, needsReview, ...pageEnd(snap, limit, after) };
 });
+
+
+// Exported for functions/test/discovery.test.js. These two are pure — the
+// derivation a salon's queryable fields come from — and a test that cannot
+// import what it tests reports itself as skipped, which reads like a pass.
+exports.deriveSalonDiscovery = deriveSalonDiscovery;
+exports.storedDiscoveryFields = storedDiscoveryFields;

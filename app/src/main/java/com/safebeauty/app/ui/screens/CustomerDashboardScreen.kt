@@ -63,6 +63,8 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.LocationCity
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Person
@@ -104,12 +106,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,6 +123,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -151,6 +153,7 @@ import com.safebeauty.app.data.firebase.ReviewDocument
 import com.safebeauty.app.data.firebase.SalonBadge
 import com.safebeauty.app.data.firebase.SalonDocument
 import com.safebeauty.app.data.firebase.activeStaff
+import com.safebeauty.app.data.firebase.serviceNamesFrom
 import com.safebeauty.app.data.firebase.hasLocation
 import com.safebeauty.app.data.firebase.LoyaltyTier
 import com.safebeauty.app.data.firebase.WaitlistEntry
@@ -198,7 +201,6 @@ import androidx.compose.material.icons.filled.Palette
 import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
@@ -210,6 +212,8 @@ import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
+import com.safebeauty.app.ui.components.SwipeHint
+import kotlin.math.abs
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -369,11 +373,15 @@ fun CustomerDashboardScreen(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
         strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
     )
-    // "All neighborhoods" + every canonical Kabul area (KabulAreas), localized
-    // to the current language. Parallel to the ViewModel's NEIGHBORHOOD_KEYS.
-    val neighborhoodLabels = remember(strings.language) {
+    // "All neighborhoods" + the districts of the selected city, localized.
+    // Must stay index-parallel with the ViewModel's neighborhoodKeysFor — the
+    // filter is chosen by position, so a labels list built from a different set
+    // than the keys list would silently filter by the wrong district.
+    val selectedCity by viewModel.selectedCity.collectAsStateWithLifecycle()
+    val neighborhoodLabels = remember(strings.language, selectedCity) {
         listOf(strings.neighborhoodAll) +
-            com.safebeauty.app.util.KabulAreas.labels(strings.language)
+            com.safebeauty.app.util.Areas.districtsIn(selectedCity)
+                .map { com.safebeauty.app.util.Areas.labelFor(it, strings.language) }
     }
 
     var showNeighborhoodMenu by remember { mutableStateOf(false) }
@@ -448,7 +456,6 @@ fun CustomerDashboardScreen(
     var showRescheduleDate  by remember { mutableStateOf(false) }
     var showRescheduleTime  by remember { mutableStateOf(false) }
     val rescheduleDateState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
-    val rescheduleTimeState = rememberTimePickerState(initialHour = 10, initialMinute = 0)
     var reviewTarget        by remember { mutableStateOf<AppointmentDocument?>(null) }
     var showOverflow        by remember { mutableStateOf(false) }
     var tipTarget           by remember { mutableStateOf<AppointmentDocument?>(null) }
@@ -610,7 +617,35 @@ fun CustomerDashboardScreen(
                     .fillMaxSize()
                     .background(Gradients.ScreenBg)
                     .padding(padding)
+                    // Explore and Favourites are the same screen with a
+                    // different filter, so a horizontal swipe between them is
+                    // honest. The other three bottom-bar items are not tabs at
+                    // all — two open a sheet and one leaves for another screen —
+                    // and nothing can be paged into a modal sheet, which is why
+                    // this is a two-state toggle and not a pager.
+                    //
+                    // Direction-agnostic on purpose: with two states, any
+                    // decisive horizontal drag means "the other one", and that
+                    // is the same gesture in Dari, Pashto and English rather
+                    // than one that reverses with the layout direction.
+                    .pointerInput(Unit) {
+                        val threshold = 90.dp.toPx()
+                        var travelled = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { travelled = 0f },
+                            onDragEnd   = {
+                                if (abs(travelled) > threshold) viewModel.toggleFavoritesOnly()
+                            },
+                            onDragCancel = { travelled = 0f },
+                            onHorizontalDrag = { _, amount -> travelled += amount },
+                        )
+                    }
             ) {
+
+                SwipeHint(
+                    text    = strings.swipeHintExploreFavourites,
+                    hintKey = "exploreFav",
+                )
 
                 // ── Offline banner ────────────────────────────────────────────
                 AnimatedVisibility(
@@ -700,6 +735,60 @@ fun CustomerDashboardScreen(
                     }
                 }
 
+                // ── City picker ───────────────────────────────────────────────
+                //
+                // The view model has carried a city for a while and nothing on
+                // screen could set it, so it sat blank and the neighbourhood
+                // menu below opened onto a single "all" row — districts only
+                // exist inside a city, so with none chosen there was nothing to
+                // list. A customer saw an empty dropdown and no way to fix it.
+                //
+                // Blank stays a real option: with four cities and a handful of
+                // salons, "everywhere" is the honest default, and picking a city
+                // is narrowing rather than a gate to get past.
+                var showCityMenu by remember { mutableStateOf(false) }
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
+                    OutlinedButton(
+                        onClick  = { showCityMenu = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape    = RoundedCornerShape(12.dp),
+                        border   = androidx.compose.foundation.BorderStroke(1.dp, ChipInactive),
+                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+                    ) {
+                        Icon(Icons.Default.LocationCity, null, modifier = Modifier.size(15.dp), tint = RoseGold)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (selectedCity.isBlank()) strings.allCities
+                            else com.safebeauty.app.util.Areas.cityLabel(selectedCity, strings.language),
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f),
+                            color    = DeepRose
+                        )
+                        Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
+                    }
+                    DropdownMenu(
+                        expanded         = showCityMenu,
+                        onDismissRequest = { showCityMenu = false },
+                        modifier         = Modifier.background(ElegantCream)
+                    ) {
+                        DropdownMenuItem(
+                            text    = { Text(strings.allCities, fontSize = 13.sp, color = DeepRose) },
+                            onClick = { viewModel.onCityChanged(""); showCityMenu = false }
+                        )
+                        com.safebeauty.app.util.Areas.liveCities.forEach { city ->
+                            DropdownMenuItem(
+                                text    = {
+                                    Text(
+                                        com.safebeauty.app.util.Areas.cityLabel(city.key, strings.language),
+                                        fontSize = 13.sp, color = DeepRose,
+                                    )
+                                },
+                                onClick = { viewModel.onCityChanged(city.key); showCityMenu = false }
+                            )
+                        }
+                    }
+                }
+
                 // ── Neighborhood picker ───────────────────────────────────────
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
                     OutlinedButton(
@@ -782,7 +871,13 @@ fun CustomerDashboardScreen(
                 // squeezed the real list into a sliver, hiding the other salons below
                 // the fold; now they scroll away and the list gets the full height.
                 // The search/filter header above stays pinned.
-                if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
+                // loadingSalons was collected and never read, so the first frame of
+                // Discover said "no providers found" before a single document had
+                // come back — the same sentence a genuinely empty city produces,
+                // which is the one thing it must not be confused with.
+                if (loadingSalons && filteredSalons.isEmpty() && recommendedSalons.isEmpty()) {
+                    LoadingBox()
+                } else if (filteredSalons.isEmpty() && recommendedSalons.isEmpty() && activeOffers.isEmpty()) {
                     val narrowing = filtersActive || showFavoritesOnly || searchQuery.isNotBlank() ||
                     selectedCategoryIndex != 0 || selectedNeighborhoodIndex != 0
                     SalonEmptyState(
@@ -1357,6 +1452,7 @@ fun CustomerDashboardScreen(
             LaunchedEffect(giftState) {
                 if (giftState is GiftUiState.OpenCheckout) {
                     runCatching {
+                        viewModel.beginExternalPayment()
                         giftCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(giftState.url)))
                     }
                 }
@@ -1427,6 +1523,7 @@ fun CustomerDashboardScreen(
             LaunchedEffect(walletState) {
                 if (walletState is WalletUiState.OpenCheckout) {
                     runCatching {
+                        viewModel.beginExternalPayment()
                         walletCtx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(walletState.url)))
                     }
                 }
@@ -1540,7 +1637,8 @@ fun CustomerDashboardScreen(
                             val selectedDate = datePickerState.selectedDateMillis
                             if (selectedDate != null && bookingIntent != null) {
                                 bookingIntent = bookingIntent?.copy(dateMs = selectedDate)
-                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, slotSpan = viewModel.slotSpanFor(bookingIntent!!.salon, bookingIntent!!.services))
+                                viewModel.loadSlotsForDate(bookingIntent!!.salon, selectedDate, services = bookingIntent!!.services,
+                                    party = partyGuests.map { it.name to it.services })
                             }
                             showSlotPicker = true
                         },
@@ -1584,7 +1682,8 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = "", staffName = "")
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", viewModel.slotSpanFor(intent.salon, intent.services))
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, "", intent.services,
+                                                partyGuests.map { it.name to it.services })
                                         }
                                     },
                                     label = { Text(strings.staffAny, fontSize = 12.sp) },
@@ -1602,7 +1701,8 @@ fun CustomerDashboardScreen(
                                     onClick  = {
                                         if (intent != null && intent.dateMs != null) {
                                             bookingIntent = intent.copy(staffId = member.id, staffName = member.name)
-                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, viewModel.slotSpanFor(intent.salon, intent.services))
+                                            viewModel.loadSlotsForDate(intent.salon, intent.dateMs, member.id, intent.services,
+                                                partyGuests.map { it.name to it.services })
                                         }
                                     },
                                     label = { Text(member.name, fontSize = 12.sp) },
@@ -1619,6 +1719,16 @@ fun CustomerDashboardScreen(
                     Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         when {
                             viewModel.slotsLoading -> CircularProgressIndicator(color = RoseGold, modifier = Modifier.align(Alignment.Center))
+                            // Before the empty branch: "no times left" and "we
+                            // could not find out" look identical on screen and
+                            // are not the same thing. One means try another day;
+                            // the other means try again.
+                            viewModel.slotsFailed -> Text(
+                                strings.slotsLoadFailed,
+                                color = DangerRed,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
                             viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1840,7 +1950,16 @@ fun CustomerDashboardScreen(
                                 onNavigate(Screen.Kyc.build(viewModel.customerId))
                             } else {
                                 val fullNotes = listOf(partyNote, bookingNotes).filter { it.isNotBlank() }.joinToString("\n")
-                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId, intent.packageId)
+                                // The guest list goes as a list, not only as the
+                                // note. The note is still sent because it reads
+                                // well on the salon's screen today, but the
+                                // structure is what lets the server see that
+                                // everyone works at once instead of queueing five
+                                // guests onto one stylist.
+                                val partyPayload = partyGuests.map { g ->
+                                    mapOf<String, Any>("name" to g.name, "services" to g.services)
+                                }
+                                viewModel.bookService(intent.salon, intent.services, pendingSlotMs, fullNotes, paymentMethod, intent.staffId, intent.packageId, partyPayload)
                                 showNotesDialog = false
                                 pendingSlotMs   = 0L
                                 bookingNotes    = ""
@@ -1877,6 +1996,7 @@ fun CustomerDashboardScreen(
         // ── Payment / HesabPay checkout ───────────────────────────────────────
         run {
             val openCheckout: (String) -> Unit = { url ->
+                viewModel.beginExternalPayment()
                 runCatching {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -1952,6 +2072,8 @@ fun CustomerDashboardScreen(
                         "STAFF_UNAVAILABLE" -> strings.bookFailStaffUnavailable
                         "FREE_USE_CASH"     -> strings.bookFailFreeUseCash
                         "PROMO_LIMIT"       -> strings.bookFailPromoLimit
+                        "PARTY"             -> strings.bookFailPartyPrepay
+                        "NO_SHOW_HISTORY"   -> strings.bookFailMustPrepay
                         else                -> strings.paymentFailed
                     }
                     AlertDialog(
@@ -1964,6 +2086,14 @@ fun CustomerDashboardScreen(
                                     onClick = { viewModel.retryLastAsCash() },
                                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
                                 ) { Text(strings.payCashInstead, color = Color.White) }
+                                // The refusal is the point of the rule, so the
+                                // recovery is not to argue with it but to make
+                                // the alternative one tap away. Losing the
+                                // booking here would punish the salon twice.
+                                "PARTY", "NO_SHOW_HISTORY" -> Button(
+                                    onClick = { viewModel.retryLastAsOnline() },
+                                    colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                                ) { Text(strings.payOnlineInstead, color = Color.White) }
                                 "PROMO_LIMIT" -> Button(
                                     onClick = { viewModel.retryLastWithoutPromo() },
                                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
@@ -2173,9 +2303,7 @@ fun CustomerDashboardScreen(
                         // booking without needing the structured breakdown.
                         val salon = viewModel.findSalon(appt.salonId)
                         if (salon != null) {
-                            val prev = appt.serviceName.split("،", ",")
-                                .map { it.trim() }
-                                .filter { it.isNotBlank() && salon.pricePerService.containsKey(it) }
+                            val prev = serviceNamesFrom(appt.serviceName, salon.pricePerService)
                             showBookingsSheet = false
                             selectedServices.clear()
                             selectedServices.addAll(prev)
@@ -2198,19 +2326,61 @@ fun CustomerDashboardScreen(
         // ── Reschedule: date picker ───────────────────────────────────────────
         if (showRescheduleDate) {
             DatePickerDialog(
-                onDismissRequest = { showRescheduleDate = false; rescheduleTarget = null },
+                onDismissRequest = {
+                    showRescheduleDate = false; rescheduleTarget = null; viewModel.clearSlots()
+                },
                 confirmButton = {
                     Button(
                         onClick = {
                             showRescheduleDate   = false
-                            reschedulePickedDate = rescheduleDateState.selectedDateMillis
+                            val picked = rescheduleDateState.selectedDateMillis
+                            reschedulePickedDate = picked
+                            val target = rescheduleTarget
+                            // Cleared and marked loading first: ensureSalonLoaded is
+                            // asynchronous, and until it answers the dialog would
+                            // otherwise render the previous flow's times as this
+                            // appointment's — or, once cleared, claim the salon has no
+                            // times on this day at all.
+                            if (picked == null || target == null) {
+                                viewModel.slotLoadFailed()
+                            } else {
+                                viewModel.beginSlotLoad()
+                                // The salon's real free times, exactly as the booking
+                                // flow computes them. A free clock face let a customer
+                                // pick a minute the salon does not open on, an hour it
+                                // is closed, or a slot already taken — and she found
+                                // out only when the server refused, with no reason
+                                // given. The same grid, the same maths, one screen
+                                // later in the same journey.
+                                viewModel.ensureSalonLoaded(target.salonId) { salon ->
+                                    if (salon == null) {
+                                        // The salon could not be read, so no day can be
+                                        // judged. Said plainly, rather than spinning for
+                                        // ever or claiming she is fully booked.
+                                        viewModel.slotLoadFailed()
+                                    } else {
+                                        // The services recovered from the display name, the
+                                        // same way "Book again" above does it — the stored
+                                        // `services` array holds {name, price} maps, and a
+                                        // Kotlin field reading it as strings crashes the
+                                        // snapshot listener rather than being ignored.
+                                        viewModel.loadSlotsForDate(
+                                            salon, picked, target.staffId,
+                                            serviceNamesFrom(target.serviceName, salon.pricePerService),
+                                            excludeAppointmentId = target.id,
+                                        )
+                                    }
+                                }
+                            }
                             showRescheduleTime   = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
                     ) { Text(strings.next, color = Color.White) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showRescheduleDate = false; rescheduleTarget = null }) {
+                    TextButton(onClick = {
+                        showRescheduleDate = false; rescheduleTarget = null; viewModel.clearSlots()
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 }
@@ -2222,35 +2392,70 @@ fun CustomerDashboardScreen(
         // ── Reschedule: time picker ───────────────────────────────────────────
         if (showRescheduleTime) {
             AlertDialog(
-                onDismissRequest = { showRescheduleTime = false; rescheduleTarget = null },
+                // Cleared on every exit, including the back gesture. A slot list left
+                // behind is a list of times computed for another salon on another day,
+                // and the next reschedule would open showing them as bookable.
+                onDismissRequest = {
+                    showRescheduleTime = false; rescheduleTarget = null; viewModel.clearSlots()
+                },
                 title = { Text(strings.rescheduleTitle, fontWeight = FontWeight.Bold, color = DeepRose) },
                 text  = {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
-                        TimePicker(state = rescheduleTimeState)
+                    Box(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                        when {
+                            viewModel.slotsLoading -> CircularProgressIndicator(
+                                color = RoseGold, modifier = Modifier.align(Alignment.Center)
+                            )
+                            // "We could not find out" and "there is nothing left"
+                            // look identical on screen and mean opposite things.
+                            viewModel.slotsFailed -> Text(
+                                strings.slotsLoadFailed,
+                                color = DangerRed,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
+                            viewModel.noWorkingHours || viewModel.availableSlots.isEmpty() -> Text(
+                                strings.noSlotsAvailable,
+                                color = RoseGold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                            )
+                            else -> {
+                                val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(viewModel.availableSlots) { slotMs ->
+                                        Button(
+                                            onClick = {
+                                                showRescheduleTime = false
+                                                rescheduleTarget?.let {
+                                                    viewModel.rescheduleAppointment(it.id, slotMs)
+                                                }
+                                                rescheduleTarget = null
+                                                viewModel.clearSlots()
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
+                                        ) {
+                                            Text(
+                                                timeFmt.format(Date(slotMs)),
+                                                color = DeepRose,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 15.sp,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showRescheduleTime = false
-                            val target = rescheduleTarget
-                            val dateMs = reschedulePickedDate
-                            if (target != null && dateMs != null) {
-                                val cal = Calendar.getInstance().apply {
-                                    timeInMillis = dateMs
-                                    set(Calendar.HOUR_OF_DAY, rescheduleTimeState.hour)
-                                    set(Calendar.MINUTE,      rescheduleTimeState.minute)
-                                    set(Calendar.SECOND,      0)
-                                }
-                                viewModel.rescheduleAppointment(target.id, cal.timeInMillis)
-                            }
-                            rescheduleTarget = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = RoseGold)
-                    ) { Text(strings.reschedule, color = Color.White) }
-                },
+                confirmButton = {},
                 dismissButton = {
-                    TextButton(onClick = { showRescheduleTime = false; rescheduleTarget = null }) {
+                    TextButton(onClick = {
+                        showRescheduleTime = false
+                        rescheduleTarget = null
+                        viewModel.clearSlots()
+                    }) {
                         Text(strings.cancel, color = RoseGold)
                     }
                 },
@@ -2276,7 +2481,8 @@ fun CustomerDashboardScreen(
                 salonName = appt.salonName,
                 tipState  = viewModel.tipState,
                 onSend    = { amount -> viewModel.sendTip(appt.id, amount) },
-                onDismiss = { tipTarget = null; viewModel.resetTip() }
+                onDismiss = { tipTarget = null; viewModel.resetTip() },
+                onLeavingForCheckout = { viewModel.beginExternalPayment() },
             )
         }
 
@@ -2311,13 +2517,23 @@ fun CustomerDashboardScreen(
                         }
                     },
                     onBookPackage = { pkg ->
-                        // Package services are fixed — skip service selection and go
-                        // straight to date/time; the server applies the bundle discount.
-                        showSalonDetail = null
-                        selectedServices.clear()
-                        selectedServices.addAll(pkg.services)
-                        bookingIntent  = BookingIntent(salon, pkg.services, packageId = pkg.id)
-                        showDatePicker = true
+                        // The same gate the ordinary booking button applies. This one
+                        // went straight to the date picker, so a customer who had not
+                        // verified her identity could book a package — the one path
+                        // that skipped the check, and the cheaper one, which is
+                        // exactly the path someone avoiding it would find.
+                        if (viewModel.needsKycBeforeBooking()) {
+                            showSalonDetail = null
+                            showKycNotice   = true
+                        } else {
+                            // Package services are fixed — skip service selection and go
+                            // straight to date/time; the server applies the bundle discount.
+                            showSalonDetail = null
+                            selectedServices.clear()
+                            selectedServices.addAll(pkg.services)
+                            bookingIntent  = BookingIntent(salon, pkg.services, packageId = pkg.id)
+                            showDatePicker = true
+                        }
                     },
                     onDismiss = { showSalonDetail = null }
                 )
@@ -2325,6 +2541,21 @@ fun CustomerDashboardScreen(
         }
 
         // ── Review thanks confirmation ────────────────────────────────────────
+        if (viewModel.reviewFailed) {
+            AlertDialog(
+                onDismissRequest = { viewModel.dismissReviewError() },
+                icon  = { Icon(Icons.Default.ErrorOutline, null, tint = DangerRed, modifier = Modifier.size(40.dp)) },
+                title = { Text(strings.reviewFailedMessage, fontSize = 14.sp, color = DeepRose, textAlign = TextAlign.Center) },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.dismissReviewError() },
+                        colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
+                    ) { Text(strings.ok, color = Color.White) }
+                },
+                containerColor = ElegantCream
+            )
+        }
+
         if (viewModel.reviewThanksShown) {
             AlertDialog(
                 onDismissRequest = { viewModel.dismissReviewThanks() },
@@ -2480,7 +2711,9 @@ private fun TipDialog(
     salonName: String,
     tipState: TipUiState,
     onSend: (Long) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    /** Called just before the browser opens, so the idle lock defers. */
+    onLeavingForCheckout: () -> Unit = {},
 ) {
     val strings = LocalStrings.current
     val context = LocalContext.current
@@ -2492,6 +2725,7 @@ private fun TipDialog(
     LaunchedEffect(tipState) {
         if (tipState is TipUiState.OpenCheckout) {
             runCatching {
+                onLeavingForCheckout()
                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(tipState.url)))
             }
         }
@@ -2718,7 +2952,7 @@ private fun SalonCard(
                         Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(3.dp))
                         Text(
-                            text     = salon.district,
+                            text     = com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language),
                             fontSize = 12.sp,
                             color    = TextMuted,
                             maxLines = 1,
@@ -2880,6 +3114,7 @@ private fun SalonCard(
 @OptIn(ExperimentalMaterial3Api::class)
 private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
     val context = LocalContext.current
+    val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
     // Track swiped-away ids in state so the banner disappears immediately; seed
     // from prefs so a dismissed announcement stays gone across restarts. Showing
@@ -2945,7 +3180,24 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
                             color    = RoseGold
                         )
                     }
-                    Icon(Icons.Default.Close, null, tint = RoseGold.copy(alpha = 0.5f), modifier = Modifier.size(14.dp))
+                    // A real button, not decoration. This was a plain Icon, and
+                    // the only way to dismiss the banner was to swipe it — so a
+                    // customer saw a close cross, tapped it, and nothing
+                    // happened. An × that does not close is worse than no ×.
+                    IconButton(
+                        onClick = {
+                            AnnouncementPrefs.dismiss(context, newest.id)
+                            dismissed = dismissed + newest.id
+                        },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = strings.close,
+                            tint = RoseGold,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
                 }
             }
         }
@@ -3031,7 +3283,7 @@ private fun RecommendedSalonCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(11.dp))
-                Text(salon.district, fontSize = 10.sp, color = UnavailableGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language), fontSize = 10.sp, color = UnavailableGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (salon.rating > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {

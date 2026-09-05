@@ -2,4 +2,7 @@
 <resources>
     <!-- Launcher label shown under the app icon -->
     <string name="app_name">SafeBeauty</string>
+    <!-- Shown in Android's notification settings and on the lock screen in
+         place of the real message. Deliberately says nothing about salons. -->
+    <string name="notif_channel_name">Updates</string>
 </resources>

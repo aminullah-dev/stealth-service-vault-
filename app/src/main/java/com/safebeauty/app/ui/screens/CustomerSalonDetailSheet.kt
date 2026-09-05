@@ -290,7 +290,7 @@ internal fun SalonDetailSheetContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, null, tint = RoseGold, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(3.dp))
-                    Text(salon.district, fontSize = 12.sp, color = TextMuted)
+                    Text(com.safebeauty.app.util.Areas.labelForKey(salon.district, strings.language), fontSize = 12.sp, color = TextMuted)
                 }
                 Spacer(Modifier.height(5.dp))
                 Row(

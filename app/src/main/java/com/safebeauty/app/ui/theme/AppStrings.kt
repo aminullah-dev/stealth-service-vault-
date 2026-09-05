@@ -3,23 +3,33 @@ package com.safebeauty.app.ui.theme
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.unit.LayoutDirection
 
-enum class AppLanguage(val nativeName: String) {
-    ENGLISH("English"),
-    DARI("دری"),
-    PASHTO("پښتو")
+enum class AppLanguage(val nativeName: String, val code: String) {
+    // `code` is the two-letter form everything outside the app uses: the admin
+    // console's audience picker, the notification catalogue on the server, and
+    // the download page. It lives on the enum so the mapping exists once rather
+    // than being re-spelled at each boundary — where "fa" and DARI drifting
+    // apart is a message shown to the wrong reader, silently.
+    ENGLISH("English", "en"),
+    DARI("دری", "fa"),
+    PASHTO("پښتو", "ps")
 }
 
 fun AppLanguage.layoutDirection(): LayoutDirection =
     if (this == AppLanguage.ENGLISH) LayoutDirection.Ltr else LayoutDirection.Rtl
 
 class AppStrings {
-    // Active language — lets screens localize data-driven lists (e.g. KabulAreas)
+    // Active language — lets screens localize data-driven lists (e.g. Areas)
     // that live outside these string blocks.
     var language: AppLanguage = AppLanguage.ENGLISH
     // Login screen
     var loginTitle: String = ""
     var loginTagline: String = ""
     var loginWrongPin: String = ""
+    // Not every sign-in failure is a wrong password, and saying so sent people
+    // straight into the rate limit. See AuthViewModel.FailureReason.
+    var loginNoConnection: String = ""
+    var loginTooManyAttempts: String = ""
+    var loginServerError: String = ""
     var loginRegisterPrompt: String = ""
     // Onboarding (first-launch intro, shown once)
     var onboardingTitle1: String = ""
@@ -146,6 +156,11 @@ class AppStrings {
     var referralYourCode: String = ""
     var referralCreditLabel: String = ""
     var referralShare: String = ""
+    var swipeHintTabs: String = ""
+    var swipeHintExploreFavourites: String = ""
+    var shareTheApp: String = ""
+    var shareAppText: String = ""
+    var referralNoCodeYet: String = ""
     var referralShareText: (String) -> String = { "" }
     var shareSalon: String = ""
     var shareSalonText: (String, String) -> String = { _, _ -> "" }
@@ -209,6 +224,9 @@ class AppStrings {
     var bookFailSalonClosed: String = ""
     var bookFailStaffUnavailable: String = ""
     var bookFailFreeUseCash: String = ""
+    var bookFailMustPrepay: String = ""
+    var bookFailPartyPrepay: String = ""
+    var payOnlineInstead: String = ""
     var bookFailPromoLimit: String = ""
     var payCashInstead: String = ""
     var continueWithoutCode: String = ""
@@ -238,6 +256,8 @@ class AppStrings {
     var timelineRequested: String = ""
     var timelineConfirmed: String = ""
     var timelineCompleted: String = ""
+    // A booking whose payment never arrived is not one waiting on the salon.
+    var statusAwaitingPayment: String = ""
     var timelineCancelled: String = ""
     var refundPending: String = ""
     var refundProcessed: String = ""
@@ -267,6 +287,18 @@ class AppStrings {
     var kycProvince: String = ""
     var kycAddressDetail: String = ""
     var kycTazkiraPhoto: String = ""
+    // Identity verification is a gate nobody gets past without completing, on an
+    // app whose users mostly do not read English. These were English literals
+    // and raw Firebase exception messages. See KycViewModel.SubmitError.
+    var kycErrTazkiraNumber: String = ""
+    var kycErrProvince: String = ""
+    var kycErrAddress: String = ""
+    var kycErrTazkiraPhoto: String = ""
+    var kycErrSelfie: String = ""
+    var kycErrPhotoTooLarge: String = ""
+    var kycErrPhotoUnreadable: String = ""
+    var kycErrNoConnection: String = ""
+    var kycErrUploadFailed: String = ""
     var kycSelfie: String = ""
     var kycPickPhoto: String = ""
     var kycTakeSelfie: String = ""
@@ -287,6 +319,7 @@ class AppStrings {
     var kycReviewTazkiraNo: (String) -> String = { "" }
     var kycReviewViewTazkira: String = ""
     var kycReviewViewSelfie: String = ""
+    var kycPhotoUnavailable: String = ""
     var kycReviewApprove: String = ""
     var kycReviewReject: String = ""
     // ── Support + bottom navigation ──────────────────────────────────────────
@@ -308,6 +341,15 @@ class AppStrings {
     var registerConsentAnd: String = ""
     var registerConsentSuffix: String = ""
     var districtArea: String = ""
+    var cityLabel: String = ""
+    var allCities: String = ""
+    var reviewFailedMessage: String = ""
+    var finishedVisitsTitle: String = ""
+    var updateAvailableTitle: String = ""
+    var updateAvailableBody: String = ""
+    var updateNow: String = ""
+    var guzarOrArea: String = ""
+    var pickCityFirst: String = ""
     var addServiceLabel: String = ""
     var addServiceHint: String = ""
     var noServicesAdded: String = ""
@@ -475,6 +517,7 @@ class AppStrings {
     var exportError: String = ""
     // Working hours & time slots
     var workingHoursTitle: String = ""
+    var slotsLoadFailed: String = ""
     var slotDurationLabel: String = ""
     var slotDuration30: String = ""
     var slotDuration45: String = ""
@@ -598,6 +641,10 @@ class AppStrings {
     // Email & booking history
     var emailAddress: String = ""
     var bookingHistoryTitle: String = ""
+    // Spoken by the chevron on a foldable section, for a screen reader — the
+    // arrow alone says nothing to someone who cannot see it.
+    var expandSection: String = ""
+    var collapseSection: String = ""
     // Photo confirmation dialog
     var photoConfirmTitle: String = ""
     var photoConfirmBody: String = ""
@@ -654,6 +701,7 @@ class AppStrings {
     var regServicesRequired: String = ""
     var regPhoneCheckFailed: String = ""
     var regPhoneExists: String = ""
+    var regEmailExists: String = ""
     var regFailed: String = ""
     // Account deletion (required by Google Play's User Data policy).
     var deleteAccountTitle: String = ""
@@ -712,6 +760,9 @@ object StringResources {
         loginTitle                 = "SafeBeauty"
         loginTagline               = "Trusted Beauty Booking"
         loginWrongPin              = "Wrong phone number or password. Try again."
+        loginNoConnection          = "No internet connection. Check your connection and try again \u2014 your password is fine."
+        loginTooManyAttempts       = "Too many attempts. Wait about fifteen minutes and try again."
+        loginServerError           = "Something went wrong on our side. Try again in a moment."
         biometricPromptTitle       = "Unlock"
         biometricPromptSubtitle    = "Confirm it's you"
         biometricUsePin            = "Use password"
@@ -833,7 +884,12 @@ object StringResources {
         referralYourCode           = "Your code"
         referralCreditLabel        = "Your credit"
         referralShare              = "Share"
-        referralShareText          = { code -> "Join me on SafeBeauty — book trusted beauty salons. Use my code $code when you sign up and we both get AFN 100 off! Download: https://safebeauty.web.app" }
+        swipeHintTabs              = "Swipe left or right to move between tabs"
+        swipeHintExploreFavourites = "Swipe left or right to switch between all salons and your favourites"
+        shareTheApp                = "Share SafeBeauty"
+        shareAppText               = "Join me on SafeBeauty — book trusted beauty salons in Kabul, with real reviews and prices you can see before you book. Download: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "Your personal invite code is on its way — you can still share the app."
+        referralShareText          = { code -> "Join me on SafeBeauty — book trusted beauty salons. Use my code $code when you sign up and we both get AFN 100 off! Download: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "Share"
         shareSalonText             = { name, url -> "Check out $name on SafeBeauty — book trusted beauty services: $url" }
         referralCreditBadge        = { amt -> "AFN $amt credit" }
@@ -890,6 +946,9 @@ object StringResources {
         bookFailSalonClosed        = "The salon is closed then. Pick another day — your services are saved."
         bookFailStaffUnavailable   = "That stylist isn't available then. Pick another time — your services are saved."
         bookFailFreeUseCash        = "Your discount covers the whole price, so there's nothing to pay online. Book it as cash instead?"
+        bookFailMustPrepay         = "This booking needs to be paid in advance. A salon holds a chair for you, and a booking that was never paid for is one they cannot fill."
+        bookFailPartyPrepay        = "A group booking is paid in advance. The salon sets aside its whole team for you, so it is not a chair they can offer anyone else that day."
+        payOnlineInstead           = "Pay online"
         bookFailPromoLimit         = "That promo code just reached its limit. Continue without it?"
         payCashInstead             = "Pay cash"
         continueWithoutCode        = "Continue without code"
@@ -918,6 +977,7 @@ object StringResources {
         timelineRequested          = "Requested"
         timelineConfirmed          = "Confirmed"
         timelineCompleted          = "Completed"
+        statusAwaitingPayment      = "Awaiting payment"
         timelineCancelled          = "Booking cancelled"
         refundPending              = "Refund pending"
         refundProcessed            = "Refund completed"
@@ -945,6 +1005,15 @@ object StringResources {
         kycProvince                = "Province"
         kycAddressDetail           = "Full address (district, area, street)"
         kycTazkiraPhoto            = "Tazkira photo"
+        kycErrTazkiraNumber        = "Enter your tazkira number."
+        kycErrProvince             = "Choose your province."
+        kycErrAddress              = "Enter your full address."
+        kycErrTazkiraPhoto         = "Add a photo of your tazkira."
+        kycErrSelfie               = "Take a selfie."
+        kycErrPhotoTooLarge        = "That photo is too large. Try one taken at a lower quality."
+        kycErrPhotoUnreadable      = "That photo could not be read. Choose a different one."
+        kycErrNoConnection         = "No internet connection. Check your connection and try again."
+        kycErrUploadFailed         = "It could not be sent. Try again in a moment."
         kycSelfie                  = "Selfie"
         kycPickPhoto               = "Upload photo"
         kycTakeSelfie              = "Take selfie"
@@ -965,6 +1034,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "Tazkira #: $n" }
         kycReviewViewTazkira       = "View tazkira"
         kycReviewViewSelfie        = "View selfie"
+        kycPhotoUnavailable        = "This photo could not be loaded."
         kycReviewApprove           = "Approve"
         kycReviewReject            = "Reject"
         tabExplore                 = "Salons"
@@ -985,6 +1055,15 @@ object StringResources {
         registerConsentAnd         = "and"
         registerConsentSuffix      = "."
         districtArea               = "District / Area"
+        updateAvailableTitle       = "A new version is available"
+        updateAvailableBody        = "Update to get the latest SafeBeauty."
+        updateNow                  = "Update"
+        finishedVisitsTitle        = "Visits you can rate"
+        reviewFailedMessage        = "Your review could not be sent. Check your connection and try again."
+        allCities                  = "All cities"
+        cityLabel                  = "City"
+        guzarOrArea                = "Guzar / area (optional)"
+        pickCityFirst              = "Choose a city first"
         addServiceLabel            = "Add service…"
         addServiceHint             = "Add a service (e.g. Hair)"
         noServicesAdded            = "No services added yet."
@@ -1131,6 +1210,7 @@ object StringResources {
         exportShareTitle           = "Share Appointment History"
         exportError                = "Export failed. Try again."
         workingHoursTitle          = "Working Hours"
+        slotsLoadFailed            = "Couldn't check which times are free. Check your connection and try again."
         slotDurationLabel          = "Appointment Duration"
         slotDuration30             = "30 min"
         slotDuration45             = "45 min"
@@ -1235,6 +1315,8 @@ object StringResources {
         providerReplied            = "Our response:"
         emailAddress               = "Email Address (optional)"
         bookingHistoryTitle        = "Booking History"
+        expandSection              = "Show"
+        collapseSection            = "Hide"
         photoConfirmTitle          = "Is this your photo?"
         photoConfirmBody           = "Please make sure your face is clearly visible. If not, please choose a different photo."
         photoConfirmYes            = "Yes, save it"
@@ -1283,6 +1365,7 @@ object StringResources {
         regServicesRequired        = "Add at least one service."
         regPhoneCheckFailed        = "Couldn't verify the phone number. Check your connection and try again."
         regPhoneExists             = "An account with this phone number already exists."
+        regEmailExists             = "An account with this email address already exists. Try signing in, or register without an email."
         regFailed                  = "Registration failed. Please try again."
         deleteAccountTitle         = "Delete my account"
         deleteAccountButton        = "Delete account"
@@ -1334,6 +1417,9 @@ object StringResources {
         loginTitle                 = "سیف بیوتی"
         loginTagline               = "رزرو معتبر خدمات زیبایی"
         loginWrongPin              = "شماره تلفن یا رمز عبور اشتباه است. دوباره امتحان کنید."
+        loginNoConnection          = "اتصال اینترنت نیست. اتصال‌تان را بررسی کنید و دوباره امتحان کنید \u2014 رمز عبور شما مشکلی ندارد."
+        loginTooManyAttempts       = "تلاش‌های زیادی انجام شد. حدود پانزده دقیقه صبر کنید و دوباره امتحان کنید."
+        loginServerError           = "از طرف ما مشکلی پیش آمد. لحظه‌ای بعد دوباره امتحان کنید."
         biometricPromptTitle       = "باز کردن قفل"
         biometricPromptSubtitle    = "هویت خود را تأیید کنید"
         biometricUsePin            = "استفاده از رمز عبور"
@@ -1455,7 +1541,12 @@ object StringResources {
         referralYourCode           = "کد شما"
         referralCreditLabel        = "اعتبار شما"
         referralShare              = "اشتراک‌گذاری"
-        referralShareText          = { code -> "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر. هنگام ثبت‌نام کد من $code را وارد کن تا هر دو ۱۰۰ افغانی تخفیف بگیریم! دانلود: https://safebeauty.web.app" }
+        swipeHintTabs              = "انگشت خود را چپ یا راست بکشید تا به بخش دیگر بروید."
+        swipeHintExploreFavourites = "انگشت خود را چپ یا راست بکشید تا سالن‌ها یا علاقه‌مندی‌های خود را ببینید."
+        shareTheApp                = "اشتراک‌گذاری SafeBeauty"
+        shareAppText               = "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر در کابل، با نظرات واقعی و قیمت‌هایی که پیش از رزرو می‌بینی. دانلود: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "کد دعوت شما به‌زودی آماده می‌شود — تا آن وقت می‌توانید برنامه را به اشتراک بگذارید."
+        referralShareText          = { code -> "به من در SafeBeauty بپیوند — رزرو سالن‌های زیبایی معتبر. هنگام ثبت‌نام کد من $code را وارد کن تا هر دو ۱۰۰ افغانی تخفیف بگیریم! دانلود: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "اشتراک‌گذاری"
         shareSalonText             = { name, url -> "$name را در SafeBeauty ببین — رزرو مطمئن خدمات زیبایی: $url" }
         referralCreditBadge        = { amt -> "$amt افغانی اعتبار" }
@@ -1512,6 +1603,9 @@ object StringResources {
         bookFailSalonClosed        = "سالن آن روز تعطیل است. یک روز دیگر انتخاب کن — سرویس‌هایت ذخیره‌اند."
         bookFailStaffUnavailable   = "آن آرایشگر آن موقع در دسترس نیست. یک ساعت دیگر انتخاب کن — سرویس‌هایت ذخیره‌اند."
         bookFailFreeUseCash        = "تخفیفت کل مبلغ را پوشش می‌دهد، پس چیزی برای پرداخت آنلاین نیست. به‌جایش نقدی رزرو شود؟"
+        bookFailMustPrepay         = "این رزرو باید از پیش پرداخت شود. سالن یک چوکی را برای شما نگه می‌دارد، و رزروی که پولش پرداخت نشده چوکی‌ای است که نمی‌توانند به کس دیگری بدهند."
+        bookFailPartyPrepay        = "رزرو گروهی از پیش پرداخت می‌شود. سالن تمام تیمش را برای شما کنار می‌گذارد، پس آن روز چوکی‌ای برای کس دیگری ندارد."
+        payOnlineInstead           = "پرداخت آنلاین"
         bookFailPromoLimit         = "این کد تخفیف همین الان به سقفش رسید. بدون آن ادامه بدهم؟"
         payCashInstead             = "پرداخت نقدی"
         continueWithoutCode        = "ادامه بدون کد"
@@ -1540,6 +1634,7 @@ object StringResources {
         timelineRequested          = "درخواست"
         timelineConfirmed          = "تأیید"
         timelineCompleted          = "تکمیل"
+        statusAwaitingPayment      = "در انتظار پرداخت"
         timelineCancelled          = "رزرو لغو شد"
         refundPending              = "بازپرداخت در انتظار"
         refundProcessed            = "بازپرداخت انجام شد"
@@ -1567,6 +1662,15 @@ object StringResources {
         kycProvince                = "ولایت"
         kycAddressDetail           = "آدرس کامل (ناحیه، منطقه، سرک)"
         kycTazkiraPhoto            = "عکس تذکره"
+        kycErrTazkiraNumber        = "شماره تذکرهٔ خود را وارد کنید."
+        kycErrProvince             = "ولایت خود را انتخاب کنید."
+        kycErrAddress              = "آدرس کامل خود را وارد کنید."
+        kycErrTazkiraPhoto         = "عکس تذکرهٔ خود را اضافه کنید."
+        kycErrSelfie               = "یک عکس سلفی بگیرید."
+        kycErrPhotoTooLarge        = "این عکس خیلی بزرگ است. عکسی با کیفیت پایین‌تر انتخاب کنید."
+        kycErrPhotoUnreadable      = "این عکس خوانده نشد. عکس دیگری انتخاب کنید."
+        kycErrNoConnection         = "اتصال اینترنت نیست. اتصال‌تان را بررسی کنید و دوباره امتحان کنید."
+        kycErrUploadFailed         = "ارسال نشد. لحظه‌ای بعد دوباره امتحان کنید."
         kycSelfie                  = "سلفی"
         kycPickPhoto               = "بارگذاری عکس"
         kycTakeSelfie              = "گرفتن سلفی"
@@ -1587,6 +1691,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "شماره تذکره: $n" }
         kycReviewViewTazkira       = "دیدن تذکره"
         kycReviewViewSelfie        = "دیدن سلفی"
+        kycPhotoUnavailable        = "این عکس بارگذاری نشد. دوباره تلاش کنید."
         kycReviewApprove           = "تأیید"
         kycReviewReject            = "رد"
         tabExplore                 = "سالن‌ها"
@@ -1607,6 +1712,15 @@ object StringResources {
         registerConsentAnd         = "و"
         registerConsentSuffix      = "را می‌پذیرید."
         districtArea               = "ناحیه / منطقه"
+        updateAvailableTitle       = "نسخهٔ جدیدی موجود است"
+        updateAvailableBody        = "برای دریافت آخرین نسخهٔ SafeBeauty به‌روزرسانی کنید."
+        updateNow                  = "به‌روزرسانی"
+        finishedVisitsTitle        = "دیدارهایی که می‌توانید امتیاز بدهید"
+        reviewFailedMessage        = "نظر شما ارسال نشد. اتصال خود را ببینید و دوباره تلاش کنید."
+        allCities                  = "همه شهرها"
+        cityLabel                  = "شهر"
+        guzarOrArea                = "گذر / منطقه (اختیاری)"
+        pickCityFirst              = "اول شهر را انتخاب کنید"
         addServiceLabel            = "افزودن خدمت…"
         addServiceHint             = "افزودن خدمت (مثلاً مو)"
         noServicesAdded            = "هنوز خدماتی اضافه نشده."
@@ -1753,6 +1867,7 @@ object StringResources {
         exportShareTitle           = "اشتراک‌گذاری تاریخچه رزروها"
         exportError                = "خروجی ناموفق بود. دوباره امتحان کنید."
         workingHoursTitle          = "ساعات کاری"
+        slotsLoadFailed            = "نشد بررسی کنیم کدام ساعت‌ها آزادند. اتصال خود را ببینید و دوباره تلاش کنید."
         slotDurationLabel          = "مدت وقت"
         slotDuration30             = "۳۰ دقیقه"
         slotDuration45             = "۴۵ دقیقه"
@@ -1778,7 +1893,7 @@ object StringResources {
         calendarNoAppointments     = "رزروی در این روز نیست"
         calendarTapDay             = "روی یک روز ضربه بزنید"
         lastMinuteTitle            = "تخفیف لحظه‌آخری"
-        lastMinuteHint             = "تخفیف خودکار برای نوبت‌هایی که به‌زودی شروع می‌شوند، تا صندلی خالی پر شود."
+        lastMinuteHint             = "تخفیف خودکار برای نوبت‌هایی که به‌زودی شروع می‌شوند، تا چوکی خالی پر شود."
         lastMinutePercentLabel     = "تخفیف"
         lastMinuteWindowLabel      = "تا"
         hoursShort                 = "ساعت"
@@ -1857,6 +1972,8 @@ object StringResources {
         providerReplied            = "پاسخ ما:"
         emailAddress               = "آدرس ایمیل (اختیاری)"
         bookingHistoryTitle        = "تاریخچه رزروها"
+        expandSection              = "نمایش"
+        collapseSection            = "بستن"
         photoConfirmTitle          = "آیا این عکس شما است؟"
         photoConfirmBody           = "لطفاً مطمئن شوید که چهره شما به وضوح مشخص است. اگر نه، عکس دیگری انتخاب کنید."
         photoConfirmYes            = "بله، ذخیره کن"
@@ -1905,6 +2022,7 @@ object StringResources {
         regServicesRequired        = "حداقل یک خدمت اضافه کنید."
         regPhoneCheckFailed        = "بررسی شماره تلفن ناموفق بود. اتصال خود را بررسی و دوباره تلاش کنید."
         regPhoneExists             = "حسابی با این شماره تلفن از قبل وجود دارد."
+        regEmailExists             = "حسابی با این ایمیل از قبل وجود دارد. وارد شوید، یا بدون ایمیل ثبت‌نام کنید."
         regFailed                  = "ثبت‌نام ناموفق بود. لطفاً دوباره تلاش کنید."
         deleteAccountTitle         = "حذف حساب من"
         deleteAccountButton        = "حذف حساب"
@@ -1956,6 +2074,9 @@ object StringResources {
         loginTitle                 = "سیف بیوتي"
         loginTagline               = "د ښکلا د خدماتو باوري بکینګ"
         loginWrongPin              = "د تلیفون شمېره یا پټنوم غلط دی. بیا هڅه وکړئ."
+        loginNoConnection          = "د انټرنټ اتصال نشته. خپل اتصال وګورئ او بیا هڅه وکړئ \u2014 ستاسو پټنوم سم دی."
+        loginTooManyAttempts       = "ډېرې هڅې وشوې. شاوخوا پنځلس دقیقې صبر وکړئ او بیا هڅه وکړئ."
+        loginServerError           = "زموږ له خوا کومه ستونزه رامنځته شوه. یوه شېبه وروسته بیا هڅه وکړئ."
         biometricPromptTitle       = "خلاصول"
         biometricPromptSubtitle    = "خپله پیژندنه تایید کړئ"
         biometricUsePin            = "پټنوم وکاروئ"
@@ -2077,7 +2198,12 @@ object StringResources {
         referralYourCode           = "ستاسو کوډ"
         referralCreditLabel        = "ستاسو کریډیټ"
         referralShare              = "شریکول"
-        referralShareText          = { code -> "له ما سره په SafeBeauty کې یوځای شئ — د باور وړ ښکلا سالونونه بک کړئ. د راجستر پر مهال زما کوډ $code وکاروئ ترڅو دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کړو! ډاونلوډ: https://safebeauty.web.app" }
+        swipeHintTabs              = "خپله ګوته کیڼ یا ښي لور ته وکاږئ ترڅو د برخو ترمنځ واوړئ."
+        swipeHintExploreFavourites = "خپله ګوته کیڼ یا ښي لور ته وکاږئ ترڅو د سالونونو او خپلو خوښو ترمنځ واوړئ."
+        shareTheApp                = "د SafeBeauty شریکول"
+        shareAppText               = "له ما سره په SafeBeauty کې یوځای شئ — په کابل کې د باور وړ ښکلا سالونونه بک کړئ، له ریښتینو نظرونو او هغو بیو سره چې یې د بکینګ دمخه ګورئ. ډاونلوډ: https://safebeauty.web.app/get"
+        referralNoCodeYet          = "ستاسو د بلنې کوډ به ډېر ژر چمتو شي — تر هغه مهاله هم اپ شریکولی شئ."
+        referralShareText          = { code -> "له ما سره په SafeBeauty کې یوځای شئ — د باور وړ ښکلا سالونونه بک کړئ. د راجستر پر مهال زما کوډ $code وکاروئ ترڅو دواړه ۱۰۰ افغانۍ تخفیف ترلاسه کړو! ډاونلوډ: https://safebeauty.web.app/get?code=$code" }
         shareSalon                 = "شریکول"
         shareSalonText             = { name, url -> "$name په SafeBeauty کې وګورئ — د باور وړ ښکلا خدمتونه بک کړئ: $url" }
         referralCreditBadge        = { amt -> "$amt افغانۍ کریډیټ" }
@@ -2134,6 +2260,9 @@ object StringResources {
         bookFailSalonClosed        = "سالون هغه ورځ بند دی. بله ورځ وټاکئ — ستاسو خدمتونه خوندي دي."
         bookFailStaffUnavailable   = "هغه آرایشګر هغه وخت شتون نلري. بل وخت وټاکئ — ستاسو خدمتونه خوندي دي."
         bookFailFreeUseCash        = "ستاسو تخفیف ټوله بیه پوښي، نو آنلاین د ورکړې لپاره څه نشته. پرځای یې نغدي بک شي؟"
+        bookFailMustPrepay         = "دا بکنګ باید مخکې ورکړل شي. سالون ستاسو لپاره یوه څوکۍ ساتي، او هغه بکنګ چې پیسې یې نه دي ورکړل شوي هغه څوکۍ ده چې بل چا ته یې نشي ورکولی."
+        bookFailPartyPrepay        = "ډله ییز بکنګ مخکې ورکړل کیږي. سالون ټوله ډله ستاسو لپاره ځانګړې کوي، نو هغه ورځ بل چا ته څوکۍ نه لري."
+        payOnlineInstead           = "آنلاین ورکړه"
         bookFailPromoLimit         = "دا د تخفیف کوډ همدا اوس خپل حد ته ورسید. پرته له هغه دوام ورکړم؟"
         payCashInstead             = "نغدي ورکړه"
         continueWithoutCode        = "پرته له کوډ دوام"
@@ -2162,6 +2291,7 @@ object StringResources {
         timelineRequested          = "غوښتنه"
         timelineConfirmed          = "تایید"
         timelineCompleted          = "بشپړ شو"
+        statusAwaitingPayment      = "د تادیې په تمه"
         timelineCancelled          = "بکینګ لغوه شو"
         refundPending              = "بیرته ورکړه په تمه ده"
         refundProcessed            = "بیرته ورکړه بشپړه شوه"
@@ -2189,6 +2319,15 @@ object StringResources {
         kycProvince                = "ولایت"
         kycAddressDetail           = "بشپړ آدرس (ولسوالۍ، سیمه، سړک)"
         kycTazkiraPhoto            = "د تذکرې عکس"
+        kycErrTazkiraNumber        = "د خپلې تذکرې شمېره ولیکئ."
+        kycErrProvince             = "خپل ولایت وټاکئ."
+        kycErrAddress              = "خپل بشپړ پته ولیکئ."
+        kycErrTazkiraPhoto         = "د خپلې تذکرې عکس ورزیات کړئ."
+        kycErrSelfie               = "یو سیلفي واخلئ."
+        kycErrPhotoTooLarge        = "دا عکس ډېر لوی دی. د ټیټ کیفیت عکس وټاکئ."
+        kycErrPhotoUnreadable      = "دا عکس ونه لوستل شو. بل عکس وټاکئ."
+        kycErrNoConnection         = "د انټرنټ اتصال نشته. خپل اتصال وګورئ او بیا هڅه وکړئ."
+        kycErrUploadFailed         = "ولېږل نشو. یوه شېبه وروسته بیا هڅه وکړئ."
         kycSelfie                  = "سلفي"
         kycPickPhoto               = "عکس پورته کول"
         kycTakeSelfie              = "سلفي اخیستل"
@@ -2209,6 +2348,7 @@ object StringResources {
         kycReviewTazkiraNo         = { n -> "د تذکرې شمېره: $n" }
         kycReviewViewTazkira       = "تذکره وګورئ"
         kycReviewViewSelfie        = "سلفي وګورئ"
+        kycPhotoUnavailable        = "دا عکس ونه ښودل شو. بیا هڅه وکړئ."
         kycReviewApprove           = "تصدیق"
         kycReviewReject            = "رد"
         tabExplore                 = "سالونونه"
@@ -2229,6 +2369,15 @@ object StringResources {
         registerConsentAnd         = "او"
         registerConsentSuffix      = "مني."
         districtArea               = "سیمه / ناحیه"
+        updateAvailableTitle       = "نوې نسخه شتون لري"
+        updateAvailableBody        = "د SafeBeauty د وروستۍ نسخې لپاره تازه کړئ."
+        updateNow                  = "تازه کړئ"
+        finishedVisitsTitle        = "هغه لیدنې چې امتیاز ورکولی شئ"
+        reviewFailedMessage        = "ستاسو نظر ونه لېږل شو. خپله اړیکه وګورئ او بیا هڅه وکړئ."
+        allCities                  = "ټول ښارونه"
+        cityLabel                  = "ښار"
+        guzarOrArea                = "ګذر / سیمه (اختیاري)"
+        pickCityFirst              = "لومړی ښار وټاکئ"
         addServiceLabel            = "خدمت اضافه کړئ…"
         addServiceHint             = "خدمت اضافه کړئ (لکه ویښتان)"
         noServicesAdded            = "لا هیڅ خدمت اضافه نشوی."
@@ -2375,6 +2524,7 @@ object StringResources {
         exportShareTitle           = "د بکینګ تاریخچه شریکول"
         exportError                = "صادرول ناکام شول. بیا هڅه وکړئ."
         workingHoursTitle          = "د کار ساعتونه"
+        slotsLoadFailed            = "ونه څېړل شول چې کوم وختونه خالي دي. خپله اړیکه وګورئ او بیا هڅه وکړئ."
         slotDurationLabel          = "د وخت موده"
         slotDuration30             = "۳۰ دقیقې"
         slotDuration45             = "۴۵ دقیقې"
@@ -2479,6 +2629,8 @@ object StringResources {
         providerReplied            = "زموږ ځواب:"
         emailAddress               = "د ایمیل پته (اختیاري)"
         bookingHistoryTitle        = "د بکینګونو تاریخچه"
+        expandSection              = "ښودل"
+        collapseSection            = "پټول"
         photoConfirmTitle          = "ایا دا ستاسو عکس دی؟"
         photoConfirmBody           = "مهرباني وکړئ ډاډ ترلاسه کړئ چې ستاسو مخ واضح ښکاري. که نه، بل عکس غوره کړئ."
         photoConfirmYes            = "هو، خوندي کړه"
@@ -2527,6 +2679,7 @@ object StringResources {
         regServicesRequired        = "لږ تر لږه یو خدمت اضافه کړئ."
         regPhoneCheckFailed        = "د تلیفون شمېرې تصدیق ونشو. خپل انټرنټ وګورئ او بیا هڅه وکړئ."
         regPhoneExists             = "په دې د تلیفون شمېرې سره حساب لا دمخه شتون لري."
+        regEmailExists             = "په دې بریښنالیک سره حساب لا دمخه شتون لري. ننوځئ، یا پرته له بریښنالیکه نوم لیکنه وکړئ."
         regFailed                  = "ثبتول ونشول. مهرباني وکړئ بیا هڅه وکړئ."
         deleteAccountTitle         = "زما حساب ړنګ کړئ"
         deleteAccountButton        = "حساب ړنګ کړئ"

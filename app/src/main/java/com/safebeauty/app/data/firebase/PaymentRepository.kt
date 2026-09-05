@@ -78,11 +78,22 @@ class PaymentRepository @Inject constructor() {
         method: String = "ONLINE",
         promoCode: String = "",
         staffId: String = "",
-        packageId: String = ""
+        packageId: String = "",
+        /**
+         * A wedding party's guest list, each entry `{name, services}`.
+         *
+         * Sent as a list rather than folded into [serviceNames] so the salon can
+         * see who is having what — and so the server can work out that everyone
+         * is working at once, instead of queueing five guests onto one stylist.
+         * Empty for an ordinary booking, and the server prices from [serviceNames]
+         * exactly as before.
+         */
+        party: List<Map<String, Any>> = emptyList()
     ): CheckoutOutcome {
         val payload = hashMapOf(
             "salonId" to salonId,
             "serviceNames" to serviceNames,
+            "party" to party,
             "appointmentDate" to appointmentDateMs,
             "notes" to notes,
             "email" to email,

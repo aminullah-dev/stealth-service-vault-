@@ -82,6 +82,9 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.Tab
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -130,6 +133,7 @@ import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
+import com.safebeauty.app.ui.components.SwipeHint
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -164,7 +168,7 @@ import java.util.Locale
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProviderDashboardScreen(
     onSignOut: () -> Unit,
@@ -188,11 +192,18 @@ fun ProviderDashboardScreen(
     val salon               by viewModel.salon.collectAsStateWithLifecycle()
     val isAvailable         by viewModel.isAvailable.collectAsStateWithLifecycle()
     val pendingAppointments by viewModel.pendingAppointments.collectAsStateWithLifecycle()
-    val allAppointments     by viewModel.allAppointments.collectAsStateWithLifecycle()
+    val monthAppointments   by viewModel.monthAppointments.collectAsStateWithLifecycle()
     val analytics           by viewModel.analytics.collectAsStateWithLifecycle()
     val broadcasts          by viewModel.broadcasts.collectAsStateWithLifecycle()
     val reviews             by viewModel.reviews.collectAsStateWithLifecycle()
-    var selectedTab         by remember { mutableIntStateOf(0) }
+    // The tabs are a pager now, so a finger can move between them. selectedTab is
+    // derived from the pager rather than held separately — two sources of truth
+    // for "which tab" is how a tab row ends up highlighting one thing while the
+    // screen shows another.
+    val tabScope   = rememberCoroutineScope()
+    val pagerState = rememberPagerState(pageCount = { 6 })
+    val selectedTab = pagerState.currentPage
+    val goToTab: (Int) -> Unit = { i -> tabScope.launch { pagerState.animateScrollToPage(i) } }
     var showLangPicker      by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
 
@@ -292,7 +303,7 @@ fun ProviderDashboardScreen(
                 ) {
                     Tab(
                         selected = selectedTab == 0,
-                        onClick  = { selectedTab = 0 },
+                        onClick  = { goToTab(0) },
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(strings.tabRequests, fontSize = 14.sp)
@@ -318,35 +329,63 @@ fun ProviderDashboardScreen(
                     )
                     Tab(
                         selected = selectedTab == 1,
-                        onClick  = { selectedTab = 1 },
+                        onClick  = { goToTab(1) },
                         text     = { Text(strings.tabMyProfile, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 2,
-                        onClick  = { selectedTab = 2 },
+                        onClick  = { goToTab(2) },
                         text     = { Text(strings.tabAnalytics, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 3,
-                        onClick  = { selectedTab = 3 },
+                        onClick  = { goToTab(3) },
                         text     = { Text(strings.tabIncome, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 4,
-                        onClick  = { selectedTab = 4 },
+                        onClick  = { goToTab(4) },
                         text     = { Text(strings.tabCalendar, fontSize = 14.sp) }
                     )
                     Tab(
                         selected = selectedTab == 5,
-                        onClick  = { selectedTab = 5 },
+                        onClick  = { goToTab(5) },
                         text     = { Text(strings.reviews, fontSize = 14.sp) }
                     )
                 }
 
+                // A swipe is invisible. This pager shipped and was reported
+                // missing, because nothing on the screen said the tabs could be
+                // dragged. The hint says so, three times, and then stops.
+                SwipeHint(
+                    text    = strings.swipeHintTabs,
+                    hintKey = "tabs",
+                )
+
                 // ── Tab content ───────────────────────────────────────────
-                when (selectedTab) {
+                // weight(1f) rather than a height: the Column fills the screen,
+                // so the pager takes what is left under the tab row. Without it a
+                // pager in a Column has no bound to measure against.
+                HorizontalPager(
+                    state    = pagerState,
+                    modifier = Modifier.weight(1f),
+                ) { page ->
+                when (page) {
                     0 -> BookingRequestsTab(
                         appointments = pendingAppointments,
+                        // From the month the calendar already loads, so this
+                        // costs no extra read and no new index: visits that have
+                        // started, that the salon accepted, and that it has not
+                        // yet reported on. Newest first — the one she just
+                        // finished is the one she wants to rate.
+                        finishedVisits = monthAppointments
+                            .filter {
+                                (it.status == "CONFIRMED" || it.status == "COMPLETED") &&
+                                    it.appointmentDate <= System.currentTimeMillis() &&
+                                    !it.customerReported
+                            }
+                            .sortedByDescending { it.appointmentDate }
+                            .take(20),
                         salonId      = salon?.id ?: "",
                         providerName = salon?.salonName ?: "",
                         providerId   = viewModel.providerId,
@@ -370,11 +409,15 @@ fun ProviderDashboardScreen(
                     1 -> ProfileTab(viewModel = viewModel)
                     2 -> AnalyticsTab(analytics = analytics)
                     3 -> IncomeTab(viewModel = viewModel)
-                    4 -> CalendarTab(allAppointments = allAppointments)
+                    4 -> CalendarTab(
+                        monthAppointments = monthAppointments,
+                        onMonthShown      = viewModel::showCalendarMonth,
+                    )
                     5 -> ReviewsTab(
                         reviews  = reviews,
                         onReply  = { id, text -> viewModel.replyToReview(id, text) }
                     )
+                }
                 }
             }
         }
@@ -788,15 +831,26 @@ private fun AvailabilityCard(isAvailable: Boolean, onToggle: () -> Unit) {
 @Composable
 internal fun ProviderStatusBadge(status: String) {
     val strings = LocalStrings.current
+    // COMPLETED had no case and fell through to gold "Pending".
+    // completePastAppointments flips CONFIRMED to COMPLETED about two hours after
+    // the start time, so every appointment a salon has actually served has been
+    // labelled as still waiting for her — her whole past calendar reads as a
+    // backlog of work she has not done.
     val (bg, fg) = when (status.uppercase()) {
         "CONFIRMED" -> Pair(AvailableGreen.copy(alpha = 0.15f), AvailableGreen)
+        "COMPLETED" -> Pair(DeepRose.copy(alpha = 0.12f), DeepRose)
         "CANCELLED" -> Pair(UnavailableGrey.copy(alpha = 0.15f), UnavailableGrey)
         else        -> Pair(WarmGold.copy(alpha = 0.15f), WarmGold)
     }
     val label = when (status.uppercase()) {
-        "CONFIRMED" -> strings.analyticsConfirmed
-        "CANCELLED" -> strings.analyticsCancelled
-        else        -> strings.pending
+        "CONFIRMED"        -> strings.analyticsConfirmed
+        "COMPLETED"        -> strings.timelineCompleted
+        "CANCELLED"        -> strings.analyticsCancelled
+        // A booking whose payment never landed is not one waiting on the salon,
+        // and telling her it is puts her on the phone to a customer who owes
+        // nothing and has been charged nothing.
+        "AWAITING_PAYMENT" -> strings.statusAwaitingPayment
+        else               -> strings.pending
     }
     Box(
         modifier = Modifier

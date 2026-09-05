@@ -5,10 +5,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -124,11 +130,18 @@ fun AppNavGraph(
     val startDestination = remember {
         if (onboardingVm.hasSeenOnboarding) Screen.Login.route else Screen.Onboarding.route
     }
+    // Who is signed in right now, so a notification tapped at any moment knows
+    // whose notification centre to open. Blank means nobody is past sign-in yet.
+    var signedInUid by remember { mutableStateOf("") }
 
     // Auto-lock: when session expires after 5 min of inactivity, return to Login.
     LaunchedEffect(shouldLock) {
         if (shouldLock) {
             sessionVm.onLockHandled()
+            signedInUid = ""
+            // Drop any notification tap that was never acted on, rather than
+            // letting it fire at the next sign-in as if it had just happened.
+            onDeeplinkConsumed()
             navController.navigate(Screen.Login.route) {
                 popUpTo(0) { inclusive = true }
                 launchSingleTop = true
@@ -140,6 +153,27 @@ fun AppNavGraph(
         LocalStrings        provides strings,
         LocalLayoutDirection provides currentLanguage.layoutDirection()
     ) {
+        // A notification tap, wherever the user happens to be.
+        //
+        // This used to live inside LoginScreen's onAuthSuccess, which meant it
+        // only ever ran on a fresh sign-in. Tapping a push while the app was
+        // already open did nothing at all — onNewIntent set the pending
+        // deeplink and nothing consumed it. It then stayed pending, so it fired
+        // at the NEXT sign-in instead: after five minutes of inactivity the
+        // session auto-locks, and signing back in opened the notification
+        // centre out of nowhere, for a tap from an hour earlier.
+        //
+        // Keyed on the signed-in uid as well as the deeplink, so a tap that
+        // arrives before sign-in is honoured the moment sign-in completes.
+        LaunchedEffect(notifDeeplink, signedInUid) {
+            if (notifDeeplink != null && signedInUid.isNotBlank()) {
+                navController.navigate(Screen.Notifications.build(signedInUid)) {
+                    launchSingleTop = true
+                }
+                onDeeplinkConsumed()
+            }
+        }
+
         // Navigate to SetNewPin screen when the app is opened via Firebase reset link
         LaunchedEffect(deepLink) {
             if (deepLink != null && deepLink.contains("mode=resetPassword")) {
@@ -153,6 +187,7 @@ fun AppNavGraph(
         }
 
         val returnToLogin: () -> Unit = {
+            signedInUid = ""
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Login.route) { inclusive = false }
                 launchSingleTop = true
@@ -161,7 +196,31 @@ fun AppNavGraph(
 
         NavHost(
             navController    = navController,
-            startDestination = startDestination
+            startDestination = startDestination,
+            // slideIntoContainer with Start/End rather than a signed pixel offset:
+            // the app runs right-to-left in Dari and Pashto, and an absolute
+            // offset would send every forward navigation the wrong way for most
+            // of the people using it. Start and End follow the layout direction.
+            //
+            // Short and shallow on purpose. This is a booking app used one-handed,
+            // often on a slow phone; a transition long enough to admire is a
+            // transition in the way.
+            enterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(240)) +
+                    fadeIn(tween(180))
+            },
+            exitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(240)) +
+                    fadeOut(tween(140))
+            },
+            popEnterTransition = {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(240)) +
+                    fadeIn(tween(180))
+            },
+            popExitTransition = {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(240)) +
+                    fadeOut(tween(140))
+            },
         ) {
 
             composable(Screen.Onboarding.route) {
@@ -195,15 +254,9 @@ fun AppNavGraph(
                             UserRole.ADMIN    -> Screen.AdminDashboard.build(user.uid)
                         }
                         navController.navigate(dashboardRoute) { launchSingleTop = true }
-
-                        // If the user opened the app by tapping a push notification,
-                        // navigate to the Notification Center after reaching the dashboard.
-                        if (notifDeeplink != null) {
-                            navController.navigate(Screen.Notifications.build(user.uid)) {
-                                launchSingleTop = true
-                            }
-                            onDeeplinkConsumed()
-                        }
+                        // Hands the notification-tap effect above the uid it needs;
+                        // it opens the notification centre if a tap is pending.
+                        signedInUid = user.uid
                     },
                     onRegisterTapped  = {
                         navController.navigate(Screen.Register.route) { launchSingleTop = true }

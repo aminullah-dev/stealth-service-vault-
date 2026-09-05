@@ -3,12 +3,16 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
-const { computeCheckout, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
+const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteDiscount, loyaltyToCredit, offerDiscountFor, packageDiscountFor, promoDiscountFor, resolveServicesTotal, validateGiftAmount } = require("../lib/money");
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
-const { hasSlotConflict, serviceSlotSpan } = require("../lib/slots");
+const { hasSlotConflict, serviceLayout } = require("../lib/slots");
+const { cashAllowed } = require("../lib/commitment");
+const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta } = require("../lib/commission");
+const { slotFit } = require("../lib/hours");
+const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
-const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
@@ -32,6 +36,35 @@ const HESAB_REDIRECT_BASE = defineString("HESAB_REDIRECT_BASE", {
 
 // Default commission if the platform_config doc is missing (percent).
 const DEFAULT_COMMISSION_PERCENT = 10;
+
+/** The whole config document, for the settings that are not the commission. */
+async function getPlatformConfig() {
+  const snap = await db.doc("platform_config/general").get();
+  return snap.exists ? (snap.data() || {}) : {};
+}
+
+/**
+ * The share of a booking that discounts may take, from platform_config/general.
+ *
+ * A number the admin can move, because how deep a promo may cut is a business
+ * decision and not one to leave buried in a constant. Out-of-range values fall
+ * back to the default rather than being trusted — a 0 there would make every
+ * booking free.
+ */
+async function getMaxDiscountFraction() {
+  const snap = await db.doc("platform_config/general").get();
+  const value = Number(snap.exists ? snap.data().maxDiscountFraction : undefined);
+  // Strictly below 1. A fraction of exactly 1 discounts the whole price away,
+  // which is the outcome this cap exists to prevent — so it is refused like any
+  // other out-of-range value rather than honoured as a deliberate choice. There
+  // is no version of "the salon receives nothing" that is a business decision;
+  // a free appointment is a promotion someone has to fund, and that is what
+  // wallet credit is for.
+  if (!Number.isFinite(value) || value <= 0 || value >= 1) {
+    return DEFAULT_MAX_DISCOUNT_FRACTION;
+  }
+  return value;
+}
 
 async function getCommissionPercent() {
   const snap = await db.doc("platform_config/general").get();
@@ -103,9 +136,36 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party } =
       request.data || {};
+    // A wedding party is a booking for several people at once. It arrives as a
+    // guest list rather than a flat service list, so the salon can see who is
+    // having what — and so the slot maths can account for everyone working at
+    // the same time instead of queueing them onto one stylist.
+    const isParty = Array.isArray(party) && party.length > 0;
     const paymentMethod = method === "CASH" ? "CASH" : "ONLINE";
+
+    // Whether this customer may pay at the salon at all. Cash is the pleasant way
+    // to book and the one most customers here want; it is also the one that costs
+    // a salon a chair and an hour when nobody arrives, because nothing was at
+    // stake. noShowCount has been counted since the two-way ratings went in and
+    // has never governed anything — this is where it starts to. See lib/commitment.
+    if (paymentMethod === "CASH") {
+      const verdict = cashAllowed({
+        noShowCount: appUser.noShowCount,
+        isParty,
+        config: await getPlatformConfig(),
+      });
+      if (!verdict.allowed) {
+        throw new HttpsError(
+          "failed-precondition",
+          verdict.reason === "PARTY"
+            ? "A group booking is paid in advance."
+            : "This booking must be paid in advance.",
+          { reason: verdict.reason, noShowCount: verdict.noShowCount || 0 }
+        );
+      }
+    }
 
     // The HesabPay secret is only needed for the online path — cash bookings
     // never call out to HesabPay, so a missing/unconfigured key must not block
@@ -126,7 +186,7 @@ exports.createPaymentSession = onCall(
         ? serviceNames
         : (serviceNameInput ? [serviceNameInput] : []);
 
-    if (!salonId || requestedServiceNames.length === 0 || !appointmentDate) {
+    if (!salonId || (requestedServiceNames.length === 0 && !isParty) || !appointmentDate) {
       throw new HttpsError(
         "invalid-argument",
         "salonId, at least one service, and appointmentDate are required."
@@ -170,7 +230,16 @@ exports.createPaymentSession = onCall(
 
     // Price every requested service server-side and sum them. One shared path for
     // single-service, multi-service, and group bookings (see lib/money.js, tested).
-    const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, requestedServiceNames);
+    // A party is priced from its guest list. Normalised against what the salon
+    // actually offers, because this arrives from a phone: a guest cannot conjure
+    // a service into existence, and a guest having nothing done is not a guest.
+    const partyGuests = isParty ? normalizeParty(party, salon.services) : [];
+    if (isParty && partyGuests.length === 0) {
+      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.");
+    }
+    const effectiveNames = isParty ? partyServices(partyGuests) : requestedServiceNames;
+
+    const { services, total, invalid } = resolveServicesTotal(salon.pricePerService, effectiveNames);
     if (invalid.length > 0) {
       throw new HttpsError("failed-precondition", `No valid price for: ${invalid.join(", ")}`);
     }
@@ -187,11 +256,34 @@ exports.createPaymentSession = onCall(
     // with no duration fall back to one whole slot. When no durations are set this
     // equals services.length — identical to the previous behavior. Tested in
     // lib/slots.js.
-    const slotSpan = serviceSlotSpan(
-      services.map((s) => s.name),
-      salon.durationPerService,
-      salon.slotDurationMinutes
+    // busyOffsets names which of those slots the stylist is actually working. A
+    // colour leaves her free while the colour develops, and that gap is hers to
+    // sell — so it is left out of the set the conflict check compares.
+    // A party is the salon's block of the day rather than one stylist's: everyone
+    // works, so the wall-clock is the total work divided by however many stylists
+    // there are. Processing time does not apply — nobody is idle during a wedding
+    // — so a party is busy throughout its span.
+    const activeStaffCount = Math.max(
+      1,
+      (Array.isArray(salon.staff) ? salon.staff : []).filter((m) => m && m.active !== false).length
     );
+    const { span: slotSpan, busyOffsets } = isParty
+      ? { span: partySpan(partyGuests, salon.durationPerService, salon.slotDurationMinutes, activeStaffCount),
+          busyOffsets: null }
+      : serviceLayout(
+          services.map((s) => s.name),
+          salon.serviceTiming,
+          salon.durationPerService,
+          salon.slotDurationMinutes
+        );
+    // What the conflict check compares: the working offsets for an ordinary
+    // booking, the whole span for a party.
+    const occupies = isParty ? slotSpan : busyOffsets;
+    // What the OPENING-HOURS check compares, which is a different question.
+    // busyOffsets is where the stylist is working; while a colour develops she
+    // is free and the chair is not. The customer is in the salon for the whole
+    // span, so that is what has to fit before closing.
+    const occupiedSpan = slotSpan;
 
     // Resolve the requested staff member (if any) server-side, so the stored
     // staffName can't be spoofed and a booking can't reference a staff member
@@ -225,6 +317,41 @@ exports.createPaymentSession = onCall(
     const slotMinutes = Number(salon.slotDurationMinutes) || 60;
     const conflictWindow = slotConflictWindow(appointmentDate);
 
+    // Whether this start time exists on the salon's own grid.
+    //
+    // Recorded rather than refused, deliberately, and only here. The customer
+    // app builds the grid from the device clock, so a phone set to another
+    // timezone computes a real-looking time that is half an hour off Kabul's —
+    // and today that booking succeeds and lands in the salon's calendar at an
+    // hour she may not be open. Refusing it outright is the right end state and
+    // the wrong thing to ship into a payment path hours before a release: it
+    // turns a rare wrong-time booking into a hard failure at the till, for a
+    // population I cannot measure from here.
+    //
+    // So it is measured. The flag rides on the appointment and the alert reaches
+    // an admin, which is what makes this a staged change rather than a field
+    // nobody reads. rescheduleAppointment, where no money is moving, refuses.
+    // The span, not the busy count. `occupies` is busyOffsets — the slots the
+    // stylist is working — and for anything with processing time that is fewer
+    // than the slots the customer is in the chair for. Passing its length let a
+    // three-slot colour start in the salon's last hour: the client would not
+    // offer it, and the one check that exists to catch that agreed with the
+    // server instead of with her.
+    const fit = slotFit(salon, appointmentDate, occupiedSpan);
+    if (!fit.ok) {
+      // Not BOOKING_FAILED. That label is documented as "a customer tried to
+      // book and could not", and the two write-failure alerts below use it — so
+      // a booking that SUCCEEDED would page as an outage and inflate the count
+      // any log-based alert watches. This one succeeded; it is a disagreement
+      // between the app's grid and the salon's hours, and it is a different
+      // thing to be woken up for.
+      alertable("SLOT_MISMATCH", "A booking was made at a time the salon does not offer", {
+        salonId, uid, appointmentDate, reason: fit.reason,
+        kabulTime: new Date(appointmentDate).toLocaleString("en-CA", { timeZone: "Asia/Kabul" }),
+      });
+    }
+    const offGridReason = fit.ok ? "" : fit.reason;
+
     const readNearbyAppointments = async (reader) => {
       const q = db.collection("appointments")
         .where("salonId", "==", salonId)
@@ -234,7 +361,7 @@ exports.createPaymentSession = onCall(
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     };
 
-    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, slotSpan, resolvedStaffId, slotMinutes)) {
+    if (hasSlotConflict(await readNearbyAppointments(null), appointmentDate, occupies, resolvedStaffId, slotMinutes, undefined, isParty)) {
       // A customer chose this salon, this service and this time, and could not
       // have it. That is the most specific demand signal the system can observe.
       await recordDemandSignal({
@@ -307,7 +434,14 @@ exports.createPaymentSession = onCall(
     // booking completes (immediately for cash; in the webhook for online). The
     // arithmetic lives in lib/money.js so it can be unit-tested without Firebase.
     const commissionPercent = await getCommissionPercent();
-    const totalDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
+    // Capped, not just summed. Four discounts land on one booking and three of
+    // them are the salon's own — it may discount itself as deeply as it likes.
+    // The promo code is not: an admin issues it and it stacks on top of whatever
+    // the salon had already given away, and the four together reached the whole
+    // list price. computeCheckout clamps at zero, so nothing ever went negative
+    // and the real outcome was hidden: a salon doing the work for nothing.
+    const rawDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
+    const totalDiscount = capDiscount(listPrice, rawDiscount, await getMaxDiscountFraction());
 
     // Reserve referral credit + the promo use ATOMICALLY at checkout, reading the
     // LIVE balance/usedCount inside the transaction — so two of the customer's
@@ -316,7 +450,7 @@ exports.createPaymentSession = onCall(
     // recomputed from the live credit here; the payment is written reserved:true
     // so settlement does NOT spend again, and the abandon / write-failure /
     // HesabPay-failure paths refund it (refundReservation).
-    let afterPromo, referralUsed, price, commissionAmount, providerNet;
+    let referralUsed, price, commissionAmount, providerNet;
     {
       const split = await db.runTransaction(async (tx) => {
         const uRef  = db.doc(`users/${uid}`);
@@ -362,7 +496,7 @@ exports.createPaymentSession = onCall(
         }
         return s;
       });
-      ({ afterPromo, referralUsed, price, commissionAmount, providerNet } = split);
+      ({ referralUsed, price, commissionAmount, providerNet } = split);
     }
 
     const providerId        = salon.providerId || "";
@@ -379,6 +513,7 @@ exports.createPaymentSession = onCall(
       const batch = pendingWrites();
       batch.set(apptRef, {
         bookingCode,
+        offGridReason,
         customerId:     uid,
         customerName:   user.name  || "",
         customerPhone:  user.phone || "",
@@ -387,12 +522,19 @@ exports.createPaymentSession = onCall(
         serviceName,
         services,
         slotsCount:     slotSpan,
+        busyOffsets:     busyOffsets || [],
+        isParty:     isParty,
+        party:     partyGuests,
+        partySize:     partyGuests.length,
         staffId:        resolvedStaffId,
         staffName:      resolvedStaffName,
         appointmentDate,
         status:         "PENDING",
         paymentMethod:  "CASH",
         createdAt:      Date.now(),
+        // When the wait for the salon's confirmation started — reset on
+        // reschedule, which createdAt cannot be. See lib/unconfirmed.js.
+        pendingSince:   Date.now(),
         notes:          safeNotes,
         reminderSent:   false,
         customerReported:    false,
@@ -417,6 +559,9 @@ exports.createPaymentSession = onCall(
         packageId:         appliedPackageId,
         referralUsed,
         reserved:          true,
+        // Which balance formula wrote this payment's entry, so a reversal
+        // undoes exactly what the booking did even across this release.
+        ledgerVersion:     LEDGER_VERSION,
         commissionPercent,
         commissionAmount,
         providerNet,
@@ -433,7 +578,20 @@ exports.createPaymentSession = onCall(
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(-commissionAmount),
+            // Commission owed, less the part of the price the customer did not
+            // hand over in cash because she spent wallet credit.
+            //
+            // That credit is the platform's obligation, never the salon's. A
+            // gift card was bought with real money the platform is holding; a
+            // referral reward, a KYC bonus and redeemed loyalty points are
+            // promotions the platform chose to run. The salon agreed to a price
+            // and served the appointment either way. Counting only what was
+            // handed over meant a customer with enough credit was served for
+            // nothing — and if the credit came from a gift card, the platform
+            // kept the money and the salon got none of it.
+            owedAmount: admin.firestore.FieldValue.increment(
+              cashLedgerDelta({ referralUsed, commissionAmount })
+            ),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -452,7 +610,7 @@ exports.createPaymentSession = onCall(
       }
       try {
         await commitBookingAtomically(db, batch, readNearbyAppointments,
-          appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
+          appointmentDate, occupies, resolvedStaffId, slotMinutes, isParty);
         await logAppointmentEvent(
           { bookingCode, salonId, customerId: uid, status: "" },
           apptRef.id, "PENDING",
@@ -494,6 +652,7 @@ exports.createPaymentSession = onCall(
     const createBatch = pendingWrites();
     createBatch.set(apptRef, {
       bookingCode,
+      offGridReason,
       customerId:    uid,
       customerName:  user.name  || "",
       customerPhone: user.phone || "",
@@ -502,6 +661,10 @@ exports.createPaymentSession = onCall(
       serviceName,
       services,
       slotsCount:    slotSpan,
+      busyOffsets:    busyOffsets || [],
+      isParty:    isParty,
+      party:    partyGuests,
+      partySize:    partyGuests.length,
       staffId:       resolvedStaffId,
       staffName:     resolvedStaffName,
       appointmentDate,
@@ -537,6 +700,9 @@ exports.createPaymentSession = onCall(
       reserved:          true,
       // Legacy flag, kept so any in-flight pre-reservation payment still settles.
       promoCounted:      false,
+      // Which balance formula wrote this payment's entry, so a reversal undoes
+      // exactly what the booking did even across this release.
+      ledgerVersion:     LEDGER_VERSION,
       commissionPercent,
       commissionAmount,
       providerNet,
@@ -548,7 +714,7 @@ exports.createPaymentSession = onCall(
     });
     try {
       await commitBookingAtomically(db, createBatch, readNearbyAppointments,
-        appointmentDate, slotSpan, resolvedStaffId, slotMinutes);
+        appointmentDate, occupies, resolvedStaffId, slotMinutes, isParty);
       await logAppointmentEvent(
         { bookingCode, salonId, customerId: uid, status: "" },
         apptRef.id, "AWAITING_PAYMENT",
@@ -648,6 +814,7 @@ exports.createGiftCardSession = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
+    assertNotSuspended(buyer);
 
     const { recipientPhone, amount, message } = request.data || {};
     const gift = validateGiftAmount(amount);
@@ -657,9 +824,11 @@ exports.createGiftCardSession = onCall(
 
     // Recipient must be a registered user (we credit their existing wallet).
     const phone = normalizePhone(recipientPhone);
-    const q = await db.collection("users").where("phone", "==", phone).limit(1).get();
-    if (q.empty) throw new HttpsError("not-found", "No account uses that phone number.");
-    const recipient = q.docs[0];
+    // Matched the way a login matches — an account stored before normalization
+    // existed could not be sent a gift card, and the buyer was told no such
+    // account existed while looking at the person's number in her contacts.
+    const recipient = await findAccountByPhone(phone, String(recipientPhone || ""));
+    if (!recipient) throw new HttpsError("not-found", "No account uses that phone number.");
     if (recipient.id === buyer.uid) {
       throw new HttpsError("failed-precondition", "You can't send a gift card to yourself.");
     }
@@ -745,6 +914,7 @@ exports.createWalletTopUp = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
+    assertNotSuspended(buyer);
 
     const { amount } = request.data || {};
     const top = validateGiftAmount(amount);
@@ -811,6 +981,7 @@ exports.createTipSession = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const customer = await resolveAppUser(request);
+    assertNotSuspended(customer);
 
     const { appointmentId, amount } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");
@@ -889,6 +1060,7 @@ exports.createTipSession = onCall(
 exports.redeemLoyaltyPoints = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
 
   const conv = loyaltyToCredit((request.data || {}).points);
   if (!conv.ok) {
@@ -935,6 +1107,7 @@ const PROFILE_REWARD_POINTS = 20;
 exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   const userRef = db.doc(`users/${appUser.uid}`);
 
   const result = await db.runTransaction(async (tx) => {
@@ -985,12 +1158,12 @@ exports.claimProfileReward = onCall({ region: "us-central1" }, async (request) =
  * that has been running in production, moved and not rewritten.
  *
  * @param {FirebaseFirestore.Transaction} tx
- * @param {{paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId, apptEvent}} ctx
+ * @param {{paymentRef, paidSignal, failSignal, transactionId, signature, paymentId, apptEvent}} ctx
  * @returns {Promise<"paid"|"failed"|"ignored"|"replay"|"stale"|"already_paid"|"not_found">}
  */
 
 async function settlePaymentInTransaction(tx, ctx) {
-  const { paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId } = ctx;
+  const { paymentRef, paidSignal, failSignal, transactionId, signature, paymentId } = ctx;
   // Re-read inside the transaction so two concurrent retries can't both
   // pass the PAID check and double-credit the provider.
   const freshSnap = await tx.get(paymentRef);
@@ -1005,8 +1178,44 @@ async function settlePaymentInTransaction(tx, ctx) {
   // sweep, FAILED, CANCELLED, REFUND_PENDING) a late webhook must NOT
   // revive it — otherwise an expired booking whose slot was re-sold gets
   // re-opened and the provider double-credited while the customer already
-  // had their reserved credit refunded. Ignore it (200, no-op).
-  if (fresh.status !== "PENDING") return "stale";
+  // had their reserved credit refunded.
+  //
+  // Not reviving it was right. Saying nothing was not. On a slow Afghan
+  // connection a customer can complete a HesabPay checkout after the two-hour
+  // sweep has already expired her booking, and the paid webhook then arrives
+  // for a payment nobody is waiting on. This returned 200 and dropped it: her
+  // money had left her account, the booking was gone, and the only trace was a
+  // log line. Someone has to give it back, so record the debt, put an admin on
+  // it, and tell her it is coming — the slot is still not re-opened.
+  if (fresh.status !== "PENDING") {
+    if (paidSignal && fresh.lateSettlement !== true) {
+      tx.update(paymentRef, {
+        lateSettlement:   true,
+        lateSettlementAt: Date.now(),
+        lateTransactionId: String(transactionId || ""),
+      });
+      const refundRef = db.collection("refund_requests").doc();
+      tx.set(refundRef, {
+        appointmentId: fresh.appointmentId || "",
+        paymentId,
+        customerId:    fresh.customerId || "",
+        providerId:    fresh.providerId || "",
+        salonId:       fresh.salonId || "",
+        amount:        Number(fresh.amount || 0),
+        reason:        "LATE_PAYMENT",
+        status:        "PENDING",
+        createdAt:     Date.now(),
+      });
+      ctx.lateSettlement = {
+        paymentId,
+        refundRequestId: refundRef.id,
+        customerId: fresh.customerId || "",
+        amount: Number(fresh.amount || 0),
+        previousStatus: String(fresh.status || ""),
+      };
+    }
+    return "stale";
+  }
 
   // Replay guard — a webhook settles exactly one payment, ever. Prefer the
   // transaction_id; when the payload omits it (or it isn't path-safe), fall
@@ -1121,7 +1330,11 @@ async function settlePaymentInTransaction(tx, ctx) {
       transactionId: transactionId || null,
     });
     // Release the appointment to the provider's pending queue.
-    tx.update(db.doc(`appointments/${fresh.appointmentId}`), { status: "PENDING" });
+    // pendingSince starts here, not at checkout: until the money arrived the
+    // salon had nothing to confirm, and an abandoned-then-paid booking would
+    // otherwise arrive up to two hours into its own confirmation deadline.
+    tx.update(db.doc(`appointments/${fresh.appointmentId}`),
+      { status: "PENDING", pendingSince: Date.now() });
     ctx.apptEvent = { id: fresh.appointmentId, to: "PENDING", reason: "Online payment received" };
     // Track what the provider is owed (platform pays out separately).
     // Guarded: an empty providerId would make db.doc("provider_balances/")
@@ -1131,8 +1344,16 @@ async function settlePaymentInTransaction(tx, ctx) {
       tx.set(
         db.doc(`provider_balances/${fresh.providerId}`),
         {
-          providerId: fresh.providerId,
-          owedAmount: admin.firestore.FieldValue.increment(fresh.providerNet),
+          // What she is owed for the appointment, plus the part of the price the
+          // customer paid with wallet credit rather than at the checkout.
+          //
+          // That credit is the platform's obligation and never the salon's: a
+          // gift card was bought with real money the platform is holding, and a
+          // referral reward, a KYC bonus or redeemed loyalty points are
+          // promotions the platform chose to run. Counting only what HesabPay
+          // moved meant the platform kept the gift-card money and paid the salon
+          // out of its own price.
+          owedAmount: admin.firestore.FieldValue.increment(onlineLedgerDelta(fresh)),
           updatedAt:  Date.now(),
         },
         { merge: true }
@@ -1362,6 +1583,7 @@ exports.hesabPayWebhook = onRequest(
       const settleCtx = {
         paymentRef, paidSignal, failSignal, transactionId, signature, payload, paymentId,
         apptEvent: null,
+        lateSettlement: null,
       };
       const result = await db.runTransaction((tx) => settlePaymentInTransaction(tx, settleCtx));
       apptEventAfter = settleCtx.apptEvent;
@@ -1388,6 +1610,32 @@ exports.hesabPayWebhook = onRequest(
       // credit + promo use that were spent atomically at checkout (best-effort,
       // outside the transaction — mirrors expireAbandonedPayments). Uses the
       // pre-transaction snapshot; the FAILED transition already ran exactly once.
+      // Money arrived for a booking that had already been given up on. The
+      // transaction recorded the refund owed; the customer needs to hear it
+      // from us before she hears it from her bank statement.
+      if (settleCtx.lateSettlement) {
+        const late = settleCtx.lateSettlement;
+        alertable("PAYMENT_FAILED", "Payment arrived after the booking was closed — refund owed", {
+          paymentId: late.paymentId,
+          refundRequestId: late.refundRequestId,
+          amount: late.amount,
+          previousStatus: late.previousStatus,
+        });
+        if (late.customerId) {
+          await db.collection("notifications").add({
+            recipientId: late.customerId,
+            type:        "PAYMENT",
+            msgKey:      "PAYMENT_LATE_REFUND",
+            msgParams:   { amount: late.amount },
+            title:       "Payment received late — refund on the way",
+            body:        `Your payment of ${late.amount} AFN arrived after the booking had already been cancelled, so we are refunding it.`,
+            isRead:      false,
+            createdAt:   Date.now(),
+            relatedId:   late.paymentId,
+          });
+        }
+      }
+
       if (result === "failed" && payment.reserved && !payment.type) {
         await refundReservation({
           customerId:   payment.customerId,
@@ -1745,6 +1993,7 @@ exports.adminSettleStuckPayment = onCall({ region: "us-central1" }, async (reque
     payload: { adminSettled: true, by: me.uid },
     paymentId,
     apptEvent: null,
+    lateSettlement: null,
   };
 
   const outcome = await db.runTransaction((tx) => settlePaymentInTransaction(tx, ctx));
@@ -1764,9 +2013,17 @@ exports.adminSettleStuckPayment = onCall({ region: "us-central1" }, async (reque
   await logAdminAction(me, "SETTLE_STUCK_PAYMENT", {
     paymentId, reference, outcome,
     amount: Number((before.data() || {}).amount || 0),
+    refundRequestId: ctx.lateSettlement ? ctx.lateSettlement.refundRequestId : null,
   });
 
-  return { ok: true, outcome };
+  // "stale" here means the booking was already closed, so the settlement became
+  // a refund the admin now owes the customer. Hand the id back rather than
+  // leaving them to hunt for it in the Refunds tab.
+  return {
+    ok: true,
+    outcome,
+    refundRequestId: ctx.lateSettlement ? ctx.lateSettlement.refundRequestId : null,
+  };
 });
 
 // ── Demand signals ────────────────────────────────────────────────────────────

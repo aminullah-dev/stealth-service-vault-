@@ -1,0 +1,4 @@
+# Rendered images are build output — the spec and the generator are the source.
+# Keeping 400 KB PNGs in git for every post would bloat the repo for files that
+# regenerate in seconds.
+out/

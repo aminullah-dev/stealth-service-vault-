@@ -4,7 +4,7 @@
 // so the deployed function set is unchanged by the move.
 
 const { averageRating } = require("../lib/reviews");
-const { assertAdmin, assertDocId, logAdminAction, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, resolveAppUser } = require("../shared");
 const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
@@ -44,6 +44,10 @@ exports.pushOfferToFavoriters = onDocumentCreated(
       batch.set(db.collection("notifications").doc(), {
         recipientId: customerId,
         type:        "OFFER",
+        // msgKey is what pushOnNotificationCreated translates by; title and body
+        // stay as the English fallback for anything the catalogue does not know.
+        msgKey:      "OFFER_NEW",
+        msgParams:   { salon, text: offer.title || "" },
         title,
         body,
         isRead:      false,
@@ -83,6 +87,7 @@ exports.submitReview = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const user = await resolveAppUser(request);
+    assertNotSuspended(user);
 
     const { appointmentId, salonId, rating, comment, imageUrls } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "A valid appointmentId is required.");
@@ -118,6 +123,14 @@ exports.submitReview = onCall(
       // A review only makes sense once the salon accepted/served the visit, and
       // exactly once per booking.
       if (appt.status !== "CONFIRMED" && appt.status !== "COMPLETED") {
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+      }
+      // CONFIRMED means the salon accepted the booking, not that it happened.
+      // The message above already promised "after your visit"; without this the
+      // status check alone let a customer rate an appointment she is booked in
+      // for next week, and it counted toward the salon's average.
+      const startsAt = Number(appt.appointmentDate || 0);
+      if (Number.isFinite(startsAt) && startsAt > Date.now()) {
         throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
       }
       if (appt.reviewed === true) {
@@ -226,6 +239,8 @@ exports.pushPostToFollowers = onDocumentCreated(
       batch.set(db.collection("notifications").doc(), {
         recipientId: customerId,
         type:        "POST",
+        msgKey:      "POST_NEW",
+        msgParams:   { salon, text: (post.caption || "").slice(0, 140) },
         title,
         body:        body.slice(0, 180),
         isRead:      false,

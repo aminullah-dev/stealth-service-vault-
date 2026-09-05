@@ -100,6 +100,12 @@ fun LoginScreen(
     var password       by remember { mutableStateOf("") }
     var passwordShown  by remember { mutableStateOf(false) }
     var showError      by remember { mutableStateOf(false) }
+    // Which failure, not just that there was one — a dropped connection told a
+    // woman her password was wrong, so she retried until the rate limit locked
+    // her out, and that was reported as a wrong password too.
+    var errorReason    by remember {
+        mutableStateOf(AuthViewModel.FailureReason.WRONG_CREDENTIALS)
+    }
     var showLangPicker by remember { mutableStateOf(false) }
 
     // Fingerprint login: available only with enrolled biometrics; "enabled" once
@@ -139,6 +145,7 @@ fun LoginScreen(
                 }
             }
             is AuthViewModel.AuthState.Failure -> {
+                errorReason = (authState as AuthViewModel.AuthState.Failure).reason
                 showError = true
                 authViewModel.resetState()
             }
@@ -318,7 +325,12 @@ fun LoginScreen(
             // ── Error ─────────────────────────────────────────────────────────
             Spacer(Modifier.height(8.dp))
             Text(
-                text     = if (showError) strings.loginWrongPin else "",
+                text     = if (showError) when (errorReason) {
+                    AuthViewModel.FailureReason.NO_CONNECTION     -> strings.loginNoConnection
+                    AuthViewModel.FailureReason.TOO_MANY_ATTEMPTS -> strings.loginTooManyAttempts
+                    AuthViewModel.FailureReason.SERVER_ERROR      -> strings.loginServerError
+                    AuthViewModel.FailureReason.WRONG_CREDENTIALS -> strings.loginWrongPin
+                } else "",
                 fontSize = 13.sp,
                 color    = DangerRed
             )

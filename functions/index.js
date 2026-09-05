@@ -30,33 +30,10 @@
  *   Webhook  : lookup by session_id stored at payment creation time
  */
 
-const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated, onDocumentWritten, onDocumentDeleted } = require("firebase-functions/v2/firestore");
-const { defineSecret, defineString } = require("firebase-functions/params");
-// admin, db, logger and alertable now live in shared.js, which runs
-// initializeApp() exactly once on first require. Every domain module takes them
-// from the same place, so they all address the same Firestore.
-const {
-  admin, db, logger, alertable,
-  assertDocId, resolveAppUser, cleanPhone,
-  normalizeAfghanPhone, normalizePhone, assertAdmin,
-  assertNotSuspended, logAdminAction, appointmentEvent,
-  writeAppointmentEvent, logAppointmentEvent,
-  refundReservation, randomBookingCode, reserveBookingCode,
-  pbkdf2Hash,
-} = require("./shared");
-const crypto = require("crypto");
-const { promoDiscountFor, computeCheckout, resolveServicesTotal, validateGiftAmount, loyaltyToCredit, offerDiscountFor, lastMinuteDiscount, packageDiscountFor } = require("./lib/money");
-const { expandBooked, serviceSlotSpan, hasSlotConflict } = require("./lib/slots");
-const { isPaidSignal, isFailSignal, isUnderpaid } = require("./lib/webhook");
-const { isValidDocId } = require("./lib/validate");
-const { averageRating } = require("./lib/reviews");
-const { bookingCodeFromBytes, normalizeBookingCode } = require("./lib/booking");
-const { phoneKey } = require("./lib/phone");
-const { categoriesFor, normalize: categoryNormalize } = require("./lib/categories");
-const { normalizeDistrict } = require("./lib/areas");
-const { SlotTakenError, pendingWrites, commitBookingAtomically, slotConflictWindow } = require("./lib/reservation");
+// Nothing is required here beyond the domain modules below. index.js used to
+// hold 5,747 lines and needed all of this; after the split it holds only the
+// export wiring, and every one of those bindings was dead — which is what the
+// first lint run reported, one error per leftover.
 
 
 
@@ -117,14 +94,21 @@ exports.syncUidMap               = identity.syncUidMap;
 exports.updatePinHash            = identity.updatePinHash;
 exports.submitKyc                = identity.submitKyc;
 exports.reviewKyc                = identity.reviewKyc;
+exports.registerAccount          = identity.registerAccount;
 exports.createProviderSalon      = identity.createProviderSalon;
 exports.lookupAccountByPhone     = identity.lookupAccountByPhone;
 exports.requestAccountDeletion   = identity.requestAccountDeletion;
 exports.adminBackfillPhoneKeys   = identity.adminBackfillPhoneKeys;
+exports.adminBackfillReferralCodes = identity.adminBackfillReferralCodes;
+exports.adminBackfillWorkingHours  = identity.adminBackfillWorkingHours;
+exports.adminRevokeKycUrls       = identity.adminRevokeKycUrls;
 exports.deriveUserPhoneKey       = identity.deriveUserPhoneKey;
 
 const bookings = require("./domains/bookings");
 exports.cancelAppointment          = bookings.cancelAppointment;
+exports.adminCancelAppointment  = bookings.adminCancelAppointment;
+exports.deriveSalonStats        = bookings.deriveSalonStats;
+exports.adminRebuildSalonStats  = bookings.adminRebuildSalonStats;
 exports.providerDeclineAppointment = bookings.providerDeclineAppointment;
 exports.getBookedSlots             = bookings.getBookedSlots;
 exports.rescheduleAppointment      = bookings.rescheduleAppointment;
@@ -316,13 +300,6 @@ exports.reconcileIntegrity       = maintenance.reconcileIntegrity;
 // Nudged once per appointment (providerNudged), so a provider who is genuinely
 // away is not spammed every run.
 
-// Timings and the give-up deadline live in lib/unconfirmed.js so the boundary
-// cases are unit-tested — this decides whether real money is refunded.
-const {
-  UNCONFIRMED_NUDGE_AFTER_MS,
-  UNCONFIRMED_ADMIN_AFTER_MS,
-  unconfirmedDeadline,
-} = require("./lib/unconfirmed");
 
 
 // ── Expire stories ────────────────────────────────────────────────────────────

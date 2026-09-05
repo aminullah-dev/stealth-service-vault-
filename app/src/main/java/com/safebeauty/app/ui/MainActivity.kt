@@ -2,6 +2,7 @@ package com.safebeauty.app.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -18,6 +19,8 @@ import com.safebeauty.app.BuildConfig
 import com.safebeauty.app.navigation.AppNavGraph
 import com.safebeauty.app.navigation.NotificationDeeplink
 import com.safebeauty.app.security.SessionManager
+import androidx.compose.foundation.layout.Column
+import com.safebeauty.app.ui.components.UpdateAvailableBanner
 import com.safebeauty.app.ui.components.ForceUpdateDialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +43,29 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Keeps the app out of the recents thumbnail, and out of screenshots.
+        //
+        // The disguise stopped at the applicationId: com.security.stealthapp is
+        // only visible in Settings, while the task switcher rendered a live
+        // preview of a beauty-booking app to anyone who pressed the square
+        // button. FLAG_SECURE blanks that preview.
+        //
+        // It also blocks screenshots and screen recording app-wide, which is a
+        // real cost — a customer cannot screenshot her booking to send to a
+        // friend. That is the trade this app is for: the same picture in the
+        // wrong gallery is the thing being protected against.
+        // Release only. FLAG_SECURE blanks the recents thumbnail AND blocks
+        // every screenshot, adb screencap included — so with it on in debug
+        // builds nobody developing the app can see what they changed, and the
+        // one screen you most want to look at is the one you cannot capture.
+        // The protection matters for the build a customer installs; a debug
+        // build never reaches a phone anyone else picks up.
+        if (!BuildConfig.DEBUG) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
         enableEdgeToEdge()
 
         // Lock the app if it returns to the foreground after 5 minutes of inactivity.
@@ -63,12 +89,26 @@ class MainActivity : FragmentActivity() {
             val brand by themeVm.brand.collectAsStateWithLifecycle()
             DashboardTheme(darkTheme = isSystemInDarkTheme(), brand = brand) {
                 val navController = rememberNavController()
+                Column {
+                // A newer version exists and this one still works. Above the nav
+                // graph so it reaches every screen, and inside the theme so it
+                // follows the customer's colour family and language. It occupies
+                // real height rather than floating: a strip over the top of a
+                // booking screen covers the thing she came to use.
+                forceUpdateViewModel.updateAvailable?.let { available ->
+                    UpdateAvailableBanner(
+                        info      = available,
+                        onDismiss = { forceUpdateViewModel.dismissUpdateBanner() },
+                    )
+                }
                 AppNavGraph(
                     navController      = navController,
                     deepLink           = intent?.data?.toString(),
                     notifDeeplink      = pendingDeeplink,
                     onDeeplinkConsumed = { pendingDeeplink = null }
                 )
+
+                }
 
                 // Overlay a non-dismissible dialog if a forced update is required.
                 forceUpdateViewModel.updateInfo?.let { info ->

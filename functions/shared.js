@@ -14,6 +14,7 @@
 const { HttpsError } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 const { isValidDocId } = require("./lib/validate");
+const { phoneKey } = require("./lib/phone");
 const { bookingCodeFromBytes } = require("./lib/booking");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
@@ -47,8 +48,9 @@ function assertDocId(id, field) {
   }
 }
 
-// The app's `users/{uid}` documents are keyed by a UUID the client generates
-// at registration (see RegisterViewModel) — NOT by the Firebase Auth uid that
+// The app's `users/{uid}` documents are keyed by a UUID generated at
+// registration — by registerAccount on the server now, by the client for
+// accounts that predate it — NOT by the Firebase Auth uid that
 // `request.auth.uid` carries. The two are only linked via `firebaseEmail`.
 // Every callable that needs "who is this app user" must resolve through here
 // instead of using request.auth.uid directly, or it silently tags data with
@@ -119,6 +121,46 @@ async function assertAdmin(request) {
 }
 
 /**
+ * Find the account that already owns a phone number, in any shape it was stored.
+ *
+ * The uniqueness checks queried `phone` with the normalized `+93…` form, but
+ * authenticateWithPassword resolves a login by `phoneDigits` — the subscriber
+ * tail, which is normalization-independent. An account written before
+ * normalization existed is stored as "0700123456", so the check found nothing
+ * and let a second account be created on the same number. Both people then
+ * share one login key, whoever the index returns first wins, and the other is
+ * locked out of an account that still exists. That is not recoverable by the
+ * person it happens to.
+ *
+ * So this asks the question the login actually asks. phoneDigits is written by
+ * the deriveUserPhoneKey trigger and backfilled by adminBackfillPhoneKeys, but
+ * an account it has not reached yet simply lacks the field — and equality on a
+ * missing field matches nothing — so the two stored spellings of `phone` are
+ * still checked behind it. Three limit(1) reads on an admin action is nothing;
+ * a permanent lockout is not.
+ *
+ * @param {string} phone normalized (+93…)
+ * @param {string} [raw] whatever the caller typed, if it differed
+ * @param {string} [exceptUid] an account allowed to keep its own number
+ * @returns {Promise<FirebaseFirestore.QueryDocumentSnapshot|null>}
+ */
+async function findAccountByPhone(phone, raw = "", exceptUid = "") {
+  const users = db.collection("users");
+  const key = phoneKey(phone || raw);
+  const attempts = [];
+  if (key) attempts.push(users.where("phoneDigits", "==", key).limit(2));
+  if (phone) attempts.push(users.where("phone", "==", phone).limit(2));
+  if (raw && raw !== phone) attempts.push(users.where("phone", "==", raw).limit(2));
+
+  for (const q of attempts) {
+    const snap = await q.get();
+    const hit = snap.docs.find((d) => d.id !== exceptUid);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
  * Refuse an action by a suspended account.
  *
  * Deliberately not folded into resolveAppUser: a suspended person must still be
@@ -127,8 +169,32 @@ async function assertAdmin(request) {
  * disputing it is the route that gets closed. What stops is acting.
  */
 
+/**
+ * Suspension has been written two different ways, and each half only ever
+ * closed half the door.
+ *
+ * adminSuspendUser writes `suspended: true`, which this function reads, so
+ * every callable refuses — but the security rules gate direct writes on
+ * `isApproved()`, which reads `status`, so a suspended provider could still
+ * create salons, services, offers and posts straight from the client.
+ *
+ * resolveCustomerReport and the console's Users tab write `status:
+ * "SUSPENDED"`, which the rules read — but nothing on the server did, so a
+ * customer suspended for misconduct through the reports flow, which is the one
+ * place a report leads to action, went on booking and paying as though nothing
+ * had happened. The admin saw a red badge and believed it.
+ *
+ * Both fields now mean suspension on both sides. Reading both is also what
+ * makes every account suspended before today start being enforced without a
+ * migration.
+ */
+function isSuspended(appUser) {
+  if (!appUser) return false;
+  return appUser.suspended === true || appUser.status === "SUSPENDED";
+}
+
 function assertNotSuspended(appUser) {
-  if (appUser && appUser.suspended === true) {
+  if (isSuspended(appUser)) {
     throw new HttpsError(
       "permission-denied",
       "This account is suspended. Please contact support."
@@ -147,6 +213,12 @@ function assertNotSuspended(appUser) {
  *
  * Kinds in use:
  *   BOOKING_FAILED    a customer tried to book and could not
+ *   SLOT_MISMATCH     a booking succeeded at a time the app should not have
+ *                     offered — the client's slot grid and the salon's stored
+ *                     opening hours disagree. Deliberately not BOOKING_FAILED:
+ *                     nothing failed, and conflating them makes a working
+ *                     product page as an outage.
+ *   DUPLICATE_PHONE   two accounts claim one number, so login is ambiguous
  *   PAYMENT_FAILED    money moved, or failed to, without the record agreeing
  *   BACKUP_FAILED     the nightly export did not complete
  *   INTEGRITY_CRITICAL the nightly sweep found something that loses money
@@ -304,7 +376,52 @@ function pbkdf2Hash(pin, saltB64) {
   return crypto.pbkdf2Sync(String(pin), salt, 65536, 32, "sha256").toString("base64");
 }
 
+
+// ── Paging a whole collection, for the maintenance backfills ─────────────────
+//
+// Every backfill in this codebase was written the same wrong way twice over,
+// and the admin console has been telling someone to "run again to continue" a
+// job that could not continue:
+//
+//   1. No cursor. `orderBy(x).limit(300)` returns the SAME first 300 documents
+//      on every call, so document 301 is unreachable however many times the
+//      button is pressed — and `done: snap.size < limit` is then only ever true
+//      when the entire collection fits in one page.
+//   2. Ordered by createdAt. A query with orderBy returns none of the documents
+//      that lack the field, and the documents needing a backfill are the oldest
+//      ones — precisely the ones most likely to predate createdAt as well. The
+//      sweep silently skips exactly what it was written to find.
+//
+// Ordering by __name__ cannot drop a document, because every document has one.
+//
+// [after] is a document id from a previous page's `cursor`. The cursor is a
+// value, not a snapshot, so a page whose last document is deleted between two
+// calls does not strand the run.
+function idPage(collectionName, limit, after) {
+  let q = db.collection(collectionName)
+    .orderBy(admin.firestore.FieldPath.documentId())
+    .limit(limit);
+  if (after) q = q.startAfter(db.collection(collectionName).doc(after));
+  return q.get();
+}
+
+/** The `cursor` and `done` a paged callable returns, given the page it read. */
+function pageEnd(snap, limit, after) {
+  return {
+    cursor: snap.size ? snap.docs[snap.docs.length - 1].id : (after || ""),
+    done:   snap.size < limit,
+  };
+}
+
+/** The cursor a paged callable was called with, sanitised. */
+function pageCursor(data) {
+  const c = (data || {}).cursor;
+  return typeof c === "string" ? c.trim() : "";
+}
+
 module.exports = {
+  findAccountByPhone,
+  isSuspended,
   pbkdf2Hash,
   refundReservation, randomBookingCode, reserveBookingCode,
   admin, db, logger, alertable,
@@ -312,4 +429,5 @@ module.exports = {
   normalizeAfghanPhone, normalizePhone, assertAdmin,
   assertNotSuspended, logAdminAction, appointmentEvent,
   writeAppointmentEvent, logAppointmentEvent,
+  idPage, pageEnd, pageCursor,
 };

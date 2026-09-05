@@ -22,7 +22,11 @@ object NotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_BOOKINGS,
-                "Booking Updates",
+                // Neutral, because the channel name is listed in Android's own
+                // notification settings and read aloud by some launchers. This
+                // app is installed as com.security.stealthapp for a reason, and
+                // a channel called "Booking Updates" undoes that in Settings.
+                context.getString(com.safebeauty.app.R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 enableVibration(true)
@@ -61,12 +65,28 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // What the lock screen is allowed to show.
+        //
+        // The full text names the salon and the service, in the recipient's own
+        // language — "قیچی و رنگ در سالن شقایق". That is right inside the app
+        // and wrong on a lock screen anyone standing nearby can read, which is
+        // the whole reason this app installs under another name. VISIBILITY_
+        // PRIVATE tells Android to show the public version instead while the
+        // device is locked; the real one is there the moment she unlocks.
+        val publicVersion = NotificationCompat.Builder(context, CHANNEL_BOOKINGS)
+            .setSmallIcon(com.safebeauty.app.R.drawable.ic_notification)
+            .setContentTitle(context.getString(com.safebeauty.app.R.string.notif_channel_name))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
         val notification = NotificationCompat.Builder(context, CHANNEL_BOOKINGS)
             .setSmallIcon(com.safebeauty.app.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()

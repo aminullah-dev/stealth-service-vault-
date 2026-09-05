@@ -4,8 +4,20 @@ const path = require('path');
 
 // The desktop app is a thin native shell around the hosted salon console, so it
 // always shows the latest deployed version and Firebase Auth works normally
-// (the page loads from the authorized safebeauty.web.app origin, not file://).
-const SALON_URL = 'https://safebeauty.web.app/provider';
+// (the page loads from a real https origin, not file://).
+const SALON_URL = 'https://salon.linumic.com/';
+// The Firebase address the console has always also answered on. A desktop
+// app sits on someone's machine and cannot be updated when a domain lapses,
+// a registrar account locks, or a DNS record is edited by mistake — so a
+// failure to reach the domain falls back here rather than becoming a dead
+// icon in the dock. Both addresses serve the same salon console, deployed together.
+const SALON_URL_FALLBACK = 'https://safebeauty.web.app/provider';
+const SALON_URL_ORIGIN = new URL(SALON_URL).origin;
+
+/** A URL's origin, or '' if Electron handed us something unparseable. */
+function originOf(url) {
+  try { return new URL(url).origin; } catch { return ''; }
+}
 
 // ── Touch ID sign-in ─────────────────────────────────────────────────────────
 // The provider's phone+password is encrypted with the OS keychain (safeStorage)
@@ -60,9 +72,20 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // If the connection fails (offline), show a simple message with a retry.
-  win.webContents.on('did-fail-load', (_e, code, desc) => {
+  // If the connection fails, try the Firebase address before giving up, then
+  // show a simple message with a retry.
+  //
+  // Keyed on which URL failed rather than on a flag, so it is stateless: a
+  // failure on the domain always tries the fallback once, a failure on the
+  // fallback shows the message, and Retry can go round again.
+  win.webContents.on('did-fail-load', (_e, code, desc, failedUrl) => {
     if (code === -3) return; // aborted (e.g. redirect) — ignore
+    // The parsed origin, not a prefix: startsWith() would also accept
+    // "salon.linumic.com.evil.example", which merely starts with the same characters.
+    if (originOf(failedUrl) === SALON_URL_ORIGIN) {
+      win.loadURL(SALON_URL_FALLBACK);
+      return;
+    }
     win.loadURL(
       'data:text/html;charset=utf-8,' +
       encodeURIComponent(

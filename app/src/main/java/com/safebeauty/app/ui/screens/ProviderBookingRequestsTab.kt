@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
@@ -163,9 +164,21 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun BookingRequestsTab(
     appointments: List<AppointmentDocument>,
+    /**
+     * Visits that have happened, so the provider can rate the customer.
+     *
+     * The rate button renders on a CONFIRMED booking and this tab was fed only
+     * PENDING ones, so its condition could never be true — the button, its
+     * dialog, its three translations and reportCustomer on the server have all
+     * existed since they were written and none of them has ever run. Two-way
+     * reputation is half the point of a marketplace where a salon holds a chair
+     * for someone it has never met.
+     */
+    finishedVisits: List<AppointmentDocument> = emptyList(),
     salonId: String,
     providerName: String,
     providerId: String,
@@ -176,7 +189,7 @@ internal fun BookingRequestsTab(
     onNavigate: (String) -> Unit
 ) {
     val strings = LocalStrings.current
-    if (appointments.isEmpty()) {
+    if (appointments.isEmpty() && finishedVisits.isEmpty()) {
         Box(
             contentAlignment = Alignment.Center,
             modifier         = Modifier
@@ -249,10 +262,49 @@ internal fun BookingRequestsTab(
                     SwipeableRequestCard(
                         onAccept  = { onAccept(appt.id) },
                         onDecline = { onDecline(appt.id) },
+                        modifier  = Modifier.animateItemPlacement(),
                         content   = card
                     )
                 } else {
-                    card()
+                    Box(Modifier.animateItemPlacement()) { card() }
+                }
+            }
+
+            // Visits that have happened. The same card, with the rate button
+            // finally in a list where its CONFIRMED condition can be true.
+            if (finishedVisits.isNotEmpty()) {
+                item(key = "finished-header") {
+                    Text(
+                        strings.finishedVisitsTitle,
+                        fontSize   = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color      = DeepRose,
+                        modifier   = Modifier.padding(top = 14.dp, bottom = 2.dp),
+                    )
+                }
+                items(finishedVisits, key = { "done-" + it.id }) { appt ->
+                    Box(Modifier.animateItemPlacement()) {
+                        BookingRequestCard(
+                            appointment = appt,
+                            onAccept    = {},
+                            onDecline   = {},
+                            onRate      = { onRate(appt) },
+                            onSupport   = { onSupport(appt) },
+                            onChat      = {
+                                if (salonId.isNotBlank()) {
+                                    onNavigate(
+                                        Screen.Chat.build(
+                                            conversationId = "${appt.customerId}_$salonId",
+                                            myUserId       = providerId,
+                                            myName         = providerName,
+                                            otherName      = appt.customerName,
+                                            active         = false,
+                                        )
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -472,9 +524,18 @@ private fun BookingRequestCard(
                             Text(strings.decline, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                } else if (appointment.status == "CONFIRMED" && !appointment.customerReported) {
+                } else if ((appointment.status == "CONFIRMED" || appointment.status == "COMPLETED") &&
+                    !appointment.customerReported) {
                     // Once a booking is confirmed the provider can leave feedback
                     // about the customer (rating / no-show / misconduct report).
+                    //
+                    // COMPLETED belongs here for the same reason the server accepts
+                    // it (reportCustomer, bookings.js): completePastAppointments
+                    // flips CONFIRMED to COMPLETED about two hours after the start
+                    // time, which is when a salon sits down to rate her day. Gated
+                    // on CONFIRMED alone, the "visits you can rate" section listed
+                    // the card and the card had no button on it — a two-hour window
+                    // to use a feature meant for the evening.
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
                         onClick        = onRate,
@@ -549,13 +610,24 @@ private fun CustomerReputationBadge(appointment: AppointmentDocument) {
 private fun SwipeableRequestCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
+            // The action is started, and false is returned so the card springs
+            // back rather than settling away. This list is driven by a snapshot
+            // listener on PENDING bookings, so the row leaves when the SERVER
+            // says the booking is no longer pending — not when a finger moved.
+            //
+            // Settling immediately meant a swipe that failed — no network, a
+            // callable error — hid a request that was still waiting for an
+            // answer. The error banner said so, but the row was already gone,
+            // and a customer sat unanswered behind a card the salon believed it
+            // had accepted.
             when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> { onAccept();  true }
-                SwipeToDismissBoxValue.EndToStart -> { onDecline(); true }
+                SwipeToDismissBoxValue.StartToEnd -> { onAccept();  false }
+                SwipeToDismissBoxValue.EndToStart -> { onDecline(); false }
                 else -> false
             }
         },
@@ -563,6 +635,9 @@ private fun SwipeableRequestCard(
         positionalThreshold = { total -> total * 0.35f }
     )
     SwipeToDismissBox(
+        // Accepting or declining removes the row; the list closes the gap rather
+        // than the remaining requests jumping into its place.
+        modifier = modifier,
         state = state,
         backgroundContent = {
             val dir = state.dismissDirection

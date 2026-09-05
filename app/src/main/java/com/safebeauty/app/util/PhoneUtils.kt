@@ -52,4 +52,29 @@ object PhoneUtils {
         val c = clean(raw)
         return if (c.startsWith("+")) c else normalizeAfghan(raw)
     }
+
+    /** Afghan mobile subscriber numbers are 9 digits after the +93 country code. */
+    private const val SUBSCRIBER_DIGITS = 9
+
+    /** The shortest tail that identifies one person rather than many. */
+    private const val MIN_IDENTIFYING_DIGITS = 7
+
+    /**
+     * The stored lookup key for a phone number, or "" when the input cannot
+     * identify anyone.
+     *
+     * Byte-for-byte the same derivation as functions/lib/phone.js, which is the
+     * source of truth and the tested one — the server writes this key onto every
+     * user document, and a client that derived it differently would search for a
+     * value that is not there. The last nine digits, so every stored shape of one
+     * number ("+93700123456", "0700123456", "700123456") collapses to the same key.
+     *
+     * Returning "" rather than a short key matters: a four-digit key matches many
+     * accounts, and the caller would show whichever one the index returned first.
+     */
+    fun loginKey(raw: String): String {
+        val digits = raw.filter { it.isDigit() }
+        if (digits.length < MIN_IDENTIFYING_DIGITS) return ""
+        return digits.takeLast(SUBSCRIBER_DIGITS)
+    }
 }

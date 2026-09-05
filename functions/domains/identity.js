@@ -4,7 +4,13 @@
 // so the deployed function set is unchanged by the move.
 
 const { phoneKey } = require("../lib/phone");
-const { assertAdmin, assertDocId, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { defaultWorkingHours } = require("../lib/hours");
+const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
+const { acceptedReferral, buildRegistrationDocument, selfRegisterRole } = require("../lib/registration");
+// The same normaliser salons use for nameKey, so a name is searchable under one
+// spelling rather than two. See lib/categories.
+const { normalize: normalizeName } = require("../lib/categories");
+const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -189,22 +195,38 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
   const tazkiraNumber   = String(d.tazkiraNumber || "").trim();
   const addressProvince = String(d.addressProvince || "").trim();
   const addressDetail   = String(d.addressDetail || "").trim();
-  const tazkiraPhotoUrl = String(d.tazkiraPhotoUrl || "").trim();
-  const selfiePhotoUrl  = String(d.selfiePhotoUrl || "").trim();
   // Optional identity details (also editable later by the admin). Capped.
   const birthYear         = String(d.birthYear || "").trim().slice(0, 40);
   const tazkiraIssueDate  = String(d.tazkiraIssueDate || "").trim().slice(0, 40);
   const tazkiraExpiryDate = String(d.tazkiraExpiryDate || "").trim().slice(0, 40);
 
-  if (!tazkiraNumber || !addressProvince || !addressDetail ||
-      !tazkiraPhotoUrl || !selfiePhotoUrl) {
-    throw new HttpsError(
-      "invalid-argument",
-      "Tazkira number, address, and both photos are required."
-    );
+  if (!tazkiraNumber || !addressProvince || !addressDetail) {
+    throw new HttpsError("invalid-argument", "Tazkira number and address are required.");
   }
 
   const appUser = await resolveAppUser(request);
+
+  // The photo locations are DERIVED, never sent. The client used to pass two
+  // https download URLs, which it obtained from ref.downloadUrl — a token URL,
+  // served without authentication and outside storage.rules entirely. Those
+  // strings then landed on the user document and were opened in a browser by
+  // both admin surfaces. Deriving the path from the caller's own uid removes
+  // the client-supplied string, and reading it back through the SDK puts the
+  // rules in the path of every access.
+  //
+  // Existence is checked rather than assumed: without the old "both URLs are
+  // non-empty" guard, a caller could otherwise reach PENDING with nothing
+  // uploaded and land in the review queue as two broken images.
+  const tazkiraPhotoPath = `kyc/${appUser.uid}/tazkira.jpg`;
+  const selfiePhotoPath  = `kyc/${appUser.uid}/selfie.jpg`;
+  const bucket = admin.storage().bucket();
+  const [tazkiraThere, selfieThere] = await Promise.all([
+    bucket.file(tazkiraPhotoPath).exists().then((r) => r[0]).catch(() => false),
+    bucket.file(selfiePhotoPath).exists().then((r) => r[0]).catch(() => false),
+  ]);
+  if (!tazkiraThere || !selfieThere) {
+    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.");
+  }
   const current = appUser.kycStatus || "NONE";
   if (current === "PENDING") {
     throw new HttpsError("failed-precondition", "Your verification is already under review.");
@@ -222,8 +244,13 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
     tazkiraExpiryDate,
     addressProvince,
     addressDetail,
-    tazkiraPhotoUrl,
-    selfiePhotoUrl,
+    tazkiraPhotoPath,
+    selfiePhotoPath,
+    // The legacy token URLs are cleared as their owner re-submits, so a
+    // resubmission also revokes the old public link rather than leaving it
+    // beside the new private path.
+    tazkiraPhotoUrl: "",
+    selfiePhotoUrl: "",
   });
   return { submitted: true };
 });
@@ -270,6 +297,8 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
   await db.collection("notifications").doc().set({
     recipientId: targetUid,
     type:        "SYSTEM",
+    msgKey:      approve ? "KYC_APPROVED" : "KYC_REJECTED",
+    msgParams:   { reason: approve ? "" : String(reason || "") },
     title:       approve ? "Identity Verified" : "Verification Rejected",
     body:        approve
       ? "Your identity has been verified. You can now continue."
@@ -335,6 +364,223 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
 });
 
 /**
+ * Registration, in one call.
+ *
+ * The device used to do this in three: create the Firebase Auth account, write
+ * users/{uid}, and — if the second failed — delete the first again. Three round
+ * trips from a handset on Afghan mobile data, where the compensating delete
+ * needs the same connection whose loss is the reason it is running. Its Result
+ * was discarded, so when it failed nothing recorded that it had.
+ *
+ * What that produced, measured on 2026-09-04: 117 Firebase Auth accounts, 12
+ * users documents. Of the 106 accounts with no profile, 99 have no trace
+ * anywhere else either — no appointment, payment, notification, favourite,
+ * review, message or ticket under the appUid their synthetic address encodes.
+ * An account that never did anything is not someone who left; it is a
+ * registration that stopped between step one and step two. Four of them used
+ * real Gmail addresses, so these are people, not fixtures.
+ *
+ * Here the whole sequence is one server invocation. The rollback runs on the
+ * server, over a connection that did not just fail. The users write goes
+ * through Admin credentials, so the fourteen conditions on the rules' create
+ * path cannot reject a document the server itself composed.
+ *
+ * The double-registration race is narrowed, not closed, and the difference
+ * matters. The uniqueness check and the write are in one invocation instead of
+ * two round trips, so the window is tens of milliseconds rather than seconds —
+ * but they are not in a transaction and no document is keyed on the phone, so
+ * two concurrent invocations can still both read empty and both write.
+ * deriveUserPhoneKey raises DUPLICATE_PHONE afterwards, which is detection, and
+ * that alert's own text says a person has to resolve it. Closing it properly
+ * needs a transaction on a phone-keyed index document; until then this is an
+ * improvement in odds, not a guarantee.
+ *
+ * The password never appears here in plaintext. The device still runs PinHasher
+ * and sends salt, pinHash and the derived auth password — the same three values
+ * it already sends to Firebase Auth and to updatePinHash, over the same TLS.
+ * Moving the orchestration does not move the secret.
+ */
+exports.registerAccount = onCall({ region: "us-central1" }, async (request) => {
+  const d        = request.data || {};
+  const rawPhone = String(d.phone || "").trim();
+  const phone    = normalizePhone(rawPhone);
+
+  // Unauthenticated by necessity — this IS the sign-up. Throttled on both axes
+  // for the same reason authenticateWithPassword is: one IP must not mint
+  // accounts in bulk, and one number must not be ground at indefinitely.
+  //
+  // The two limits are deliberately far apart. An IP is not a person here:
+  // Afghan mobile operators egress whole cities through a handful of NAT
+  // addresses, so every customer of one carrier in Kabul shares a counter. A
+  // limit tight enough to be interesting to an attacker would refuse real women
+  // during exactly the moment a campaign is working, and it would reach them as
+  // the generic failure. 60/hour matches what login and lookup already allow
+  // from one address (120/hour each) rather than sitting an order of magnitude
+  // under them for no stated reason.
+  //
+  // The phone is the axis that actually identifies someone, is not shared by
+  // NAT, and is required to be unused — so it stays tight. That is where
+  // repeated abuse of this endpoint has to show up.
+  await enforceRateLimit(`register-ip:${callerIp(request)}`, 60, 60 * 60 * 1000);
+  await enforceRateLimit(`register-phone:${phone || "unknown"}`, 5, 60 * 60 * 1000);
+
+  const name         = String(d.name || "").trim();
+  const email        = String(d.email || "").trim();
+  const salt         = String(d.salt || "");
+  const pinHash      = String(d.pinHash || "");
+  const authPassword = String(d.authPassword || "");
+
+  // Stated explicitly rather than coerced. The rules' create path refuses an
+  // ADMIN self-registration and this is now the writer that path was guarding
+  // against, so the refusal has to exist here too — as a rejection, not as a
+  // silent downgrade to CUSTOMER that would hide the attempt.
+  const role = selfRegisterRole(d.role);
+  if (!role) {
+    throw new HttpsError("permission-denied", "Accounts may self-register only as CUSTOMER or PROVIDER.");
+  }
+  const isProvider = role === "PROVIDER";
+
+  if (!name || !rawPhone || !salt || !pinHash || !authPassword) {
+    throw new HttpsError("invalid-argument", "name, phone, salt, pinHash and authPassword are required.");
+  }
+
+  const salonName = String(d.salonName || "").trim();
+  const district  = String(d.district || "").trim();
+  const services  = Array.isArray(d.services) ? d.services.map(String).filter(Boolean) : [];
+  if (isProvider && (!salonName || !district || services.length === 0)) {
+    throw new HttpsError("invalid-argument", "A provider needs a salon name, a district and at least one service.");
+  }
+
+  // The phone is the login identifier, so it must be unique — and unlike the
+  // client's pre-check, this one runs in the same invocation as the write it
+  // guards.
+  // Which field collided, carried in details. Both collisions are
+  // "already-exists" and the client used to render either as "this phone number
+  // is taken" — which is the wrong sentence for the exact people this callable
+  // exists to rescue. Someone holding an orphaned credential under a real email
+  // has no profile, so the phone check passes and the Auth create fails; being
+  // told her PHONE is taken sends her to change the one field that was fine.
+  if (await findAccountByPhone(phone, rawPhone)) {
+    throw new HttpsError("already-exists", "An account already uses this phone number.",
+      { field: "phone" });
+  }
+
+  const uid           = crypto.randomUUID();
+  const firebaseEmail = email ? email.toLowerCase() : `${uid.replace(/-/g, "")}@sb.app`;
+
+  // The uniqueness check registration has never been able to do.
+  //
+  // lib/referral records why: the device "writes it with no uniqueness check of
+  // any kind ... it cannot do one, because the users collection is not
+  // client-listable". True of a client; not true here. Six hex characters is
+  // 16.7 million codes and collides at a few percent by a thousand accounts,
+  // and a duplicate credits whichever document the referral lookup's limit(1)
+  // happens to return first — an invite that pays the wrong person, with
+  // nothing on either side showing why.
+  //
+  // Only this writer is fixed. adminCreateSalon still builds the code inline
+  // and unchecked, so a collision remains reachable from that direction; it is
+  // a separate change and is not made here.
+  let referralCode = "";
+  const codeAttempts = maxAttempts(uid);
+  for (let attempt = 0; attempt < codeAttempts; attempt += 1) {
+    const candidate = deriveReferralCode(uid, attempt);
+    if (!candidate) break;
+    const taken = await db.collection("users")
+      .where("referralCode", "==", candidate).limit(1).get();
+    if (taken.empty) { referralCode = candidate; break; }
+  }
+
+  const referredBy = acceptedReferral(d.referredBy, referralCode);
+
+  let authUid = "";
+  try {
+    const created = await admin.auth().createUser({ email: firebaseEmail, password: authPassword });
+    authUid = created.uid;
+  } catch (e) {
+    if (e && e.code === "auth/email-already-exists") {
+      throw new HttpsError("already-exists", "An account already uses this email address.",
+        { field: "email" });
+    }
+    logger.error("registerAccount: auth create failed", e);
+    throw new HttpsError("internal", "Could not create the account. Please try again.");
+  }
+
+  try {
+    await db.doc(`users/${uid}`).set(buildRegistrationDocument({
+      uid, name, phone, email, role,
+      pinHash, salt, firebaseEmail,
+      createdAt: Date.now(),
+      referralCode, referredBy,
+      salonName, district, services,
+    }));
+  } catch (e) {
+    // The compensation the handset could not be trusted with, run where the
+    // network did not just fail.
+    //
+    // BOTH halves are deleted, not just the credential. A single-document set()
+    // can raise DEADLINE_EXCEEDED or UNAVAILABLE after the commit has actually
+    // landed — that uncertainty is the whole reason compensating deletes are
+    // fragile — so "the write threw" does not mean "the document is absent".
+    // Deleting only the Auth account would then leave users/{uid} holding her
+    // phone number with no credential behind it, which is precisely the pair
+    // the salon step below refuses to create: findAccountByPhone would refuse
+    // her number forever, sign-in would fail, and deleteUser having SUCCEEDED
+    // means nothing would have alerted. adminDeleteUser removes both for the
+    // same reason (domains/admin.js).
+    //
+    // Worse if left: that document carries a real firebaseEmail with no Auth
+    // account, so a later registration on the same address succeeds and
+    // resolveAppUser's where("firebaseEmail","==",…).limit(1) — no orderBy —
+    // starts resolving two people to whichever id sorts first. The users create
+    // rule was written against exactly that.
+    //
+    // Nothing references the document yet: uid_map and the salon come after.
+    const failed = [];
+    await admin.auth().deleteUser(authUid)
+      .catch((err) => failed.push(`auth:${err && err.code ? err.code : err}`));
+    await db.doc(`users/${uid}`).delete()
+      .catch((err) => failed.push(`users:${err && err.code ? err.code : err}`));
+
+    if (failed.length) {
+      // The one outcome nobody can discover on their own: she holds a login
+      // that resolves to nothing, or a number that can never be registered
+      // again, and no screen anywhere explains either.
+      alertable("REGISTRATION_ORPHANED",
+        "registerAccount: rollback incomplete after the profile write failed",
+        { authUid, uid, failed });
+    }
+    logger.error("registerAccount: users write failed", e);
+    throw new HttpsError("internal", "Could not create the account. Please try again.");
+  }
+
+  // Best effort from here down: the account exists and is correct, and nothing
+  // below is worth undoing it for.
+
+  // The bridge, written now rather than left to the client's first syncUidMap
+  // call — one less round trip that has to survive the same connection.
+  await db.doc(`uid_map/${authUid}`).set({ appUid: uid, updatedAt: Date.now() })
+    .catch((e) => logger.warn("registerAccount: uid_map write failed; login will retry", e));
+
+  let salonId = "";
+  if (isProvider) {
+    // Deliberately not rolled back on failure, and deliberately not fatal.
+    // Deleting the Auth account here would leave the users document behind, and
+    // that pair is unrecoverable: the phone now has an account so registration
+    // refuses it, and there is no credential behind it so signing in cannot
+    // work either. The number is burned and the person cannot tell why. The
+    // details are on the document, so the next sign-in finishes the job.
+    try {
+      ({ salonId } = await createSalonForProvider(uid, name, { salonName, district, services }));
+    } catch (e) {
+      logger.error("registerAccount: salon creation failed; a later sign-in will finish it", e);
+    }
+  }
+
+  return { uid, firebaseEmail, role, salonId };
+});
+
+/**
  * Creates a provider's salon at registration. Server-side because the salon's
  * providerId must be authoritative (the app-level uid, not the Firebase Auth
  * uid) and because at registration time the uid_map bridge isn't populated yet,
@@ -350,6 +596,7 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
   const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
   if (appUser.role !== "PROVIDER") {
     throw new HttpsError("permission-denied", "Only providers can create a salon.");
   }
@@ -362,31 +609,65 @@ exports.createProviderSalon = onCall({ region: "us-central1" }, async (request) 
     );
   }
 
+  return createSalonForProvider(appUser.uid, appUser.name || "", {
+    salonName, district, services,
+  });
+});
+
+/**
+ * The salon itself, shared by the two callers that can create one.
+ *
+ * registerAccount makes it in the same server call that makes the account;
+ * createProviderSalon makes it afterwards, for a provider whose registration
+ * got as far as her user document and no further. Both need identical
+ * defaults — a salon that differs depending on which path produced it is a
+ * salon that behaves differently for reasons nobody can see.
+ */
+async function createSalonForProvider(uid, providerName, { salonName, district, services }) {
   // One salon per provider — return the existing one instead of duplicating
   // (e.g. if the client retries after a dropped response).
   const existing = await db.collection("salons")
-    .where("providerId", "==", appUser.uid).limit(1).get();
+    .where("providerId", "==", uid).limit(1).get();
   if (!existing.empty) {
+    await clearPendingSalon(uid);
     return { salonId: existing.docs[0].id, alreadyExisted: true };
   }
 
   const ref = db.collection("salons").doc();
   await ref.set({
-    providerId:          appUser.uid,
-    providerName:        appUser.name || "",
+    providerId:          uid,
+    providerName:        providerName || "",
     salonName:           String(salonName),
     district:            String(district),
     services:            services.map(String),
     isAvailable:         false,   // hidden until an admin approves the provider
     rating:              0,
-    workingHours:        [],
+    // The same week the provider editor shows by default, so the owner who
+    // opens her profile, sees Saturday to Thursday 9–18 and changes nothing has
+    // a salon that can actually be booked. Stored empty, it never could be.
+    workingHours:        defaultWorkingHours(),
     slotDurationMinutes: 60,
     pricePerService:     {},
     confirmedCount:      0,
     isVerified:          false,
   });
+  await clearPendingSalon(uid);
   return { salonId: ref.id };
-});
+}
+
+/**
+ * Forget the salon details registration parked on the account.
+ *
+ * They exist only so a sign-in can finish a salon that registration could not
+ * (see UserDocument.pendingSalonName). Once the salon is real they are stale
+ * copies of data that now lives on the salon itself, and a stale copy is
+ * something that will eventually be read as current.
+ */
+async function clearPendingSalon(uid) {
+  await db.doc(`users/${uid}`)
+    .update({ pendingSalonName: "", pendingSalonDistrict: "", pendingSalonServices: [] })
+    .catch(() => {});   // the salon exists either way; this is only tidying
+}
 
 /**
  * Pre-auth lookup of an account's Firebase Auth email by phone, for the
@@ -407,14 +688,12 @@ exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request)
   await enforceRateLimit(`lookup:${callerIp(request)}`, 20, 10 * 60 * 1000);
   const phone = normalizePhone(raw);
 
-  let q = await db.collection("users").where("phone", "==", phone).limit(1).get();
-  if (q.empty && phone !== raw) {
-    q = await db.collection("users").where("phone", "==", raw).limit(1).get();
-  }
-  if (q.empty) return { found: false };
-
-  const doc = q.docs[0];
-  const u   = doc.data();
+  // phoneDigits first, then both stored spellings — the same order the login
+  // itself resolves in, so "this number has no account" here and "wrong phone
+  // number" at sign-in can never disagree about the same person.
+  const doc = await findAccountByPhone(phone, raw);
+  if (!doc) return { found: false };
+  const u = doc.data();
   return {
     found:         true,
     uid:           doc.id,
@@ -544,7 +823,15 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
 
 // ── adminBackfillPhoneKeys ────────────────────────────────────────────────────
 //
-// Writes the phoneDigits lookup key onto accounts that predate it.
+// Writes the derived lookup keys — phoneDigits and nameKey — onto accounts that
+// predate them.
+//
+// deriveUserPhoneKey keeps both current from here on, but a trigger only fires
+// on a write: an account nobody has touched since the field was introduced
+// simply does not have it. For phoneDigits that meant a locked-out admin. For
+// nameKey it would mean an admin search that confidently returns nothing, which
+// is worse — a lockout announces itself, an empty result set looks like an
+// answer.
 //
 // Only needed for records whose phone field was never normalized — anything the
 // current app wrote is already found by an exact match on `phone`. Server-only
@@ -557,8 +844,13 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
 exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(500, Math.max(1, Number((request.data || {}).limit || 300)));
+  const after = pageCursor(request.data);
 
-  const snap = await db.collection("users").orderBy("createdAt", "asc").limit(limit).get();
+  // Was orderBy("createdAt").limit(limit) with no cursor: it re-read the same
+  // first 300 accounts on every press, so account 301 was unreachable, and it
+  // dropped every account written before createdAt existed — which is exactly
+  // the population missing these keys. See idPage.
+  const snap = await idPage("users", limit, after);
 
   const seen = new Map();   // key -> first uid that claimed it
   const collisions = [];
@@ -567,34 +859,304 @@ exports.adminBackfillPhoneKeys = onCall({ region: "us-central1" }, async (reques
   for (const d of snap.docs) {
     const data = d.data();
     const key  = phoneKey(data.phone);
-    if (!key) continue;
+    // Derived the same way as the trigger. Written even when empty, so that a
+    // nameless account still appears in a name-ordered admin list rather than
+    // being dropped by the orderBy.
+    const name = normalizeName(data.name);
 
-    if (seen.has(key)) {
-      collisions.push({ key, uids: [seen.get(key), d.id] });
-    } else {
-      seen.set(key, d.id);
+    const patch = {};
+    if (key && data.phoneDigits !== key) patch.phoneDigits = key;
+    if (data.nameKey !== name) patch.nameKey = name;
+
+    // Only a usable phone can collide. This used to `continue` here, which also
+    // skipped everything below it — so an account with an unreadable phone got
+    // no keys at all rather than the one key it could still have.
+    if (key) {
+      if (seen.has(key)) {
+        collisions.push({ key, uids: [seen.get(key), d.id] });
+      } else {
+        seen.set(key, d.id);
+      }
     }
 
-    if (data.phoneDigits !== key) {
-      await d.ref.update({ phoneDigits: key });
+    if (Object.keys(patch).length > 0) {
+      await d.ref.update(patch);
       written += 1;
     }
   }
 
-  await logAdminAction(me, "BACKFILL_PHONE_KEYS", {
+  await logAdminAction(me, "BACKFILL_USER_KEYS", {
     scanned: snap.size, written, collisions: collisions.length,
   });
   if (collisions.length) {
     logger.error("adminBackfillPhoneKeys: duplicate phone keys", { collisions });
   }
+  return { ok: true, scanned: snap.size, written, collisions, ...pageEnd(snap, limit, after) };
+});
+
+// ── adminRevokeKycUrls ───────────────────────────────────────────────────────
+//
+// Closes the exposure the token URLs left behind.
+//
+// Every KYC photo uploaded before today has a download URL on its user
+// document, and that URL is a capability: `?alt=media&token=…` is served
+// without authentication, storage.rules never sees the request, and the string
+// was opened in a browser by both admin surfaces. Changing the code stops new
+// ones being minted; it does nothing about the ones already issued, which stay
+// valid for as long as the token does — which is forever.
+//
+// So this does two things per account, and the second is the one that matters:
+//
+//   1. writes the derived path and clears the stored URL, and
+//   2. rotates `firebaseStorageDownloadTokens` on the object itself, which
+//      invalidates every URL ever handed out for it.
+//
+// Rotating rather than deleting the token keeps the object reachable through
+// the SDK, which is how the app and the console now read it.
+exports.adminRevokeKycUrls = onCall(
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(200, Math.max(1, Number(data.limit || 100)));
+    const dryRun = data.dryRun === true;
+    const after  = typeof data.cursor === "string" ? data.cursor.trim() : "";
+
+    // Ordered by __name__ for the same reason as the referral backfill: an
+    // orderBy on any other field silently drops the documents that lack it, and
+    // the accounts holding the oldest URLs are the likeliest to lack anything.
+    let q = db.collection("users")
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(limit);
+    if (after) q = q.startAfter(db.collection("users").doc(after));
+    const snap = await q.get();
+
+    const bucket = admin.storage().bucket();
+    let cleared = 0;
+    let rotated = 0;
+    const failures = [];
+
+    for (const d of snap.docs) {
+      const u = d.data() || {};
+      const paths = [`kyc/${d.id}/tazkira.jpg`, `kyc/${d.id}/selfie.jpg`];
+      const present = [false, false];
+
+      // Rotate whenever an object exists, not only when a URL is on the
+      // document: a URL that was copied out and then removed from Firestore is
+      // exactly the one still circulating.
+      for (let i = 0; i < paths.length; i += 1) {
+        const path = paths[i];
+        try {
+          const file = bucket.file(path);
+          const [exists] = await file.exists();
+          if (!exists) continue;
+          present[i] = true;
+          if (dryRun) { rotated += 1; continue; }
+          await file.setMetadata({
+            metadata: { firebaseStorageDownloadTokens: crypto.randomUUID() },
+          });
+          rotated += 1;
+        } catch (e) {
+          failures.push({ path, error: String((e && e.message) || e) });
+        }
+      }
+
+      // A path is written only where the photo is really there. Writing it for
+      // everyone would be simpler and would quietly destroy the meaning of the
+      // field: every account would then claim a tazkira, the console would
+      // render an <img> for each, and ten of the twelve would fail to load and
+      // read as "not uploaded" — which is what an account with no photo should
+      // say, but arrived at by a broken fetch rather than by an empty field.
+      const patch = {};
+      if (present[0]) patch.tazkiraPhotoPath = paths[0];
+      if (present[1]) patch.selfiePhotoPath  = paths[1];
+      if (String(u.tazkiraPhotoUrl || "")) patch.tazkiraPhotoUrl = "";
+      if (String(u.selfiePhotoUrl || ""))  patch.selfiePhotoUrl  = "";
+      if (!Object.keys(patch).length) continue;
+      if (!dryRun) await d.ref.update(patch);
+      cleared += 1;
+    }
+
+    const done = snap.size < limit;
+    const cursor = snap.size ? snap.docs[snap.docs.length - 1].id : after;
+
+    await logAdminAction(me, "REVOKE_KYC_URLS", {
+      scanned: snap.size, cleared, rotated, dryRun, failures: failures.length,
+    });
+    if (failures.length) {
+      logger.error("adminRevokeKycUrls: could not rotate", { failures });
+    }
+    return { ok: true, dryRun, scanned: snap.size, cleared, rotated, failures, cursor, done };
+  });
+
+// ── adminBackfillReferralCodes ───────────────────────────────────────────────
+//
+// The invite card in the customer's profile is the only place in the app that
+// shares SafeBeauty itself, and it opens with `if (code.isBlank()) return` —
+// no card, no empty state, nothing. An account with no referralCode has no way
+// to invite anyone and no way to find out why.
+//
+// referralCode is written once, at registration, and only since the referral
+// programme shipped on 2026-07-12. Every account older than that has never had
+// one; the rules freeze the field against client writes, so the app cannot fix
+// itself. This is the only thing that can.
+//
+// Deliberately unlike adminBackfillPhoneKeys, which this is otherwise modelled
+// on, in two ways:
+//
+//   1. It pages with a cursor. That one restarts from the beginning on every
+//      call, so pressing its button twice rescans the same first 300 accounts;
+//      account 301 is unreachable no matter how many times you press it.
+//   2. It orders by document id, not createdAt. `orderBy` returns none of the
+//      documents missing the field, and an account old enough to lack a
+//      referralCode is exactly the kind of account that predates createdAt too.
+//      Ordering by __name__ can never drop a document, because every document
+//      has one.
+// ── adminBackfillWorkingHours ─────────────────────────────────────────────────
+//
+// Every salon created before today was stored with `workingHours: []`, while
+// the provider's own editor filled the screen with a default week. So an owner
+// opened her profile, saw Saturday to Thursday 9–18, agreed with it, changed
+// nothing — and saved nothing. computeSlots then produced no slots on any day
+// and her salon could not be booked at all. Not a failure: an absence, and the
+// one screen that could have shown it showed the opposite.
+//
+// Fixing the two creation paths only helps salons made from now on. These are
+// the ones already listed, already found in search, and already unbookable.
+//
+// Walks by document id rather than a field, because a missing field cannot be
+// queried for and a salon old enough to lack workingHours is exactly the kind
+// that predates whatever else we might have ordered by. Skips any salon whose
+// owner has set real hours, so it is safe to run repeatedly and safe to run
+// after someone has already fixed theirs by hand.
+exports.adminBackfillWorkingHours = onCall(
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(400, Math.max(1, Number(data.limit || 200)));
+    const dryRun = data.dryRun === true;
+    const after  = pageCursor(data);
+
+    const snap = await idPage("salons", limit, after);
+
+    let filled = 0;
+    let alreadyHad = 0;
+    const names = [];
+    for (const d of snap.docs) {
+      const salon = d.data() || {};
+      // An owner who has deliberately closed every day still has entries, and
+      // that is a decision rather than an absence — hasBookableWeek would call
+      // it unbookable, which it is, but it is hers to make. Only a genuinely
+      // empty array is filled in.
+      if (Array.isArray(salon.workingHours) && salon.workingHours.length > 0) {
+        alreadyHad += 1;
+        continue;
+      }
+      // salonName, not name. Salons have never had a `name` field, so the list
+      // an admin reads before pressing this was always a column of document ids.
+      if (names.length < 20) names.push(salon.salonName || d.id);
+      if (!dryRun) await d.ref.update({ workingHours: defaultWorkingHours() });
+      filled += 1;
+    }
+
+    if (!dryRun) {
+      await logAdminAction(me, "BACKFILL_WORKING_HOURS", {
+        scanned: snap.size, filled, alreadyHad,
+      });
+    }
+    return {
+      ok: true, dryRun, scanned: snap.size, filled, alreadyHad, names,
+      ...pageEnd(snap, limit, after),
+    };
+  }
+);
+
+exports.adminBackfillReferralCodes = onCall(
+  // A page costs up to two sequential round trips per account — a uniqueness
+  // query and a write — so 100 accounts is a few hundred RPCs in series. The
+  // default 60s deadline is enough for that and not enough for much more, and a
+  // deadline mid-page is the one failure this design cannot make idempotent-free
+  // progress through, so the ceiling is raised and the page kept small.
+  { region: "us-central1", timeoutSeconds: 300 },
+  async (request) => {
+    const me = await assertAdmin(request);
+    const data = request.data || {};
+    const limit  = Math.min(200, Math.max(1, Number(data.limit || 100)));
+    const dryRun = data.dryRun === true;
+    const after  = pageCursor(data);
+
+    const snap = await idPage("users", limit, after);
+
+    // Codes handed out during this page. A real run does not depend on it: each
+    // code is written before the next account is examined, so the uniqueness
+    // query below sees it. A dry run writes nothing, so this Set is the only
+    // thing standing between two accounts that want the same code — and it is
+    // per-page, which is why a dry run's collision count is a floor rather than a
+    // number. The count it exists to report, how many accounts still have none,
+    // is unaffected.
+    const claimedHere = new Set();
+    let written = 0;
+    let alreadyHad = 0;
+    const collisions = [];   // uid pairs that wanted the same code
+    const unresolved = [];   // uids that could not be given one at all
+
+    for (const d of snap.docs) {
+      if (String(d.data().referralCode || "").trim()) { alreadyHad += 1; continue; }
+
+      const attempts = maxAttempts(d.id);
+      let code = "";
+      for (let attempt = BACKFILL_MIN_ATTEMPT; attempt < attempts; attempt += 1) {
+        const candidate = deriveReferralCode(d.id, attempt);
+        if (!candidate) break;
+        if (claimedHere.has(candidate)) { collisions.push({ code: candidate, uid: d.id }); continue; }
+        const taken = await db.collection("users")
+          .where("referralCode", "==", candidate).limit(1).get();
+        if (!taken.empty && taken.docs[0].id !== d.id) {
+          collisions.push({ code: candidate, uid: d.id, heldBy: taken.docs[0].id });
+          continue;
+        }
+        code = candidate;
+        break;
+      }
+
+      if (!code) { unresolved.push(d.id); continue; }
+
+      claimedHere.add(code);
+      if (!dryRun) {
+        await d.ref.update({ referralCode: code });
+        written += 1;
+      }
+    }
+
+    const { cursor, done } = pageEnd(snap, limit, after);
+
+    await logAdminAction(me, "BACKFILL_REFERRAL_CODES", {
+      scanned: snap.size, written, alreadyHad, dryRun,
+      collisions: collisions.length, unresolved: unresolved.length,
+  });
+  if (unresolved.length) {
+    logger.error("adminBackfillReferralCodes: could not derive a code", { unresolved });
+  }
+
   return {
     ok: true,
+    dryRun,
     scanned: snap.size,
     written,
+    alreadyHad,
+    // needed counts every account without a code; fixable is the subset this
+    // can actually do something about. Reporting only `needed` would let a dry
+    // run promise a repair for accounts it will skip.
+    needed: snap.size - alreadyHad,
+    fixable: snap.size - alreadyHad - unresolved.length,
     collisions,
-    done: snap.size < limit,
+    unresolved,
+    cursor,
+    done,
   };
-});
+  });
+
 
 async function enforceRateLimit(key, max, windowMs) {
   const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
@@ -659,13 +1221,34 @@ exports.deriveUserPhoneKey = onDocumentWritten(
     if (!after || !after.exists) return;
 
     const u = after.data() || {};
-    const want = phoneKey(u.phone);
-    if (!want) return;                       // too short to identify anyone
-    if (u.phoneDigits === want) return;      // unchanged — and this is what
-                                             // stops the write below from
-                                             // retriggering this function forever
 
-    await after.ref.update({ phoneDigits: want });
+    // Two derived keys, both written here for the same reason: a lookup value
+    // the client must not choose, kept in step with the field it comes from.
+    //
+    //   phoneDigits — how authenticateWithPassword finds an account
+    //   nameKey     — how the admin console searches for one
+    //
+    // nameKey is written even when it is empty. Firestore drops documents that
+    // lack the orderBy field, so a user with no name would be invisible in a
+    // name-ordered admin list — present in the count, absent from the page, and
+    // impossible to act on. The salon path learned this the same way (see
+    // deriveSalonFields and sortRating).
+    const wantPhone = phoneKey(u.phone);
+    const wantName  = normalizeName(u.name);
+
+    const patch = {};
+    if (wantPhone && u.phoneDigits !== wantPhone) patch.phoneDigits = wantPhone;
+    if (u.nameKey !== wantName) patch.nameKey = wantName;
+
+    // Nothing to derive. This is also what stops the update below from
+    // retriggering this function forever.
+    if (Object.keys(patch).length === 0) return;
+
+    await after.ref.update(patch);
+
+    // Only a phone change can create an ambiguous login.
+    if (!patch.phoneDigits) return;
+    const want = wantPhone;
 
     // Two accounts sharing a subscriber number makes login ambiguous for both:
     // whoever the index returns first wins, and the other person signs in to a
@@ -678,7 +1261,12 @@ exports.deriveUserPhoneKey = onDocumentWritten(
       .get();
     const clash = others.docs.filter((d) => d.id !== after.id);
     if (clash.length) {
-      alertable("BOOKING_FAILED", "Two accounts share one phone number", {
+      // Not BOOKING_FAILED, which is documented as "a customer tried to book
+      // and could not". Two accounts sharing a number is a real problem and a
+      // different one, and mislabelling it means a backfill that touches old
+      // accounts — surfacing every historical duplicate at once — reads as a
+      // checkout outage to whoever is woken up.
+      alertable("DUPLICATE_PHONE", "Two accounts share one phone number", {
         phoneDigits: want,
         uids: [after.id, ...clash.map((d) => d.id)],
       });

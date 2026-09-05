@@ -134,7 +134,7 @@ test("an expired payment is not revived by a late webhook", async () => {
 });
 
 test("a failure signal cancels the booking and credits nobody", async () => {
-  const { apptRef, payRef, provider } = await seedAwaitingPayment();
+  const { payRef, provider } = await seedAwaitingPayment();
 
   const { outcome, ctx } = await settle(payRef, { paid: false, failed: true });
   assert.strictEqual(outcome, "failed");

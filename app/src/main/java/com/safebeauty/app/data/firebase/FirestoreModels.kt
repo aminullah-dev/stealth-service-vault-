@@ -36,6 +36,14 @@ data class UserDocument(
     val kycStatus: String = "NONE",         // NONE | PENDING | APPROVED | REJECTED
     val kycRejectionReason: String = "",
     val tazkiraNumber: String = "",
+    // Storage paths, not URLs — "kyc/{uid}/tazkira.jpg". Written by submitKyc,
+    // which derives them from the caller's own uid, and read back through the
+    // Storage SDK so that storage.rules is consulted on every access.
+    val tazkiraPhotoPath: String = "",
+    val selfiePhotoPath: String = "",
+    // The token URLs these replaced. Kept only so a document written before the
+    // change still renders while the backfill works through them; nothing
+    // writes them any more, and adminRevokeKycUrls empties them for good.
     val tazkiraPhotoUrl: String = "",
     val selfiePhotoUrl: String = "",
     val addressProvince: String = "",
@@ -75,7 +83,19 @@ data class UserDocument(
     // to COMPLETED; sendReengagementNudges scans for customers idle ≥30 days and
     // stamps lastNudgedAt so a "we miss you" nudge fires at most once per 30 days.
     val lastVisitAt: Long = 0L,
-    val lastNudgedAt: Long = 0L
+    val lastNudgedAt: Long = 0L,
+    // ── A salon that was promised and not yet created ───────────────────────────
+    // Registration writes this document and then calls createProviderSalon. When
+    // that second call failed — a dropped connection on the one screen where a
+    // dropped connection is most likely — the account existed with no salon and
+    // no way to make one, because createProviderSalon is called from exactly one
+    // place in the app and that place has already been left behind. The details
+    // she typed are kept here so the next sign-in can finish what registration
+    // started. createProviderSalon is idempotent, so retrying costs nothing and
+    // a stale copy creates no second salon.
+    val pendingSalonName: String = "",
+    val pendingSalonDistrict: String = "",
+    val pendingSalonServices: List<String> = emptyList()
 )
 
 /** Average customer rating (0.0 if never rated). */
@@ -142,6 +162,22 @@ data class ServicePackage(
     val discountPercent: Int = 0
 )
 
+/**
+ * How one service divides between the stylist working and the client waiting.
+ *
+ * Minutes. Total duration is the sum; [durationPerService] stays the fallback for
+ * services that have no breakdown. During [processing] the client is still in the
+ * salon but the stylist is free to take someone else — which is the whole reason
+ * this exists.
+ */
+data class ServiceTiming(
+    val activeBefore: Int = 0,
+    val processing: Int = 0,
+    val activeAfter: Int = 0,
+) {
+    val totalMinutes: Int get() = activeBefore + processing + activeAfter
+}
+
 data class StaffMember(
     val id: String = "",                    // stable UUID, generated when added
     val name: String = "",
@@ -156,12 +192,25 @@ data class SalonDocument(
     val providerId: String = "",
     val providerName: String = "",
     val salonName: String = "",
+    // The ناحیه — a DISTRICT key, and what the customer's filter and every
+    // composite index match on.
     val district: String = "",
+    // The گذر or محله inside that district, when the salon named one. Optional,
+    // and deliberately NOT what queries filter by: a salon that picked a guzar
+    // must still be found by someone searching its district, which it would not
+    // be if the finer key had been stored in `district` instead. It is for
+    // display and for search; where the salon actually is remains its
+    // coordinates.
+    val areaKey: String = "",
     // Derived server-side by deriveSalonFields from `district` and `services`,
     // and frozen against client writes. These are what the category and
     // neighbourhood filters can actually match on: `district` is free text on
     // older salons, and `services` is free text on all of them.
     val districtKey: String = "",
+    // Derived server-side from districtKey's prefix (KBL_, HRT_, …). Never set by
+    // the salon: two fields that can disagree about where a salon is would be
+    // one field too many.
+    val city: String = "",
     val categories: List<String> = emptyList(),
     val services: List<String> = emptyList(),
     // Staff who work here. Empty = a solo salon (the classic single-chair case);
@@ -180,6 +229,12 @@ data class SalonDocument(
     // A service with no entry (or 0) falls back to one slot (slotDurationMinutes),
     // so an unset map behaves exactly like the old one-slot-per-service model.
     val durationPerService: Map<String, Int> = emptyMap(),
+    // Where a service leaves the stylist free. Colouring hair is application,
+    // then development while she is elsewhere, then washing and styling — and
+    // that middle stretch is the most valuable unsold time in the salon. A
+    // service with no entry here is treated as working throughout, which is what
+    // every salon means today.
+    val serviceTiming: Map<String, ServiceTiming> = emptyMap(),
     // Days the salon is closed off (time-off/holidays), as "yyyy-MM-dd" strings in
     // Kabul-local time. No slots are offered on these days, and the booking
     // function rejects them server-side as defense in depth.
@@ -235,6 +290,17 @@ data class AppointmentDocument(
     val salonId: String = "",
     val salonName: String = "",
     val serviceName: String = "",
+    // There is deliberately no `services` field here.
+    //
+    // The server does write one, but it holds [{name, price}] maps, not strings
+    // (resolveServicesTotal in functions/lib/money.js). Declaring it as
+    // List<String> does not make Firestore skip it — CustomClassMapper walks
+    // into the array and throws converting a HashMap to a String, out of a
+    // snapshot listener on the main thread, so every customer and every salon
+    // owner with a single booking loses the screen. Nothing in the app needs the
+    // prices, and splitting serviceName recovers the names for every booking
+    // ever made, including those written before the field existed — which is
+    // what "Book again" has always done. See serviceNamesFrom below.
     // The staff member this booking is for. Empty = "any available" / solo salon.
     val staffId: String = "",
     val staffName: String = "",
@@ -254,6 +320,19 @@ data class AppointmentDocument(
     @get:PropertyName("customerReported") @set:PropertyName("customerReported")
     var customerReported: Boolean = false
 )
+
+/**
+ * The services this booking was made from, recovered from the display name.
+ *
+ * [serviceName] is the chosen services joined with "، " at booking time, so
+ * splitting it back is exact for every booking ever made. Filtered against what
+ * the salon offers today, because a service she has since removed has no price
+ * and no duration and cannot be part of a slot calculation.
+ */
+fun serviceNamesFrom(serviceName: String, offered: Map<String, Int>): List<String> =
+    serviceName.split("،", ",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() && offered.containsKey(it) }
 
 /** Snapshotted average customer rating for this booking (0.0 if never rated). */
 fun AppointmentDocument.customerRating(): Double =
@@ -368,7 +447,22 @@ data class BroadcastDocument(
     val id: String = "",                    // Firestore document ID
     val message: String = "",
     val sentBy: String = "admin",
-    val createdAt: Long = 0L
+    val createdAt: Long = 0L,
+    // The console has written these three since the Announce tab was built, and
+    // the model did not have them — so every announcement reached everybody. A
+    // Pashto message aimed at Pashto speakers appeared, in Pashto, above a Dari
+    // interface. Empty means "everyone", which is what an untargeted send is.
+    val targetRole: String = "",            // "" | CUSTOMER | PROVIDER
+    val targetLang: String = "",            // "" | en | fa | ps
+    val targetDistrict: String = "",        // "" | a district key
+    /**
+     * When this stops being shown. 0 means the console did not set one.
+     *
+     * Announcements had no end: one sent in August was still at the top of the
+     * screen days later for anyone who had not swiped it away, and the only
+     * thing retiring them was each customer dismissing each one by hand.
+     */
+    val expiresAt: Long = 0L
 )
 
 /**
@@ -531,4 +625,26 @@ data class RefundRequestDocument(
     // Joined client-side for display.
     val customerName: String = "",
     val salonName: String = ""
+)
+
+/**
+ * A salon's running booking tally, maintained by the deriveSalonStats trigger.
+ *
+ * Exists so the provider's Income tab can show lifetime totals without reading
+ * every appointment the salon has ever taken in order to count them. One
+ * document per salon, so reading it costs the same whether the salon has ten
+ * bookings or ten thousand.
+ *
+ * Counts are Long because Firestore's increment is an int64; the UI narrows
+ * them where it displays them.
+ */
+data class SalonStatsDocument(
+    val salonId: String = "",
+    val total: Long = 0L,
+    /** Bookings per status: PENDING, CONFIRMED, COMPLETED, CANCELLED, … */
+    val byStatus: Map<String, Long> = emptyMap(),
+    val byService: Map<String, Long> = emptyMap(),
+    /** Only CONFIRMED and COMPLETED — what the revenue estimate is built from. */
+    val confirmedByService: Map<String, Long> = emptyMap(),
+    val updatedAt: Long = 0L,
 )

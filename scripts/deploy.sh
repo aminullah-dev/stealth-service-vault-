@@ -46,17 +46,116 @@ if [[ "$ALIAS" == "prod" ]]; then
   ( cd functions && npm test )
 fi
 
+# ── Narrow "functions" to the functions that actually changed ────────────────
+#
+# A full functions deploy asks Cloud Build for one build per function. There are
+# 76, the project's concurrent-build quota is far below that, and the result is
+# not a slow deploy but a failed one: 71 builds came back CANCELLED in a single
+# run, and the five that succeeded were only the ones that started first.
+#
+# The baseline is what was last DEPLOYED, not what was last pushed — git has no
+# idea which commit is running in us-central1, so the script records it. The
+# marker is written only after a deploy that actually succeeded, so a failed run
+# leaves the baseline where it was and the next attempt still carries the work.
+#
+#   deploy.sh prod functions        → only what changed since the last success
+#   deploy.sh prod functions all    → every function, when you mean it
+#   deploy.sh prod firestore:rules  → untouched, no narrowing
+MARKER=".firebase/functions-deployed-$PROJECT"
+NARROWED=""
+
+if [[ "$TARGETS" == "functions" && "${3:-}" != "all" ]]; then
+  LAST="$(cat "$MARKER" 2>/dev/null || true)"
+  if [[ -z "$LAST" ]] || ! git cat-file -e "$LAST^{commit}" 2>/dev/null; then
+    echo "── functions: no record of a previous deploy — deploying all"
+  else
+    CHANGED="$(git diff --name-only "$LAST"..HEAD -- functions/ | grep -v '^functions/test/' || true)"
+    if [[ -z "$CHANGED" ]]; then
+      echo "── functions: nothing changed since ${LAST:0:8} — deploying all anyway"
+      echo "     (a previous run may have failed after the marker was written)" >&2
+    elif grep -qE '^functions/index\.js$|^functions/shared\.js$' <<<"$CHANGED"; then
+      # index.js registers every export and shared.js is imported by all of
+      # them. Nothing narrower is honest.
+      echo "── functions: index.js or shared.js changed — deploying all"
+    else
+      # A changed lib/ file reaches only the domains that require it. Falling
+      # back to "all" here is what produced the 71 cancelled builds: lib/areas.js
+      # is imported by exactly one domain, and deploying 76 functions to cover it
+      # is how a small change becomes a failed deploy.
+      FILES=""
+      for f in $CHANGED; do
+        case "$f" in
+          functions/domains/*.js) FILES="$FILES $f" ;;
+          functions/lib/*.js)
+            MOD="$(basename "$f" .js)"
+            for d in functions/domains/*.js; do
+              grep -qE "require\(\"\.\./lib/$MOD\"\)" "$d" && FILES="$FILES $d"
+            done ;;
+          *) FILES="ALL"; break ;;
+        esac
+      done
+      if [[ "$FILES" == "ALL" ]]; then
+        echo "── functions: a file outside domains/ and lib/ changed — deploying all"
+        FILES=""
+      fi
+      for f in $(tr ' ' '\n' <<<"$FILES" | sort -u); do
+        for n in $(grep -oE '^exports\.[A-Za-z_][A-Za-z0-9_]*' "$f" | sed 's/exports\.//'); do
+          NARROWED="${NARROWED:+$NARROWED,}functions:$n"
+        done
+      done
+      if [[ -n "$NARROWED" ]]; then
+        echo "── functions: changed since ${LAST:0:8} —"
+        tr ',' '\n' <<<"$NARROWED" | sed 's/^functions:/     /'
+        TARGETS="$NARROWED"
+      fi
+    fi
+  fi
+elif [[ "${3:-}" == "all" ]]; then
+  echo "── functions: deploying all (asked for)"
+fi
+
 echo "── firebase deploy"
-if [[ -n "$TARGETS" ]]; then
-  npx firebase deploy --project "$PROJECT" --only "$TARGETS"
+# The exit code is captured rather than allowed to kill the script. A deploy can
+# fail on one function and still have changed 73 others, and the invoker check
+# below is the step that exists to stop a callable going live returning 403 —
+# skipping it exactly when a deploy went wrong is the opposite of what it is for.
+# The failure is not swallowed: it is re-raised at the end, after the check.
+# Functions go out in batches. Cloud Build runs one build per function and the
+# project's concurrent quota is small: asking for seventeen at once put every
+# one of them in a queue none of them left, and they were cancelled at the queue
+# TTL without a single startTime between them. Five at a time, sequentially,
+# stays under it. Slower, and it finishes.
+DEPLOY_STATUS=0
+if [[ "$TARGETS" == functions:* ]]; then
+  IFS=',' read -ra FNS <<<"$TARGETS"
+  TOTAL=${#FNS[@]}
+  BATCH=5
+  for ((i = 0; i < TOTAL; i += BATCH)); do
+    CHUNK="$(IFS=,; echo "${FNS[*]:i:BATCH}")"
+    echo "── batch $((i / BATCH + 1)) of $(((TOTAL + BATCH - 1) / BATCH)): $(tr ',' ' ' <<<"${CHUNK//functions:/}")"
+    npx firebase deploy --project "$PROJECT" --only "$CHUNK" || DEPLOY_STATUS=$?
+  done
+elif [[ -n "$TARGETS" ]]; then
+  npx firebase deploy --project "$PROJECT" --only "$TARGETS" || DEPLOY_STATUS=$?
 else
-  npx firebase deploy --project "$PROJECT"
+  npx firebase deploy --project "$PROJECT" || DEPLOY_STATUS=$?
+fi
+
+if [[ "$DEPLOY_STATUS" -ne 0 ]]; then
+  echo "── firebase deploy exited $DEPLOY_STATUS — continuing to the invoker check anyway" >&2
 fi
 
 # Only relevant when functions were part of this deploy.
+# The baseline for the next run. Written only on success: a failed deploy that
+# moved the marker would make the next run think the work was already out.
+if [[ "$DEPLOY_STATUS" -eq 0 && "$TARGETS" == *"functions"* ]]; then
+  mkdir -p .firebase && git rev-parse HEAD > "$MARKER"
+  echo "── functions: recorded $(git rev-parse --short HEAD) as deployed"
+fi
+
 if [[ -n "$TARGETS" && "$TARGETS" != *"functions"* ]]; then
   echo "── Skipping invoker bindings (functions not in this deploy)"
-  exit 0
+  exit "$DEPLOY_STATUS"
 fi
 
 # Indexes drift when deploys use narrow --only targets, which most do. The drift
@@ -124,3 +223,9 @@ if [[ "$missing" -gt 0 ]]; then
 fi
 
 echo "── Done. $(echo "$CALLABLES" | wc -l | tr -d ' ') callables reachable."
+
+# Re-raise the deploy's own failure now that the safety check has run. A
+# transient IAM error on a scheduled function — which needs no public invoker —
+# looks exactly like this and is worth seeing, but it should not have hidden
+# whether the callables are reachable.
+exit "$DEPLOY_STATUS"

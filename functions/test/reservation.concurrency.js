@@ -29,6 +29,7 @@ const {
   commitBookingAtomically,
   slotConflictWindow,
 } = require("../lib/reservation");
+const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 
 admin.initializeApp({ projectId: "safebeauty-test" });
 const db = admin.firestore();
@@ -154,6 +155,226 @@ test("a booking far outside the window does not block", async () => {
 
   const near = await attempt(salonId, at);
   assert.ok(near.ok, "a booking a week earlier must not block this one");
+});
+
+/**
+ * The conflict check rescheduleAppointment runs, built the same way.
+ *
+ * Reschedule is a second door onto the same guarantee, and it was missed when
+ * the first was fixed: it read every appointment the salon had ever taken, with
+ * no date bound, inside a transaction. Nothing tested it, which is also how a
+ * `actor is not defined` in the same function survived until lint found it.
+ *
+ * This mirrors the production read and the production call to hasSlotConflict —
+ * including the appointmentId that excludes the booking being moved, without
+ * which every reschedule collides with itself.
+ */
+async function rescheduleWouldCollide(salonId, appointmentId, newDate, staffId = "", span = 1) {
+  const win = slotConflictWindow(newDate);
+  const snap = await db.collection("appointments")
+    .where("salonId", "==", salonId)
+    .where("appointmentDate", ">=", win.start)
+    .where("appointmentDate", "<", win.end)
+    .get();
+  const others = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return hasSlotConflict(others, newDate, span, staffId, SLOT_MINUTES, appointmentId);
+}
+
+test("a reschedule onto an occupied slot is refused", async () => {
+  // One base timestamp, not two calls to Date.now(). hasSlotConflict matches
+  // slot starts exactly, so a few milliseconds of drift between setting the
+  // booking up and asking about it is a different slot.
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const onto = base + 2 * 3_600_000;
+
+  const mine  = await attempt(salonId, base);
+  const other = await attempt(salonId, onto);
+  assert.ok(mine.ok && other.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, onto), true);
+});
+
+test("a reschedule onto a free slot is allowed", async () => {
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const mine = await attempt(salonId, base);
+  assert.ok(mine.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, base + 5 * 3_600_000), false);
+});
+
+test("a reschedule does not collide with the booking being moved", async () => {
+  // Without the appointmentId exclusion this is always true, and rescheduling
+  // is impossible — the booking's own current slot blocks it.
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  const mine = await attempt(salonId, at);
+  assert.ok(mine.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, mine.id, at), false,
+    "a booking must not be its own conflict");
+  assert.equal(await rescheduleWouldCollide(salonId, "someone-else", at), true,
+    "and the same slot must still block anyone else");
+});
+
+test("a booking a week away does not block a reschedule", async () => {
+  // The bound this test exists for: outside the window the appointment is not
+  // read at all, so it cannot be mistaken for a conflict.
+  const salonId = freshSalon();
+  const onto = Date.now() + 86_400_000;
+  const far  = await attempt(salonId, onto + 7 * 86_400_000);
+  assert.ok(far.ok);
+
+  assert.equal(await rescheduleWouldCollide(salonId, "any", onto), false);
+});
+
+/**
+ * A booking with processing time, committed through the real reservation path.
+ *
+ * The pure maths is covered in slots.test.js. What these check is that the gap
+ * survives the whole way through commitBookingAtomically and a live Firestore
+ * transaction — because a colour that frees its development gap in one place and
+ * not the other is either a stylist double-booked or an hour nobody can sell.
+ */
+const COLOUR = { activeBefore: 45, processing: 30, activeAfter: 20 };
+
+function attemptWithLayout(salonId, at, layout, staffId = "", slotMinutes = SLOT_MINUTES) {
+  const ref = db.collection("appointments").doc();
+  const pending = pendingWrites();
+  pending.set(ref, {
+    salonId, staffId,
+    appointmentDate: at,
+    slotsCount: layout.span,
+    busyOffsets: layout.busyOffsets,
+    status: "PENDING",
+    createdAt: Date.now(),
+  });
+  return commitBookingAtomically(db, pending, readerFor(salonId, at), at,
+                                 layout.busyOffsets, staffId, slotMinutes)
+    .then(() => ({ ok: true, id: ref.id }))
+    .catch((e) => ({ ok: false, taken: e instanceof SlotTakenError, err: e }));
+}
+
+test("a blow-dry books into a colour's development gap, for real", async () => {
+  // A 30-minute grid, because that is the coarsest one on which a 30-minute gap
+  // exists at all. At 60 minutes it rounds away and this would quietly become a
+  // test that a booking fits AFTER a colour, which proves nothing.
+  const FINE = 30;
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, FINE);
+  assert.deepEqual(colour.busyOffsets, [0, 1, 3], "slot 2 is the gap");
+
+  const first = await attemptWithLayout(salonId, base, colour, "zahra", FINE);
+  assert.ok(first.ok, "the colour itself must book");
+
+  const inGap = base + 2 * FINE * 60_000;
+  const second = await attemptWithLayout(salonId, inGap,
+                                         { span: 1, busyOffsets: [0] }, "zahra", FINE);
+  assert.ok(second.ok, "the stylist is free while the colour develops");
+
+  // And the washout is still hers: two slots from the gap must be refused.
+  const third = await attemptWithLayout(salonId, inGap,
+                                        { span: 2, busyOffsets: [0, 1] }, "sara2", FINE);
+  assert.ok(third.ok, "a different stylist was never blocked");
+  const fourth = await attemptWithLayout(salonId, inGap,
+                                         { span: 2, busyOffsets: [0, 1] }, "zahra", FINE);
+  assert.equal(fourth.ok, false, "running out of the gap hits the wash and style");
+  assert.ok(fourth.taken);
+});
+
+test("a booking cannot start on a colour's working slot", async () => {
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, SLOT_MINUTES);
+
+  assert.ok((await attemptWithLayout(salonId, base, colour, "zahra")).ok);
+  const clash = await attemptWithLayout(salonId, base, { span: 1, busyOffsets: [0] }, "zahra");
+  assert.equal(clash.ok, false);
+  assert.ok(clash.taken, "the application is working time and must be refused");
+});
+
+test("two colours for one stylist at the same time: exactly one wins", async () => {
+  // The gap must not become a hole the concurrency guarantee falls through.
+  const salonId = freshSalon();
+  const base = Date.now() + 86_400_000;
+  const colour = serviceLayout(["Colour"], { Colour: COLOUR }, {}, SLOT_MINUTES);
+
+  const results = await Promise.all([
+    attemptWithLayout(salonId, base, colour, "zahra"),
+    attemptWithLayout(salonId, base, colour, "zahra"),
+  ]);
+  assert.equal(results.filter((r) => r.ok).length, 1,
+    "processing time must not weaken the one-winner guarantee");
+});
+
+/**
+ * A wedding party, through the real reservation path.
+ *
+ * A party is the salon's block of the day, not one stylist's — everyone works,
+ * which is the only reason its wall-clock is short enough to be worth booking.
+ * If it only held one chair, a salon could accept a party and three haircuts for
+ * the same hour and be three stylists short on the morning of a wedding.
+ */
+function attemptParty(salonId, at, span, staffId = "") {
+  const ref = db.collection("appointments").doc();
+  const pending = pendingWrites();
+  pending.set(ref, {
+    salonId, staffId,
+    appointmentDate: at,
+    slotsCount: span,
+    isParty: true,
+    partySize: 4,
+    status: "PENDING",
+    createdAt: Date.now(),
+  });
+  return commitBookingAtomically(db, pending, readerFor(salonId, at), at,
+                                 span, staffId, SLOT_MINUTES, true)
+    .then(() => ({ ok: true, id: ref.id }))
+    .catch((e) => ({ ok: false, taken: e instanceof SlotTakenError, err: e }));
+}
+
+test("a party blocks a stylist nobody named on it", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+
+  assert.ok((await attemptParty(salonId, at, 2)).ok, "the party itself must book");
+
+  const haircut = await attempt(salonId, at, "zahra");
+  assert.equal(haircut.ok, false, "zahra is working the wedding");
+  assert.ok(haircut.taken);
+});
+
+test("an ordinary booking blocks a party from taking the salon", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+
+  assert.ok((await attempt(salonId, at, "sara")).ok);
+  const wedding = await attemptParty(salonId, at, 2);
+  assert.equal(wedding.ok, false, "one stylist already busy means not everyone is free");
+  assert.ok(wedding.taken);
+});
+
+test("two parties at the same hour: exactly one wins", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  const results = await Promise.all([
+    attemptParty(salonId, at, 2),
+    attemptParty(salonId, at, 2),
+  ]);
+  assert.equal(results.filter((r) => r.ok).length, 1,
+    "a salon cannot host two weddings at once");
+});
+
+test("a party leaves the rest of the day alone", async () => {
+  const salonId = freshSalon();
+  const at = Date.now() + 86_400_000;
+  assert.ok((await attemptParty(salonId, at, 2)).ok);
+
+  const later = at + 4 * SLOT_MINUTES * 60_000;
+  assert.ok((await attempt(salonId, later, "zahra")).ok,
+    "the block is the party's length, not the whole day");
 });
 
 test.after(async () => { await admin.app().delete(); });

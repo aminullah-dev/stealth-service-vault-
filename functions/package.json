@@ -6,11 +6,12 @@
   },
   "main": "index.js",
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "eslint . && node --test test/*.test.js",
+    "lint": "eslint .",
     "test:emulator:inner": "node --test test/reservation.concurrency.js",
     "test:emulator": "firebase emulators:exec --only firestore --project safebeauty-test \"npm run test:emulator:inner\"",
-    "test:all": "npm test && npm run test:emulator && npm run test:rules && npm run test:settlement",
-    "test:rules:inner": "node --test test/rules.demand.js",
+    "test:all": "npm run lint && npm test && npm run test:emulator && npm run test:rules && npm run test:settlement",
+    "test:rules:inner": "node --test test/rules.*.js",
     "test:rules": "firebase emulators:exec --only firestore --project safebeauty-rules-test \"npm run test:rules:inner\"",
     "test:settlement:inner": "node --test test/settlement.integration.js",
     "test:settlement": "firebase emulators:exec --only firestore --project safebeauty-settlement-test \"npm run test:settlement:inner\""
@@ -22,6 +23,7 @@
   "private": true,
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
+    "eslint": "^9.39.5",
     "firebase-tools": "^15.22.3"
   }
 }

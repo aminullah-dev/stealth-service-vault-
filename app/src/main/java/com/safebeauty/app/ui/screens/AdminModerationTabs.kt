@@ -25,8 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Campaign
@@ -75,6 +73,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.safebeauty.app.ui.components.KycPhotoDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -224,6 +223,7 @@ internal fun KycReviewTab(
                 KycReviewCard(
                     user      = u,
                     busy      = viewModel.kycReviewInProgress == u.uid,
+                    loadPhoto = { viewModel.kycPhotoBytes(it) },
                     onApprove = { viewModel.approveKyc(u.uid) },
                     onReject  = { rejectReason = ""; rejectTarget = u }
                 )
@@ -277,14 +277,24 @@ internal fun KycReviewTab(
 private fun KycReviewCard(
     user: UserDocument,
     busy: Boolean,
+    loadPhoto: suspend (String) -> ByteArray,
     onApprove: () -> Unit,
     onReject: () -> Unit
 ) {
     val strings = LocalStrings.current
-    val context = LocalContext.current
-    fun openUrl(url: String) {
-        if (url.isBlank()) return
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    // Shown in a dialog, fetched through the Storage SDK. This used to be an
+    // Intent(ACTION_VIEW) on a Firebase download URL — a token URL, served
+    // without authentication and outside storage.rules — so reviewing a
+    // customer's identity card wrote a permanent public link to a photograph of
+    // her tazkira into the reviewer's browser history.
+    var viewing by remember { mutableStateOf<Pair<String, String>?>(null) }
+    viewing?.let { (path, title) ->
+        KycPhotoDialog(
+            storagePath       = path,
+            title             = title,
+            load              = loadPhoto,
+            onDismiss         = { viewing = null },
+        )
     }
 
     ElevatedCard(
@@ -300,10 +310,16 @@ private fun KycReviewCard(
 
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { openUrl(user.tazkiraPhotoUrl) }, shape = RoundedCornerShape(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewing = user.tazkiraPhotoPath to strings.kycReviewViewTazkira },
+                    shape   = RoundedCornerShape(10.dp),
+                ) {
                     Text(strings.kycReviewViewTazkira, color = RoseGold, fontSize = 12.sp)
                 }
-                OutlinedButton(onClick = { openUrl(user.selfiePhotoUrl) }, shape = RoundedCornerShape(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewing = user.selfiePhotoPath to strings.kycReviewViewSelfie },
+                    shape   = RoundedCornerShape(10.dp),
+                ) {
                     Text(strings.kycReviewViewSelfie, color = RoseGold, fontSize = 12.sp)
                 }
             }

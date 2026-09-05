@@ -62,8 +62,8 @@ android {
         applicationId = "com.security.stealthapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.9"
+        versionCode = 16
+        versionName = "2.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
@@ -74,6 +74,32 @@ android {
         // manifest. Empty when local.properties has no key: the app still builds
         // and runs, the map simply renders blank tiles.
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
+    }
+
+    // ── Environments ──────────────────────────────────────────────────────────
+    //
+    // prod talks to the `safebeauty` Firebase project and is what ships to Play.
+    // demo talks to `safebeauty-staging` and is what the public demo page hands
+    // out. They are different Firebase projects, so the demo cannot read, write
+    // or even authenticate against real customer data — which matters more here
+    // than in most products, because production holds photographs of women's
+    // identity documents.
+    //
+    // The separation is the applicationId, not a flag: `.demo` makes it a
+    // different app to Android, so it installs alongside a real installation
+    // instead of replacing it, and nothing in one can reach the other's storage.
+    // Each flavour picks up its own google-services.json — demo's lives in
+    // src/demo/, prod falls through to app/google-services.json.
+    flavorDimensions += "environment"
+    productFlavors {
+        create("prod") {
+            dimension = "environment"
+        }
+        create("demo") {
+            dimension = "environment"
+            applicationIdSuffix = ".demo"
+            versionNameSuffix   = "-demo"
+        }
     }
 
     signingConfigs {
@@ -263,6 +289,18 @@ tasks.register("verifyReleaseSigningKey") {
     }
 }
 
-tasks.matching { it.name == "bundleRelease" || it.name == "assembleRelease" }.configureEach {
+// Matched by shape, not by exact name.
+//
+// Adding a flavour dimension splits every release task in two —
+// assembleProdRelease and assembleDemoRelease — while leaving `assembleRelease`
+// behind as an aggregate. So an equality check on the old names still matches
+// something, and still looks like it is working, while the tasks anyone
+// actually runs go unguarded. That would have quietly switched off the
+// fingerprint check that exists because a build once went out signed with the
+// wrong key. A guard that stops running is worse than no guard: it still looks
+// like one. (Verified with `gradlew :app:tasks --all`, not assumed.)
+tasks.matching {
+    (it.name.startsWith("assemble") || it.name.startsWith("bundle")) && it.name.endsWith("Release")
+}.configureEach {
     dependsOn("verifyReleaseSigningKey")
 }

@@ -77,8 +77,13 @@ silently hit "permission denied".
 - **Firestore models** (`FirestoreModels.kt`): Boolean fields whose name starts
   with `is`, or that need a stable stored name, use
   `@get:PropertyName("x") @set:PropertyName("x") var x`.
-- **Verify before commit**: `node --check functions/index.js` and `npm test`
-  (in `functions/` — Node's built-in runner, no deps) for functions;
+- **Verify before commit**: `npm test` in `functions/` — it runs `eslint .`
+  first and then Node's built-in test runner (no deps). The lint step is not
+  optional politeness: `node --check` parses, so it happily accepts a free
+  variable, and `const totalDiscount = capDiscount(subtotal, …)` where nothing
+  declares `subtotal` passed every syntax check and would have thrown a
+  ReferenceError on the first booking of the release. `no-undef` caught it. Run
+  the tests for functions;
   brace/paren balance and 4× string counts for Kotlin/AppStrings. There's no
   Android SDK in the Claude environment, so the app can't be compiled here —
   check imports and balance carefully; the user builds on their Mac.
@@ -89,9 +94,30 @@ silently hit "permission denied".
   render with the pre-installed headless Chromium; post 1080×1350, story
   1080×1920.
 
+## Agents (`.claude/agents/`)
+- **`verify-live`** — proves a change is actually live and actually working,
+  from production and staging rather than from the repository. Run it after any
+  deploy, after any backfill, or when a number looks wrong. It exists because
+  this codebase's recurring defect is not code that breaks but code that looks
+  healthy and has never run: a backup that wrote no files, a sweep never
+  invoked, a Health tab no browser could read, derived fields only new writes
+  populate. Those are absences, not failures, and nothing else looks for them.
+- **`review-safebeauty`** — reviews a diff against the invariants here that were
+  learned by breaking them: bounded reads, `orderBy` dropping documents that
+  lack the field, index direction, a trigger needing a backfill, server-written
+  collections having no rules, the trilingual 4× rule, client and server slot
+  maths agreeing. Run it before committing anything touching queries, rules,
+  money, the slot maths, or strings.
+
 ## Git
+
 - Work on branch `claude/stealth-android-vault-4zr1d3`. Commit + push each
   finished change. Don't open PRs unless asked.
+- **`main` is stale** — it sits many commits behind and has none of the current
+  work. Anything that clones this repository fresh lands on `main` and finds an
+  old tree: a cloud routine did exactly that and reported "file does not exist"
+  for a skill that had been pushed minutes earlier. Check out the working branch
+  before doing anything else.
 
 ## Gotchas
 - `context.packageName` returns the **applicationId** (`com.security.stealthapp`),

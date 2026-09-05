@@ -1,4 +1,4 @@
-# SafeBeauty — Pre-Launch Checklist (v1.6 / versionCode 10)
+# SafeBeauty — Pre-Launch Checklist (v2.0 / versionCode 15)
 
 Work top-to-bottom. Anything in **🔴 blocker** must pass before you upload the
 AAB. 🟠 = important, 🟡 = polish. Check the box when done.
@@ -13,18 +13,38 @@ backend **before** you roll the app out to users, or approved users hit
 ```bash
 cd ~/StudioProjects/stealth-service-vault-
 git pull origin claude/stealth-android-vault-4zr1d3
-cd functions && npm test && cd ..        # expect: # pass 95
+cd functions && npm run test:all && cd ..   # unit 193, rules 23, concurrency 17, settlement 8
 firebase deploy --only functions,firestore:rules,storage,hosting
 ```
 
-- [ ] 🔴 `npm test` shows **95/95** pass
+- [ ] 🔴 `npm run test:all` is green — **193** unit, **23** rules, **17** concurrency, **8** settlement
+- [ ] 🔴 `npm run lint` reports **0 errors** (warnings are fine)
 - [ ] 🔴 `firebase deploy` finished with **Deploy complete!** (functions + rules + storage + hosting all green — no `npm ci` lock error)
 - [ ] 🔴 Firestore **rules deployed** (a rules change that isn't deployed = silent "permission denied" in the app)
 
 ---
 
+## 0b. Indexes must be READY before the app reaches anyone 🔴
+
+Every paginated query in this build depends on a composite index. Firestore does
+not fail loudly when one is missing or still building: the query returns
+FAILED_PRECONDITION, the app's `catch` turns that into an empty list, and the
+customer sees a salon with no photos and a Deals strip with no deals. Nothing
+appears in the logs.
+
+```bash
+gcloud firestore indexes composite list --project=safebeauty \
+  --format='value(state)' | sort | uniq -c
+```
+
+- [ ] 🔴 Every index reads **READY** — none `CREATING`
+- [ ] 🔴 The count matches `firestore.indexes.json` (`node -e "console.log(require('./firestore.indexes.json').indexes.length)"`)
+- [ ] 🔴 `cd functions && npm test` passes the index test — it fails if any index names a collection no code queries. Three did: `gallery` and `offers` instead of `salon_gallery` and `salon_offers`.
+
+---
+
 ## 1. Build & signing 🔴
-- [ ] `versionCode = 10`, `versionName = "1.6"` in `app/build.gradle.kts` (must be **higher** than the last uploaded code — 9)
+- [ ] `versionCode = 15`, `versionName = "2.0"` in `app/build.gradle.kts` (must be **higher** than the last uploaded code — 14)
 - [ ] Official upload keystore is in place; `keystore.properties` points at it
 - [ ] Build the **release AAB** in Android Studio → **Build → Generate Signed Bundle / APK → Android App Bundle → release**
 - [ ] The guardrail printed **`✅ Release signing key verified`** (if it threw "Wrong signing key", the keystore is wrong — fix before uploading)

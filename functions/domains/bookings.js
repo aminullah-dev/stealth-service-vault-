@@ -4,12 +4,17 @@
 // so the deployed function set is unchanged by the move.
 
 const { normalizeBookingCode } = require("../lib/booking");
+const { slotFit } = require("../lib/hours");
+const { cashLedgerDelta, onlineLedgerDelta, shouldReverseCommission } = require("../lib/commission");
 const { expandBooked, hasSlotConflict } = require("../lib/slots");
-const { UNCONFIRMED_ADMIN_AFTER_MS, UNCONFIRMED_NUDGE_AFTER_MS, unconfirmedDeadline } = require("../lib/unconfirmed");
+const { slotConflictWindow } = require("../lib/reservation");
+const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, assertNotSuspended, logAdminAction, logAppointmentEvent, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { countsAsConfirmed, statsDelta, isNoOp } = require("../lib/salonstats");
 const { admin, alertable, db, logger } = require("../shared");
 
 // Kabul-local calendar day for a timestamp.
@@ -78,13 +83,19 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
     if (payment && payment.method === "CASH") {
       // No online money ever moved, so there's nothing to refund — just undo
       // the commission debt that was charged to the provider at booking time.
-      tx.update(payDoc.ref, { status: "CANCELLED" });
-      if (providerId) {
+      tx.update(payDoc.ref, { status: "CANCELLED", commissionReversed: true });
+      // commissionReversed guards the one overlap: a salon that reports a
+      // no-show (reportCustomer gives the commission back) and then cancels the
+      // same booking would otherwise be credited for it twice.
+      if (providerId && payment.commissionReversed !== true) {
         tx.set(
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(payment.commissionAmount || 0),
+            // Exactly the negation of what booking it did. The commission goes
+            // back, and so does the wallet-credit portion the platform was
+            // covering — nothing happened, so neither side owes the other.
+            owedAmount: admin.firestore.FieldValue.increment(-cashLedgerDelta(payment)),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -114,7 +125,8 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
           db.doc(`provider_balances/${providerId}`),
           {
             providerId,
-            owedAmount: admin.firestore.FieldValue.increment(-payment.providerNet),
+            // The negation of what settlement credited, wallet portion included.
+            owedAmount: admin.firestore.FieldValue.increment(-onlineLedgerDelta(payment)),
             updatedAt:  Date.now(),
           },
           { merge: true }
@@ -273,11 +285,24 @@ exports.getBookedSlots = onCall({ region: "us-central1" }, async (request) => {
   const salonSnap = await db.doc(`salons/${salonId}`).get();
   const slotMinutes = Number((salonSnap.exists ? salonSnap.data().slotDurationMinutes : 0)) || 60;
 
+  // Bounded to the day being shown. This read used to fetch every appointment the
+  // salon had ever taken and then keep the ones falling in the window — the third
+  // door onto the same defect P1 closed in createPaymentSession, and the one a
+  // customer hits most often, since it runs every time she opens a date.
+  //
+  // The lower bound is a day early rather than exactly dayStart, so a long
+  // booking that began the previous evening is still read. The in-memory filter
+  // below is unchanged, so the set returned is identical to before — this is a
+  // cost fix, not a behaviour change.
   const snap = await db.collection("appointments")
     .where("salonId", "==", salonId)
+    .where("appointmentDate", ">=", start - 24 * 60 * 60 * 1000)
+    .where("appointmentDate", "<=", end)
     .get();
   const inWindow = snap.docs
-    .map((d) => d.data())
+    // The id comes along so the picker can leave out the booking being moved,
+    // exactly as hasSlotConflict does server-side.
+    .map((d) => ({ id: d.id, ...d.data() }))
     .filter((a) =>
       a.status !== "CANCELLED" &&
       Number(a.appointmentDate) >= start &&
@@ -352,16 +377,75 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
         (Array.isArray(appt.services) ? appt.services.length : 0) ||
         1
     );
+    //
+    // Bounded to the requested time's neighbourhood, exactly as
+    // createPaymentSession is. Unbounded, this read every appointment the salon
+    // had ever taken — and did it inside a transaction, which Firestore may
+    // retry, so a busy salon paid its whole history again on every retry. The
+    // booking path was fixed in P1 and this one was missed: same defect, second
+    // door. A conflict can only involve an appointment near the new time, so
+    // nothing outside the window can change the answer.
+    const conflictWindow = slotConflictWindow(dateMs);
     const otherSnap = await tx.get(
-      db.collection("appointments").where("salonId", "==", appt.salonId)
+      db.collection("appointments")
+        .where("salonId", "==", appt.salonId)
+        .where("appointmentDate", ">=", conflictWindow.start)
+        .where("appointmentDate", "<", conflictWindow.end)
     );
     const others = otherSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    if (hasSlotConflict(others, dateMs, span, String(appt.staffId || ""), slotMinutes, appointmentId)) {
+    // The offsets the booking was made with, not a recomputed span: if the salon
+    // has since changed that service's timing, this booking still occupies what
+    // it occupied when the customer made it.
+    const busy = Array.isArray(appt.busyOffsets) && appt.busyOffsets.length
+      ? appt.busyOffsets
+      : span;
+    // A party keeps taking the whole salon when it moves. Rescheduling one onto a
+    // day the salon is otherwise busy has to be refused for the same reason
+    // booking it did.
+    if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes,
+                        appointmentId, appt.isParty === true)) {
       throw new HttpsError("failed-precondition", "That time is no longer available.");
     }
 
-    tx.update(apptRef, { appointmentDate: dateMs, status: "PENDING", reminderSent: false });
-    writeAppointmentEvent(tx, appt, appointmentId, "PENDING", actor,
+    // And on the grid the salon actually keeps. hasSlotConflict cannot see this:
+    // an off-grid time between two bookings collides with neither, so a booking
+    // could be moved to 03:17 on a Friday and the conflict check would agree.
+    // `span`, not `busy`. busyOffsets is where the stylist is working; the
+    // customer is in the chair for the whole span, and that is what has to fit
+    // before closing.
+    const fit = slotFit(salon, dateMs, span);
+    if (!fit.ok) {
+      // Say which way it is wrong. "The salon is not open at that time" for an
+      // off-grid 14:30 is false — she is open at 14:30, the appointment simply
+      // does not start there — and a wrong reason sends the customer looking in
+      // the wrong place. The app now offers only the salon's real free times, so
+      // reaching any of these means the two disagreed and that is worth knowing
+      // from the message alone.
+      const message = {
+        SALON_CLOSED:   "The salon is closed on that day.",
+        BEFORE_OPENING: "That is before the salon opens.",
+        AFTER_CLOSING:  "The appointment would not finish before the salon closes.",
+        OFF_GRID:       "The salon does not start appointments at that time.",
+        BAD_TIME:       "That is not a valid time.",
+      }[fit.reason] || "The salon is not available at that time.";
+      throw new HttpsError("failed-precondition", message, { reason: fit.reason });
+    }
+
+    // Back to PENDING means the wait for the salon's agreement starts over, and
+    // every flag that tracks that wait has to start over with it. Without this,
+    // the hourly sweep judged the new booking by the old one's clock: it was
+    // already nudged, already escalated, and already past its 24h deadline, so
+    // the next run cancelled and refunded an appointment the customer had just
+    // successfully moved.
+    tx.update(apptRef, {
+      appointmentDate: dateMs,
+      status:          "PENDING",
+      reminderSent:    false,
+      pendingSince:    Date.now(),
+      providerNudged:  false,
+      adminAlerted:    false,
+    });
+    writeAppointmentEvent(tx, appt, appointmentId, "PENDING", appUser,
       `Rescheduled to ${new Date(dateMs).toISOString()}`);
     if (providerId) {
       tx.set(db.collection("notifications").doc(), {
@@ -511,6 +595,14 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
       throw new HttpsError("failed-precondition", "This booking can't be reviewed.");
     }
 
+    // Read before any write — a transaction allows no read after one. Needed
+    // only for a no-show, but a Firestore transaction cannot fetch it later.
+    const paySnap = noShow
+      ? await tx.get(db.collection("payments").where("appointmentId", "==", appointmentId).limit(1))
+      : null;
+    const payDoc  = paySnap && !paySnap.empty ? paySnap.docs[0] : null;
+    const payment = payDoc ? payDoc.data() : null;
+
     tx.update(apptRef, { customerReported: true });
     writeAppointmentEvent(tx, appt, appointmentId, appt.status,
       { uid: appUser.uid, role: "PROVIDER", name: appUser.name },
@@ -546,10 +638,38 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
         tx.set(db.doc(`users/${appt.customerId}`), agg, { merge: true });
       }
     }
-    return { reportId: reportRef.id };
+
+    // A cash no-show means no cash. The commission was debited to the salon at
+    // booking time (createPaymentSession), on the assumption the customer would
+    // arrive and pay — so a salon that was stood up was left owing the platform
+    // a cut of money it never received. Give it back, exactly as cancelling the
+    // same booking already does.
+    //
+    // Online payments are deliberately untouched: that money did change hands,
+    // the slot was held, and whether the customer gets it back is the refund
+    // flow's decision, not this one's.
+    let commissionReversed = false;
+    if (payDoc && shouldReverseCommission(noShow, payment)) {
+      tx.update(payDoc.ref, { status: "NO_SHOW", commissionReversed: true });
+      tx.set(
+        db.doc(`provider_balances/${payment.providerId}`),
+        {
+          providerId: payment.providerId,
+          // The negation of the cash booking's own entry. The commission comes
+          // back because no money was collected to take a cut of, and the wallet
+          // portion goes back to the platform because the appointment never
+          // happened — she held the slot, but nobody was served.
+          owedAmount: admin.firestore.FieldValue.increment(-cashLedgerDelta(payment)),
+          updatedAt:  Date.now(),
+        },
+        { merge: true }
+      );
+      commissionReversed = true;
+    }
+    return { reportId: reportRef.id, commissionReversed };
   });
 
-  return { reported: true, reportId: result.reportId };
+  return { reported: true, reportId: result.reportId, commissionReversed: result.commissionReversed };
 });
 
 // ── sendBookingReminders (scheduled) ──────────────────────────────────────────
@@ -712,10 +832,14 @@ exports.adminLookupBooking = onCall({ region: "us-central1" }, async (request) =
 exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (request) => {
   const me = await assertAdmin(request);
   const limit = Math.min(400, Math.max(1, Number((request.data || {}).limit || 200)));
+  const after = pageCursor(request.data);
 
-  // A missing field cannot be queried for, so this walks by creation order and
-  // skips the ones already done rather than filtering server-side.
-  const snap = await db.collection("appointments").orderBy("createdAt", "asc").limit(limit).get();
+  // A missing field cannot be queried for, so this walks the whole collection
+  // and skips the ones already done. It walked by creation order with no cursor
+  // until now, which re-read the same first 200 bookings on every press — and
+  // dropped every booking taken before createdAt existed, which is the same
+  // era as the bookings that have no reference. See idPage.
+  const snap = await idPage("appointments", limit, after);
 
   let assigned = 0;
   for (const d of snap.docs) {
@@ -731,7 +855,7 @@ exports.adminBackfillBookingCodes = onCall({ region: "us-central1" }, async (req
   }
 
   await logAdminAction(me, "BACKFILL_CODES", { scanned: snap.size, assigned });
-  return { ok: true, scanned: snap.size, assigned, done: snap.size < limit };
+  return { ok: true, scanned: snap.size, assigned, ...pageEnd(snap, limit, after) };
 });
 
 // ── rotateWaitlistOffers ──────────────────────────────────────────────────────
@@ -805,7 +929,14 @@ exports.rotateWaitlistOffers = onSchedule(
 exports.nudgeUnconfirmedBookings = onSchedule(
   { schedule: "every 1 hours", region: "us-central1" },
   async () => {
-    const cutoff = Date.now() - UNCONFIRMED_NUDGE_AFTER_MS;
+    const now = Date.now();
+    // Queried on createdAt, judged on pendingSince. createdAt is on every
+    // appointment ever written and pendingSince is not, so querying the newer
+    // field would silently skip every booking that predates it — this codebase
+    // has shipped that bug before. createdAt <= pendingSince always, so this
+    // query is a superset: it can return a rescheduled booking too early, and
+    // isNudgeDue/isAdminDue/unconfirmedDeadline are what decline it.
+    const cutoff = now - UNCONFIRMED_NUDGE_AFTER_MS;
     const snap = await db.collection("appointments")
       .where("status", "==", "PENDING")
       .where("createdAt", "<", cutoff)
@@ -836,7 +967,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     const orphaned = [];
     for (const d of snap.docs) {
       const a = d.data();
-      if (a.providerNudged) continue;            // already chased this one
+      if (!isNudgeDue(a, now)) continue;         // already chased, or freshly rescheduled
       const providerId = await providerFor(a.salonId);
       if (!providerId) {
         // The salon is gone, or the booking predates salons having owners.
@@ -875,7 +1006,6 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
     if (byProvider.size === 0) return;
 
-    const now = Date.now();
     let notified = 0;
     for (const [providerId, docs] of byProvider) {
       const batch = db.batch();
@@ -906,11 +1036,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     // With a handful of salons the admin personally onboarded every owner and
     // has their phone number, so one call converts most of these into a
     // confirmed booking. That is worth far more than a refund.
-    const adminCutoff = now - UNCONFIRMED_ADMIN_AFTER_MS;
-    const needsAdmin = snap.docs.filter((d) => {
-      const a = d.data();
-      return !a.adminAlerted && (a.createdAt || 0) < adminCutoff;
-    });
+    const needsAdmin = snap.docs.filter((d) => isAdminDue(d.data(), now));
     if (needsAdmin.length) {
       const admins = await db.collection("users").where("role", "==", "ADMIN").get();
       const batch = db.batch();
@@ -918,6 +1044,8 @@ exports.nudgeUnconfirmedBookings = onSchedule(
         batch.set(db.collection("notifications").doc(), {
           recipientId: adminDoc.id,
           type:        "SYSTEM",
+          msgKey:      "ADMIN_UNCONFIRMED_BOOKINGS",
+          msgParams:   { count: needsAdmin.length },
           title:       "Bookings still unconfirmed",
           body:        `${needsAdmin.length} paid booking(s) have gone unconfirmed for over 6 hours. Contact the salon before they are auto-cancelled.`,
           isRead:      false,
@@ -974,3 +1102,192 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     }
   }
 );
+
+// ── deriveSalonStats ─────────────────────────────────────────────────────────
+//
+// Keeps a running tally of a salon's bookings so the provider's Income tab does
+// not have to count them.
+//
+// That tab shows lifetime totals — bookings by status, bookings by service, and
+// the revenue estimate built from the confirmed ones. It got them by reading
+// every appointment the salon had ever taken into the phone and counting there,
+// which is the one listener in the app a limit could not fix: bounding it would
+// not have shortened a list, it would have quietly under-reported a salon
+// owner's earnings, and a wrong number that looks right is worse than a slow
+// screen.
+//
+// A trigger rather than an increment at each call site. Status changes happen in
+// createPaymentSession, the payment webhook, confirm, decline, cancel, the
+// scheduled sweep that completes past bookings, and the admin tools — and a
+// counter that is only right when every one of those remembers to update it is a
+// counter that will be wrong. Here it sees the before and after of any write,
+// whatever made it.
+//
+// Same shape as confirmedCount on the salon document, which is maintained this
+// way already, and as deriveSalonFields.
+exports.deriveSalonStats = onDocumentWritten(
+  { document: "appointments/{appointmentId}", region: "us-central1" },
+  async (event) => {
+    const beforeSnap = event.data && event.data.before;
+    const afterSnap  = event.data && event.data.after;
+    const before = beforeSnap && beforeSnap.exists ? beforeSnap.data() : null;
+    const after  = afterSnap  && afterSnap.exists  ? afterSnap.data()  : null;
+    if (!before && !after) return;
+
+    // An appointment never moves between salons; a reschedule keeps the same
+    // one. Taking the salon from whichever side exists covers create and delete.
+    const salonId = String((after || before).salonId || "");
+    if (!salonId) return;
+
+    // The arithmetic lives in lib/salonstats, where it is unit-tested. A tally
+    // that drifts is invisible: the appointments it was derived from are no
+    // longer read, so nothing would ever disagree with it.
+    const delta = statsDelta(before, after);
+    if (isNoOp(delta)) return;
+
+    const inc = admin.firestore.FieldValue.increment;
+    const toIncrements = (bag) => {
+      const out = {};
+      for (const [k, v] of Object.entries(bag)) out[k] = inc(v);
+      return out;
+    };
+    const patch = {};
+    if (delta.total !== 0) patch.total = inc(delta.total);
+    if (Object.keys(delta.byStatus).length)  patch.byStatus  = toIncrements(delta.byStatus);
+    if (Object.keys(delta.byService).length) patch.byService = toIncrements(delta.byService);
+    if (Object.keys(delta.confirmedByService).length) {
+      patch.confirmedByService = toIncrements(delta.confirmedByService);
+    }
+
+    patch.salonId   = salonId;
+    patch.updatedAt = Date.now();
+
+    // merge, so the document is created on the salon's first booking and the
+    // map keys are treated as keys rather than as dotted field paths — service
+    // names are whatever the salon typed, in any script.
+    await db.doc(`salon_stats/${salonId}`).set(patch, { merge: true });
+  }
+);
+
+// ── adminRebuildSalonStats ───────────────────────────────────────────────────
+//
+// Recomputes salon_stats from the appointments themselves.
+//
+// deriveSalonStats keeps the tally current from here on, but a trigger only
+// fires on a write: every appointment that already exists has never been seen by
+// it, so without this every salon's Income tab reads zero. That is the same
+// shape as the phone-key lockout — a derived value that only new writes populate
+// — and it is worse here than an empty search, because zero looks like an
+// answer. A salon owner has no way to tell "no bookings yet" from "the tally was
+// never built".
+//
+// Recomputes rather than adjusts, so it is safe to run twice, and so a tally
+// that has drifted for any reason is repaired rather than compounded.
+exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+
+  const tallies = new Map();   // salonId -> { total, byStatus, byService, confirmedByService }
+  const blank = () => ({ total: 0, byStatus: {}, byService: {}, confirmedByService: {} });
+  const bump = (bag, key, n) => { if (key) bag[key] = (bag[key] || 0) + n; };
+
+  // Paged, so a platform with more appointments than fit in one read still
+  // completes rather than timing out partway and leaving half a tally.
+  let cursor = null;
+  let scanned = 0;
+  for (;;) {
+    let q = db.collection("appointments").orderBy("__name__").limit(500);
+    if (cursor) q = q.startAfter(cursor);
+    const snap = await q.get();
+    if (snap.empty) break;
+    for (const d of snap.docs) {
+      const a = d.data();
+      const salonId = String(a.salonId || "");
+      if (!salonId) continue;
+      if (!tallies.has(salonId)) tallies.set(salonId, blank());
+      const t = tallies.get(salonId);
+      t.total += 1;
+      bump(t.byStatus, String(a.status || ""), 1);
+      bump(t.byService, String(a.serviceName || ""), 1);
+      if (countsAsConfirmed(a.status)) bump(t.confirmedByService, String(a.serviceName || ""), 1);
+    }
+    scanned += snap.size;
+    cursor = snap.docs[snap.docs.length - 1];
+    if (snap.size < 500) break;
+  }
+
+  // A tally for a salon that no longer exists is a number nobody can read: the
+  // provider is gone, and the Income tab it feeds went with them. Production has
+  // four of these — 18 finished bookings across salons that were deleted — and
+  // the first run of this created a document for each. Skipped rather than
+  // deleted: they are harmless, and quietly removing production data to tidy a
+  // count is not this function's business.
+  const salonDocs = await db.getAll(
+    ...[...tallies.keys()].map((id) => db.doc(`salons/${id}`))
+  );
+  const alive = new Set(salonDocs.filter((d) => d.exists).map((d) => d.id));
+
+  let written = 0;
+  let skipped = 0;
+  for (const [salonId, t] of tallies) {
+    if (!alive.has(salonId)) { skipped += 1; continue; }
+    // Not merged: a recompute replaces the tally outright, so a bucket for a
+    // service the salon has since renamed away does not survive as a ghost.
+    await db.doc(`salon_stats/${salonId}`).set({
+      salonId,
+      total:              t.total,
+      byStatus:           t.byStatus,
+      byService:          t.byService,
+      confirmedByService: t.confirmedByService,
+      updatedAt:          Date.now(),
+    });
+    written += 1;
+  }
+
+  await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written, skipped });
+  return { ok: true, scanned, salons: written, skipped };
+});
+
+// ── adminCancelAppointment ───────────────────────────────────────────────────
+//
+// The one booking action an admin could not take.
+//
+// confirmAppointment and rescheduleAppointment have always let an admin act —
+// both check `role !== "ADMIN"` before refusing — but cancelling went through
+// cancelPaidAppointment's authorize predicate, and the two callers that use it
+// ask "is this your booking" and "is this your salon". An admin is neither, so
+// the person whose job is to sort out a booking nobody else can was the only one
+// who could not cancel it. Support's answer was to talk the customer through
+// doing it herself, or to ask the salon to decline.
+//
+// This does not open a new path to the money. It calls the same helper with the
+// same transaction: the payment is flagged for refund, the provider's balance is
+// unwound, the event trail is written. What changes is who is allowed, and that
+// an admin's reason is recorded — a cancellation with no author is the kind of
+// thing that later has to be reconstructed from a customer's memory.
+exports.adminCancelAppointment = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const { appointmentId, reason } = request.data || {};
+  if (!appointmentId) {
+    throw new HttpsError("invalid-argument", "appointmentId is required.");
+  }
+  assertDocId(appointmentId, "appointmentId");
+
+  // A reason is required rather than optional. An admin cancelling somebody's
+  // booking is an intervention, and one without a stated cause is indistinguish-
+  // able afterwards from a mistake.
+  const why = String(reason || "").trim().slice(0, 300);
+  if (why.length < 3) {
+    throw new HttpsError("invalid-argument", "Say why this booking is being cancelled.");
+  }
+
+  const result = await cancelPaidAppointment(
+    appointmentId,
+    "ADMIN",
+    () => true,
+    { uid: me.uid, role: "ADMIN", name: me.name || "" },
+    why
+  );
+
+  await logAdminAction(me, "CANCEL_APPOINTMENT", { appointmentId, reason: why });
+  return result;
+});

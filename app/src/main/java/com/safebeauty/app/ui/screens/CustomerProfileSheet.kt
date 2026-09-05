@@ -12,6 +12,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +59,7 @@ import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.RateReview
@@ -113,11 +116,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -326,14 +331,62 @@ internal fun CustomerProfileSheetContent(
         if (historyItems.isNotEmpty()) {
             val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
             Spacer(Modifier.height(4.dp))
-            Text(
-                text       = strings.bookingHistoryTitle,
-                fontWeight = FontWeight.Bold,
-                fontSize   = 14.sp,
-                color      = DeepRose
+            // Folded away by default.
+            //
+            // Ten past bookings, each three lines tall, sat open between the save
+            // button and the wallet — so on a normal phone the wallet, the invite
+            // card and everything below them were off the bottom of a sheet nobody
+            // had a reason to keep scrolling. History is something you look up
+            // occasionally; the things under it are things you use.
+            var historyOpen by rememberSaveable { mutableStateOf(false) }
+            val chevronTurn by animateFloatAsState(
+                targetValue   = if (historyOpen) 180f else 0f,
+                animationSpec = tween(180),
+                label         = "historyChevron",
             )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { historyOpen = !historyOpen }
+                    .padding(vertical = 4.dp),
+            ) {
+                Text(
+                    text       = strings.bookingHistoryTitle,
+                    fontWeight = FontWeight.Bold,
+                    fontSize   = 14.sp,
+                    color      = DeepRose,
+                )
+                Spacer(Modifier.width(6.dp))
+                // The count is what makes a closed section honest: it says there is
+                // something in here without making you open it to find out.
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(BlushPink)
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        text       = historyItems.size.toString(),
+                        fontSize   = 10.sp,
+                        color      = DeepRose,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector        = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (historyOpen) strings.collapseSection
+                                         else strings.expandSection,
+                    tint               = RoseGold,
+                    modifier           = Modifier.size(22.dp).rotate(chevronTurn),
+                )
+            }
             HorizontalDivider(color = BlushPink)
-            historyItems.forEach { appt ->
+            AnimatedVisibility(visible = historyOpen) {
+              Column(modifier = Modifier.fillMaxWidth()) {
+                historyItems.forEach { appt ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier          = Modifier
@@ -381,6 +434,8 @@ internal fun CustomerProfileSheetContent(
                         )
                     }
                 }
+                }
+              }
             }
         }
     }
@@ -445,11 +500,24 @@ internal fun WalletCard(credit: Long, modifier: Modifier = Modifier, onTopUp: ()
     }
 }
 
+/**
+ * The invite card — and the only place in the app that shares SafeBeauty itself.
+ *
+ * It used to open with `if (code.isBlank()) return`, so an account with no
+ * referral code rendered nothing at all: no card, no empty state, no way to
+ * share the app and no way to find out why. Codes are only written at
+ * registration, and only since the referral programme shipped, so that was
+ * every older account — and it made sharing the app hostage to having a code.
+ *
+ * Now the card always appears. The code section is what is conditional, and the
+ * share button works either way: with a code it carries the code and the offer,
+ * without one it carries the app and no promise the account cannot keep.
+ */
 @Composable
 internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modifier) {
     val strings = LocalStrings.current
     val context = LocalContext.current
-    if (code.isBlank()) return
+    val hasCode = code.isNotBlank()
 
     Card(
         shape    = RoundedCornerShape(18.dp),
@@ -482,14 +550,29 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
                     .padding(horizontal = 14.dp, vertical = 12.dp)
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(strings.referralYourCode, fontSize = 11.sp, color = RoseGold)
-                    Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepRose, letterSpacing = 2.sp)
+                    if (hasCode) {
+                        Text(strings.referralYourCode, fontSize = 11.sp, color = RoseGold)
+                        Text(code, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DeepRose, letterSpacing = 2.sp)
+                    } else {
+                        // Not an error state — the code is derived server-side and
+                        // may simply not have been written yet. Saying so is
+                        // better than an empty box where a code should be.
+                        Text(
+                            strings.referralNoCodeYet,
+                            fontSize = 12.sp,
+                            color = TextMuted,
+                            lineHeight = 17.sp,
+                        )
+                    }
                 }
                 Button(
                     onClick = {
                         val share = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, strings.referralShareText(code))
+                            putExtra(
+                                Intent.EXTRA_TEXT,
+                                if (hasCode) strings.referralShareText(code) else strings.shareAppText,
+                            )
                         }
                         runCatching { context.startActivity(Intent.createChooser(share, null)) }
                     },
@@ -499,7 +582,10 @@ internal fun ReferralCard(code: String, credit: Long, modifier: Modifier = Modif
                 ) {
                     Icon(Icons.Default.Share, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(strings.referralShare, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (hasCode) strings.referralShare else strings.shareTheApp,
+                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }

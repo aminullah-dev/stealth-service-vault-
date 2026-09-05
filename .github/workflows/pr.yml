@@ -40,6 +40,27 @@ jobs:
       - run: npm test
         working-directory: functions
 
+  lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+        working-directory: functions
+      # Correctness, not style. The rule set is no-undef / no-redeclare /
+      # no-unused-vars plus the always-a-mistake checks — see functions/
+      # eslint.config.js for why those three specifically. Its first run found
+      # `actor is not defined` in rescheduleAppointment: a ReferenceError that
+      # had been live since the event trail was added, on a path no customer had
+      # happened to take yet. No test covered it, and no test would have.
+      - run: npm run lint
+        working-directory: functions
+
   concurrency-guarantee:
     name: Money and slots cannot go wrong
     runs-on: ubuntu-latest
@@ -87,12 +108,16 @@ jobs:
       # A debug build needs a Maps key placeholder; local.properties is
       # gitignored, so CI supplies an obviously-fake one. Nothing here calls Maps.
       - run: echo "MAPS_API_KEY=ci-placeholder-not-a-real-key" >> local.properties
-      - run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+      # testDebugUnitTest stopped existing the moment the prod/demo flavour
+      # dimension was added — only the per-flavour tasks remain. The unit tests
+      # are flavour-agnostic, so prod alone runs them all; build-apk.yml's
+      # assembleDebug still compiles both flavours and would catch a demo break.
+      - run: ./gradlew testProdDebugUnitTest --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: android-test-report
-          path: app/build/reports/tests/testDebugUnitTest/
+          path: app/build/reports/tests/testProdDebugUnitTest/
 
   rules:
     name: Security rules compile

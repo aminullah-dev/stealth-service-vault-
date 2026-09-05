@@ -6,18 +6,53 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 
 | What you changed | Command | Then |
 |---|---|---|
-| Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleDebug` | Install the APK from `app/build/outputs/apk/debug/` |
-| Cloud Functions (`functions/index.js`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
+| Android app code (`app/**/*.kt`, layouts, `AndroidManifest.xml`) | `./gradlew assembleProdDebug` | Install the APK from `app/build/outputs/apk/prod/debug/` |
+| Cloud Functions (`functions/index.js`, `functions/domains/**`, `functions/lib/**`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
+| Alerting (`scripts/setup-monitoring.sh`) | `./scripts/setup-monitoring.sh safebeauty <your-email>` | Re-run it for **every** project you alert on. Adding a kind to `ALERTS` creates nothing on its own — the metric and the policy exist only after the script runs, so a new `alertable()` label logs to nobody until then. |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
 | Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
 | Web admin / salon console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
+| One console only | `firebase deploy --only hosting:admin` (or `:salon`, or `:app`) | — |
 | Desktop admin app (`desktop/main.js`, `desktop/preload.js`, `desktop/package.json`) | `cd desktop && npm run dist:mac` | Reinstall the `.dmg` from `desktop/dist/` |
 | Desktop salon app (`desktop-provider/main.js`, `desktop-provider/preload.js`, `desktop-provider/package.json`) | `cd desktop-provider && npm run dist:mac` | Reinstall the `.dmg` from `desktop-provider/dist/` |
 
 Deploy several at once: `firebase deploy --only functions,firestore:rules,storage,hosting`
 
+## Hosting: three sites, one `public/` tree
+
+| Target | Site | Serves | Public dir |
+|---|---|---|---|
+| `app` | `safebeauty` | `safebeauty.web.app` — the app-facing pages | `public` |
+| `admin` | `safebeauty-admin` | `9sg9ceuj.linumic.com` | `public/admin` |
+| `salon` | `safebeauty-salon` | `salon.linumic.com` | `public/provider` |
+
+A Firebase custom domain attaches to a site's **root**, not to a path, which is
+why the two consoles needed sites of their own rather than a domain pointed at
+`safebeauty.web.app/admin`.
+
+`app` is deliberately unchanged and must stay that way: `safebeauty.web.app/admin`
+and `/provider` are hardcoded in `desktop/main.js` and `desktop-provider/main.js`,
+and those apps are already installed on people's machines. `/get` is in every
+invite ever sent. So the consoles are served from **two** places on purpose —
+the old paths and the new subdomains — and neither can be retired without
+shipping new desktop builds first.
+
+`firebase deploy --only hosting` deploys all three. Targets live in `.firebaserc`;
+if a clone ever loses them, restore with:
+
+    firebase target:apply hosting app   safebeauty
+    firebase target:apply hosting admin safebeauty-admin
+    firebase target:apply hosting salon safebeauty-salon
+
 ## Common gotchas
 - **App-only change?** No Firebase deploy needed — just rebuild the app.
+- **A new custom domain says "Records not yet detected" even though `dig` finds
+  it.** Firebase asked before the record existed and cached the "no such name"
+  answer. `linumic.com`'s SOA minimum is 600 seconds, so wait ten minutes and
+  press Verify again — it is not a misconfiguration and re-adding the record
+  does not help. Check what the world sees with
+  `dig +short 9sg9ceuj.linumic.com @8.8.8.8`.
+
 - **Rules changed but not deployed** → the app silently gets "permission denied"
   (errors are swallowed, so nothing shows). Always deploy rules after editing them.
 - **Desktop apps** (`desktop/` admin, `desktop-provider/` salon): each loads its
@@ -32,10 +67,60 @@ Deploy several at once: `firebase deploy --only functions,firestore:rules,storag
   confirming deletes it from the cloud. This prompt appears once, on the first
   `firebase deploy --only functions` after the removal.
 
+
+## The admin console's hostname
+
+`9sg9ceuj.linumic.com` is deliberately not `admin.` — that is the first name
+anyone tries. Be clear about what it buys, which is less than it looks:
+
+- It stops wordlist guessing. That is all it stops.
+- It is **not** a secret. A publicly-trusted certificate is logged to the
+  Certificate Transparency logs the moment it is issued, and those logs are
+  public and searchable. Any hostname served over HTTPS by Firebase is
+  discoverable within minutes.
+- The repository is private, so the hostname is not readable there — but that is
+  a second lock on a door the CT logs have already described.
+
+What actually keeps people out of that console: phone + password verified
+server-side, the `ADMIN` role check in `assertAdmin`, and the rate limit of ten
+attempts per number per fifteen minutes. Treat the hostname as convenience, and
+never as the thing standing between a stranger and the identity documents.
+
+## The two flavours
+The app builds in two environments, and they are different apps to Android:
+
+| Flavour | applicationId | Firebase project | What it is for |
+|---|---|---|---|
+| `prod` | `com.security.stealthapp` | `safebeauty` | What ships to Play |
+| `demo` | `com.security.stealthapp.demo` | `safebeauty-staging` | The public demo on linumic.com |
+
+Because the applicationIds differ, both install at once and neither can read the
+other's data — which is the point: production holds customers' identity photos,
+and the demo link is public. Each flavour picks up its own
+`google-services.json`; demo's is in `app/src/demo/`, prod falls through to
+`app/google-services.json`.
+
+**Adding a flavour dimension renamed the variant tasks.** `assembleDebug` and
+`assembleRelease` survive as aggregates that build BOTH flavours;
+`testDebugUnitTest` does not exist at all any more. Name the flavour.
+
 ## Release AAB for Google Play
 1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
-2. `./gradlew bundleRelease` (signs with the keystore in `keystore.properties`).
-3. Upload `app/build/outputs/bundle/release/app-release.aab` to the Play Console.
+2. `./gradlew bundleProdRelease` (signs with the keystore in `keystore.properties`).
+3. Upload `app/build/outputs/bundle/prodRelease/app-prod-release.aab` to the Play Console.
+
+## Demo APK for the website
+`./gradlew assembleDemoRelease` → `app/build/outputs/apk/demo/release/app-demo-release.apk`.
+Signed with the same key, so it installs cleanly; points only at
+`safebeauty-staging`. Verify before publishing it anywhere:
+
+```bash
+unzip -p app/build/outputs/apk/demo/release/app-demo-release.apk resources.arsc \
+  | strings | grep -oE 'safebeauty-staging|238802374530' | sort -u
+```
+
+It must print `safebeauty-staging` and must NOT print the production project
+number `238802374530`.
 
 ## Signing key (READ THIS before touching keystores)
 Google Play only accepts uploads signed with the **official upload key**:
@@ -43,8 +128,9 @@ Google Play only accepts uploads signed with the **official upload key**:
     SHA1: A0:04:BE:C3:6A:A0:D8:BF:A6:C8:8B:7F:DB:09:36:E5:1C:68:A6:F5
     alias: safebeauty   (store == key password)
 
-- The build now **guards this automatically**: `bundleRelease`/`assembleRelease`
-  depend on `verifyReleaseSigningKey`, which fails fast with a clear message if the
+- The build now **guards this automatically**: every `assemble…Release` and
+  `bundle…Release` task, flavoured or not, depends on `verifyReleaseSigningKey`,
+  which fails fast with a clear message if the
   keystore in `keystore.properties` doesn't match the SHA1 above. No more finding
   out at upload time.
 - If you ever see `❌ Wrong signing key`, the keystore file at `storeFile` is the

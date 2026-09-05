@@ -4,7 +4,8 @@
 // so the deployed function set is unchanged by the move.
 
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { defaultWorkingHours } = require("../lib/hours");
+const { assertAdmin, findAccountByPhone, logAdminAction, normalizePhone, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { admin, alertable, db, logger } = require("../shared");
@@ -37,9 +38,27 @@ exports.resolveCustomerReport = onCall({ region: "us-central1" }, async (request
   });
 
   if (suspend && report.customerId) {
+    // The same shape adminSuspendUser writes, because a suspension decided here
+    // must be the same suspension. This wrote only `status`, which the security
+    // rules read and the callables did not, so a customer suspended for
+    // misconduct kept booking and paying — through the one flow whose entire
+    // purpose is to stop her. Writing both fields also means the Manage modal
+    // can see it and lift it.
     await db.doc(`users/${report.customerId}`).set(
-      { status: "SUSPENDED" }, { merge: true }
+      {
+        status:          "SUSPENDED",
+        suspended:       true,
+        suspendedReason: `Report ${reportId}: ${String(report.comment || "misconduct report")}`.slice(0, 300),
+        suspendedAt:     Date.now(),
+        suspendedBy:     appUser.uid,
+      },
+      { merge: true }
     );
+    await logAdminAction(appUser, "SUSPEND_USER", {
+      targetUid: report.customerId,
+      targetName: report.customerName || "",
+      reason: `Customer report ${reportId}`,
+    });
   }
   return { reportId, actionTaken: suspend ? "SUSPENDED" : "DISMISSED" };
 });
@@ -140,9 +159,14 @@ exports.adminUpdateUser = onCall({ region: "us-central1" }, async (request) => {
     if (!phone || phone.replace(/\D/g, "").length < 7) {
       throw new HttpsError("invalid-argument", "Invalid phone number.");
     }
-    const dup = await db.collection("users").where("phone", "==", phone).limit(1).get();
-    if (!dup.empty && dup.docs[0].id !== targetUid) {
-      throw new HttpsError("already-exists", "Another account already uses that phone.");
+    // Asked the way a login asks it — see findAccountByPhone. Matching only the
+    // normalized spelling missed accounts stored before normalization existed,
+    // which let an admin hand one number to two accounts and lock both owners
+    // out of the one they could no longer reach.
+    const dup = await findAccountByPhone(phone, String(d.phone), targetUid);
+    if (dup) {
+      throw new HttpsError("already-exists",
+        `Another account (${dup.data().name || dup.id}) already uses that phone.`);
     }
     updates.phone = phone;
   }
@@ -241,9 +265,10 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
   const phone = normalizePhone(rawPhone);
 
   // The phone is the login identifier, so it must be unique platform-wide.
-  const clash = await db.collection("users").where("phone", "==", phone).limit(1).get();
-  if (!clash.empty) {
-    throw new HttpsError("already-exists", "An account with this phone number already exists.");
+  const clash = await findAccountByPhone(phone, rawPhone);
+  if (clash) {
+    throw new HttpsError("already-exists",
+      `An account (${clash.data().name || clash.id}) already uses this phone number.`);
   }
 
   // Mirror PinHasher / RegisterViewModel exactly so the owner can sign in from
@@ -284,7 +309,10 @@ exports.adminCreateSalon = onCall({ region: "us-central1" }, async (request) => 
       pricePerService:     prices,
       isAvailable:         false,   // owner opens for business by setting hours
       rating:              0,
-      workingHours:        [],
+      // The same week the provider editor shows by default, so the owner who
+      // opens her profile, sees Saturday to Thursday 9–18 and changes nothing has
+      // a salon that can actually be booked. Stored empty, it never could be.
+      workingHours:        defaultWorkingHours(),
       slotDurationMinutes: 60,
       confirmedCount:      0,
       isVerified:          true,    // vouched for by the admin who added it
@@ -373,17 +401,55 @@ exports.adminSetUserStatus = onCall({ region: "us-central1" }, async (request) =
     throw new HttpsError("failed-precondition", "Remove admin access before suspending this account.");
   }
 
+  // `status` is carried along because the security rules gate direct writes on
+  // it (isApproved) while the callables gate on `suspended` — one suspension,
+  // two readers. Lifting one restores the status the account had before it was
+  // suspended rather than assuming APPROVED: a provider suspended while still
+  // PENDING approval would otherwise be quietly promoted by being reinstated.
+  const wasSuspended = target.suspended === true || target.status === "SUSPENDED";
+
+  // An account suspended before statusBeforeSuspension existed overwrote its own
+  // status with "SUSPENDED", so what it used to be is simply not recorded. The
+  // first attempt here restored a provider to PENDING, which quietly un-approves
+  // a salon that was working — a silent demotion nobody was told about, in the
+  // act of doing someone a favour.
+  //
+  // kycStatus is the evidence that survives: reviewKyc approves the identity,
+  // and no provider reaches APPROVED without it. So a verified provider goes
+  // back to APPROVED and an unverified one stays PENDING, which is where she
+  // would have been anyway. The guess is reported, in the audit log and to the
+  // caller, because a guess an admin cannot see is the part that does the harm.
+  const known = String(target.statusBeforeSuspension || "");
+  const guessed = !known && target.status === "SUSPENDED";
+  const restoreTo = known ||
+    (target.status === "SUSPENDED"
+      ? (target.role === "PROVIDER" && target.kycStatus !== "APPROVED" ? "PENDING" : "APPROVED")
+      : target.status);
+
   await ref.update({
     suspended:       suspend,
     suspendedReason: suspend ? reason : "",
     suspendedAt:     suspend ? Date.now() : 0,
     suspendedBy:     suspend ? me.uid : "",
+    status:          suspend ? "SUSPENDED" : restoreTo,
+    statusBeforeSuspension: suspend
+      ? (wasSuspended ? String(target.statusBeforeSuspension || "") : String(target.status || ""))
+      : "",
   });
 
   await logAdminAction(me, suspend ? "SUSPEND_USER" : "REINSTATE_USER", {
     targetUid, targetName: target.name || "", reason,
+    restoredStatus: suspend ? "" : restoreTo,
+    statusGuessed:  suspend ? false : guessed,
   });
-  return { ok: true, suspended: suspend };
+  return {
+    ok: true,
+    suspended: suspend,
+    status: suspend ? "SUSPENDED" : restoreTo,
+    // True when the account predates statusBeforeSuspension and the status it
+    // is going back to was inferred rather than remembered.
+    statusGuessed: suspend ? false : guessed,
+  };
 });
 
 // ── adminUserDossier ──────────────────────────────────────────────────────────
@@ -409,18 +475,32 @@ exports.adminUserDossier = onCall({ region: "us-central1" }, async (request) => 
   const { pinHash, salt, firebaseEmail, ...safeUser } = user;
 
   const isProvider = user.role === "PROVIDER";
-  const bookingsQ  = isProvider
-    ? db.collection("appointments").where("salonId", "==", String((request.data || {}).salonId || "___none___"))
+
+  // The salon is resolved here rather than taken from the caller. The console
+  // was sending `u.salons[0]` off the user document, which has no `salons`
+  // field and never has — so salonId arrived empty, became "___none___", and
+  // every provider dossier reported zero bookings. The salons are queried for
+  // the response anyway; this just needs them before the bookings query rather
+  // than beside it. A salonId in the request still wins, so an admin can pin
+  // the dossier to one salon of a provider who has several.
+  const salons = isProvider
+    ? await db.collection("salons").where("providerId", "==", targetUid).get()
+        .catch(() => ({ docs: [] }))
+    : { docs: [] };
+  const salonId = String((request.data || {}).salonId || "").trim() ||
+                  ((salons.docs[0] && salons.docs[0].id) || "");
+
+  const bookingsQ = isProvider
+    ? db.collection("appointments").where("salonId", "==", salonId || "___none___")
     : db.collection("appointments").where("customerId", "==", targetUid);
 
-  const [bookings, reviews, reportsAbout, balance, salons] = await Promise.all([
+  const [bookings, reviews, reportsAbout, balance] = await Promise.all([
     bookingsQ.orderBy("createdAt", "desc").limit(25).get().catch(() => ({ docs: [] })),
     db.collection("reviews").where("customerId", "==", targetUid)
       .limit(15).get().catch(() => ({ docs: [] })),
     db.collection("customer_reports").where("customerId", "==", targetUid)
       .limit(15).get().catch(() => ({ docs: [] })),
     db.doc(`provider_balances/${targetUid}`).get().catch(() => ({ exists: false })),
-    db.collection("salons").where("providerId", "==", targetUid).get().catch(() => ({ docs: [] })),
   ]);
 
   const rows = (q) => (q.docs || []).map((d) => ({ id: d.id, ...d.data() }));

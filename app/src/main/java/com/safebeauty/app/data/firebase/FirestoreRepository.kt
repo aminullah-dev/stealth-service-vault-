@@ -5,10 +5,13 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.functions.FirebaseFunctions
 import com.safebeauty.app.data.db.dao.SalonCacheDao
 import com.safebeauty.app.data.db.entities.toEntity
 import com.safebeauty.app.util.CrashReporter
+import com.safebeauty.app.util.PhoneUtils
+import com.safebeauty.app.util.SearchKey
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -70,6 +73,36 @@ class FirestoreRepository @Inject constructor(
     private val supportTicketsCol    = db.collection("support_tickets")
     private val favoritesCol         = db.collection("favorites")
 
+    // ── How much of a growing collection a live listener may hold ─────────────
+    //
+    // A snapshot listener with no limit is a standing promise to download a
+    // collection that only ever grows, and to re-send it whenever any one
+    // document in it changes. For anything keyed to a person or a salon that
+    // promise gets more expensive every month they keep using the app — the
+    // customers who stay longest pay the most, which is exactly backwards.
+    //
+    // These bounds are not arbitrary: each is set to comfortably exceed what its
+    // screen can show, so nothing a person can actually reach is missing. Where
+    // a limit would change an answer rather than a view — a set of liked posts,
+    // a count — the fix is a different query, not a smaller one.
+    private val RECENT_NOTIFICATIONS = 100L   // the notification centre
+    private val RECENT_APPOINTMENTS  = 100L   // a bookings list, and its badges
+    private val ACTIVE_WAITLIST      = 50L    // simultaneous waits, not history
+    private val SALON_QUEUE          = 200L   // a salon's unconfirmed bookings
+    private val SALON_PORTFOLIO      = 100L   // reviews, photos and offers per salon
+    private val PROVIDER_PAYOUTS     = 100L   // a provider's payout history
+    private val ADMIN_QUEUE          = 200L   // things awaiting an admin decision
+    private val ADMIN_HISTORY        = 200L   // admin lists that are a record, not a queue
+    /** An announcement with no expiry set stops showing after this. */
+    private val BROADCAST_MAX_AGE_MS = 14L * 24 * 60 * 60 * 1000
+    // provider_balances holds one document per provider, so it is bounded by how
+    // many salons the platform has rather than by how long it has been running.
+    // This is a backstop against that assumption being wrong, not a page.
+    private val PROVIDER_LEDGER      = 1000L
+    // Same reasoning for the salon directory: one document per business, so it
+    // grows with how many salons join, not with how long the platform runs.
+    private val SALON_DIRECTORY      = 1000L
+
     // ── Users ─────────────────────────────────────────────────────────────────
 
     // NOTE: PIN authentication and the pre-auth phone lookup moved to Cloud
@@ -78,6 +111,17 @@ class FirestoreRepository @Inject constructor(
     // owner/admin in firestore.rules. getUserById below only ever reads the
     // caller's OWN document.
 
+    /**
+     * Registration only — never an update.
+     *
+     * A whole-document set(), which is right for a document that does not exist
+     * yet and wrong for one that does: UserDocument omits phoneDigits, nameKey,
+     * suspended and suspendedReason, all of which the rules freeze, so reusing
+     * this to save a profile would delete them and be refused. That is not
+     * hypothetical — the salon equivalent shipped and broke every provider's
+     * Save button. Field-level update() is the path for edits; see updateUserName
+     * and the others below.
+     */
     suspend fun createUser(user: UserDocument) {
         usersCol.document(user.uid).set(user).await()
     }
@@ -88,6 +132,32 @@ class FirestoreRepository @Inject constructor(
             !usersCol.whereEqualTo("phone", phone).limit(1).get().await().isEmpty
         }.getOrDefault(false)
 
+    /**
+     * Finish a salon that registration started and never completed.
+     *
+     * The account is real, the details she typed are on her user document, and
+     * the salon simply is not there — because createProviderSalon is called from
+     * exactly one place, the registration screen, and a dropped connection there
+     * used to end the story. Called once when a provider signs in and has no
+     * salon; the callable is idempotent, so a retry that races another retry
+     * returns the same salon rather than making a second one.
+     *
+     * Returns true when a salon now exists.
+     */
+    suspend fun finishPendingSalon(user: UserDocument): Boolean {
+        if (user.pendingSalonName.isBlank() || user.pendingSalonDistrict.isBlank()) return false
+        return runCatching {
+            functions.getHttpsCallable("createProviderSalon")
+                .call(hashMapOf(
+                    "salonName" to user.pendingSalonName,
+                    "district"  to user.pendingSalonDistrict,
+                    "services"  to user.pendingSalonServices
+                ))
+                .await()
+            true
+        }.getOrElse { false }
+    }
+
     suspend fun getUserById(uid: String): UserDocument? {
         return usersCol.document(uid).get().await()
             .toObject(UserDocument::class.java)?.copy(uid = uid)
@@ -97,8 +167,27 @@ class FirestoreRepository @Inject constructor(
         usersCol.document(uid).update("status", status).await()
     }
 
-    suspend fun suspendUser(uid: String)   = setUserStatus(uid, "SUSPENDED")
-    suspend fun unsuspendUser(uid: String) = setUserStatus(uid, "APPROVED")
+    /**
+     * Suspend or reinstate an account, through the audited callable.
+     *
+     * This used to write users.status directly from the device — the same defect
+     * the web console had. Nothing on the server reads that field to decide
+     * whether an account may act, so the badge turned red and the person went on
+     * booking and paying; the action never reached admin_audit; and reinstating
+     * wrote APPROVED unconditionally, promoting any provider who had been
+     * suspended while still awaiting review.
+     *
+     * adminSetUserStatus writes both halves of a suspension, records who did it
+     * and why, and restores the standing the account actually had.
+     */
+    suspend fun setSuspended(uid: String, suspend: Boolean, reason: String = "") {
+        val payload = hashMapOf<String, Any>("targetUid" to uid, "suspend" to suspend)
+        if (suspend) payload["reason"] = reason
+        functions.getHttpsCallable("adminSetUserStatus").call(payload).await()
+    }
+
+    suspend fun suspendUser(uid: String, reason: String) = setSuspended(uid, true, reason)
+    suspend fun unsuspendUser(uid: String)               = setSuspended(uid, false)
 
     /** Rejects a pending provider application with a reason shown on their AccountStatusScreen. */
     suspend fun rejectProvider(uid: String, reason: String) {
@@ -157,11 +246,12 @@ class FirestoreRepository @Inject constructor(
     fun observeKycPending(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("kycStatus", "PENDING")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -185,12 +275,15 @@ class FirestoreRepository @Inject constructor(
     fun observePendingProviders(): Flow<List<UserDocument>> = callbackFlow {
         val listener = usersCol
             .whereEqualTo("status", "PENDING")
+            // The role filter ran after the fact, so approving providers read
+            // every pending account of any kind.
+            .whereEqualTo("role", "PROVIDER")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                    ?.filter { it.role == "PROVIDER" }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -206,8 +299,14 @@ class FirestoreRepository @Inject constructor(
      */
     fun observeAvailableSalons(): Flow<List<SalonDocument>> = callbackFlow {
         val scope = this
+        // Deliberately unordered and generously bounded. This is no longer the
+        // list anyone browses — salonPage does that — it is the local directory
+        // findSalon looks a booking's salon up in, and an ordering with a limit
+        // would decide which salons are findable. The bound is a backstop
+        // against the assumption that a salon directory stays small, not a page.
         val listener = salonsCol
             .whereEqualTo("isAvailable", true)
+            .limit(SALON_DIRECTORY)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     scope.launch {
@@ -267,7 +366,24 @@ class FirestoreRepository @Inject constructor(
     enum class SalonOrder { RATING, PRICE, NAME }
 
     data class SalonFilter(
-        val districtKey: String = "",      // "" = every neighbourhood
+        // Which city's salons to show. Every query carries it, because a
+        // customer in Herat looking at Kabul salons is not a filter she forgot
+        // to apply — it is the wrong list.
+        //
+        // ORDERING DEPENDENCY: this only works once every salon has `city`,
+        // which deriveSalonFields writes and adminNormalizeSalons backfills.
+        // Ship this ahead of that backfill and an equality filter on a field
+        // nothing has yet returns nothing at all, for every customer.
+        val city: String = "",             // "" = every city
+        val districtKey: String = "",      // "" = every ناحیه
+        // The گذر/محله inside that district, when the customer picked one.
+        //
+        // A separate field rather than a second value in districtKey, because
+        // they are different levels: a salon in District 17 whose neighbourhood
+        // is Khair Khana must be found by someone filtering District 17 AND by
+        // someone filtering Khair Khana, and one field cannot answer both. Only
+        // ever one of the two is set — the finer choice implies its district.
+        val areaKey: String = "",          // "" = anywhere in the district
         val category: String = "",         // "" = every category
         val favoriteIds: List<String> = emptyList(),  // non-empty = favourites only
         val search: String = "",           // prefix match on the salon name
@@ -294,8 +410,14 @@ class FirestoreRepository @Inject constructor(
         // product decision, not one to change silently while migrating.
         var q: Query = salonsCol.whereEqualTo("isAvailable", true)
 
+        if (filter.city.isNotBlank()) {
+            q = q.whereEqualTo("city", filter.city)
+        }
         if (filter.districtKey.isNotBlank()) {
             q = q.whereEqualTo("districtKey", filter.districtKey)
+        }
+        if (filter.areaKey.isNotBlank()) {
+            q = q.whereEqualTo("areaKey", filter.areaKey)
         }
         if (filter.category.isNotBlank()) {
             q = q.whereArrayContains("categories", filter.category)
@@ -307,7 +429,9 @@ class FirestoreRepository @Inject constructor(
             q = q.whereIn(FieldPath.documentId(), filter.favoriteIds.take(30))
         }
 
-        val search = filter.search.trim().lowercase()
+        // Normalised the way the server stores nameKey — see SearchKey. Sending
+        // the raw text queries a range over spelling that was never written.
+        val search = SearchKey.normalize(filter.search)
         if (search.isNotEmpty()) {
             // Firestore cannot match a substring. A range on the normalized name
             // gives prefix search, which covers typing the start of a name; \uf8ff
@@ -433,8 +557,25 @@ class FirestoreRepository @Inject constructor(
         return ref.id
     }
 
+    /**
+     * Save the salon's own edits, without deleting what the server owns.
+     *
+     * This was a whole-document set() from the Kotlin POJO, and SalonDocument
+     * does not declare `reliability`, `needsDiscoveryReview` or
+     * `discoveryReview` — they are derived, and the rules freeze them precisely
+     * so a salon cannot write its own reputation or clear its own review flag.
+     * A set() deletes a field it does not mention, the deleted field reads back
+     * as the default, the default never equals the stored value, and the write
+     * is refused. Every Save, for every salon, with a generic failure dialog and
+     * nothing in the logs saying why.
+     *
+     * merge() writes what the object carries and leaves the rest alone, which is
+     * exactly the shape the rules are asking for. It is also the honest
+     * description of the operation: a provider is editing her salon, not
+     * replacing it.
+     */
     suspend fun updateSalon(salon: SalonDocument) {
-        salonsCol.document(salon.id).set(salon).await()
+        salonsCol.document(salon.id).set(salon, SetOptions.merge()).await()
     }
 
     suspend fun setAvailability(salonId: String, isAvailable: Boolean) {
@@ -454,11 +595,17 @@ class FirestoreRepository @Inject constructor(
     fun observeForCustomer(customerId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("customerId", customerId)
+            // Descending by date, so this is every upcoming booking followed by
+            // recent history — the order the bookings list already showed, now
+            // decided by the server. Unbounded, a long-standing customer
+            // re-downloaded every appointment she had ever made each time one of
+            // them changed.
+            .orderBy("appointmentDate", Query.Direction.DESCENDING)
+            .limit(RECENT_APPOINTMENTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.appointmentDate }
                     ?: emptyList()
                 trySend(list)
             }
@@ -468,31 +615,72 @@ class FirestoreRepository @Inject constructor(
     fun observePendingForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
+            // PENDING was filtered after downloading every booking the salon had
+            // ever taken — so the queue of things needing a decision cost the
+            // salon's whole history to display. Ascending: the soonest
+            // appointment is the one that needs answering first.
+            .whereEqualTo("status", "PENDING")
+            .orderBy("appointmentDate", Query.Direction.ASCENDING)
+            .limit(SALON_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "PENDING" }
-                    ?.sortedBy { it.appointmentDate }
                     ?: emptyList()
                 trySend(list)
             }
         awaitClose { listener.remove() }
     }
 
-    fun observeAllForSalon(salonId: String): Flow<List<AppointmentDocument>> = callbackFlow {
+    /**
+     * A salon's appointments inside one calendar month.
+     *
+     * Replaces the calendar's use of observeAllForSalon, which downloaded every
+     * booking the salon had ever taken so the composable could keep the ones
+     * falling in the month on screen. The month is a date range, which Firestore
+     * can answer directly — the same salonId + appointmentDate index the booking
+     * conflict check uses.
+     *
+     * [startMs] inclusive, [endMs] exclusive, both in the device's own timezone,
+     * because that is the timezone the calendar grid is drawn in.
+     */
+    fun observeAppointmentsForMonth(salonId: String, startMs: Long, endMs: Long): Flow<List<AppointmentDocument>> = callbackFlow {
         val listener = appointmentsCol
             .whereEqualTo("salonId", salonId)
+            .whereGreaterThanOrEqualTo("appointmentDate", startMs)
+            .whereLessThan("appointmentDate", endMs)
+            .orderBy("appointmentDate", Query.Direction.ASCENDING)
+            .limit(SALON_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-                val list = snap?.documents
+                trySend(snap?.documents
                     ?.mapNotNull { it.toObject(AppointmentDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.appointmentDate }
-                    ?: emptyList()
-                trySend(list)
+                    ?: emptyList())
             }
         awaitClose { listener.remove() }
     }
+
+    /**
+     * A salon's booking tally — one document, so it costs the same at ten
+     * bookings and at ten thousand.
+     *
+     * Replaces counting a downloaded copy of every appointment. The trigger that
+     * maintains it sees the before and after of any write to an appointment, so
+     * it stays right no matter which path changed a status.
+     */
+    fun observeSalonStats(salonId: String): Flow<SalonStatsDocument?> = callbackFlow {
+        if (salonId.isBlank()) { trySend(null); awaitClose { }; return@callbackFlow }
+        val listener = db.collection("salon_stats").document(salonId)
+            .addSnapshotListener { snap, err ->
+                if (err != null) {
+                    CrashReporter.recordNonFatal(err, "firestore:observeSalonStats")
+                    trySend(null); return@addSnapshotListener
+                }
+                trySend(snap?.toObject(SalonStatsDocument::class.java))
+            }
+        awaitClose { listener.remove() }
+    }
+
 
     // NOTE: appointments are created exclusively by the createPaymentSession
     // Cloud Function (pay-first); the rules deny client creation.
@@ -514,7 +702,23 @@ class FirestoreRepository @Inject constructor(
      * One taken time-slot for a salon, tagged with the staff member it belongs
      * to ([staffId] is empty for a solo salon / "any available" booking).
      */
-    data class BookedSlot(val time: Long, val staffId: String)
+    /**
+     * One taken slot, as the server sees it.
+     *
+     * [isParty] matters because a party holds the whole salon rather than one
+     * chair. Without it the picker counts chairs and offers a time during
+     * somebody's wedding that checkout then refuses.
+     */
+    // `id` is the appointment that occupies this slot, so a customer moving one
+    // is not blocked by her own booking. hasSlotConflict already excludes it
+    // server-side; the picker could not, and at a solo salon her own appointment
+    // was most of what made her day look full.
+    data class BookedSlot(
+        val time: Long,
+        val staffId: String,
+        val isParty: Boolean = false,
+        val id: String = "",
+    )
 
     /**
      * Taken time-slots for a salon on the day containing [dateMs]. Served by
@@ -547,7 +751,12 @@ class FirestoreRepository @Inject constructor(
             return booked.mapNotNull { entry ->
                 val m = entry as? Map<*, *> ?: return@mapNotNull null
                 val time = (m["time"] as? Number)?.toLong() ?: return@mapNotNull null
-                BookedSlot(time, m["staffId"] as? String ?: "")
+                BookedSlot(
+                    time,
+                    m["staffId"] as? String ?: "",
+                    m["isParty"] == true,
+                    m["id"] as? String ?: "",
+                )
             }
         }
         return (map["slots"] as? List<*>)
@@ -617,11 +826,12 @@ class FirestoreRepository @Inject constructor(
     fun observeReviewsForSalon(salonId: String): Flow<List<ReviewDocument>> = callbackFlow {
         val listener = reviewsCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(ReviewDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -671,11 +881,12 @@ class FirestoreRepository @Inject constructor(
     fun observeGalleryForSalon(salonId: String): Flow<List<GalleryImageDocument>> = callbackFlow {
         val listener = galleryCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(GalleryImageDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -746,15 +957,40 @@ class FirestoreRepository @Inject constructor(
      * user read only their own likes, so this is also the only shape of like
      * query a client can make — nobody can list who liked a salon's photo.
      */
-    fun observeMyLikes(userId: String): Flow<Set<String>> = callbackFlow {
-        if (userId.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
-        val listener = postLikesCol
-            .whereEqualTo("userId", userId)
-            .addSnapshotListener { snap, err ->
-                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
-                trySend(snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet())
-            }
-        awaitClose { listener.remove() }
+    /**
+     * Which of [postIds] this user has liked.
+     *
+     * Scoped to the posts on screen rather than to the user. It used to observe
+     * every like the account had ever made, which is the one listener here a
+     * limit could not fix: the result is a membership test, not a list, so
+     * truncating it does not shorten anything — it reports a liked post as
+     * unliked, draws an empty heart, and turns the next tap into a second like.
+     *
+     * The feed is a bounded page, so the answer only ever concerns that many
+     * posts. whereIn takes 30 values, so the ids are chunked and the union of
+     * the chunks is emitted; each chunk is its own listener and each is bounded
+     * by construction.
+     */
+    fun observeMyLikes(userId: String, postIds: List<String>): Flow<Set<String>> = callbackFlow {
+        val wanted = postIds.filter { it.isNotBlank() }.distinct()
+        if (userId.isBlank() || wanted.isEmpty()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+
+        val chunks = wanted.chunked(30)
+        val byChunk = arrayOfNulls<Set<String>>(chunks.size)
+        val listeners = chunks.mapIndexed { i, chunk ->
+            postLikesCol
+                .whereEqualTo("userId", userId)
+                .whereIn("postId", chunk)
+                .addSnapshotListener { snap, err ->
+                    byChunk[i] = if (err != null) emptySet()
+                                 else snap?.documents?.mapNotNull { it.getString("postId") }?.toSet() ?: emptySet()
+                    // Emit the union so far. A chunk that has not reported yet
+                    // contributes nothing, which shows an unfilled heart for a
+                    // moment rather than a wrong one.
+                    trySend(byChunk.filterNotNull().flatten().toSet())
+                }
+        }
+        awaitClose { listeners.forEach { it.remove() } }
     }
 
     suspend fun setPostLiked(postId: String, salonId: String, userId: String, liked: Boolean) {
@@ -820,11 +1056,12 @@ class FirestoreRepository @Inject constructor(
     fun observeOffersForSalon(salonId: String): Flow<List<OfferDocument>> = callbackFlow {
         val listener = offersCol
             .whereEqualTo("salonId", salonId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(SALON_PORTFOLIO)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(OfferDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -835,6 +1072,13 @@ class FirestoreRepository @Inject constructor(
     fun observeActiveOffers(): Flow<List<OfferDocument>> = callbackFlow {
         val listener = offersCol
             .whereEqualTo("active", true)
+            // Expiry stays a client-side test: isLive treats expiresAt == 0 as
+            // "never expires", and Firestore cannot express that OR alongside
+            // the range it would need. What this bound risks is a salon losing
+            // its offer badge, not a customer losing money, so recency is the
+            // right thing to keep.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val now = System.currentTimeMillis()
@@ -877,24 +1121,196 @@ class FirestoreRepository @Inject constructor(
         }
     }
 
-    // ── Admin — all users ────────────────────────────────────────────────────
+    // ── Admin — users ────────────────────────────────────────────────────────
+    //
+    // This replaces observeAllUsers, which held a snapshot listener on the whole
+    // collection and sorted it in memory. At the 12 accounts the platform has
+    // today that is invisible; at 100,000 it is 100,000 documents downloaded to
+    // a phone on every open of the Users tab, and re-sent on every write anyone
+    // makes. It was the only listener in the app that scaled with the customer
+    // base rather than with one person's own data.
+    //
+    // Same shape as salonPage/salonCount, for the same reason: one query builder
+    // so the list and the count can never disagree about what "matching" means.
 
-    fun observeAllUsers(): Flow<List<UserDocument>> = callbackFlow {
-        val listener = usersCol.addSnapshotListener { snap, err ->
-            if (err != null) { trySend(emptyList()); return@addSnapshotListener }
-            val list = snap?.documents
-                ?.mapNotNull { it.toObject(UserDocument::class.java)?.copy(uid = it.id) }
-                ?.sortedBy { it.createdAt }
-                ?: emptyList()
-            trySend(list)
+    data class UserFilter(
+        val role: String? = null,      // null = every role
+        val search: String = "",
+    )
+
+    data class UserPage(
+        val users: List<UserDocument>,
+        val cursor: DocumentSnapshot?, // pass back as `after` for the next page
+        val endReached: Boolean,
+    )
+
+    /**
+     * The Stats tab's six numbers.
+     *
+     * Null means "could not ask", not zero — see salonCount. An admin looking at
+     * a confidently wrong 0 has no way to tell it from an empty platform.
+     */
+    data class UserCounts(
+        val total: Int? = null,
+        val providers: Int? = null,
+        val customers: Int? = null,
+        val pending: Int? = null,
+        val suspended: Int? = null,
+    )
+
+    private val USER_PAGE_SIZE = 25L
+
+    private fun userQuery(filter: UserFilter): Query {
+        var q: Query = usersCol
+        filter.role?.let { q = q.whereEqualTo("role", it) }
+
+        // Normalised the way the server stores nameKey — see SearchKey. Sending
+        // the raw text queries a range over spelling that was never written.
+        val search = SearchKey.normalize(filter.search)
+        if (search.isNotEmpty()) {
+            // An admin searching for a person types one of two things: a phone
+            // number or a name. Both are answered by a field the server derives
+            // (deriveUserPhoneKey), never by one the client can write.
+            val key = PhoneUtils.loginKey(search)
+            if (key.isNotEmpty()) {
+                // Exact, not prefix: this is the same key login resolves by, so
+                // "the number I was given" finds the account that number signs
+                // into — including accounts whose stored phone was never
+                // normalized, which is the whole reason the key exists.
+                return q.whereEqualTo("phoneDigits", key).limit(USER_PAGE_SIZE)
+            }
+            // Firestore cannot match a substring. A range over the normalized
+            // name gives prefix search; \uf8ff is the highest code point, so it
+            // bounds the range at "anything starting with this". Mid-name search
+            // would need an external search service, which the architecture
+            // deliberately excludes.
+            return q.orderBy("nameKey")
+                .startAt(search)
+                .endAt(search + "\uf8ff")
+                .limit(USER_PAGE_SIZE)
         }
-        awaitClose { listener.remove() }
+
+        // Oldest first, which is the order observeAllUsers produced. createdAt is
+        // written at registration and present on every account — worth stating,
+        // because Firestore drops documents that lack the orderBy field, and an
+        // admin list that silently omits accounts is worse than a slow one.
+        return q.orderBy("createdAt").limit(USER_PAGE_SIZE)
+    }
+
+    /** One page of users matching [filter]. */
+    suspend fun usersPage(filter: UserFilter, after: DocumentSnapshot? = null): UserPage {
+        var q = userQuery(filter)
+        if (after != null) q = q.startAfter(after)
+        return runCatching {
+            val snap = q.get().await()
+            UserPage(
+                users = snap.documents.mapNotNull {
+                    it.toObject(UserDocument::class.java)?.copy(uid = it.id)
+                },
+                cursor = snap.documents.lastOrNull(),
+                endReached = snap.documents.size < USER_PAGE_SIZE,
+            )
+        }.getOrElse { err ->
+            CrashReporter.recordNonFatal(err, "usersPage")
+            UserPage(emptyList(), null, true)
+        }
+    }
+
+    /** Counted on the server, so the six numbers do not require reading 100,000 documents. */
+    suspend fun userCounts(): UserCounts {
+        suspend fun countOf(q: Query): Int? = runCatching {
+            q.count().get(AggregateSource.SERVER).await().count.toInt()
+        }.getOrElse {
+            CrashReporter.recordNonFatal(it, "userCounts")
+            null
+        }
+        return UserCounts(
+            total     = countOf(usersCol),
+            providers = countOf(usersCol.whereEqualTo("role", "PROVIDER")),
+            customers = countOf(usersCol.whereEqualTo("role", "CUSTOMER")),
+            pending   = countOf(usersCol.whereEqualTo("status", "PENDING")),
+            suspended = countOf(usersCol.whereEqualTo("status", "SUSPENDED")),
+        )
+    }
+
+    /**
+     * The users behind a set of ids — for attaching names to balances, payouts
+     * and refunds.
+     *
+     * Those screens used to read the whole user collection and join in memory.
+     * Looking up only the ids actually on screen keeps the cost proportional to
+     * what is displayed instead of to how many people have registered. whereIn
+     * takes at most 30 values, so the ids are chunked.
+     */
+    suspend fun usersByIds(ids: Collection<String>): Map<String, UserDocument> {
+        val wanted = ids.filter { it.isNotBlank() }.distinct()
+        if (wanted.isEmpty()) return emptyMap()
+        val out = mutableMapOf<String, UserDocument>()
+        wanted.chunked(30).forEach { chunk ->
+            runCatching {
+                usersCol.whereIn(FieldPath.documentId(), chunk).get().await()
+                    .documents.forEach { d ->
+                        d.toObject(UserDocument::class.java)?.let { out[d.id] = it.copy(uid = d.id) }
+                    }
+            }.onFailure { CrashReporter.recordNonFatal(it, "usersByIds") }
+        }
+        return out
     }
 
     // ── Broadcasts ───────────────────────────────────────────────────────────
 
+    /**
+     * The announcements this reader should actually see.
+     *
+     * [role] and [lang] are the reader's own; an empty target matches everyone,
+     * which is what an untargeted send means. A district-targeted one is skipped
+     * unless [districtKey] matches — a customer has no district, and showing it
+     * to her anyway is how a message meant for salons in one ناحیه reaches
+     * everybody in Kabul.
+     */
+    fun visibleBroadcasts(
+        all: List<BroadcastDocument>,
+        role: String,
+        lang: String,
+        districtKey: String = "",
+        now: Long = System.currentTimeMillis(),
+    ): List<BroadcastDocument> = visibleBroadcastsFor(all, role, lang, districtKey, now)
+
+    companion object BroadcastVisibility {
+        /** An announcement with no expiry set stops showing after this. */
+        private const val BROADCAST_MAX_AGE = 14L * 24 * 60 * 60 * 1000
+
+        /**
+         * Pure, and on the companion so a unit test can call it without a
+         * Firestore instance — the rule is the part worth pinning, and a rule
+         * that can only be exercised against a live database is one nobody
+         * exercises.
+         */
+        @JvmStatic
+        fun visibleBroadcastsFor(
+            all: List<BroadcastDocument>,
+            role: String,
+            lang: String,
+            districtKey: String,
+            now: Long,
+        ): List<BroadcastDocument> = all.filter { b ->
+            val notExpired = if (b.expiresAt > 0L) b.expiresAt > now
+                         // No expiry set, so fall back on age: the announcements
+                         // sent before expiries existed would otherwise never
+                         // retire, and one from August was still on screen.
+                             else b.createdAt == 0L || now - b.createdAt <= BROADCAST_MAX_AGE
+            val roleOk = b.targetRole.isBlank() || b.targetRole.equals(role, ignoreCase = true)
+            val langOk = b.targetLang.isBlank() || b.targetLang.equals(lang, ignoreCase = true)
+            val areaOk = b.targetDistrict.isBlank() || b.targetDistrict == districtKey
+            notExpired && roleOk && langOk && areaOk
+        }
+    }
+
     fun observeBroadcasts(): Flow<List<BroadcastDocument>> = callbackFlow {
-        val listener = broadcastsCol.addSnapshotListener { snap, err ->
+        val listener = broadcastsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(BroadcastDocument::class.java)?.copy(id = it.id) }
@@ -934,12 +1350,18 @@ class FirestoreRepository @Inject constructor(
     fun observeMyWaitlist(customerId: String): Flow<List<WaitlistEntry>> = callbackFlow {
         val listener = waitlistCol
             .whereEqualTo("customerId", customerId)
+            // The status filter was applied after downloading everything, so a
+            // customer who had joined many waitlists over the years read all of
+            // them to display the two she was actually waiting on. Ascending,
+            // because a waitlist is a queue and the oldest entry is the one
+            // nearest the front.
+            .whereIn("status", listOf("WAITING", "SLOT_AVAILABLE"))
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ACTIVE_WAITLIST)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(WaitlistEntry::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "WAITING" || it.status == "SLOT_AVAILABLE" }
-                    ?.sortedBy { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -971,6 +1393,13 @@ class FirestoreRepository @Inject constructor(
     fun observeNotifications(uid: String): Flow<List<NotificationDocument>> = callbackFlow {
         val listener = notificationsCol
             .whereEqualTo("recipientId", uid)
+            // Sorted and bounded by the server. A notification is never deleted,
+            // so this listener grew for the life of the account and re-sent the
+            // whole history on every new one. The newest RECENT_NOTIFICATIONS are
+            // months of activity for any real customer; the notification centre
+            // is a recent-activity view, not an archive.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(RECENT_NOTIFICATIONS)
             .addSnapshotListener { snap, err ->
                 if (err != null) {
                     CrashReporter.recordNonFatal(err, "firestore:observeNotifications")
@@ -978,7 +1407,6 @@ class FirestoreRepository @Inject constructor(
                 }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(NotificationDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1033,7 +1461,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live list of promo codes (admin-only read, enforced by rules), newest first. */
     fun observePromoCodes(): Flow<List<PromoDocument>> = callbackFlow {
-        val listener = promoCodesCol.addSnapshotListener { snap, err ->
+        val listener = promoCodesCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(PromoDocument::class.java) }
@@ -1048,12 +1479,13 @@ class FirestoreRepository @Inject constructor(
     fun observeFlaggedReports(): Flow<List<CustomerReportDocument>> = callbackFlow {
         val listener = db.collection("customer_reports")
             .whereEqualTo("flagged", true)
+            .whereEqualTo("status", "OPEN")
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_QUEUE)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(CustomerReportDocument::class.java)?.copy(id = it.id) }
-                    ?.filter { it.status == "OPEN" }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1090,12 +1522,18 @@ class FirestoreRepository @Inject constructor(
 
     /** Admin-only: live list of open support tickets, newest first. */
     fun observeOpenSupportTickets(): Flow<List<SupportTicket>> = callbackFlow {
-        val listener = supportTicketsCol.addSnapshotListener { snap, err ->
+        // Ordered by updatedAt, not createdAt: support_tickets has never had a
+        // createdAt, and ordering by a field the documents do not carry returns
+        // nothing at all — an admin would see an empty support queue with
+        // tickets sitting in it.
+        val listener = supportTicketsCol
+            .whereEqualTo("status", "OPEN")
+            .orderBy("updatedAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_QUEUE)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(SupportTicket::class.java)?.copy(id = it.id) }
-                ?.filter { it.status == "OPEN" }
-                ?.sortedByDescending { it.updatedAt }
                 ?: emptyList()
             trySend(list)
         }
@@ -1116,7 +1554,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live list of what the platform owes each provider, highest first. */
     fun observeProviderBalances(): Flow<List<ProviderBalance>> = callbackFlow {
-        val listener = providerBalancesCol.addSnapshotListener { snap, err ->
+        // Deliberately no orderBy. Sorting by owedAmount and taking the top N
+        // would drop the negative balances off the end — which is precisely the
+        // bug the comment below records fixing.
+        val listener = providerBalancesCol.limit(PROVIDER_LEDGER).addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(ProviderBalance::class.java) }
@@ -1145,11 +1586,12 @@ class FirestoreRepository @Inject constructor(
     /** Live payout history for one provider (most recent first). */
     fun observePayoutsForProvider(providerId: String): Flow<List<PayoutDocument>> = callbackFlow {
         val listener = payoutsCol.whereEqualTo("providerId", providerId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(PROVIDER_PAYOUTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1158,7 +1600,10 @@ class FirestoreRepository @Inject constructor(
 
     /** Live payout history (most recent first). Admin reads all rows. */
     fun observePayouts(): Flow<List<PayoutDocument>> = callbackFlow {
-        val listener = payoutsCol.addSnapshotListener { snap, err ->
+        val listener = payoutsCol
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(ADMIN_HISTORY)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(PayoutDocument::class.java)?.copy(id = it.id) }
@@ -1173,11 +1618,15 @@ class FirestoreRepository @Inject constructor(
     fun observeRefundsForCustomer(customerId: String): Flow<List<RefundRequestDocument>> = callbackFlow {
         val listener = refundRequestsCol
             .whereEqualTo("customerId", customerId)
+            // Feeds a badge on the bookings list, so it only needs to cover the
+            // bookings that list can show — and it is bounded by the same number
+            // for exactly that reason.
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(RECENT_APPOINTMENTS)
             .addSnapshotListener { snap, err ->
                 if (err != null) { trySend(emptyList()); return@addSnapshotListener }
                 val list = snap?.documents
                     ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
-                    ?.sortedByDescending { it.createdAt }
                     ?: emptyList()
                 trySend(list)
             }
@@ -1185,12 +1634,24 @@ class FirestoreRepository @Inject constructor(
     }
 
     /** Live refund requests (most recent first). Admin reads all rows. */
-    fun observeRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
-        val listener = refundRequestsCol.addSnapshotListener { snap, err ->
+    /**
+     * Refund requests still awaiting an admin decision, oldest first.
+     *
+     * Renamed from observeRefundRequests, which read every refund ever made so
+     * the caller could filter for PENDING. Bounding that by recency would have
+     * hidden an old pending refund behind newer settled ones — and a pending
+     * refund an admin never sees is a customer's money that never comes back.
+     * Filtering on the server keeps the queue complete at any history length.
+     */
+    fun observePendingRefundRequests(): Flow<List<RefundRequestDocument>> = callbackFlow {
+        val listener = refundRequestsCol
+            .whereEqualTo("status", "PENDING")
+            .orderBy("createdAt", Query.Direction.ASCENDING)
+            .limit(ADMIN_QUEUE)
+            .addSnapshotListener { snap, err ->
             if (err != null) { trySend(emptyList()); return@addSnapshotListener }
             val list = snap?.documents
                 ?.mapNotNull { it.toObject(RefundRequestDocument::class.java)?.copy(id = it.id) }
-                ?.sortedByDescending { it.createdAt }
                 ?: emptyList()
             trySend(list)
         }

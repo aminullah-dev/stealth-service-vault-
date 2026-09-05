@@ -141,6 +141,8 @@ import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
+import com.safebeauty.app.util.Areas
+import com.safebeauty.app.ui.theme.AppLanguage
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -200,42 +202,61 @@ internal fun ProfileTab(viewModel: ProviderViewModel) {
             ) {
                 Text(strings.sectionLocation, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoseGold)
                 HorizontalDivider(color = BlushPink)
-                // District picker — the salon's `district` is stored as a canonical
-                // KabulAreas key so it always matches the customer neighborhood filter.
-                var showDistrictMenu by remember { mutableStateOf(false) }
-                val hasDistrict = viewModel.editDistrict.isNotBlank()
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(
-                        onClick  = { showDistrictMenu = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape    = RoundedCornerShape(12.dp),
-                        border   = androidx.compose.foundation.BorderStroke(1.dp, BlushPink),
-                        colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
-                    ) {
-                        Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(15.dp), tint = RoseGold)
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            if (hasDistrict)
-                                com.safebeauty.app.util.KabulAreas.labelForKey(viewModel.editDistrict, strings.language)
-                            else strings.districtArea,
-                            fontSize = 13.sp,
-                            modifier = Modifier.weight(1f),
-                            color    = if (hasDistrict) DeepRose else RoseGold
-                        )
-                        Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
-                    }
-                    androidx.compose.material3.DropdownMenu(
-                        expanded         = showDistrictMenu,
-                        onDismissRequest = { showDistrictMenu = false },
-                        modifier         = Modifier.background(DashboardSurface)
-                    ) {
-                        com.safebeauty.app.util.KabulAreas.areas.forEach { area ->
-                            androidx.compose.material3.DropdownMenuItem(
-                                text    = { Text(com.safebeauty.app.util.KabulAreas.labelFor(area, strings.language), fontSize = 13.sp, color = DeepRose) },
-                                onClick = { viewModel.onDistrictChanged(area.key); showDistrictMenu = false }
-                            )
-                        }
-                    }
+                // Where the salon is, in three steps: شهر → ناحیه → گذر/محله.
+                //
+                // It used to be one dropdown over every area in the country,
+                // which was already awkward with Kabul's 64 and became unusable
+                // at 121 across four cities — a Kabul owner scrolling past
+                // Herat's districts to reach her own. Narrowing at each step
+                // also makes the wrong answer unreachable rather than merely
+                // unlikely: the district list holds one city's districts, and
+                // the guzar list holds one district's guzars.
+                //
+                // The city is not stored. It is read off the district key's
+                // prefix here and derived again on the server, so there is no
+                // second field that could disagree about where a salon is.
+                val pickedCity = remember(viewModel.editDistrict) {
+                    Areas.areas.firstOrNull { it.key == viewModel.editDistrict }?.cityKey ?: ""
+                }
+                var cityChoice by remember(pickedCity) { mutableStateOf(pickedCity) }
+
+                AreaDropdown(
+                    label    = strings.cityLabel,
+                    selected = Areas.cities.firstOrNull { it.key == cityChoice }
+                        ?.let { if (strings.language == AppLanguage.ENGLISH) it.en else it.fa },
+                    options  = Areas.liveCities.map { c ->
+                        c.key to (if (strings.language == AppLanguage.ENGLISH) c.en else c.fa)
+                    },
+                    onPick   = { key ->
+                        if (key != cityChoice) viewModel.onDistrictChanged("")
+                        cityChoice = key
+                    },
+                )
+
+                val districts = remember(cityChoice) { Areas.districtsIn(cityChoice) }
+                AreaDropdown(
+                    label    = if (cityChoice.isBlank()) strings.pickCityFirst else strings.districtArea,
+                    selected = viewModel.editDistrict.takeIf { it.isNotBlank() }
+                        ?.let { Areas.labelForKey(it, strings.language) },
+                    options  = districts.map { it.key to Areas.labelFor(it, strings.language) },
+                    enabled  = cityChoice.isNotBlank(),
+                    onPick   = { viewModel.onDistrictChanged(it) },
+                )
+
+                // Only shown where the district actually has sourced sub-areas.
+                // An empty picker offering nothing reads as something broken;
+                // no picker reads as "this district has none", which is true.
+                val finer = remember(viewModel.editDistrict) {
+                    Areas.neighbourhoodsIn(viewModel.editDistrict)
+                }
+                if (finer.isNotEmpty()) {
+                    AreaDropdown(
+                        label    = strings.guzarOrArea,
+                        selected = viewModel.editAreaKey.takeIf { it.isNotBlank() }
+                            ?.let { Areas.labelForKey(it, strings.language) },
+                        options  = finer.map { it.key to Areas.labelFor(it, strings.language) },
+                        onPick   = { viewModel.onAreaKeyChanged(it) },
+                    )
                 }
             }
         }
@@ -1351,6 +1372,57 @@ private fun PackagesSection(viewModel: ProviderViewModel) {
                     shape   = RoundedCornerShape(10.dp),
                     colors  = ButtonDefaults.buttonColors(containerColor = RoseGold)
                 ) { Text(strings.addPackage, color = Color.White, fontSize = 13.sp) }
+            }
+        }
+    }
+}
+
+/**
+ * One labelled dropdown in the location picker.
+ *
+ * Three of these in a row are the whole form: city, district, then the guzar or
+ * neighbourhood inside that district. Each list is derived from the choice
+ * above it, so an impossible combination cannot be selected rather than being
+ * merely unlikely.
+ */
+@Composable
+private fun AreaDropdown(
+    label: String,
+    selected: String?,
+    options: List<Pair<String, String>>,
+    onPick: (String) -> Unit,
+    enabled: Boolean = true,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick  = { if (enabled) open = true },
+            enabled  = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            shape    = RoundedCornerShape(12.dp),
+            border   = androidx.compose.foundation.BorderStroke(1.dp, BlushPink),
+            colors   = ButtonDefaults.outlinedButtonColors(contentColor = DeepRose)
+        ) {
+            Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(15.dp), tint = RoseGold)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                selected ?: label,
+                fontSize = 13.sp,
+                modifier = Modifier.weight(1f),
+                color    = if (selected != null) DeepRose else RoseGold
+            )
+            Icon(Icons.Default.ArrowDropDown, null, tint = RoseGold)
+        }
+        androidx.compose.material3.DropdownMenu(
+            expanded         = open,
+            onDismissRequest = { open = false },
+            modifier         = Modifier.background(DashboardSurface)
+        ) {
+            options.forEach { (key, text) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text    = { Text(text, fontSize = 13.sp, color = DeepRose) },
+                    onClick = { onPick(key); open = false }
+                )
             }
         }
     }
