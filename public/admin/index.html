@@ -587,6 +587,12 @@ const STR = {
   pill_flagged: {en:'flagged', fa:'نشان‌دار', ps:'نښه شوی'},
   pill_neverArrived: {en:'never reached the salon', fa:'هرگز به سالن نرسیده', ps:'سالون ته هیڅکله نه دی رسېدلی'},
   pill_noBackup: {en:'No verified backup on record', fa:'هیچ پشتیبان‌گیری تأیید شده‌ای ثبت نشده', ps:'هیڅ تایید شوی بیک‌اپ په ثبت کې نشته'},
+  // Its twin above was translated and this one was not, so the console spoke
+  // Dari only when the backup was broken and English when it was fine.
+  pill_lastVerified: {
+    en:(h)=>`Last verified ${h}h ago`,
+    fa:(h)=>`آخرین تأیید ${h} ساعت پیش`,
+    ps:(h)=>`وروستی تایید ${h} ساعته وړاندې`},
   pill_none: {en:'none', fa:'هیچ سالنی نیست', ps:'هیڅ سالون نشته'},
   pill_off: {en:'off', fa:'غیرفعال', ps:'غیرفعال'},
   pill_online: {en:'Online', fa:'پرداخت آنلاین', ps:'آنلاین ورکړه'},
@@ -1007,25 +1013,28 @@ $('logout').addEventListener('click', async () => {
 })();
 
 // ── App shell ────────────────────────────────────────────────────────────────
+// No label here: renderNav renders t('tab_' + id). These carried an English
+// label as well, which nothing read — so editing it changed nothing, and it
+// read as the source of a sidebar that is actually translated.
 const TABS = [
-  { id:'stats',    label:'Statistics', icon:'📊', render:renderStats },
-  { id:'support',  label:'Support',    icon:'💬', render:renderSupport },
-  { id:'announce', label:'Announce',   icon:'📢', render:renderAnnounce },
-  { id:'approvals',label:'Approvals',  icon:'✅', render:renderApprovals },
-  { id:'kyc',      label:'KYC',        icon:'🪪', render:renderKyc },
-  { id:'users',    label:'Users',      icon:'👥', render:renderUsers },
-  { id:'salons',   label:'Salons',     icon:'🏠', render:renderSalons },
-  { id:'content',  label:'Content',    icon:'📸', render:renderContent },
-  { id:'demand',   label:'Demand',     icon:'📈', render:renderDemand },
-  { id:'activity', label:'Activity',   icon:'🌊', render:renderActivity },
-  { id:'booking',  label:'Booking',    icon:'🔎', render:renderBooking },
-  { id:'health',   label:'Health',     icon:'🩺', render:renderHealth },
-  { id:'finance',  label:'Finance',    icon:'💰', render:renderFinance },
-  { id:'stuck',    label:'Stuck pay',  icon:'🧯', render:renderStuck },
-  { id:'promo',    label:'Promo',      icon:'🎟️', render:renderPromo },
-  { id:'reports',  label:'Reports',    icon:'🚩', render:renderReports },
-  { id:'admins',   label:'Admins',     icon:'🛡️', render:renderAdmins },
-  { id:'audit',    label:'Audit',      icon:'🧾', render:renderAudit },
+  { id:'stats',      icon:'📊', render:renderStats },
+  { id:'support',    icon:'💬', render:renderSupport },
+  { id:'announce',   icon:'📢', render:renderAnnounce },
+  { id:'approvals',  icon:'✅', render:renderApprovals },
+  { id:'kyc',        icon:'🪪', render:renderKyc },
+  { id:'users',      icon:'👥', render:renderUsers },
+  { id:'salons',     icon:'🏠', render:renderSalons },
+  { id:'content',    icon:'📸', render:renderContent },
+  { id:'demand',     icon:'📈', render:renderDemand },
+  { id:'activity',   icon:'🌊', render:renderActivity },
+  { id:'booking',    icon:'🔎', render:renderBooking },
+  { id:'health',     icon:'🩺', render:renderHealth },
+  { id:'finance',    icon:'💰', render:renderFinance },
+  { id:'stuck',      icon:'🧯', render:renderStuck },
+  { id:'promo',      icon:'🎟️', render:renderPromo },
+  { id:'reports',    icon:'🚩', render:renderReports },
+  { id:'admins',     icon:'🛡️', render:renderAdmins },
+  { id:'audit',      icon:'🧾', render:renderAudit },
 ];
 const AFN = (n) => (Number(n)||0).toLocaleString() + ' AFN';
 let activeTab = 'stats';
@@ -2380,7 +2389,7 @@ async function renderHealth(){
       <div class="section-title">${t('lbl_backups')}</div>
       <div class="card-pad" style="margin-bottom:8px">
         ${lastGood
-          ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">Last verified ${ageH}h ago</span>
+          ? `<span class="pill ${ageH > 48 ? 'bad' : 'ok'}">${t('pill_lastVerified', ageH)}</span>
              <span class="meta" style="margin-inline-start:10px;color:var(--muted)">${esc(lastGood.id)} → ${esc(lastGood.outputUri||'')}</span>`
           : `<span class="pill bad">${t('pill_noBackup')}</span>`}
       </div>
