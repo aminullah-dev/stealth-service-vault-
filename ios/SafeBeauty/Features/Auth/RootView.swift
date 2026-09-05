@@ -39,30 +39,69 @@ struct RootView: View {
     }
 }
 
-/// A placeholder for the signed-in half, which is the next piece of work. It
-/// shows what the session actually resolved to rather than a welcome message,
-/// so a wrong role or a pending status is visible immediately instead of at
-/// the first screen that depends on it.
+/// What a signed-in customer sees.
+///
+/// A provider whose account is still PENDING gets the waiting screen rather
+/// than the salon list, because a salon owner awaiting approval has nothing to
+/// do in a customer's browse view and showing it to her implies she is set up
+/// when she is not.
 struct SignedInView: View {
     @Environment(AuthService.self) private var auth
 
     var body: some View {
-        VStack(spacing: 14) {
-            Spacer()
-            Text(auth.session?.name ?? "").font(Brand.font(24, .bold)).foregroundStyle(Brand.ink)
-            if let s = auth.session {
-                Text(verbatim: "\(s.role) · \(s.status) · KYC \(s.kycStatus)")
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(Brand.accent)
-                if s.status == "PENDING" {
-                    Text(L.pendingApproval.t)
-                        .font(Brand.font(14)).foregroundStyle(Brand.deep)
-                        .multilineTextAlignment(.center).padding(.horizontal, 40)
-                }
-            }
+        if auth.session?.status == "PENDING" {
+            PendingApprovalView()
+        } else {
+            SalonListView()
+                .safeAreaInset(edge: .top) { SessionBar() }
+        }
+    }
+}
+
+/// Who you are and a way out, on every screen.
+///
+/// The sign-out control is reachable without navigating anywhere. On a shared
+/// phone the fastest possible exit matters more than a tidy toolbar.
+struct SessionBar: View {
+    @Environment(AuthService.self) private var auth
+
+    var body: some View {
+        HStack {
+            Text(auth.session?.name ?? "")
+                .font(Brand.font(14, .medium))
+                .foregroundStyle(Brand.ink)
             Spacer()
             Button(L.signOut.t) { auth.signOut() }
-                .font(Brand.font(15, .medium)).foregroundStyle(Brand.accent)
+                .font(Brand.font(13, .medium))
+                .foregroundStyle(Brand.accent)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 9)
+        .background(Brand.cream)
+    }
+}
+
+struct PendingApprovalView: View {
+    @Environment(AuthService.self) private var auth
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "clock.badge.checkmark")
+                .font(.system(size: 42))
+                .foregroundStyle(Brand.accent)
+            Text(auth.session?.name ?? "")
+                .font(Brand.font(22, .bold))
+                .foregroundStyle(Brand.ink)
+            Text(L.pendingApproval.t)
+                .font(Brand.font(15))
+                .foregroundStyle(Brand.deep)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 44)
+            Spacer()
+            Button(L.signOut.t) { auth.signOut() }
+                .font(Brand.font(15, .medium))
+                .foregroundStyle(Brand.accent)
                 .padding(.bottom, 30)
         }
         .frame(maxWidth: .infinity)
