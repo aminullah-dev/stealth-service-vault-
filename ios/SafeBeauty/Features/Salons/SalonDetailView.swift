@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseFirestore
 import SafeBeautyCore
 
 /// A salon, its services, and the times she can actually have.
@@ -19,6 +20,7 @@ struct SalonDetailView: View {
     @State private var isLoadingSlots = false
     @State private var showBooking = false
     @State private var showKyc = false
+    @State private var reviews: [Review] = []
 
     /// The next seven days, starting today, in Kabul.
     private var days: [Date] {
@@ -163,6 +165,14 @@ struct SalonDetailView: View {
                     .padding(.top, 4)
                 }
 
+                if !reviews.isEmpty {
+                    section(L.reviews) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(reviews) { ReviewRow(review: $0) }
+                        }
+                    }
+                }
+
                 BrandButton(title: .book,
                             isEnabled: !selectedServices.isEmpty && selectedSlot != nil
                                        && auth.session?.kycStatus == "APPROVED") {
@@ -176,7 +186,7 @@ struct SalonDetailView: View {
         .background(Brand.cream.ignoresSafeArea())
         .navigationTitle(salon.salonName)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await loadSlots() }
+        .task { await loadSlots(); await loadReviews() }
         .sheet(isPresented: $showBooking, onDismiss: {
             // The grid is redrawn on return, so a slot someone else took while
             // she was deciding stops being offered.
@@ -189,6 +199,28 @@ struct SalonDetailView: View {
             }
         }
         .sheet(isPresented: $showKyc) { KycView() }
+    }
+
+    /// The salon's reviews, newest first.
+    ///
+    /// `allow read: if isSignedIn()` covers this, and the query is bounded —
+    /// a salon with hundreds would otherwise pull all of them to show five.
+    private func loadReviews() async {
+        guard let snap = try? await Firestore.firestore()
+                .collection("reviews")
+                .whereField("salonId", isEqualTo: salon.id)
+                .limit(to: 20)
+                .getDocuments()
+        else { return }
+        let docs = snap.documents.map { (id: $0.documentID, data: $0.data()) }
+        // Sorted here rather than with orderBy: createdAt is written by the
+        // server but an older review without it would be DROPPED by an ordered
+        // query rather than sorted last, and a salon losing its earliest
+        // reviews is worse than an unindexed sort over twenty rows.
+        reviews = DocumentDecoding.decodeAll(
+            Review.self, documents: docs, assigningID: { $0.id = $1 })
+            .values
+            .sorted { $0.createdAt > $1.createdAt }
     }
 
     private var isClosedToday: Bool {

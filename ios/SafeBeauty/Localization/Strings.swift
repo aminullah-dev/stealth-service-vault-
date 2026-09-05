@@ -29,6 +29,25 @@ struct L {
 }
 
 extension L {
+    /// Interpolating strings, written per language rather than assembled from
+    /// fragments — word order differs and a sentence stitched from pieces reads
+    /// as machine output in at least one of the three.
+    static func reviewNameWarning(_ name: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "نظر شما با نام «\(name)» برای همهٔ کاربران دیده می‌شود."
+        case .pashto: "ستاسو نظر د «\(name)» په نوم ټولو کاروونکو ته ښکاري."
+        case .english: "Your review will be shown to all users under the name \"\(name)\"."
+        }
+    }
+
+    static func starsLabel(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(n) ستاره"
+        case .pashto: "\(n) ستوري"
+        case .english: n == 1 ? "1 star" : "\(n) stars"
+        }
+    }
+
     // MARK: Sign in
     static let signIn = L(fa: "ورود", ps: "ننوتل", en: "Sign in")
     static let phone = L(fa: "شماره تلفن", ps: "د تلیفون شمېره", en: "Phone number")
@@ -263,6 +282,27 @@ extension L {
         fa: "از حساب خارج می‌شوید. برای ورود دوباره به شماره و رمز نیاز دارید.",
         ps: "له حساب څخه وځئ. د بیا ننوتلو لپاره شمېرې او پټنوم ته اړتیا لرئ.",
         en: "You will be signed out. You will need your phone number and password to sign in again.")
+
+    // MARK: Reviews
+    static let writeReview = L(fa: "نظر شما", ps: "ستاسو نظر", en: "Your review")
+    static let reviewComment = L(fa: "نظرتان (اختیاری)", ps: "ستاسو نظر (اختیاري)",
+                                 en: "Your comment (optional)")
+    static let sendReview = L(fa: "ارسال نظر", ps: "نظر لېږل", en: "Send review")
+    static let reviews = L(fa: "نظرات", ps: "نظرونه", en: "Reviews")
+    static let noReviewsYet = L(fa: "هنوز نظری ثبت نشده.", ps: "تر اوسه نظر نشته.",
+                                en: "No reviews yet.")
+    static let reviewThanks = L(
+        fa: "نظر شما ثبت شد. ممنون — همین‌ها به زن بعدی کمک می‌کند انتخاب کند.",
+        ps: "ستاسو نظر ثبت شو. مننه — همدا شی بلې ښځې سره د ټاکلو کې مرسته کوي.",
+        en: "Your review was posted. Thank you — this is what helps the next woman choose.")
+    static let errAlreadyReviewed = L(
+        fa: "برای این نوبت قبلاً نظر داده‌اید.", ps: "د دې وخت لپاره مو مخکې نظر ورکړی.",
+        en: "You have already reviewed this booking.")
+    static let errReviewTooEarly = L(
+        fa: "بعد از نوبت‌تان می‌توانید نظر بدهید.", ps: "د خپل وخت وروسته کولی شئ نظر ورکړئ.",
+        en: "You can review after your visit.")
+    static let errNotYourBooking = L(
+        fa: "این نوبت شما نیست.", ps: "دا ستاسو وخت نه دی.", en: "That is not your booking.")
 
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")

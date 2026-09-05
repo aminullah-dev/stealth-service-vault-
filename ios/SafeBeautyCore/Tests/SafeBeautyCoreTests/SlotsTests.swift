@@ -197,3 +197,47 @@ struct SlotsTests {
                 "slot 3 is the attended finish and is taken")
     }
 }
+
+/// Whether the review button is offered at all.
+///
+/// Mirrors what submitReview enforces, so the control only appears where the
+/// callable would accept it. A button the server refuses teaches a customer not
+/// to trust the buttons.
+@Suite("Review eligibility mirrors submitReview")
+struct ReviewEligibilityTests {
+
+    private func booking(_ status: AppointmentStatus, daysFromNow: Double) -> Appointment {
+        var a = Appointment()
+        a.status = status
+        a.appointmentDate = Int64(Date().addingTimeInterval(daysFromNow * 86400)
+                                    .timeIntervalSince1970 * 1000)
+        return a
+    }
+
+    @Test("a visit that has happened can be reviewed")
+    func pastVisitIsReviewable() {
+        #expect(ReviewEligibility.canReview(booking(.completed, daysFromNow: -1)))
+        // CONFIRMED and past counts too: the visit happened even if nothing has
+        // marked it complete yet, and the server accepts it.
+        #expect(ReviewEligibility.canReview(booking(.confirmed, daysFromNow: -1)))
+    }
+
+    @Test("a visit that has not happened yet cannot")
+    func futureVisitIsNot() {
+        #expect(!ReviewEligibility.canReview(booking(.confirmed, daysFromNow: 1)))
+        #expect(!ReviewEligibility.canReview(booking(.pending, daysFromNow: 1)))
+    }
+
+    @Test("a cancelled booking is never reviewable")
+    func cancelledIsNot() {
+        // She did not go. Reviewing it would rate a visit that never happened,
+        // and the server refuses it.
+        #expect(!ReviewEligibility.canReview(booking(.cancelled, daysFromNow: -1)))
+    }
+
+    @Test("an unpaid booking in the past is not reviewable")
+    func awaitingPaymentIsNot() {
+        // AWAITING_PAYMENT that aged out is an abandoned checkout, not a visit.
+        #expect(!ReviewEligibility.canReview(booking(.awaitingPayment, daysFromNow: -1)))
+    }
+}

@@ -5,6 +5,7 @@ struct MyBookingsView: View {
     @Environment(AuthService.self) private var auth
     @State private var repo = BookingsRepository()
     @State private var cancelling: Appointment?
+    @State private var reviewing: Appointment?
     @State private var error: String?
 
     var body: some View {
@@ -35,7 +36,13 @@ struct MyBookingsView: View {
                         if !repo.past.isEmpty {
                             Section(L.pastBookings.t) {
                                 ForEach(repo.past) { booking in
-                                    BookingRow(booking: booking, canCancel: false, onCancel: {})
+                                    BookingRow(
+                                        booking: booking, canCancel: false, onCancel: {},
+                                        // Offered only where submitReview would
+                                        // accept it. A button the server refuses
+                                        // teaches her not to trust the buttons.
+                                        canReview: ReviewEligibility.canReview(booking),
+                                        onReview: { reviewing = booking })
                                 }
                             }
                         }
@@ -64,6 +71,7 @@ struct MyBookingsView: View {
             } message: {
                 Text(L.cancelWarning.t)
             }
+            .sheet(item: $reviewing) { ReviewSheet(booking: $0) }
         }
         .task(id: auth.session?.uid) {
             if let uid = auth.session?.uid { repo.start(customerId: uid) }
@@ -81,6 +89,8 @@ struct BookingRow: View {
     let booking: Appointment
     let canCancel: Bool
     let onCancel: () -> Void
+    var canReview: Bool = false
+    var onReview: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -130,6 +140,12 @@ struct BookingRow: View {
             if canCancel {
                 Button(L.cancelBooking.t, role: .destructive, action: onCancel)
                     .font(Brand.font(13, .medium))
+                    .padding(.top, 2)
+            }
+            if canReview {
+                Button(L.writeReview.t, action: onReview)
+                    .font(Brand.font(13, .medium))
+                    .foregroundStyle(Brand.accent)
                     .padding(.top, 2)
             }
         }
