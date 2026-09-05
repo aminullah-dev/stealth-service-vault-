@@ -14,11 +14,32 @@ object PhoneUtils {
 
     const val AFGHANISTAN_CODE = "+93"
 
-    /** Strips spaces, dashes and parentheses, keeping digits and a leading '+'. */
+    /**
+     * Strips spaces, dashes and parentheses, keeping digits and a leading '+'.
+     *
+     * Digits are FOLDED TO ASCII, not merely kept. `Char.isDigit()` is
+     * Unicode-aware, so the ۰۱۲۳۴۵۶۷۸۹ a Dari or Pashto keyboard produces
+     * passed the old `filter` through untouched — and `isValidAfghan` accepted
+     * them, because nine Persian digits are nine digits. The server then
+     * cleaned the same number with `/\D/`, which is ASCII-only, and what it
+     * stored was the bare country code: "+93".
+     *
+     * That is not a formatting blemish. The first woman to register from a
+     * Persian keyboard took "+93" as her phone number, and every registration
+     * after hers normalised to the same string and came back "an account
+     * already uses this phone number" — the market this app is written for,
+     * locked out by its own first user. PhoneUtils.swift folds identically
+     * (`wholeNumberValue`), which is why iOS never had this.
+     */
     private fun clean(raw: String): String {
         val trimmed = raw.trim()
         val hasPlus = trimmed.startsWith("+")
-        val digits = trimmed.filter { it.isDigit() }
+        val digits = buildString {
+            for (ch in trimmed) {
+                val v = Character.digit(ch, 10)
+                if (v in 0..9) append('0' + v)
+            }
+        }
         return if (hasPlus) "+$digits" else digits
     }
 
