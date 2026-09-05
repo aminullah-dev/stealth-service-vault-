@@ -2,7 +2,6 @@ package com.safebeauty.app.ui
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -44,27 +43,29 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Keeps the app out of the recents thumbnail, and out of screenshots.
+        // FLAG_SECURE used to be set here, and is deliberately not any more.
         //
-        // The disguise stopped at the applicationId: com.security.stealthapp is
-        // only visible in Settings, while the task switcher rendered a live
-        // preview of a beauty-booking app to anyone who pressed the square
-        // button. FLAG_SECURE blanks that preview.
+        // It existed for one threat: a phone being inspected, where a live
+        // beauty-booking preview in the task switcher or a screenshot in the
+        // gallery was the thing that could expose a woman. The owner has since
+        // said that threat no longer applies, and the flag is not free — it
+        // blocks every screenshot and screen recording app-wide.
         //
-        // It also blocks screenshots and screen recording app-wide, which is a
-        // real cost — a customer cannot screenshot her booking to send to a
-        // friend. That is the trade this app is for: the same picture in the
-        // wrong gallery is the thing being protected against.
-        // Release only. FLAG_SECURE blanks the recents thumbnail AND blocks
-        // every screenshot, adb screencap included — so with it on in debug
-        // builds nobody developing the app can see what they changed, and the
-        // one screen you most want to look at is the one you cannot capture.
-        // The protection matters for the build a customer installs; a debug
-        // build never reaches a phone anyone else picks up.
-        if (!BuildConfig.DEBUG) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE,
-                            WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        // What that cost, specifically: a customer could not screenshot her own
+        // booking to send to a friend. The safety rules already forbade asking
+        // her to share anything publicly, so between the two there was no path
+        // by which one satisfied customer could show the product to another.
+        // Removing this is the only referral mechanism this app has ever had.
+        //
+        // Note what it does NOT change. The disguise people assume was here was
+        // always thinner than it looked: android:label is @string/app_name,
+        // which is "SafeBeauty", so the launcher and the app list have always
+        // shown the real name and the real icon. Only the applicationId is
+        // disguised, and only Settings and the Play URL ever showed it.
+        //
+        // To put it back: set FLAG_SECURE on the window in release builds only —
+        // with it on in debug, nobody developing the app can screenshot the
+        // screen they are working on, adb screencap included.
 
         enableEdgeToEdge()
 

@@ -7,15 +7,32 @@ description: Write and produce SafeBeauty marketing — social posts, WhatsApp c
 
 ## Read this part first
 
-SafeBeauty sells discretion. The whole architecture says so: the Play
-`applicationId` is `com.security.stealthapp` rather than anything resembling the
-brand, `FLAG_SECURE` blocks screenshots of the running app, there is a hidden
-vault, and the database holds photographs of Afghan women's identity documents.
+SafeBeauty holds photographs of Afghan women's identity documents, their phone
+numbers, and a record of where and when each of them goes. That is the reason
+for the rules below, and it has not changed.
 
-So the ordinary app-marketing playbook is not merely off-brand here — parts of
-it are dangerous. **Every rule below exists because breaking it could identify a
-user.** They are not stylistic preferences and they are not negotiable without
-the owner saying so explicitly, in the conversation, for that specific piece.
+What HAS changed, on 2026-09-04: the owner lifted the phone-inspection threat
+these rules were originally shaped around, and `FLAG_SECURE` was removed with
+it. Two claims that used to appear here were also thinner than they read.
+`android:label` has always been `@string/app_name` — "SafeBeauty" — so the
+launcher and the app list always showed the real name and icon; only the
+`applicationId` was disguised, and only Settings and the Play URL ever showed
+that. And there is no hidden vault: `BiometricVault` is a Keystore-backed
+biometric unlock for the user's own PIN, not a place to hide anything.
+
+So screenshots now work, which means a customer can send a friend her booking.
+That is the one referral path this product has ever had, and it opens for the
+first time.
+
+**Every rule below still exists because breaking it could identify a user** —
+identification is not only a state matter. They are not stylistic preferences
+and are not negotiable without the owner saying so explicitly, in the
+conversation, for that specific piece.
+
+**Two rules are now open questions rather than settled ones**: whether Instagram
+can carry customer copy, and whether a VIP WhatsApp group is acceptable. Both
+were argued from the removed threat. Neither has been re-decided — ask the owner
+before writing for either, and do not assume the answer from this note.
 
 ### Never
 
@@ -23,14 +40,21 @@ the owner saying so explicitly, in the conversation, for that specific piece.
   names, no faces, no handles, no partial phone numbers, no "our customer in
   Karte Se". A testimonial is only usable if it is unattributed and carries no
   detail that narrows down who wrote it.
-- **Never run a mechanic that makes someone's use of the app visible.** No "tag
-  a friend", no "share your booking", no comment-to-enter, no referral post the
-  user is asked to publish. The in-app referral code is private and stays that
-  way; it is never a public call to action.
+- **Never run a mechanic that makes someone's use of the app PUBLIC.** No "tag a
+  friend", no comment-to-enter, no referral post the user is asked to publish.
+  The in-app referral code is private and stays that way; it is never a public
+  call to action.
+
+  The line is publication, not sharing. A woman screenshotting her own booking
+  and sending it to one friend exposes her to that friend, whom she chose —
+  which is how every product spreads, and is now possible at all since
+  FLAG_SECURE came off. A post asking her to do it where her followers can see
+  exposes her to everyone, and she cannot take it back. Never build the second
+  one; never write copy that nudges toward it.
 - **Never post a screenshot containing real data.** Real bookings, real salon
-  names with real times, real balances. (`FLAG_SECURE` means you cannot
-  screenshot the running app anyway — if you find yourself with one, ask where
-  it came from before using it.)
+  names with real times, real balances. `FLAG_SECURE` used to make this
+  impossible by accident; it is gone, so the rule now needs someone to keep it
+  on purpose. Screenshot a seeded demo account, never a real one.
 - **Never name a salon without its owner's written agreement**, and never in a
   way that implies which customers go there.
 - **Never imply that a specific person uses the app**, including by replying to
