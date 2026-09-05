@@ -56,6 +56,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
     public var longitude: Double = 0
     public var slotDurationMinutes: Int = 60
     public var staff: [StaffMember] = []
+    public var workingHours: [WorkingHours] = []
 
     /// True once the owner has actually pinned the salon.
     ///
@@ -78,7 +79,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         case services, pricePerService, categories
         case rating, sortRating, confirmedCount, minPrice
         case isAvailable, isVerified
-        case coverImageUrl, latitude, longitude, slotDurationMinutes, staff
+        case coverImageUrl, latitude, longitude, slotDurationMinutes, staff, workingHours
     }
 
     public init(from decoder: Decoder) throws {
@@ -96,6 +97,11 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         categories = (try? c.decodeIfPresent([String].self, forKey: .categories)).flatMap { $0 } ?? []
         pricePerService = (try? c.decodeIfPresent([String: Int].self, forKey: .pricePerService)).flatMap { $0 } ?? [:]
         staff = (try? c.decodeIfPresent([StaffMember].self, forKey: .staff)).flatMap { $0 } ?? []
+        // A salon with no stored week gets the Afghan default rather than
+        // an empty one, matching defaultWorkingHours() on the server. Stored
+        // empty, it could never be booked at all.
+        let storedHours = (try? c.decodeIfPresent([WorkingHours].self, forKey: .workingHours)).flatMap { $0 } ?? []
+        workingHours = storedHours.isEmpty ? DayGrid.defaultWeek() : storedHours
         rating = dbl(.rating); sortRating = dbl(.sortRating)
         latitude = dbl(.latitude); longitude = dbl(.longitude)
         confirmedCount = int(.confirmedCount); minPrice = int(.minPrice)

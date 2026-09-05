@@ -29,9 +29,13 @@ struct SalonListView: View {
                     }
                 } else {
                     List(repo.salons) { salon in
-                        SalonRow(salon: salon)
-                            .listRowBackground(Brand.cream)
-                            .listRowSeparatorTint(Brand.petal.opacity(0.4))
+                        NavigationLink {
+                            SalonDetailView(salon: salon)
+                        } label: {
+                            SalonRow(salon: salon)
+                        }
+                        .listRowBackground(Brand.cream)
+                        .listRowSeparatorTint(Brand.petal.opacity(0.4))
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)

@@ -111,6 +111,20 @@ extension L {
     static let afn = L(fa: "افغانی", ps: "افغانۍ", en: "AFN")
     static let verified = L(fa: "تأیید شده", ps: "تایید شوی", en: "Verified")
 
+    // MARK: Booking
+    static let chooseServices = L(fa: "خدمات را انتخاب کنید", ps: "خدمتونه وټاکئ",
+                                  en: "Choose services")
+    static let chooseDay = L(fa: "روز", ps: "ورځ", en: "Day")
+    static let chooseTime = L(fa: "ساعت", ps: "ساعت", en: "Time")
+    static let total = L(fa: "مجموع", ps: "ټول", en: "Total")
+    static let book = L(fa: "رزرو", ps: "بکینګ", en: "Book")
+    static let closedThatDay = L(
+        fa: "این سالون آن روز بسته است.", ps: "دا سالون هغه ورځ بند دی.",
+        en: "This salon is closed that day.")
+    static let noTimesLeft = L(
+        fa: "برای این روز وقت خالی نمانده.", ps: "د دې ورځې لپاره خالي وخت نشته.",
+        en: "No times left for this day.")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")
