@@ -1,81 +1,71 @@
 import SwiftUI
 import SafeBeautyCore
 
-/// The first screen, and for now a deliberate one: it proves the stack is real
-/// rather than showing a placeholder that proves nothing.
+/// What the app shows depends only on whether there is a session.
 ///
-/// It exercises the two things that would otherwise be discovered late — that
-/// the shared Core package is linked and its derivation runs on-device, and
-/// that the layout is right-to-left because the app is Dari-first, not because
-/// a particular view remembered to ask.
+/// Deliberately not a navigation stack that pushes past the sign-in screen: a
+/// signed-out state that is reachable by going "back" is how a shared phone
+/// leaks, and on this product the person holding the phone next may not be the
+/// person who signed in.
 struct RootView: View {
+    @State private var auth = AuthService.shared
     @State private var language = AppLanguage.current
-    @State private var coreCheck: String = "…"
 
     var body: some View {
-        ZStack {
-            Brand.cream.ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                Spacer()
-
-                Circle()
-                    .fill(Brand.gradient)
-                    .frame(width: 96, height: 96)
-                    .overlay(
-                        Text("SB")
-                            .font(Brand.font(34, .bold))
-                            .foregroundStyle(.white)
-                    )
-
-                Text("SafeBeauty")
-                    .font(Brand.font(30, .bold))
-                    .foregroundStyle(Brand.ink)
-
-                Text(verbatim: language.endonym)
-                    .font(Brand.font(16))
-                    .foregroundStyle(Brand.accent)
-
-                // The parity check, on-device rather than only in a test on a
-                // Mac. If CommonCrypto behaves differently on the simulator or
-                // a real phone than it does under `swift test`, this says so on
-                // the first screen instead of at someone's first login.
-                Text(verbatim: coreCheck)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(coreCheck.hasPrefix("✓") ? Brand.deep : .red)
-                    .padding(.horizontal, 24)
-                    .multilineTextAlignment(.center)
-
-                Spacer()
-
-                Picker("", selection: $language) {
-                    ForEach(AppLanguage.allCases) { lang in
-                        Text(verbatim: lang.endonym).tag(lang)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
-                .onChange(of: language) { _, new in AppLanguage.current = new }
+        Group {
+            if auth.session == nil {
+                SignInView()
+            } else {
+                SignedInView()
             }
         }
+        .environment(auth)
         .environment(\.layoutDirection, language.layoutDirection)
-        .task { coreCheck = Self.verifyCore() }
-    }
-
-    /// Derives a known vector and compares it to the value Android and the web
-    /// console produce for the same input.
-    private static func verifyCore() -> String {
-        let expected = "srK0bug0SqF5wWEw8eXgmev4lKFS7HEArhteCPRD9y8="
-        do {
-            let got = try PinHasher.deriveAuthPassword("142857", saltBase64: "c2FsdHNhbHRzYWx0c2Fs")
-            return got == expected
-                ? "✓ crypto parity with Android"
-                : "✗ MISMATCH — logins would fail\n\(got)"
-        } catch {
-            return "✗ derivation threw: \(error)"
+        .environment(\.locale, language.locale)
+        .safeAreaInset(edge: .bottom) {
+            // The language picker stays reachable from the signed-out screen.
+            // A woman who cannot read the interface cannot get to a settings
+            // page inside it to change the language.
+            Picker("", selection: $language) {
+                ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 26)
+            .padding(.bottom, 10)
+            .onChange(of: language) { _, new in AppLanguage.current = new }
+            .background(Brand.cream)
         }
+        .animation(.easeInOut(duration: 0.25), value: auth.session)
     }
 }
 
-#Preview { RootView() }
+/// A placeholder for the signed-in half, which is the next piece of work. It
+/// shows what the session actually resolved to rather than a welcome message,
+/// so a wrong role or a pending status is visible immediately instead of at
+/// the first screen that depends on it.
+struct SignedInView: View {
+    @Environment(AuthService.self) private var auth
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Text(auth.session?.name ?? "").font(Brand.font(24, .bold)).foregroundStyle(Brand.ink)
+            if let s = auth.session {
+                Text(verbatim: "\(s.role) · \(s.status) · KYC \(s.kycStatus)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Brand.accent)
+                if s.status == "PENDING" {
+                    Text(L.pendingApproval.t)
+                        .font(Brand.font(14)).foregroundStyle(Brand.deep)
+                        .multilineTextAlignment(.center).padding(.horizontal, 40)
+                }
+            }
+            Spacer()
+            Button(L.signOut.t) { auth.signOut() }
+                .font(Brand.font(15, .medium)).foregroundStyle(Brand.accent)
+                .padding(.bottom, 30)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Brand.cream.ignoresSafeArea())
+    }
+}

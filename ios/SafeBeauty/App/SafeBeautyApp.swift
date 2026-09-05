@@ -13,15 +13,10 @@ struct SafeBeautyApp: App {
 
     var body: some Scene {
         WindowGroup {
+            // RootView owns direction and locale so a language change
+            // re-renders everything under it. Setting them here as well would
+            // fix them at launch and leave the picker cosmetic.
             RootView()
-                // Dari is the primary language and it is right-to-left. Setting
-                // it here rather than per-view means a screen added later is
-                // RTL by default instead of by remembering — which is the
-                // failure mode the Android admin console actually hit, where a
-                // logical padding and a physical offset disagreed and the
-                // buttons landed on top of the text.
-                .environment(\.layoutDirection, AppLanguage.current.layoutDirection)
-                .environment(\.locale, AppLanguage.current.locale)
         }
     }
 }
