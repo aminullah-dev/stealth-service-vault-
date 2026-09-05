@@ -209,7 +209,7 @@ class RegisterViewModel @Inject constructor(
             // one path that never logs in afterwards. Without this, a failed
             // bridge write leaves her signed in with every personal read denied.
             // Best-effort here for the same reason it is on the login path.
-            val appUid = result?.get("uid") as? String
+            val appUid = result.get("uid") as? String
             if (!appUid.isNullOrBlank()) {
                 runCatching {
                     functions.getHttpsCallable("syncUidMap")
