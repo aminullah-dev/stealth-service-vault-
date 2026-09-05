@@ -63,33 +63,13 @@ struct SignedInView: View {
                     .tabItem { Label(L.salons.t, systemImage: "scissors") }
                 MyBookingsView()
                     .tabItem { Label(L.myBookings.t, systemImage: "calendar") }
+                NotificationsView()
+                    .tabItem { Label(L.notifications.t, systemImage: "bell") }
+                ProfileView()
+                    .tabItem { Label(L.profile.t, systemImage: "person") }
             }
             .tint(Brand.accent)
-            .safeAreaInset(edge: .top) { SessionBar() }
         }
-    }
-}
-
-/// Who you are and a way out, on every screen.
-///
-/// The sign-out control is reachable without navigating anywhere. On a shared
-/// phone the fastest possible exit matters more than a tidy toolbar.
-struct SessionBar: View {
-    @Environment(AuthService.self) private var auth
-
-    var body: some View {
-        HStack {
-            Text(auth.session?.name ?? "")
-                .font(Brand.font(14, .medium))
-                .foregroundStyle(Brand.ink)
-            Spacer()
-            Button(L.signOut.t) { auth.signOut() }
-                .font(Brand.font(13, .medium))
-                .foregroundStyle(Brand.accent)
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 9)
-        .background(Brand.cream)
     }
 }
 

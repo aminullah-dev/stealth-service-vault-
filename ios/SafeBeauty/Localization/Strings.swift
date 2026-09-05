@@ -239,6 +239,31 @@ extension L {
         ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
         en: "Verify your identity before booking.")
 
+    // MARK: Notifications & profile
+    static let notifications = L(fa: "اعلان‌ها", ps: "خبرتیاوې", en: "Notifications")
+    static let noNotifications = L(fa: "اعلانی ندارید.", ps: "خبرتیا نلرئ.",
+                                   en: "You have no notifications.")
+    static let markAllRead = L(fa: "همه خوانده شد", ps: "ټول ولوستل شول",
+                               en: "Mark all read")
+    static let profile = L(fa: "حساب من", ps: "زما حساب", en: "My account")
+    static let walletCredit = L(fa: "اعتبار", ps: "اعتبار", en: "Credit")
+    static let loyaltyPoints = L(fa: "امتیاز", ps: "ټکي", en: "Points")
+    static let yourInviteCode = L(fa: "کد دعوت شما", ps: "ستاسو د بلنې کوډ",
+                                  en: "Your invite code")
+    static let inviteExplain = L(
+        fa: "این کد را به دوستتان بدهید. وقتی هویتش تأیید شد، هر دو اعتبار می‌گیرید.",
+        ps: "دا کوډ خپل ملګري ته ورکړئ. کله چې د هغې پېژندنه تایید شي، دواړه اعتبار ترلاسه کوئ.",
+        en: "Give this code to a friend. When her identity is verified, you both get credit.")
+    static let kycApproved = L(fa: "تأیید شده", ps: "تایید شوی", en: "Verified")
+    static let kycPending = L(fa: "در حال بررسی", ps: "تر کتنې لاندې", en: "Under review")
+    static let kycRejected = L(fa: "رد شده — دوباره بفرستید", ps: "رد شوی — بیا یې ولېږئ",
+                               en: "Rejected — send again")
+    static let kycNone = L(fa: "تأیید نشده", ps: "تایید شوی نه دی", en: "Not verified")
+    static let signOutWarning = L(
+        fa: "از حساب خارج می‌شوید. برای ورود دوباره به شماره و رمز نیاز دارید.",
+        ps: "له حساب څخه وځئ. د بیا ننوتلو لپاره شمېرې او پټنوم ته اړتیا لرئ.",
+        en: "You will be signed out. You will need your phone number and password to sign in again.")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")
