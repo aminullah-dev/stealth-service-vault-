@@ -102,6 +102,12 @@ struct SalonDetailView: View {
                 }
 
                 section(L.chooseDay) {
+                    // Anchored to the leading edge, which mirrors: in a
+                    // right-to-left layout that is the RIGHT edge, where today
+                    // sits. Without it the row opens scrolled to the far end
+                    // and the first day she sees is next week — verified on the
+                    // simulator, where today was off-screen and Tuesday was the
+                    // first thing visible.
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 9) {
                             ForEach(days, id: \.timeIntervalSince1970) { day in
@@ -116,6 +122,7 @@ struct SalonDetailView: View {
                         }
                         .padding(.horizontal, 2)
                     }
+                    .defaultScrollAnchor(.leading)
                 }
 
                 section(L.chooseTime) {
