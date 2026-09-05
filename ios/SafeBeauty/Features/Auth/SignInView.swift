@@ -6,6 +6,12 @@ struct SignInView: View {
     @State private var phone = ""
     @State private var password = ""
     @State private var error: String?
+    /// Kept apart from `error` on purpose. `submit()` clears `error` on every
+    /// attempt, and on the bad connection this whole path exists for, her first
+    /// attempt fails — which would wipe the one message telling her the account
+    /// already exists, leaving her to register again and hit `phoneTaken`.
+    /// This survives failed attempts and clears only when she is actually in.
+    @State private var notice: L?
     @State private var showRegister = false
 
     private var canSubmit: Bool { !phone.isEmpty && !password.isEmpty }
@@ -26,6 +32,7 @@ struct SignInView: View {
                 BrandField(label: .phone, text: $phone, isPhone: true)
                 BrandField(label: .password, text: $password, isSecure: true)
 
+                ErrorBanner(message: notice?.t, tone: .notice)
                 ErrorBanner(message: error)
 
                 BrandButton(title: .signIn, isLoading: auth.isWorking, isEnabled: canSubmit) {
@@ -33,7 +40,14 @@ struct SignInView: View {
                 }
                 .padding(.top, 4)
 
-                Button(L.noAccountYet.t) { showRegister = true }
+                Button(L.noAccountYet.t) {
+                    // Stale by definition once she opens registration again,
+                    // and it names an account that exists — not something to
+                    // leave sitting on a signed-out screen someone else may
+                    // pick up.
+                    notice = nil
+                    showRegister = true
+                }
                     .font(Brand.font(14, .medium))
                     .foregroundStyle(Brand.accent)
                     .padding(.top, 6)
@@ -44,13 +58,30 @@ struct SignInView: View {
         }
         .background(Brand.cream.ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
-        .sheet(isPresented: $showRegister) { RegisterView() }
+        .sheet(isPresented: $showRegister) {
+            RegisterView { registeredPhone in
+                phone = registeredPhone
+                password = ""
+                error = nil
+                notice = L.errRegisteredNowSignIn
+            }
+            // Disabling the two buttons was not enough: a sheet drags down by
+            // default, so the gesture stayed live for the whole in-flight
+            // window and disabling the buttons had made it the ONLY way out.
+            // registerAccount is not cancellable once it has reached the
+            // server, and the Task outlives the view either way.
+            .interactiveDismissDisabled(auth.isWorking)
+        }
     }
 
     private func submit() async {
         error = nil
         do {
             try await auth.signIn(phone: phone, password: password)
+            // Only here. `notice` survives failed attempts by design — it is
+            // the message that stops her registering a second time — so it
+            // clears when it has actually been acted on, not when it is tried.
+            notice = nil
         } catch let e as AuthService.AuthError {
             error = Self.message(for: e)
         } catch {
@@ -68,6 +99,7 @@ struct SignInView: View {
         case .accountSuspended: L.errSuspended.t
         case .phoneTaken: L.errPhoneTaken.t
         case .emailTaken: L.errEmailTaken.t
+        case .registeredButNotSignedIn: L.errRegisteredNowSignIn.t
         case .rateLimited: L.errTooMany.t
         case .server: L.errNetwork.t
         }

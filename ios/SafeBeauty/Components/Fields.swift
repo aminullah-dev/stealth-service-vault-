@@ -84,20 +84,63 @@ struct BrandButton: View {
     }
 }
 
-/// An error the user can read, in their language, with room to be specific.
+/// Something the user can read, in their language, with room to be specific.
+///
+/// The tone is a separate axis from the text because the app learned it the
+/// hard way: "your account was created, sign in" was routed through the only
+/// banner that existed, which is alarm red, and read as a failure — sending
+/// her back to register, which is the one thing that message exists to prevent.
+/// Good news in the failure's clothes is worse than no news.
 struct ErrorBanner: View {
     let message: String?
+    var tone: Tone = .error
+
+    enum Tone {
+        case error, notice
+
+        /// The brand is entirely rose and gold, which is the problem: the first
+        /// attempt at this used Brand.deep for the notice, and at a 9% tint over
+        /// cream the two banners came out (243,229,234) and (249,230,232) — six
+        /// units apart in red, one in green, two in blue. Gold is no better
+        /// (within ten of the error). Any hue in this palette collapses at that
+        /// opacity, so the notice gets a green from outside it, and the tint is
+        /// carried at full strength on a bar rather than washed across the box.
+        var ink: Color {
+            switch self {
+            case .error: Color(hex: 0xC0392B)
+            case .notice: Color(hex: 0x1F7A5C)
+            }
+        }
+        var icon: String {
+            switch self {
+            case .error: "exclamationmark.triangle.fill"
+            case .notice: "checkmark.circle.fill"
+            }
+        }
+    }
 
     var body: some View {
         if let message, !message.isEmpty {
-            Text(message)
-                .font(Brand.font(13))
-                .foregroundStyle(Color(hex: 0xC0392B))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(hex: 0xC0392B).opacity(0.09),
-                            in: RoundedRectangle(cornerRadius: 10))
-                .transition(.opacity)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: tone.icon).font(.system(size: 12))
+                Text(message).font(Brand.font(13))
+            }
+            .foregroundStyle(tone.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(tone.ink.opacity(0.10),
+                        in: RoundedRectangle(cornerRadius: 10))
+            // A solid leading bar, so the two are told apart by shape and not
+            // only by hue — the pair is read side by side on a cheap screen in
+            // daylight, and both are shown at once when a sign-in then fails.
+            // `leading` and not `left`: it must sit on the right in Dari.
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(tone.ink)
+                    .frame(width: 3)
+                    .padding(.vertical, 8)
+            }
+            .transition(.opacity)
         }
     }
 }

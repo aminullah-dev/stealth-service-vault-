@@ -90,6 +90,13 @@ extension L {
         fa: "حسابی با این ایمیل از قبل وجود دارد. وارد شوید، یا بدون ایمیل ثبت‌نام کنید.",
         ps: "په دې بریښنالیک سره حساب لا دمخه شتون لري. ننوځئ، یا پرته له بریښنالیکه نوم لیکنه وکړئ.",
         en: "An account with this email already exists. Sign in, or register without an email.")
+    /// Says the account exists before it says anything else. The one thing she
+    /// must not do here is register again, and that is what she will try if the
+    /// message reads like a failure.
+    static let errRegisteredNowSignIn = L(
+        fa: "حساب شما ساخته شد. با شماره و رمز عبور خود وارد شوید.",
+        ps: "ستاسو حساب جوړ شو. په خپله شمېره او پټنوم سره ننوځئ.",
+        en: "Your account was created. Sign in with your phone number and password.")
     static let errSuspended = L(
         fa: "حساب شما معلق شده است. با پشتیبانی تماس بگیرید.",
         ps: "ستاسو حساب ځنډول شوی. له ملاتړ سره اړیکه ونیسئ.",

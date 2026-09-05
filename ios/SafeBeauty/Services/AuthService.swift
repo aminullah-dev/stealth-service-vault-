@@ -1,5 +1,6 @@
 import Foundation
 import FirebaseAuth
+import FirebaseCrashlytics
 import FirebaseFirestore
 import SafeBeautyCore
 
@@ -42,6 +43,12 @@ final class AuthService {
         case emailTaken
         case rateLimited(String)
         case server(String)
+        /// The account exists on the server and only the device-side sign-in
+        /// failed. Distinct from `.server` because the recovery is different
+        /// and the difference matters: she must NOT register again — that
+        /// would come back as `.phoneTaken` and read as a contradiction — she
+        /// signs in with the credentials she just chose.
+        case registeredButNotSignedIn
 
         var errorDescription: String? {
             switch self {
@@ -49,6 +56,7 @@ final class AuthService {
             case .accountSuspended(let r): "suspended: \(r)"
             case .phoneTaken: "phoneTaken"
             case .emailTaken: "emailTaken"
+            case .registeredButNotSignedIn: "registeredButNotSignedIn"
             case .rateLimited(let m), .server(let m): m
             }
         }
@@ -214,18 +222,74 @@ final class AuthService {
         // is safe to fail: the account is already complete on the server, so a
         // dropped connection here means she opens the app and logs in normally
         // rather than being stranded half-registered.
-        try? await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        //
+        // Safe to fail, but NOT safe to ignore. This was `try?`, and the two
+        // lines below then ran anyway — setting `session` and persisting it
+        // while `Auth.auth().currentUser` was nil. That is the worst of both:
+        // the app shows her the signed-in UI, every rule check fails
+        // `isSignedIn()`, every callable is unauthenticated, so nothing loads
+        // and there is no visible reason why. `restore()` guards the persisted
+        // copy against exactly this mismatch on the next launch; the live
+        // session had no such guard. She is told instead.
+        do {
+            try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        } catch {
+            // Recorded, not merely thrown. Android reports this same failure as
+            // `register:sign-in`; without it, the one path that strands a brand
+            // new account is the one path with no telemetry.
+            Crashlytics.crashlytics().record(error: error)
+            // And leave the device holding no credential. She is about to be
+            // handed to the sign-in screen, where a stale Firebase user from
+            // some earlier account would otherwise still be live behind it.
+            try? Auth.auth().signOut()
+            throw AuthError.registeredButNotSignedIn
+        }
+
+        let uid = result["uid"]?.stringValue ?? ""
 
         let newSession = Session(
-            uid: result["uid"]?.stringValue ?? "",
+            uid: uid,
             name: name, role: isProvider ? "PROVIDER" : "CUSTOMER",
             status: isProvider ? "PENDING" : "APPROVED", kycStatus: "NONE"
         )
         session = newSession
         persist(newSession, firebaseEmail: firebaseEmail)
+
+        // The bridge, written LAST on purpose. Her account exists and she is
+        // signed in; nothing below should be able to hold the registration
+        // sheet open — and the sheet's escape routes are deliberately disabled
+        // while this call is in flight, so a callable sitting on its 70-second
+        // default timeout would trap her behind a call whose result she is not
+        // waiting for.
+        await syncBridge(appUid: uid)
+    }
+
+    /// Set when a `syncUidMap` write has not been confirmed for this session.
+    ///
+    /// Registration is the one path with no later login to repair the bridge —
+    /// that is the whole reason the server's own "login will retry" never
+    /// happened here — so the retry has to live on this side. `refresh()`
+    /// re-attempts it on the next foreground.
+    private var bridgePending = false
+
+    /// Writes `uid_map/{authUid} -> appUid`, which the rules resolve `me()`
+    /// through. A session without it can read almost nothing, and the failure
+    /// is indistinguishable from an empty account: every personal read is
+    /// denied and no screen says why. Not fatal enough to undo a completed
+    /// registration, but not something to discard either.
+    private func syncBridge(appUid: String) async {
+        guard !appUid.isEmpty else { return }
+        do {
+            _ = try await Callables.call("syncUidMap", ["appUid": .string(appUid)])
+            bridgePending = false
+        } catch {
+            Crashlytics.crashlytics().record(error: error)
+            bridgePending = true
+        }
     }
 
     func signOut() {
+        bridgePending = false
         try? Auth.auth().signOut()
         // Cleared before the in-memory copy, so a crash between the two lines
         // cannot leave a session on disk that outlives the credential.
@@ -245,6 +309,21 @@ final class AuthService {
     /// this: her own document and nobody else's.
     func refresh() async {
         guard let current = session, !current.uid.isEmpty else { return }
+
+        // The same invariant restore() enforces at launch, enforced again while
+        // the app is running — this is the only code that runs on every
+        // foreground. Firebase can drop currentUser mid-session: an admin
+        // deletes the account, or the refresh token is revoked. Without this,
+        // `session` stays set, the app keeps rendering the signed-in UI, and
+        // every read fails isSignedIn() with nothing on screen to say why.
+        // Sending her to sign-in is the recoverable state; a blank app is not.
+        guard Auth.auth().currentUser != nil else { signOut(); return }
+
+        // The retry the server delegated to a login that registration never
+        // performs. Cheap when it is not needed, and this is the only code that
+        // runs again on its own.
+        if bridgePending { await syncBridge(appUid: current.uid) }
+
         guard let snapshot = try? await Firestore.firestore()
                 .document("users/\(current.uid)").getDocument(),
               let data = snapshot.data()
@@ -258,6 +337,13 @@ final class AuthService {
             kycStatus: data["kycStatus"] as? String ?? current.kycStatus
         )
         guard updated != current else { return }
+
+        // Re-established after the await, not only before it. The read above
+        // suspends, and a sign-out that lands during it would otherwise be
+        // undone by the line below — restoring the signed-in UI for someone who
+        // no longer holds a credential, which is precisely the state the guard
+        // at the top of this function exists to prevent.
+        guard Auth.auth().currentUser != nil, session?.uid == current.uid else { return }
         session = updated
         if let email = Auth.auth().currentUser?.email {
             persist(updated, firebaseEmail: email)
