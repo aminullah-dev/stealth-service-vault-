@@ -8,81 +8,70 @@ description: Write and produce SafeBeauty marketing — social posts, WhatsApp c
 ## Read this part first
 
 SafeBeauty holds photographs of Afghan women's identity documents, their phone
-numbers, and a record of where and when each of them goes. That is the reason
-for the rules below, and it has not changed.
+numbers, and a record of where and when each of them goes. Protecting that from
+an attacker is a real job — it is just not a marketing job. It is done in
+`firestore.rules`, `storage.rules` and the callables, and nothing you write
+here touches it.
 
-What HAS changed, on 2026-09-04: the owner lifted the phone-inspection threat
-these rules were originally shaped around, and `FLAG_SECURE` was removed with
-it. Two claims that used to appear here were also thinner than they read.
-`android:label` has always been `@string/app_name` — "SafeBeauty" — so the
-launcher and the app list always showed the real name and icon; only the
-`applicationId` was disguised, and only Settings and the Play URL ever showed
-that. And there is no hidden vault: `BiometricVault` is a Keystore-backed
-biometric unlock for the user's own PIN, not a place to hide anything.
+**The threat model these rules were built around is retired.** As of
+2026-09-04 the owner has lifted both the phone-inspection concern and the
+social-visibility one, and `FLAG_SECURE` came off with them. Two things that
+used to be stated here were never true anyway: `android:label` has always been
+"SafeBeauty", so the launcher always showed the real name and icon, and
+`BiometricVault` is a Keystore-backed biometric unlock for the user's own PIN,
+not a hiding place.
 
-So screenshots now work, which means a customer can send a friend her booking.
-That is the one referral path this product has ever had, and it opens for the
-first time.
+What that means concretely: **Instagram is a normal customer channel now**, a
+woman can screenshot her booking and send it to a friend, and you may write to
+her the way you would write to any customer anywhere.
 
-**Every rule below still exists because breaking it could identify a user** —
-identification is not only a state matter. They are not stylistic preferences
-and are not negotiable without the owner saying so explicitly, in the
-conversation, for that specific piece.
+Two rules survive, and neither is about fear:
 
-**Two rules are now open questions rather than settled ones**: whether Instagram
-can carry customer copy, and whether a VIP WhatsApp group is acceptable. Both
-were argued from the removed threat. Neither has been re-decided — ask the owner
-before writing for either, and do not assume the answer from this note.
+- **Consent.** Do not publish a person's name, face, or salon without their
+  agreement. That is not a threat model, it is what you owe someone who trusted
+  you with a booking, and it does not expire when a threat does.
+- **Do not hand out phone numbers.** See the WhatsApp note below. Adding someone
+  to a group publishes her number to every other member, which invites spam and
+  unwanted contact whoever is or is not watching.
 
 ### Never
 
-- **Never publish, repost or quote anything that identifies a customer.** No
-  names, no faces, no handles, no partial phone numbers, no "our customer in
-  Karte Se". A testimonial is only usable if it is unattributed and carries no
-  detail that narrows down who wrote it.
-- **Never run a mechanic that makes someone's use of the app PUBLIC.** No "tag a
-  friend", no comment-to-enter, no referral post the user is asked to publish.
-  The in-app referral code is private and stays that way; it is never a public
-  call to action.
-
-  The line is publication, not sharing. A woman screenshotting her own booking
-  and sending it to one friend exposes her to that friend, whom she chose —
-  which is how every product spreads, and is now possible at all since
-  FLAG_SECURE came off. A post asking her to do it where her followers can see
-  exposes her to everyone, and she cannot take it back. Never build the second
-  one; never write copy that nudges toward it.
+- **Never publish a customer's identity without her agreement.** Name, face,
+  handle, phone digits, "our customer in Karte Se". With her agreement it is
+  fine — this is a consent rule now, not a safety rule, so the way to get a
+  testimonial is to ask for one rather than to anonymise one.
 - **Never post a screenshot containing real data.** Real bookings, real salon
   names with real times, real balances. `FLAG_SECURE` used to make this
   impossible by accident; it is gone, so the rule now needs someone to keep it
   on purpose. Screenshot a seeded demo account, never a real one.
 - **Never name a salon without its owner's written agreement**, and never in a
   way that implies which customers go there.
-- **Never imply that a specific person uses the app**, including by replying to
-  a public comment in a way that confirms it.
+- **Never add anyone to a group that exposes their phone number.** See the
+  WhatsApp note below — this is the one rule here that never rested on the
+  retired threat model.
+
+Tagging, resharing, comment-to-enter and referral posts are all fine now. The
+in-app referral code is still not a public call to action, for the ordinary
+reason that it is tied to one account's credit.
 
 ### Ask the owner first
 
-- Any paid advertising with audience targeting or a tracking pixel. Interest
-  targeting on a beauty app can itself be a disclosure.
 - Any collaboration, giveaway or cross-post with an account you do not control.
-- Anything that moves conversation from a channel (where followers are hidden)
-  into a group (where they are not). See the channel table.
+- Anything that publishes a named person or a named salon.
+- Any spend. Paid advertising and audience targeting are open now — the
+  disclosure argument against them is gone — but the budget is not yours.
 
-### Instagram is not a customer channel
+### Instagram is a customer channel
 
-**An Instagram account's following list is public.** A woman who follows
-SafeBeauty is visible, to anyone who opens her profile, as someone who follows a
-beauty app. That is the same disclosure the VIP group makes — her number there,
-her interest here.
+It was ruled out on the grounds that a follower list is public, so following a
+beauty app disclosed something about the follower. With the social-visibility
+concern lifted that argument is gone, and Instagram is simply the largest place
+Afghan women are reachable.
 
-It is also ineffective: the safety rules forbid her from resharing, tagging or
-commenting, so the one audience the posts would be aimed at cannot engage with
-them. Non-zero risk, zero growth.
-
-So Instagram carries salon recruitment, product and brand — copy addressed to
-businesses, not to her. Customers are reached through the WhatsApp channel
-(followers hidden) and, mainly, from inside the salon: a QR or a link handed
-over in person.
+So it carries customer copy, salon recruitment, product and brand — the same
+mix any consumer marketplace runs. Resharing, tagging and commenting are all
+fine. The only thing still off the table is publishing a specific person's
+identity without her agreement, which is a consent rule, not a channel rule.
 
 ### Supply is the bottleneck, not demand
 
@@ -95,23 +84,24 @@ So the weighting is salon-first until a city has several salons, the four-city
 claim stays out of customer-facing copy, and **every number in a post is checked
 against the database before it ships**.
 
-### The WhatsApp VIP group is the sharp edge
+### The WhatsApp VIP group: still a channel, for a different reason
+
+This one did not rest on the threat model and does not lift with it.
 
 In a normal WhatsApp **group**, every member's phone number is visible to every
-other member. A VIP group of SafeBeauty customers is therefore a list of women
-who use a beauty app, held on the phone of everyone in it. In an Afghan context
-that is a real exposure, not a theoretical one.
+other member. That is true in Kabul and it is true in Toronto: a VIP group of
+customers hands each woman's number to every stranger in it, which is how people
+get spam, sales calls and unwanted contact from someone who liked the look of a
+name. Nobody has to be watching for that to go wrong.
 
-A WhatsApp **channel** is the opposite: followers are hidden from each other and
-from the admin.
+The reason to keep using a **channel** is that it costs nothing to. Followers
+are hidden from each other and from the admin, and a one-way broadcast is what a
+VIP tier actually needs. If a genuine two-way space is wanted, a Community
+**announcement group** gives it without exposing numbers.
 
-If a VIP group is wanted anyway, the safe shapes are, in order:
-1. A **channel** with a second, more selective channel for the VIP tier.
-2. A **Community announcement group** (members cannot message, numbers are not
-   exposed the way an open group exposes them).
-3. Salon owners only — they are businesses and are already public.
-
-Raise this before producing VIP-group content. Do not quietly design around it.
+If the owner wants an open group anyway, that is a decision he can make — but
+make it deliberately, knowing it publishes every member's number, rather than
+inheriting it from a rule that has now been relaxed elsewhere.
 
 ---
 
@@ -119,11 +109,11 @@ Raise this before producing VIP-group content. Do not quietly design around it.
 
 | Channel | Audience | Privacy | What belongs there |
 |---|---|---|---|
-| WhatsApp **channel** | Customers | Followers hidden from each other and from admin — safest | New salons, new cities, offers, feature news. One-way. |
-| WhatsApp **VIP group** | Customers | **Members see each other's numbers** — see above | Nothing, until reshaped. |
+| Instagram / social | **Customers, salon owners, brand** | Public | Anything: customer copy, salon recruitment, product, brand. The main reach channel. |
+| WhatsApp **channel** | Customers | Followers hidden from each other and from admin | New salons, new cities, offers, feature news. One-way. |
+| WhatsApp **VIP group** | Customers | **Members see each other's numbers** | Use a channel or an announcement group instead — see above. |
 | Community | Mixed | Depends on platform — check before posting | Announcements, salon spotlights (with permission). |
-| Instagram / social | **Salon owners and brand** | Public — **and a follower list is public too** | Salon recruitment, product, brand. Never customer-facing "for you" copy. |
-| In-salon | Customers | Private, face to face | The main customer path: a QR or link handed over by the salon owner. |
+| In-salon | Customers | Private, face to face | Still the highest-converting path: a QR or link handed over by the salon owner. |
 | `linumic.com` | Partners, press, investors | Public | Company narrative, English-first, the parent-brand story. |
 | Play Store listing | Discovery | Public | `play-store/store_listing.md` — see "known stale copy" below. |
 
@@ -132,10 +122,10 @@ Raise this before producing VIP-group content. Do not quietly design around it.
 ## Audiences and what actually persuades them
 
 **Customers (women).** The product promise is *privacy, then convenience*. Lead
-with what stays hidden and what she does not have to do: no phone call, no
-waiting, no one told. Never lead with discounts alone — this audience is
-choosing on trust. Dari first, Pashto equal, English not needed. Reached through
-the WhatsApp channel and from inside the salon, never through a public feed.
+with what she does not have to do: no phone call, no waiting, no explaining
+where she is going. Never lead with discounts alone — this audience is choosing
+on trust. Dari first, Pashto equal, English not needed. Reached through
+Instagram, the WhatsApp channel, and from inside the salon.
 
 **Salon owners.** They want more bookings, fewer no-shows and no admin. Lead
 with filled empty slots and the calendar that manages itself. This audience can
