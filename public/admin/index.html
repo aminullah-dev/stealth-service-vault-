@@ -470,7 +470,11 @@ const STR = {
   tab_content: {en:'Content', fa:'محتوا', ps:'منځپانګه'},
   tab_demand: {en:'Demand', fa:'تقاضا', ps:'تقاضا'},
   tab_finance: {en:'Finance', fa:'مالی', ps:'مالي'},
-  tab_health: {en:'Health', fa:'سلامت', ps:'روغتیا'},
+  // Named for both halves on purpose. The backups table is the first thing
+  // in this tab and the owner could not find it, because "سلامت" says
+  // nothing about backups — the one thing here somebody goes looking for
+  // by name rather than stumbles into.
+  tab_health: {en:'Health & backups', fa:'سلامت و پشتیبان', ps:'روغتیا او بیک‌اپ'},
   tab_kyc: {en:'KYC', fa:'KYC', ps:'KYC'},
   tab_promo: {en:'Promo', fa:'کد تخفیف', ps:'د تخفیف کوډ'},
   tab_reports: {en:'Reports', fa:'گزارش‌ها', ps:'راپورونه'},
