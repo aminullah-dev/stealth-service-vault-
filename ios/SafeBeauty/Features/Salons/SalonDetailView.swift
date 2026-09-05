@@ -15,6 +15,7 @@ struct SalonDetailView: View {
     @State private var selectedSlot: Int64?
     @State private var booked: [Appointment] = []
     @State private var isLoadingSlots = false
+    @State private var showBooking = false
 
     /// The next seven days, starting today, in Kabul.
     private var days: [Date] {
@@ -132,9 +133,7 @@ struct SalonDetailView: View {
 
                 BrandButton(title: .book,
                             isEnabled: !selectedServices.isEmpty && selectedSlot != nil) {
-                    // Booking goes through createPaymentSession, which is the
-                    // next piece of work. The button is deliberately inert
-                    // rather than faking a success.
+                    showBooking = true
                 }
                 .padding(.bottom, 30)
             }
@@ -145,6 +144,17 @@ struct SalonDetailView: View {
         .navigationTitle(salon.salonName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadSlots() }
+        .sheet(isPresented: $showBooking, onDismiss: {
+            // The grid is redrawn on return, so a slot someone else took while
+            // she was deciding stops being offered.
+            Task { await loadSlots() }
+        }) {
+            if let slot = selectedSlot {
+                BookingSheet(salon: salon,
+                             serviceNames: Array(selectedServices),
+                             startMillis: slot)
+            }
+        }
     }
 
     private var isClosedToday: Bool {

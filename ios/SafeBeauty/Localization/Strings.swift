@@ -125,6 +125,45 @@ extension L {
         fa: "برای این روز وقت خالی نمانده.", ps: "د دې ورځې لپاره خالي وخت نشته.",
         en: "No times left for this day.")
 
+    // MARK: Payment
+    static let confirmBooking = L(fa: "تأیید رزرو", ps: "د بکینګ تایید", en: "Confirm booking")
+    static let booked = L(fa: "رزرو شد", ps: "بکینګ وشو", en: "Booked")
+    static let payment = L(fa: "پرداخت", ps: "تادیه", en: "Payment")
+    static let payCash = L(fa: "نقد در سالون", ps: "په سالون کې نغد", en: "Cash at the salon")
+    static let payOnline = L(fa: "آنلاین", ps: "آنلاین", en: "Online")
+    static let promoCode = L(fa: "کد تخفیف (اختیاری)", ps: "د تخفیف کوډ (اختیاري)",
+                             en: "Promo code (optional)")
+    static let notesOptional = L(fa: "یادداشت (اختیاری)", ps: "یادښت (اختیاري)",
+                                 en: "Note (optional)")
+    static let estimate = L(fa: "برآورد", ps: "اټکل", en: "Estimate")
+    // Said before she commits, not after. The server applies discounts this
+    // screen cannot see, so promising a final number here would be a promise
+    // the receipt breaks.
+    static let estimateNote = L(
+        fa: "مبلغ نهایی پس از تأیید محاسبه می‌شود — ممکن است با تخفیف کمتر شود.",
+        ps: "وروستۍ اندازه د تایید وروسته محاسبه کیږي — کېدای شي په تخفیف سره کمه شي.",
+        en: "The final amount is calculated after you confirm — a discount may lower it.")
+    static let listPrice = L(fa: "قیمت", ps: "بیه", en: "Price")
+    static let discount = L(fa: "تخفیف", ps: "تخفیف", en: "Discount")
+    static let payNow = L(fa: "پرداخت", ps: "تادیه وکړئ", en: "Pay now")
+    static let bookedCash = L(
+        fa: "رزرو شما ثبت شد. مبلغ را در سالون بپردازید.",
+        ps: "ستاسو بکینګ ثبت شو. پیسې په سالون کې ورکړئ.",
+        en: "Your booking is confirmed. Pay at the salon.")
+    static let payToConfirm = L(
+        fa: "برای نهایی شدن رزرو، پرداخت را کامل کنید.",
+        ps: "د بکینګ د بشپړولو لپاره تادیه بشپړه کړئ.",
+        en: "Complete the payment to confirm your booking.")
+    static let close = L(fa: "بستن", ps: "بندول", en: "Close")
+    static let errSlotTaken = L(
+        fa: "این وقت همین حالا گرفته شد. وقت دیگری انتخاب کنید.",
+        ps: "دا وخت همدا اوس ونیول شو. بل وخت وټاکئ.",
+        en: "That time was just taken. Please choose another.")
+    static let errNeedsVerification = L(
+        fa: "برای رزرو، اول هویت خود را تأیید کنید.",
+        ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
+        en: "Please verify your identity before booking.")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")
