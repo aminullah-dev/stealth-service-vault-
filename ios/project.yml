@@ -1,0 +1,126 @@
+# The Xcode project, as a file you can read and diff.
+#
+# `SafeBeauty.xcodeproj` is generated from this and is NOT in git. That is the
+# whole reason this repository can be developed from VS Code: nobody has to open
+# Xcode to add a file, change a setting, or resolve a merge — you edit this, run
+# `make project`, and the project is rebuilt. A .pbxproj is not a file two
+# people can edit in the same week without pain, and it is not a file anyone can
+# review.
+#
+# Regenerate:  make project
+# Build:       make build
+# Test:        make test
+# Run:         make run
+
+name: SafeBeauty
+options:
+  bundleIdPrefix: com.safebeauty
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  # Xcode's own file ordering churns the project on every save; this keeps a
+  # regenerated project byte-stable so `make project` is not a diff generator.
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    # The app is Dari-first and Pashto-equal, and both are right-to-left. This
+    # makes the simulator and Xcode previews honour that instead of silently
+    # laying everything out left-to-right and looking fine.
+    DEVELOPMENT_LANGUAGE: fa
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CLANG_ENABLE_MODULE_VERIFIER: NO
+
+packages:
+  # Pinned to a major version rather than a branch. A backend this app cannot
+  # rebuild on demand is not a thing to float against.
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "11.0.0"
+  SafeBeautyCore:
+    path: SafeBeautyCore
+
+targets:
+  SafeBeauty:
+    type: application
+    platform: iOS
+    sources:
+      - path: SafeBeauty
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: SafeBeautyCore
+        product: SafeBeautyCore
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseFunctions
+      - package: Firebase
+        product: FirebaseStorage
+      - package: Firebase
+        product: FirebaseMessaging
+      - package: Firebase
+        product: FirebaseCrashlytics
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.safebeauty.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: SafeBeauty/Resources/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"          # iPhone. The salon and admin consoles are web.
+        SWIFT_EMIT_LOC_STRINGS: YES
+        CODE_SIGN_STYLE: Automatic
+    info:
+      path: SafeBeauty/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: SafeBeauty
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # Dari and Pashto are both right-to-left; English is the third.
+        CFBundleLocalizations: [fa, ps, en]
+        CFBundleAllowMixedLocalizations: true
+        ITSAppUsesNonExemptEncryption: false
+        NSCameraUsageDescription: >-
+          SafeBeauty needs the camera so you can photograph your identity
+          document for verification, and take photos for a review.
+        NSPhotoLibraryUsageDescription: >-
+          SafeBeauty needs your photo library so you can choose an existing
+          photo for verification or for a review.
+        NSLocationWhenInUseUsageDescription: >-
+          SafeBeauty uses your location only to sort salons by distance. It is
+          never stored and never shared.
+
+  SafeBeautyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [SafeBeautyTests]
+    dependencies:
+      - target: SafeBeauty
+      - package: SafeBeautyCore
+        product: SafeBeautyCore
+
+schemes:
+  SafeBeauty:
+    build:
+      targets:
+        SafeBeauty: all
+        SafeBeautyTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [SafeBeautyTests]
+    profile:
+      config: Release
+    archive:
+      config: Release

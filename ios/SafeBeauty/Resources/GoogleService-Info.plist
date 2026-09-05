@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>238802374530-i4fg3q5dgfb4ib7tme1a3voth0pectma.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.238802374530-i4fg3q5dgfb4ib7tme1a3voth0pectma</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBvbxGJzpXUpX-enZiyOKsmykOI8FqgraQ</string>
+	<key>GCM_SENDER_ID</key>
+	<string>238802374530</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.safebeauty.app</string>
+	<key>PROJECT_ID</key>
+	<string>safebeauty</string>
+	<key>STORAGE_BUCKET</key>
+	<string>safebeauty.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:238802374530:ios:d667b04015b44951b3c99b</string>
+</dict>
+</plist>

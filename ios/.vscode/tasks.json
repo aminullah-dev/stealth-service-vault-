@@ -1,0 +1,42 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "iOS: core tests (fast)",
+      "type": "shell",
+      "command": "make core-test",
+      "options": { "cwd": "${workspaceFolder}/ios" },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": ["$swiftc"]
+    },
+    {
+      "label": "iOS: regenerate project",
+      "type": "shell",
+      "command": "make project",
+      "options": { "cwd": "${workspaceFolder}/ios" },
+      "problemMatcher": []
+    },
+    {
+      "label": "iOS: build",
+      "type": "shell",
+      "command": "make build",
+      "options": { "cwd": "${workspaceFolder}/ios" },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$swiftc"]
+    },
+    {
+      "label": "iOS: run on simulator",
+      "type": "shell",
+      "command": "make run",
+      "options": { "cwd": "${workspaceFolder}/ios" },
+      "problemMatcher": ["$swiftc"]
+    },
+    {
+      "label": "iOS: full test on simulator",
+      "type": "shell",
+      "command": "make test",
+      "options": { "cwd": "${workspaceFolder}/ios" },
+      "problemMatcher": ["$swiftc"]
+    }
+  ]
+}

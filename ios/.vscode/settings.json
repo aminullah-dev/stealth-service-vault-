@@ -1,0 +1,19 @@
+{
+  "swift.path": "/usr/bin",
+  "swift.buildArguments": [],
+  "// swift.autoGenerateLaunchConfigurations": "off — the app is launched through make run, not swiftpm",
+  "swift.autoGenerateLaunchConfigurations": false,
+  "files.exclude": {
+    "**/.build": true,
+    "**/SafeBeauty.xcodeproj": true,
+    "**/DerivedData": true
+  },
+  "search.exclude": {
+    "**/.build": true,
+    "**/SafeBeauty.xcodeproj": true
+  },
+  "[swift]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  }
+}
