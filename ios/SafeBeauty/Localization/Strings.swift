@@ -304,6 +304,21 @@ extension L {
     static let errNotYourBooking = L(
         fa: "این نوبت شما نیست.", ps: "دا ستاسو وخت نه دی.", en: "That is not your booking.")
 
+    // MARK: Search & support
+    static let searchSalons = L(fa: "جستجوی سالن یا خدمات", ps: "د سالون یا خدمتونو لټون",
+                                en: "Search salons or services")
+    static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
+    static let noMatches = L(fa: "چیزی پیدا نشد.", ps: "څه ونه موندل شول.", en: "Nothing found.")
+    static let clearFilters = L(fa: "پاک کردن فیلترها", ps: "فلټرونه پاکول",
+                                en: "Clear filters")
+    static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
+    static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
+                               en: "Write your message…")
+    static let supportIntro = L(
+        fa: "هر سؤال یا مشکلی داشتید بنویسید. تیم SafeBeauty جواب می‌دهد.",
+        ps: "هره پوښتنه یا ستونزه مو وه ولیکئ. د SafeBeauty ټیم ځواب درکوي.",
+        en: "Write any question or problem. The SafeBeauty team will reply.")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")

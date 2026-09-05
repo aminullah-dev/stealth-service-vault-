@@ -65,6 +65,8 @@ struct SignedInView: View {
                     .tabItem { Label(L.myBookings.t, systemImage: "calendar") }
                 NotificationsView()
                     .tabItem { Label(L.notifications.t, systemImage: "bell") }
+                SupportView()
+                    .tabItem { Label(L.support.t, systemImage: "bubble.left") }
                 ProfileView()
                     .tabItem { Label(L.profile.t, systemImage: "person") }
             }
