@@ -52,8 +52,14 @@ struct SignedInView: View {
         if auth.session?.status == "PENDING" {
             PendingApprovalView()
         } else {
-            SalonListView()
-                .safeAreaInset(edge: .top) { SessionBar() }
+            TabView {
+                SalonListView()
+                    .tabItem { Label(L.salons.t, systemImage: "scissors") }
+                MyBookingsView()
+                    .tabItem { Label(L.myBookings.t, systemImage: "calendar") }
+            }
+            .tint(Brand.accent)
+            .safeAreaInset(edge: .top) { SessionBar() }
         }
     }
 }

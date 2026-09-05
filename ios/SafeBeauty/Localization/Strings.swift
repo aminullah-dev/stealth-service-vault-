@@ -164,6 +164,33 @@ extension L {
         ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
         en: "Please verify your identity before booking.")
 
+    // MARK: My bookings
+    static let myBookings = L(fa: "رزروهای من", ps: "زما بکینګونه", en: "My bookings")
+    static let upcoming = L(fa: "پیش رو", ps: "راتلونکي", en: "Upcoming")
+    static let pastBookings = L(fa: "گذشته", ps: "تېر", en: "Past")
+    static let noBookingsYet = L(
+        fa: "هنوز رزروی ندارید.", ps: "تر اوسه مو بکینګ نشته.",
+        en: "You have no bookings yet.")
+    // Distinct from "you have none". A customer whose booking cannot be read
+    // deserves to know one exists rather than to be told she has none — the
+    // Android screen that blanked said nothing at all.
+    static let someBookingsUnreadable = L(
+        fa: "بعضی رزروها خوانده نشدند. با پشتیبانی تماس بگیرید.",
+        ps: "ځینې بکینګونه ونه لوستل شول. له ملاتړ سره اړیکه ونیسئ.",
+        en: "Some bookings could not be read. Please contact support.")
+    static let cancelBooking = L(fa: "لغو رزرو", ps: "بکینګ لغوه کول", en: "Cancel booking")
+    static let keepIt = L(fa: "بماند", ps: "پاتې دې شي", en: "Keep it")
+    static let cancelWarning = L(
+        fa: "این رزرو لغو می‌شود. اگر پرداخت کرده‌اید، مبلغ طبق قوانین بازگردانده می‌شود.",
+        ps: "دا بکینګ لغوه کیږي. که مو تادیه کړې وي، پیسې د قواعدو سره سم بېرته درکول کیږي.",
+        en: "This booking will be cancelled. If you paid, the amount is refunded under the rules.")
+    static let statusAwaitingPayment = L(fa: "در انتظار پرداخت", ps: "د تادیې په تمه", en: "Awaiting payment")
+    static let statusPending = L(fa: "در انتظار تأیید", ps: "د تایید په تمه", en: "Pending")
+    static let statusConfirmed = L(fa: "تأیید شده", ps: "تایید شوی", en: "Confirmed")
+    static let statusCompleted = L(fa: "انجام شده", ps: "ترسره شوی", en: "Completed")
+    static let statusCancelled = L(fa: "لغو شده", ps: "لغوه شوی", en: "Cancelled")
+    static let statusUnknown = L(fa: "نامشخص", ps: "نامعلوم", en: "Unknown")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")
