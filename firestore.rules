@@ -251,7 +251,27 @@ service cloud.firestore {
                      // And the identity itself. Changing this on an existing doc
                      // is the same attack as planting a new one.
                      && request.resource.data.get('firebaseEmail', '')
-                          == resource.data.get('firebaseEmail', ''));
+                          == resource.data.get('firebaseEmail', '')
+                     // The credential pair. This list is a denylist, so until
+                     // these two lines existed the owner of a document could
+                     // write them straight from the client SDK — no callable in
+                     // the path, and therefore no proof of anything beyond
+                     // holding a session.
+                     //
+                     // Writing them is not a takeover, it is a permanent
+                     // lockout: pinHash and salt must agree with the Firebase
+                     // Auth password derived from them, and only the server can
+                     // change that. Overwrite the pair and BOTH passwords stop
+                     // working — the new hash matches nothing Firebase will
+                     // accept, and the real password no longer matches the
+                     // hash. Only adminResetPassword recovers it.
+                     //
+                     // changePassword and updatePinHash are the only writers,
+                     // and both now require a recent authentication.
+                     && request.resource.data.get('pinHash', '')
+                          == resource.data.get('pinHash', '')
+                     && request.resource.data.get('salt', '')
+                          == resource.data.get('salt', ''));
 
       allow delete: if isAdmin();
     }

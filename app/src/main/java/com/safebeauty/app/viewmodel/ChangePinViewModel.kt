@@ -78,16 +78,58 @@ class ChangePinViewModel @Inject constructor(
                 val newSalt          = pinHasher.generateSalt()
                 val newHash          = pinHasher.hash(nPin, newSalt)
                 val newAuthPassword  = pinHasher.deriveAuthPassword(nPin, newSalt)
+                // Proof of the current password, not the password itself — the
+                // server compares this against the stored pinHash. Same
+                // principle as registerAccount: what travels is derived.
+                val currentPinHash   = pinHasher.hash(curPin, user.salt)
 
+                // Reauthentication stays, and is the security boundary. It proves
+                // to Firebase that the CURRENT password was just typed —
+                // currentPinHash below cannot prove that, because the rules let
+                // the owner read her own document and the stored pinHash with
+                // it, so a signed-in session can read that value and send it
+                // back. Without this, a picked-up unlocked phone could lock the
+                // owner out of her own account without knowing the password.
+                //
+                // The forced token refresh is not optional: reauthenticating
+                // updates auth_time on the account, but the callable SDK sends
+                // the cached ID token, which can still be the one minted at
+                // sign-in. changePassword refuses a stale auth_time.
                 auth.reauthenticate(user.firebaseEmail, oldAuthPassword).getOrThrow()
-                auth.updatePassword(newAuthPassword).getOrThrow()
-                // Server-side (see updatePinHash in Cloud Functions): keeps the
-                // pinHash write from ever being rules-denied after the Auth
-                // password has already changed, which would lock the account out.
+                auth.refreshIdToken().getOrThrow()
+
+                // One call, because the ordering is not something a handset can
+                // own. This used to be updatePassword() and then updatePinHash():
+                // when the second failed, the Auth password was new and the
+                // stored hash was old, and BOTH passwords stopped working — the
+                // new one fails the hash check, and the old one passes it, is
+                // handed the old salt, derives the old Auth password and is
+                // refused by Firebase. The values needed to finish were local to
+                // this coroutine, so there was nothing to retry with; the only
+                // way back into the account was an admin reset.
+                //
+                // changePassword writes Firestore first and rolls it back if the
+                // Auth update fails, which it can do because it has just read
+                // the values it would put back. See domains/identity.js.
                 functions
-                    .getHttpsCallable("updatePinHash")
-                    .call(hashMapOf("pinHash" to newHash, "salt" to newSalt))
+                    .getHttpsCallable("changePassword")
+                    .call(
+                        hashMapOf(
+                            "currentPinHash"  to currentPinHash,
+                            "newSalt"         to newSalt,
+                            "newPinHash"      to newHash,
+                            "newAuthPassword" to newAuthPassword
+                        )
+                    )
                     .await()
+
+                // The credential on this device is now the old one. Refreshing it
+                // here keeps her signed in; without it the session runs on a
+                // token that outlives the password behind it and drops her at
+                // some arbitrary later moment with no explanation. Best-effort:
+                // the password IS changed by this point, and failing here must
+                // not report that it was not.
+                auth.signIn(user.firebaseEmail, newAuthPassword)
 
                 // The stored biometric secret is now stale — clear it so the user is
                 // re-offered fast-unlock with the new password on next login.

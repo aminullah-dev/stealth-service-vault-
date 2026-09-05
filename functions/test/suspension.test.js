@@ -64,6 +64,13 @@ const MAY_PROCEED = {
   registerAccount:          "pre-auth — the account it would check does not exist until it returns",
   getBookedSlots:           "read-only, and the same answer for everyone",
   previewPromo:             "read-only; the discount is recomputed server-side at checkout anyway",
+  // Suspension stops someone ACTING on the platform; it does not take their
+  // account away from them. A suspended person keeps read access to her own
+  // history and to support precisely so she can appeal, and both of those need
+  // her to be able to sign in. Freezing the password would mean an account
+  // someone else may know the password to cannot be secured by its owner, and
+  // would make a suspension indistinguishable from a stolen account.
+  changePassword:           "changes only her own credential; acting on the platform is what suspension stops",
 };
 
 /** Every onCall in domains/, with the body between it and the next export. */

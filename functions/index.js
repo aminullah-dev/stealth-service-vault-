@@ -92,6 +92,7 @@ const identity = require("./domains/identity");
 exports.authenticateWithPassword = identity.authenticateWithPassword;
 exports.syncUidMap               = identity.syncUidMap;
 exports.updatePinHash            = identity.updatePinHash;
+exports.changePassword           = identity.changePassword;
 exports.submitKyc                = identity.submitKyc;
 exports.reviewKyc                = identity.reviewKyc;
 exports.registerAccount          = identity.registerAccount;

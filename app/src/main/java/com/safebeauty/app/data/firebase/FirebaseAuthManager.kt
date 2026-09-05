@@ -32,6 +32,21 @@ class FirebaseAuthManager @Inject constructor() {
             ?: error("No authenticated user")
     }
 
+    /**
+     * Mints a new ID token so a reauthentication that just happened is visible
+     * to Cloud Functions.
+     *
+     * Reauthenticating updates the account's `auth_time`, but the callable SDK
+     * sends whatever ID token is cached — which can still be the one minted at
+     * sign-in hours ago. changePassword refuses a stale `auth_time`, so without
+     * this the user reauthenticates successfully and is then told to sign in
+     * again.
+     */
+    suspend fun refreshIdToken(): Result<Unit> = runCatching {
+        auth.currentUser?.getIdToken(true)?.await() ?: error("No authenticated user")
+        Unit
+    }
+
     suspend fun updatePassword(newPassword: String): Result<Unit> = runCatching {
         auth.currentUser?.updatePassword(newPassword)?.await()
             ?: error("No authenticated user")

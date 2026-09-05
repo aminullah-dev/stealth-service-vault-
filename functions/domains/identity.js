@@ -7,6 +7,7 @@ const { phoneKey } = require("../lib/phone");
 const { defaultWorkingHours } = require("../lib/hours");
 const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
 const { acceptedReferral, buildRegistrationDocument, selfRegisterRole } = require("../lib/registration");
+const { authIsRecent, isHash, isSalt, rotationProblem } = require("../lib/password");
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
@@ -168,14 +169,160 @@ exports.updatePinHash = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Sign in first.");
   }
+  // The same gate changePassword uses, for the same reason and on the same two
+  // fields. Without it this callable was the way around that one: a session
+  // alone could overwrite pinHash + salt while the Firebase Auth password
+  // stayed as it was, which is the split state that stops BOTH passwords from
+  // working. A gate the caller can decline is not a gate.
+  //
+  // Free for both real callers: SetNewPinViewModel and public/reset sign in on
+  // the line immediately above their call, and a sign-in is what sets
+  // auth_time.
+  if (!authIsRecent(request.auth.token && request.auth.token.auth_time, Date.now())) {
+    throw new HttpsError("failed-precondition",
+      "Please sign in again before changing your password.");
+  }
   const pinHash = String((request.data || {}).pinHash || "");
   const salt    = String((request.data || {}).salt || "");
-  if (!pinHash || !salt) {
+  // Shape-checked rather than merely non-empty: a truncated or double-encoded
+  // value is written once and then never matches the password again.
+  if (!isHash(pinHash) || !isSalt(salt)) {
     throw new HttpsError("invalid-argument", "pinHash and salt are required.");
   }
   const appUser = await resolveAppUser(request);
   await db.doc(`users/${appUser.uid}`).update({ pinHash, salt });
   return { updated: true };
+});
+
+/**
+ * Change your own password: the Firestore salt + pinHash AND the Firebase Auth
+ * password derived from them, in one call that owns the ordering.
+ *
+ * The device used to do this itself, and the order it used could not be
+ * recovered from. ChangePinViewModel reauthenticated, called
+ * `auth.updatePassword(newAuthPassword)`, and only then called updatePinHash —
+ * keeping the new salt and hash in coroutine locals. When that last call
+ * failed, the Auth password was new and the stored hash was old, and BOTH
+ * passwords stopped working: the new one fails the hash check, and the old one
+ * passes it, is handed the old salt, derives the old Auth password, and is
+ * refused by Firebase. The values needed to finish were gone with the
+ * coroutine, so there was nothing to retry — only an admin reset.
+ *
+ * The password itself does not travel, exactly as in registerAccount: the
+ * device sends the current password's hash as proof, plus the new salt, hash
+ * and derived Auth password. Nothing here can be derived without the password,
+ * and none of it is the password.
+ *
+ * Order matters and is the point of moving this. Firestore is written FIRST,
+ * because its previous values have just been read and are therefore in hand to
+ * put back if the Auth update then fails. The reverse order would need the old
+ * *Auth password* to undo, and the server never sees it.
+ *
+ * The residual: a hard crash between the two writes still leaves the pair
+ * disagreeing. That window is now a process death rather than a dropped mobile
+ * connection — the failure this actually happened on — and adminResetPassword
+ * is the recovery.
+ */
+exports.changePassword = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in first.");
+  }
+
+  // currentPinHash is a password verifier, so this endpoint is a place to
+  // grind one. Keyed on the Auth account rather than the app uid: the caller
+  // is authenticated, so this is the identity they cannot vary.
+  await enforceRateLimit(`changepw:${request.auth.uid}`, 5, 60 * 60 * 1000);
+
+  // The actual proof that the caller knows the CURRENT password.
+  //
+  // currentPinHash below cannot carry that proof and must not be mistaken for
+  // it: firestore.rules allows `get` on the whole user document to its owner,
+  // pinHash included, and the Android client already reads it for a local
+  // pre-check. A signed-in session can therefore read the stored hash and send
+  // it straight back. Gating on that alone would be weaker than the
+  // client-side reauthenticate this callable replaced — a picked-up unlocked
+  // phone could lock the owner out of her own account without ever knowing the
+  // password. auth_time is the time of the last authentication event and
+  // cannot be advanced by refreshing a token, only by really signing in again.
+  //
+  // This is only a boundary because the other two ways in are shut: pinHash and
+  // salt are frozen on the users self-update rule (they were not, and a client
+  // could write the pair directly), and updatePinHash carries the same gate.
+  if (!authIsRecent(request.auth.token && request.auth.token.auth_time, Date.now())) {
+    throw new HttpsError("failed-precondition",
+      "Please sign in again before changing your password.");
+  }
+
+  const problem = rotationProblem(request.data);
+  if (problem) {
+    throw new HttpsError("invalid-argument", `Bad or missing ${problem}.`);
+  }
+  const d = request.data;
+
+  // Deliberately NOT assertNotSuspended. A suspended account keeps read access
+  // to its own history and to support (see the note on that helper); being
+  // unable to change your own password is not part of a suspension, and an
+  // account someone else may know the password to is the wrong thing to freeze.
+  const appUser = await resolveAppUser(request);
+
+  const oldPinHash = String(appUser.pinHash || "");
+  const oldSalt    = String(appUser.salt || "");
+  if (!oldPinHash || !oldSalt) {
+    throw new HttpsError("failed-precondition", "This account has no password set.");
+  }
+  // Defence in depth, NOT the security boundary — auth_time above is that.
+  // This catches a client that derived the hash wrongly, or a stale salt,
+  // before either can be written over a working credential. Same
+  // constant-time compare the login path uses, not a second one.
+  if (!hashesEqual(d.currentPinHash, oldPinHash)) {
+    throw new HttpsError("permission-denied", "Current password is incorrect.");
+  }
+
+  const email = String(appUser.firebaseEmail || "");
+  if (!email) {
+    throw new HttpsError("failed-precondition", "This account has no Firebase Auth email.");
+  }
+  // Resolved by email rather than request.auth.uid: the derived Auth password
+  // belongs to the credential whose email is on the user document, and uid_map
+  // may hold several Auth accounts for one person (see requestAccountDeletion).
+  let authRecord;
+  try {
+    authRecord = await admin.auth().getUserByEmail(email);
+  } catch (e) {
+    throw new HttpsError("not-found", "No Firebase Auth user for this account.");
+  }
+
+  const ref = db.doc(`users/${appUser.uid}`);
+  await ref.update({ pinHash: String(d.newPinHash), salt: String(d.newSalt) });
+
+  try {
+    await admin.auth().updateUser(authRecord.uid, { password: String(d.newAuthPassword) });
+  } catch (e) {
+    try {
+      await ref.update({ pinHash: oldPinHash, salt: oldSalt });
+    } catch (rollbackErr) {
+      // The one state this function exists to prevent, reached anyway. Loud,
+      // because nothing else will notice: the account looks ordinary and simply
+      // refuses both passwords.
+      // alertable, not logger.error: the monitoring policy matches on the
+      // `alert` label, and this is the one outcome nobody finds on their own —
+      // the account looks ordinary and simply refuses both passwords.
+      alertable("password-rotation-stuck",
+        "changePassword: rollback FAILED — account cannot sign in with either password",
+        { uid: appUser.uid, authUid: authRecord.uid,
+          rollbackErr: String(rollbackErr), authErr: String(e) });
+      throw new HttpsError("internal",
+        "The password change could not be completed or undone. Please contact support.");
+    }
+    logger.warn("changePassword: auth update failed, Firestore rolled back",
+      { uid: appUser.uid, authErr: String(e) });
+    throw new HttpsError("internal", "Could not update the sign-in password. Nothing was changed.");
+  }
+
+  // A successful rotation is the most takeover-relevant event on an account,
+  // and until this line only the failures were written down.
+  logger.info("changePassword: rotated", { uid: appUser.uid, authUid: authRecord.uid });
+  return { ok: true };
 });
 
 /**
