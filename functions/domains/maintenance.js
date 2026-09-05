@@ -102,6 +102,51 @@ exports.scheduledFirestoreBackup = onSchedule(
   }
 );
 
+/**
+ * Split "gs://bucket/prefix" into its two halves, or null if it is not one.
+ *
+ * Pure and exported so the parsing can be tested without a bucket. It decides
+ * which objects get counted, and counting the wrong prefix would report an
+ * empty backup for a good one — or, worse, a healthy count for a prefix that
+ * belongs to a different day.
+ */
+function parseGsUri(uri) {
+  const s = String(uri == null ? "" : uri).trim();
+  if (!s.startsWith("gs://")) return null;
+  const rest = s.slice("gs://".length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0) return null;
+  const bucketName = rest.slice(0, slash);
+  const path = rest.slice(slash + 1).replace(/\/+$/, "");
+  if (!bucketName || !path) return null;
+  return { bucketName, prefix: path + "/" };
+}
+
+/**
+ * What actually landed in the bucket for one export.
+ *
+ * Returns zeroes rather than throwing when the bucket cannot be read: a
+ * verifier that dies on a listing error stops verifying every OTHER backup in
+ * the same run, and the states it would have written are the only record that
+ * any of this happened. A zero is reported as a failed backup, which is the
+ * conservative reading of "we could not confirm one exists".
+ */
+async function measureBackup(outputUri) {
+  const parsed = parseGsUri(outputUri);
+  if (!parsed) return { objects: 0, bytes: 0 };
+  const { bucketName, prefix } = parsed;
+
+  try {
+    const [files] = await admin.storage().bucket(bucketName).getFiles({ prefix });
+    let bytes = 0;
+    for (const f of files) bytes += Number((f.metadata && f.metadata.size) || 0);
+    return { objects: files.length, bytes };
+  } catch (e) {
+    logger.error(`measureBackup: could not list ${outputUri}`, e);
+    return { objects: 0, bytes: 0 };
+  }
+}
+
 // ── verifyFirestoreBackup ─────────────────────────────────────────────────────
 //
 // The export is asynchronous: scheduledFirestoreBackup only learns that it
@@ -150,8 +195,34 @@ exports.verifyFirestoreBackup = onSchedule(
             });
             logger.error(`verifyFirestoreBackup: ${doc.id} failed`, op.error);
           } else {
-            await doc.ref.update({ state: "DONE", finishedAt: Date.now(), error: "" });
-            logger.log(`verifyFirestoreBackup: ${doc.id} completed`);
+            // The operation says it finished. That is not the same claim as
+            // "there is a backup", and this file already records what the
+            // difference costs: the export used to point at a bucket in another
+            // project, every run failed, and the folder stayed empty for the
+            // life of the project. An operation reporting success is a fact
+            // about an API call; only the objects are the backup.
+            //
+            // So the artefact is measured before DONE is written, and the size
+            // is stored — a Health tab that says "last good backup: 11 objects,
+            // 179 KiB" can be disbelieved by a person reading it, which "DONE"
+            // cannot.
+            const measured = await measureBackup(doc.data().outputUri || "");
+            if (measured.objects === 0) {
+              await doc.ref.update({
+                state: "FAILED", finishedAt: Date.now(),
+                objects: 0, bytes: 0,
+                error: `Export reported success but wrote no objects to ${doc.data().outputUri || "(no uri)"}.`,
+              });
+              alertable("BACKUP_FAILED", "verifyFirestoreBackup: export completed but the bucket is empty",
+                { stamp: doc.id, outputUri: doc.data().outputUri || "" });
+              logger.error(`verifyFirestoreBackup: ${doc.id} completed with an empty bucket`);
+            } else {
+              await doc.ref.update({
+                state: "DONE", finishedAt: Date.now(), error: "",
+                objects: measured.objects, bytes: measured.bytes,
+              });
+              logger.log(`verifyFirestoreBackup: ${doc.id} completed — ${measured.objects} object(s), ${measured.bytes} byte(s)`);
+            }
           }
         } else if (stuck) {
           await doc.ref.update({
@@ -469,3 +540,5 @@ async function runIntegritySweep() {
 // stored English title/body, so nothing regresses.
 //
 // `type` is NOT the key: several distinct messages share type "SYSTEM".
+
+exports.parseGsUri = parseGsUri;
