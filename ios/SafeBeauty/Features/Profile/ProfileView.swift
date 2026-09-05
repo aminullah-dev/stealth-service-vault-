@@ -18,6 +18,8 @@ struct ProfileView: View {
     @State private var phone = ""
     @State private var showKyc = false
     @State private var confirmSignOut = false
+    @State private var showSupport = false
+    @State private var language = AppLanguage.current
 
     var body: some View {
         NavigationStack {
@@ -27,6 +29,33 @@ struct ProfileView: View {
                     walletCard
                     if !referralCode.isEmpty { inviteCard }
                     verificationRow
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L.language.t).font(Brand.font(13, .medium))
+                            .foregroundStyle(Brand.ink.opacity(0.75))
+                        Picker("", selection: $language) {
+                            ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: language) { _, new in AppLanguage.current = new }
+                    }
+                    .padding(15)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+
+                    Button { showSupport = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "bubble.left.fill").foregroundStyle(Brand.accent)
+                            Text(L.support.t).font(Brand.font(14.5, .medium))
+                                .foregroundStyle(Brand.ink)
+                            Spacer()
+                            Image(systemName: "chevron.forward").font(.system(size: 12))
+                                .foregroundStyle(Brand.accent)
+                        }
+                        .padding(15)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
 
                     Button(role: .destructive) { confirmSignOut = true } label: {
                         Text(L.signOut.t)
@@ -44,6 +73,7 @@ struct ProfileView: View {
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.profile.t)
             .sheet(isPresented: $showKyc) { KycView() }
+            .sheet(isPresented: $showSupport) { SupportView() }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
                 Button(L.signOut.t, role: .destructive) { auth.signOut() }

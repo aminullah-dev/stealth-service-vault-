@@ -319,6 +319,28 @@ extension L {
         ps: "هره پوښتنه یا ستونزه مو وه ولیکئ. د SafeBeauty ټیم ځواب درکوي.",
         en: "Write any question or problem. The SafeBeauty team will reply.")
 
+    // MARK: Discover & map
+    static let discover = L(fa: "کشف", ps: "کشف", en: "Discover")
+    static let offers = L(fa: "پیشنهادها", ps: "وړاندیزونه", en: "Offers")
+    static let latest = L(fa: "تازه‌ها", ps: "تازه", en: "Latest")
+    static let feedEmpty = L(
+        fa: "هنوز چیزی برای نشان دادن نیست.", ps: "تر اوسه د ښودلو لپاره څه نشته.",
+        en: "Nothing to show yet.")
+    static let map = L(fa: "نقشه", ps: "نقشه", en: "Map")
+    // Two different sentences, because they lead somewhere different: none on
+    // the map at all means the map is useless to her right now; some missing
+    // means the map is useful but incomplete.
+    static let mapNoneP = L(
+        fa: "هیچ سالنی هنوز محل خود را روی نقشه ثبت نکرده:",
+        ps: "هیڅ سالون لا خپل ځای په نقشه کې نه دی ثبت کړی:",
+        en: "No salon has pinned its location yet:")
+    static let mapSomeMissing = L(
+        fa: "این سالن‌ها روی نقشه نیستند:",
+        ps: "دا سالونونه په نقشه کې نشته:",
+        en: "These salons are not on the map:")
+
+    static let language = L(fa: "زبان", ps: "ژبه", en: "Language")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")

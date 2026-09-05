@@ -164,3 +164,45 @@ struct SalonDecodingTests {
         #expect(result.values.map(\.id).sorted() == ["a", "b"])
     }
 }
+
+/// Offers, decoded against the one that is actually in production.
+@Suite("Offer liveness")
+struct SalonOfferTests {
+
+    private func offer(active: Bool, expiresAt: Int64) throws -> SalonOffer {
+        try DocumentDecoding.decode(SalonOffer.self, from: [
+            "salonId": "s1", "salonName": "S", "title": "Nakhon 20% Off",
+            "active": active, "expiresAt": expiresAt,
+            "discountPercent": 0, "discountAmount": 0,
+        ])
+    }
+
+    @Test("no expiry means no expiry, not expired in 1970")
+    func zeroExpiryIsForever() throws {
+        // The live offer has expiresAt 0. Reading that as a timestamp would
+        // hide every offer that never set one — which is most of them.
+        #expect(try offer(active: true, expiresAt: 0).isLive())
+    }
+
+    @Test("an inactive offer is never live, whatever its expiry")
+    func inactiveIsNeverLive() throws {
+        #expect(try !offer(active: false, expiresAt: 0).isLive())
+    }
+
+    @Test("a past expiry ends it")
+    func pastExpiry() throws {
+        let past = Int64(Date().addingTimeInterval(-3600).timeIntervalSince1970 * 1000)
+        #expect(try !offer(active: true, expiresAt: past).isLive())
+        let future = Int64(Date().addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+        #expect(try offer(active: true, expiresAt: future).isLive())
+    }
+
+    /// The live offer's discount is in its title, not its numbers.
+    @Test("an offer with no numeric discount is still worth showing")
+    func textOnlyDiscount() throws {
+        let o = try offer(active: true, expiresAt: 0)
+        #expect(o.title == "Nakhon 20% Off")
+        #expect(!o.hasNumericDiscount, "both discount fields are zero in production")
+        #expect(o.isLive(), "and it is still a real, live offer")
+    }
+}

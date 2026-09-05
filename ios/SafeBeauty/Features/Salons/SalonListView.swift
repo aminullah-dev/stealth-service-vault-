@@ -5,6 +5,7 @@ struct SalonListView: View {
     @State private var repo = SalonRepository()
     @State private var search = ""
     @State private var city: String?
+    @State private var showMap = false
 
     /// Filtered on the client, not by re-querying.
     ///
@@ -107,6 +108,19 @@ struct SalonListView: View {
             .navigationTitle(L.salons.t)
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $search, prompt: L.searchSalons.t)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    // In the toolbar rather than as a sixth tab: iOS collapses
+                    // anything past five into a "More" list, which buries both
+                    // the map and support behind an extra tap and a menu nobody
+                    // looks in.
+                    Button { showMap = true } label: {
+                        Image(systemName: "map").foregroundStyle(Brand.accent)
+                    }
+                    .accessibilityLabel(L.map.t)
+                }
+            }
+            .sheet(isPresented: $showMap) { SalonMapView() }
         }
         .task { repo.start() }
     }

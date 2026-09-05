@@ -15,7 +15,22 @@ struct RootView: View {
     var body: some View {
         Group {
             if auth.session == nil {
+                // The picker lives here and only here. Someone who cannot read
+                // the interface cannot navigate into it to change the language,
+                // so it has to be on the first screen — and once she is signed
+                // in it moves to her account, because pinned to the bottom of a
+                // TabView it sat on top of the tab bar and hid it.
                 SignInView()
+                    .safeAreaInset(edge: .bottom) {
+                        Picker("", selection: $language) {
+                            ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 26)
+                        .padding(.bottom, 10)
+                        .onChange(of: language) { _, new in AppLanguage.current = new }
+                        .background(Brand.cream)
+                    }
             } else {
                 SignedInView()
             }
@@ -23,19 +38,6 @@ struct RootView: View {
         .environment(auth)
         .environment(\.layoutDirection, language.layoutDirection)
         .environment(\.locale, language.locale)
-        .safeAreaInset(edge: .bottom) {
-            // The language picker stays reachable from the signed-out screen.
-            // A woman who cannot read the interface cannot get to a settings
-            // page inside it to change the language.
-            Picker("", selection: $language) {
-                ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 26)
-            .padding(.bottom, 10)
-            .onChange(of: language) { _, new in AppLanguage.current = new }
-            .background(Brand.cream)
-        }
         .animation(.easeInOut(duration: 0.25), value: auth.session)
         // Re-read her profile when the app comes forward, so an approval that
         // happened while it was closed is reflected without a sign-out.
@@ -61,12 +63,12 @@ struct SignedInView: View {
             TabView {
                 SalonListView()
                     .tabItem { Label(L.salons.t, systemImage: "scissors") }
+                FeedView()
+                    .tabItem { Label(L.discover.t, systemImage: "sparkles") }
                 MyBookingsView()
                     .tabItem { Label(L.myBookings.t, systemImage: "calendar") }
                 NotificationsView()
                     .tabItem { Label(L.notifications.t, systemImage: "bell") }
-                SupportView()
-                    .tabItem { Label(L.support.t, systemImage: "bubble.left") }
                 ProfileView()
                     .tabItem { Label(L.profile.t, systemImage: "person") }
             }
