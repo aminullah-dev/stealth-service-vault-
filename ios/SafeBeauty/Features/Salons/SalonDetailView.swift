@@ -10,12 +10,15 @@ import SafeBeautyCore
 struct SalonDetailView: View {
     let salon: Salon
 
+    @Environment(AuthService.self) private var auth
+
     @State private var selectedServices: Set<String> = []
     @State private var selectedDay = Date()
     @State private var selectedSlot: Int64?
     @State private var booked: [Appointment] = []
     @State private var isLoadingSlots = false
     @State private var showBooking = false
+    @State private var showKyc = false
 
     /// The next seven days, starting today, in Kabul.
     private var days: [Date] {
@@ -54,6 +57,28 @@ struct SalonDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 header
+
+                // Said before she picks a time, not after she has chosen one
+                // and pressed Book. createPaymentSession refuses an unverified
+                // customer, and finding that out at the last step wastes the
+                // whole selection.
+                if auth.session?.kycStatus != "APPROVED" {
+                    Button { showKyc = true } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: "person.badge.shield.checkmark")
+                            Text(L.verifyToBook.t)
+                                .font(Brand.font(13.5, .medium))
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.forward").font(.system(size: 12))
+                        }
+                        .foregroundStyle(Brand.deep)
+                        .padding(13)
+                        .background(Brand.gold.opacity(0.16),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 if !salon.services.isEmpty {
                     section(L.chooseServices) {
@@ -132,7 +157,8 @@ struct SalonDetailView: View {
                 }
 
                 BrandButton(title: .book,
-                            isEnabled: !selectedServices.isEmpty && selectedSlot != nil) {
+                            isEnabled: !selectedServices.isEmpty && selectedSlot != nil
+                                       && auth.session?.kycStatus == "APPROVED") {
                     showBooking = true
                 }
                 .padding(.bottom, 30)
@@ -155,6 +181,7 @@ struct SalonDetailView: View {
                              startMillis: slot)
             }
         }
+        .sheet(isPresented: $showKyc) { KycView() }
     }
 
     private var isClosedToday: Bool {

@@ -191,6 +191,54 @@ extension L {
     static let statusCancelled = L(fa: "لغو شده", ps: "لغوه شوی", en: "Cancelled")
     static let statusUnknown = L(fa: "نامشخص", ps: "نامعلوم", en: "Unknown")
 
+    // MARK: Verification
+    static let verifyIdentity = L(fa: "تأیید هویت", ps: "د پېژندنې تایید", en: "Verify identity")
+    // Told before she is asked, in plain words, because what she is being
+    // asked for is a photograph of her identity document.
+    static let kycWhy = L(
+        fa: "برای رزرو، سالون باید بداند با چه کسی قرار دارد. عکس تذکره و یک عکس از خودتان فقط برای تیم SafeBeauty دیده می‌شود — نه برای سالون و نه برای مشتریان دیگر.",
+        ps: "د بکینګ لپاره، سالون باید پوه شي چې له چا سره یې وعده ده. د تذکرې انځور او ستاسو یو انځور یوازې د SafeBeauty ټیم ګوري — نه سالون او نه نور پیرودونکي.",
+        en: "To book, the salon needs to know who it is expecting. Your tazkira photo and a photo of you are seen only by the SafeBeauty team — not by the salon and not by other customers.")
+    static let tazkiraPhoto = L(fa: "عکس تذکره", ps: "د تذکرې انځور", en: "Tazkira photo")
+    static let selfiePhoto = L(fa: "عکس خودتان", ps: "ستاسو انځور", en: "Photo of you")
+    static let choosePhoto = L(fa: "انتخاب عکس", ps: "انځور وټاکئ", en: "Choose a photo")
+    static let tazkiraNumber = L(fa: "شماره تذکره", ps: "د تذکرې شمېره", en: "Tazkira number")
+    static let province = L(fa: "ولایت", ps: "ولایت", en: "Province")
+    static let addressDetail = L(fa: "آدرس", ps: "پته", en: "Address")
+    static let submitVerification = L(fa: "ارسال برای تأیید", ps: "د تایید لپاره لېږل",
+                                      en: "Submit for verification")
+    static let kycPreparing = L(fa: "آماده‌سازی عکس‌ها…", ps: "د انځورونو چمتو کول…",
+                                en: "Preparing photos…")
+    static let kycUploading = L(fa: "در حال ارسال عکس‌ها…", ps: "انځورونه لېږل کیږي…",
+                                en: "Uploading photos…")
+    static let kycSubmitting = L(fa: "در حال ثبت…", ps: "ثبتېږي…", en: "Submitting…")
+    static let kycSubmitted = L(
+        fa: "مدارک شما ارسال شد. پس از بررسی خبرتان می‌کنیم — معمولاً در یک روز کاری.",
+        ps: "ستاسو اسناد ولېږل شول. د کتنې وروسته به مو خبر کړو — معمولاً په یوه کاري ورځ کې.",
+        en: "Your documents were sent. We will let you know after review — usually within one working day.")
+    static let kycErrTooLarge = L(
+        fa: "عکس خیلی بزرگ است. عکس دیگری انتخاب کنید.",
+        ps: "انځور ډېر لوی دی. بل انځور وټاکئ.",
+        en: "That photo is too large. Please choose another.")
+    static let kycErrUpload = L(
+        fa: "ارسال عکس ناموفق بود. اتصال خود را بررسی کنید.",
+        ps: "د انځور لېږل ونه شول. خپله اړیکه وګورئ.",
+        en: "The upload failed. Please check your connection.")
+    static let kycErrUnderReview = L(
+        fa: "مدارک شما قبلاً ارسال شده و در حال بررسی است.",
+        ps: "ستاسو اسناد لا دمخه لېږل شوي او تر کتنې لاندې دي.",
+        en: "Your documents are already submitted and under review.")
+    static let kycErrAlreadyVerified = L(
+        fa: "هویت شما از قبل تأیید شده است.", ps: "ستاسو پېژندنه لا دمخه تایید شوې.",
+        en: "Your identity is already verified.")
+    static let kycErrMissing = L(
+        fa: "شماره تذکره و آدرس لازم است.", ps: "د تذکرې شمېره او پته اړینې دي.",
+        en: "The tazkira number and address are required.")
+    static let verifyToBook = L(
+        fa: "برای رزرو، اول هویت خود را تأیید کنید.",
+        ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
+        en: "Verify your identity before booking.")
+
     // MARK: Common
     static let cancel = L(fa: "لغو", ps: "لغوه", en: "Cancel")
     static let signOut = L(fa: "خروج", ps: "وتل", en: "Sign out")

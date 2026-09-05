@@ -10,6 +10,7 @@ import SafeBeautyCore
 struct RootView: View {
     @State private var auth = AuthService.shared
     @State private var language = AppLanguage.current
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -36,6 +37,11 @@ struct RootView: View {
             .background(Brand.cream)
         }
         .animation(.easeInOut(duration: 0.25), value: auth.session)
+        // Re-read her profile when the app comes forward, so an approval that
+        // happened while it was closed is reflected without a sign-out.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await auth.refresh() } }
+        }
     }
 }
 

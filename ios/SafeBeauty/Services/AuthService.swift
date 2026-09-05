@@ -1,5 +1,6 @@
 import Foundation
 import FirebaseAuth
+import FirebaseFirestore
 import SafeBeautyCore
 
 /// Sign-in and registration, which are two very different shapes and should be.
@@ -26,7 +27,7 @@ final class AuthService {
     private(set) var session: Session?
     private(set) var isWorking = false
 
-    struct Session: Equatable, Sendable {
+    struct Session: Equatable, Sendable, Codable {
         let uid: String            // the app-level uid, not the Firebase Auth one
         let name: String
         let role: String
@@ -53,7 +54,52 @@ final class AuthService {
         }
     }
 
-    private init() {}
+    private init() { restore() }
+
+    // MARK: Persistence
+
+    /// Firebase Auth persists its own session across launches; this did not,
+    /// so the app came back authenticated and showed the sign-in screen anyway.
+    /// Found by relaunching the app rather than by reading it.
+    ///
+    /// The app-level identity cannot be re-derived on the client: uid_map is
+    /// `read: if false` and the users collection is not client-listable, both
+    /// deliberately. So the session is stored here and validated on restore
+    /// against the credential Firebase kept — if the two disagree, the stored
+    /// one is discarded rather than trusted.
+    private static let storeKey = "safebeauty.session"
+
+    private func restore() {
+        guard let email = Auth.auth().currentUser?.email?.lowercased(),
+              let raw = UserDefaults.standard.data(forKey: Self.storeKey),
+              let stored = try? JSONDecoder().decode(StoredSession.self, from: raw)
+        else { return }
+
+        // A stored session belonging to a different account than the one
+        // Firebase is holding is stale — a previous user of this phone, or a
+        // sign-out that only half happened. Signing her in as someone else
+        // would be the worst possible outcome on a shared device.
+        guard stored.firebaseEmail.lowercased() == email else {
+            UserDefaults.standard.removeObject(forKey: Self.storeKey)
+            return
+        }
+        session = stored.session
+    }
+
+    private func persist(_ session: Session, firebaseEmail: String) {
+        let stored = StoredSession(session: session, firebaseEmail: firebaseEmail)
+        if let data = try? JSONEncoder().encode(stored) {
+            UserDefaults.standard.set(data, forKey: Self.storeKey)
+        }
+    }
+
+    /// Deliberately not the Keychain. Nothing here is a credential — it is a
+    /// name, a role and an id the server re-authorises on every call. The
+    /// password material never touches disk at all.
+    private struct StoredSession: Codable {
+        let session: Session
+        let firebaseEmail: String
+    }
 
     // MARK: - Sign in
 
@@ -101,13 +147,15 @@ final class AuthService {
         // since the server repopulates it on the next callable anyway.
         _ = try? await Callables.call("syncUidMap", ["appUid": .string(uid)])
 
-        session = Session(
+        let newSession = Session(
             uid: uid,
             name: result["name"]?.stringValue ?? "",
             role: result["role"]?.stringValue ?? "CUSTOMER",
             status: result["status"]?.stringValue ?? "",
             kycStatus: result["kycStatus"]?.stringValue ?? "NONE"
         )
+        session = newSession
+        persist(newSession, firebaseEmail: firebaseEmail)
     }
 
     // MARK: - Register
@@ -168,15 +216,51 @@ final class AuthService {
         // rather than being stranded half-registered.
         try? await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
 
-        session = Session(
+        let newSession = Session(
             uid: result["uid"]?.stringValue ?? "",
             name: name, role: isProvider ? "PROVIDER" : "CUSTOMER",
             status: isProvider ? "PENDING" : "APPROVED", kycStatus: "NONE"
         )
+        session = newSession
+        persist(newSession, firebaseEmail: firebaseEmail)
     }
 
     func signOut() {
         try? Auth.auth().signOut()
+        // Cleared before the in-memory copy, so a crash between the two lines
+        // cannot leave a session on disk that outlives the credential.
+        UserDefaults.standard.removeObject(forKey: Self.storeKey)
         session = nil
+    }
+
+    /// Re-read her own profile after something the server changed.
+    ///
+    /// kycStatus flips when an admin reviews her documents, and status flips
+    /// when a provider is approved. Without this the app keeps telling an
+    /// already-verified customer to verify herself until she signs out and back
+    /// in — which is a thing she has no reason to think of doing.
+    ///
+    /// Read straight from Firestore rather than through a callable, because
+    /// `allow get: if isSignedIn() && ownsDoc(uid)` already permits exactly
+    /// this: her own document and nobody else's.
+    func refresh() async {
+        guard let current = session, !current.uid.isEmpty else { return }
+        guard let snapshot = try? await Firestore.firestore()
+                .document("users/\(current.uid)").getDocument(),
+              let data = snapshot.data()
+        else { return }
+
+        let updated = Session(
+            uid: current.uid,
+            name: data["name"] as? String ?? current.name,
+            role: data["role"] as? String ?? current.role,
+            status: data["status"] as? String ?? current.status,
+            kycStatus: data["kycStatus"] as? String ?? current.kycStatus
+        )
+        guard updated != current else { return }
+        session = updated
+        if let email = Auth.auth().currentUser?.email {
+            persist(updated, firebaseEmail: email)
+        }
     }
 }
