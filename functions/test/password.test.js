@@ -2,7 +2,8 @@ const test = require("node:test");
 const assert = require("node:assert");
 const crypto = require("crypto");
 const {
-  authIsRecent, isHash, isSalt, rotationProblem, HASH_B64_LEN, SALT_B64_LEN,
+  authIsRecent, isHash, isSalt, rotationProblem,
+  HASH_B64_LEN, SALT_B64_LEN, RECENT_AUTH_MS, LEGACY_AUTH_MS,
 } = require("../lib/password");
 
 /**
@@ -139,4 +140,16 @@ test("a token from the future is a clock problem, not a fresh login", () => {
   const now = 1_760_000_000_000;
   assert.ok(!authIsRecent((now + 10 * 60 * 1000) / 1000, now), "ten minutes ahead");
   assert.ok(authIsRecent((now + 30 * 1000) / 1000, now), "small skew is tolerated");
+});
+
+test("the legacy window is wider, and still bounded", () => {
+  // updatePinHash is reached by app builds already installed, which do not
+  // force a token refresh; changePassword is called only by clients this repo
+  // controls, which do. Both still refuse a session that is merely old.
+  const now = 1_760_000_000_000;
+  const ago = (min) => (now - min * 60 * 1000) / 1000;
+  assert.ok(!authIsRecent(ago(20), now), "20 min fails the strict window");
+  assert.ok(authIsRecent(ago(20), now, LEGACY_AUTH_MS), "and passes the legacy one");
+  assert.ok(!authIsRecent(ago(45), now, LEGACY_AUTH_MS), "45 min fails both");
+  assert.ok(LEGACY_AUTH_MS > RECENT_AUTH_MS, "legacy must be the wider of the two");
 });

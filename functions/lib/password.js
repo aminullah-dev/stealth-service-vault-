@@ -71,6 +71,22 @@ function rotationProblem(d) {
 const RECENT_AUTH_MS = 5 * 60 * 1000;
 
 /**
+ * The same gate, widened, for updatePinHash only.
+ *
+ * changePassword is called by a client this repository controls, which forces
+ * a token refresh after reauthenticating, so five minutes is exact. updatePinHash
+ * is also called by builds already on phones — v2.1.0's change-password path —
+ * whose token may still be the one minted at sign-in, because nothing in that
+ * build forces a refresh. Holding those to five minutes would tell a woman who
+ * signed in this morning to sign in again in order to change her password.
+ *
+ * Thirty minutes still shuts what the gate is for: a long-lived stolen session
+ * being used to overwrite the credential pair. It does not admit anything a
+ * five-minute window would have kept out for more than half an hour.
+ */
+const LEGACY_AUTH_MS = 30 * 60 * 1000;
+
+/**
  * Whether the token was minted from a real authentication just now.
  *
  * This, and not the hash comparison, is what proves the caller knows the
@@ -100,6 +116,7 @@ module.exports = {
   SALT_B64_LEN,
   HASH_B64_LEN,
   RECENT_AUTH_MS,
+  LEGACY_AUTH_MS,
   authIsRecent,
   isHash,
   isSalt,

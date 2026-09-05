@@ -7,7 +7,7 @@ const { phoneKey } = require("../lib/phone");
 const { defaultWorkingHours } = require("../lib/hours");
 const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
 const { acceptedReferral, buildRegistrationDocument, selfRegisterRole } = require("../lib/registration");
-const { authIsRecent, isHash, isSalt, rotationProblem } = require("../lib/password");
+const { LEGACY_AUTH_MS, authIsRecent, isHash, isSalt, rotationProblem } = require("../lib/password");
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
@@ -178,7 +178,12 @@ exports.updatePinHash = onCall({ region: "us-central1" }, async (request) => {
   // Free for both real callers: SetNewPinViewModel and public/reset sign in on
   // the line immediately above their call, and a sign-in is what sets
   // auth_time.
-  if (!authIsRecent(request.auth.token && request.auth.token.auth_time, Date.now())) {
+  //
+  // LEGACY_AUTH_MS, not the five minutes changePassword uses: this callable is
+  // also reached by builds already on phones, whose token may still be the one
+  // minted at sign-in because nothing in those builds forces a refresh.
+  if (!authIsRecent(request.auth.token && request.auth.token.auth_time,
+                    Date.now(), LEGACY_AUTH_MS)) {
     throw new HttpsError("failed-precondition",
       "Please sign in again before changing your password.");
   }
