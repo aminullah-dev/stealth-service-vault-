@@ -186,6 +186,7 @@ fun SetNewPinScreen(
                                     SetNewPinViewModel.ErrorReason.PIN_MISMATCH   -> strings.setNewPinMismatch
                                     SetNewPinViewModel.ErrorReason.NOT_FOUND      -> strings.forgotPinNotFound
                                     SetNewPinViewModel.ErrorReason.RESET_FAILED   -> strings.setNewPinInvalidLink
+                                    SetNewPinViewModel.ErrorReason.RESET_HALF_DONE -> strings.setNewPinHalfDone
                                 }
                                 Text(
                                     message,

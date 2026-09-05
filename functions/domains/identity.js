@@ -312,7 +312,7 @@ exports.changePassword = onCall({ region: "us-central1" }, async (request) => {
       // alertable, not logger.error: the monitoring policy matches on the
       // `alert` label, and this is the one outcome nobody finds on their own —
       // the account looks ordinary and simply refuses both passwords.
-      alertable("password-rotation-stuck",
+      alertable("PASSWORD_ROTATION_STUCK",
         "changePassword: rollback FAILED — account cannot sign in with either password",
         { uid: appUser.uid, authUid: authRecord.uid,
           rollbackErr: String(rollbackErr), authErr: String(e) });

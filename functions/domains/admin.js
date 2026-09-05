@@ -130,8 +130,88 @@ exports.adminResetPassword = onCall({ region: "us-central1" }, async (request) =
   } catch (e) {
     throw new HttpsError("not-found", "No Firebase Auth user for this account.");
   }
-  await admin.auth().updateUser(authRecord.uid, { password: authPassword });
-  await ref.update({ pinHash, salt });
+
+  // Firestore first, then Auth, and put Firestore back if Auth refuses — the
+  // same order changePassword uses, for the same reason. This was Auth first
+  // and Firestore second, so a failed second write left the pair disagreeing
+  // and BOTH passwords dead: the temporary password the admin had just read
+  // out fails the stored-hash check, and the account's real password passes
+  // it, is handed the old salt, derives an Auth password Firebase no longer
+  // accepts, and is refused. The admin's own recovery tool was the thing that
+  // could lock the account, and re-running it would have hit the same window.
+  //
+  // Only this direction is recoverable: the previous salt and hash were just
+  // read and are in hand, whereas the previous Auth password is something the
+  // server never sees.
+  const prevPinHash = String(u.pinHash || "");
+  const prevSalt    = String(u.salt || "");
+
+  try {
+    await ref.update({ pinHash, salt });
+  } catch (e) {
+    // The one exit that can say this with certainty: Auth has not been touched,
+    // so whatever password the account had still works. Every other failure
+    // below is ambiguous, and saying so is the difference between an admin who
+    // moves on and an admin who re-runs a reset on a working account.
+    throw new HttpsError("internal",
+      "Could not write the new credentials. Nothing was changed; the existing password still works.");
+  }
+
+  // Retried before any rollback is considered, because updateUser with the same
+  // password is idempotent. That matters more than it looks: the dangerous case
+  // is a write that COMMITS and then loses its response, and rolling back after
+  // one of those is what creates the both-passwords-dead state — her real
+  // password would pass the restored hash, be handed the restored salt, derive
+  // an Auth password Firebase no longer accepts, and be refused. A retry turns
+  // a lost response back into the success it actually was.
+  let authErr = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await admin.auth().updateUser(authRecord.uid, { password: authPassword });
+      authErr = null;
+      break;
+    } catch (e) {
+      authErr = e;
+    }
+  }
+
+  if (authErr) {
+    // An account with no previous credential has nothing to restore; clearing
+    // the fields we just wrote is still right, since they now describe a
+    // password Firebase never accepted.
+    let rolledBack = true;
+    try {
+      await ref.update({ pinHash: prevPinHash, salt: prevSalt });
+    } catch (rollbackErr) {
+      rolledBack = false;
+      alertable("PASSWORD_ROTATION_STUCK",
+        "adminResetPassword: rollback FAILED — account cannot sign in with either password",
+        { targetUid, adminUid: me.uid, authUid: authRecord.uid,
+          rollbackErr: String(rollbackErr), authErr: String(authErr) });
+    }
+    // Audited on the way out. logAdminAction has its own try/catch and cannot
+    // throw, so it cannot displace the error below — and without it the trail
+    // says the reset never happened, which is what support would read while
+    // someone is on the phone unable to sign in.
+    await logAdminAction(me, "RESET_PASSWORD_FAILED",
+      { targetUid, targetName: u.name || "", rolledBack });
+
+    if (!rolledBack) {
+      throw new HttpsError("internal",
+        "The reset could not be completed or undone. The account may be unable to sign in.");
+    }
+    // Deliberately NOT "nothing was changed". After two failures this cannot
+    // tell a refused write from one that landed and lost its reply, and the
+    // second leaves the account unable to sign in with either password.
+    alertable("PASSWORD_ROTATION_STUCK",
+      "adminResetPassword: auth update failed after retry; stored credentials restored",
+      { targetUid, adminUid: me.uid, authUid: authRecord.uid, authErr: String(authErr) });
+    throw new HttpsError("internal",
+      "Could not set the sign-in password. The stored credentials were restored, but the " +
+      "sign-in password may or may not have been changed — check that the account can still " +
+      "sign in before telling the user anything.");
+  }
+
   await logAdminAction(me, "RESET_PASSWORD", { targetUid, targetName: u.name || "" });
   return { ok: true };
 });
