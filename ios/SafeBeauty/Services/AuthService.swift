@@ -169,6 +169,78 @@ final class AuthService {
         Task { await PushService.shared.requestAuthorisation() }
     }
 
+    // MARK: - Change password
+
+    /// Rotates her password through the server, which owns the ordering.
+    ///
+    /// iOS had no path to this at all — the callable was built, deployed, and
+    /// had no caller on this platform, so a woman using the iPhone app could
+    /// never change her password.
+    ///
+    /// Reauthentication is the security boundary, not `currentPinHash`:
+    /// firestore.rules lets her read her own document including the stored
+    /// hash, so sending that back proves only that she is signed in. The
+    /// forced token refresh is not optional either — reauthenticating updates
+    /// auth_time on the account, but the callable SDK sends the cached ID
+    /// token, and changePassword refuses a stale one.
+    func changePassword(current: String, new newPassword: String) async throws {
+        isWorking = true
+        defer { isWorking = false }
+
+        guard let uid = session?.uid, !uid.isEmpty else { throw AuthError.server("no session") }
+        let snap = try await Firestore.firestore().document("users/\(uid)").getDocument()
+        guard let d = snap.data(),
+              let salt = d["salt"] as? String, !salt.isEmpty,
+              let firebaseEmail = d["firebaseEmail"] as? String, !firebaseEmail.isEmpty
+        else { throw AuthError.server("account has no password set") }
+
+        let currentPinHash  = try PinHasher.hash(current, saltBase64: salt)
+        let oldAuthPassword = try PinHasher.deriveAuthPassword(current, saltBase64: salt)
+        let newSalt         = PinHasher.generateSalt()
+        let newPinHash      = try PinHasher.hash(newPassword, saltBase64: newSalt)
+        let newAuthPassword = try PinHasher.deriveAuthPassword(newPassword, saltBase64: newSalt)
+
+        do {
+            try await Auth.auth().signIn(withEmail: firebaseEmail, password: oldAuthPassword)
+            _ = try await Auth.auth().currentUser?.getIDTokenResult(forcingRefresh: true)
+        } catch {
+            // Wrong current password, told apart from a server failure so she
+            // is not asked to check her internet over a typo.
+            throw AuthError.wrongPhoneOrPassword
+        }
+
+        do {
+            _ = try await Callables.call("changePassword", [
+                "currentPinHash":  .string(currentPinHash),
+                "newSalt":         .string(newSalt),
+                "newPinHash":      .string(newPinHash),
+                "newAuthPassword": .string(newAuthPassword),
+            ])
+        } catch let e as Callables.CallableError {
+            if case .rateLimited(let m) = e { throw AuthError.rateLimited(m) }
+            throw AuthError.server(e.localizedDescription)
+        }
+
+        // The credential on this device is the old one now. Refreshed here so
+        // she stays signed in rather than being dropped at some later moment
+        // when the token behind her session stops matching the password.
+        _ = try? await Auth.auth().signIn(withEmail: firebaseEmail, password: newAuthPassword)
+    }
+
+    /// Her display name. A direct write, as on Android — `name` is not frozen
+    /// in the rules and there is no callable for it.
+    func updateName(_ raw: String) async throws {
+        let name = raw.trimmingCharacters(in: .whitespaces)
+        guard let uid = session?.uid, !uid.isEmpty, !name.isEmpty else { return }
+        try await Firestore.firestore().document("users/\(uid)").updateData(["name": name])
+        if let s = session {
+            let updated = Session(uid: s.uid, name: name, role: s.role,
+                                  status: s.status, kycStatus: s.kycStatus)
+            session = updated
+            if let email = Auth.auth().currentUser?.email { persist(updated, firebaseEmail: email) }
+        }
+    }
+
     // MARK: - Forgot password
 
     /// What happened, because the three outcomes need three different sentences.

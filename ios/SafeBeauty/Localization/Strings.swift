@@ -67,6 +67,14 @@ extension L {
         }
     }
 
+    static func pointsAvailable(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "شما \(n) امتیاز دارید."
+        case .pashto: "تاسو \(n) امتیازه لرئ."
+        case .english: "You have \(n) points."
+        }
+    }
+
     static func starsLabel(_ n: Int) -> String {
         switch AppLanguage.current {
         case .dari: "\(n) ستاره"
@@ -134,6 +142,29 @@ extension L {
         fa: "از بخش سالن‌ها یک سالن انتخاب کنید و اولین نوبت خود را بگیرید.",
         ps: "د سالونونو له برخې یو سالون وټاکئ او خپل لومړی وخت ونیسئ.",
         en: "Pick a salon from the Salons tab and book your first appointment.")
+    // MARK: Account
+    static let changePassword = L(fa: "تغییر رمز عبور", ps: "د پټنوم بدلول", en: "Change password")
+    static let currentPassword = L(fa: "رمز فعلی", ps: "اوسنی پټنوم", en: "Current password")
+    static let newPassword = L(fa: "رمز جدید", ps: "نوی پټنوم", en: "New password")
+    static let passwordRule = L(
+        fa: "رمز جدید باید حداقل ۶ نویسه باشد.",
+        ps: "نوی پټنوم باید لږ تر لږه ۶ تورې ولري.",
+        en: "The new password must be at least 6 characters.")
+    static let passwordChanged = L(
+        fa: "رمز عبور شما عوض شد.", ps: "ستاسو پټنوم بدل شو.",
+        en: "Your password has been changed.")
+    static let wrongCurrentPassword = L(
+        fa: "رمز فعلی درست نیست.", ps: "اوسنی پټنوم سم نه دی.",
+        en: "That current password is not right.")
+    static let editName = L(fa: "ویرایش نام", ps: "د نوم سمول", en: "Edit name")
+    static let save = L(fa: "ذخیره", ps: "ساتل", en: "Save")
+    static let redeem = L(fa: "تبدیل امتیاز", ps: "د امتیاز بدلول", en: "Redeem points")
+    static let pointsToRedeem = L(fa: "چند امتیاز؟", ps: "څو امتیازه؟", en: "How many points?")
+    static let redeemRule = L(
+        fa: "هر ۱۰۰ امتیاز به ۱۰۰ افغانی اعتبار تبدیل می‌شود. مضربی از ۱۰۰ وارد کنید.",
+        ps: "هر ۱۰۰ امتیاز په ۱۰۰ افغانیو کریډیټ بدلېږي. د ۱۰۰ مضرب ولیکئ.",
+        en: "Every 100 points becomes 100 AFN of credit. Enter a multiple of 100.")
+
     static let errWrongLogin = L(
         fa: "شماره یا رمز عبور درست نیست.",
         ps: "شمېره یا پټنوم سم نه دی.",

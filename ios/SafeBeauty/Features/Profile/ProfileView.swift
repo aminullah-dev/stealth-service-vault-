@@ -19,6 +19,9 @@ struct ProfileView: View {
     @State private var showKyc = false
     @State private var confirmSignOut = false
     @State private var showSupport = false
+    @State private var showChangePassword = false
+    @State private var showEditName = false
+    @State private var showRedeem = false
     @State private var lang = LanguageStore.shared
 
     var body: some View {
@@ -42,6 +45,20 @@ struct ProfileView: View {
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white, in: RoundedRectangle(cornerRadius: 16))
+
+                    // The account actions, which the profile showed the results
+                    // of and gave no way to change: her name was displayed and
+                    // not editable, and there was no path to a password change
+                    // on this platform at all.
+                    Button { showEditName = true } label: {
+                        accountRow("person.text.rectangle", L.editName.t)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { showChangePassword = true } label: {
+                        accountRow("lock.rotation", L.changePassword.t)
+                    }
+                    .buttonStyle(.plain)
 
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
@@ -74,6 +91,11 @@ struct ProfileView: View {
             .navigationTitle(L.profile.t)
             .sheet(isPresented: $showKyc) { KycView() }
             .sheet(isPresented: $showSupport) { SupportView() }
+            .sheet(isPresented: $showChangePassword) { ChangePasswordSheet() }
+            .sheet(isPresented: $showEditName) { EditNameSheet() }
+            .sheet(isPresented: $showRedeem) {
+                RedeemPointsSheet(available: loyaltyPoints) { Task { await load() } }
+            }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
                 Button(L.signOut.t, role: .destructive) { auth.signOut() }
@@ -112,9 +134,39 @@ struct ProfileView: View {
         HStack(spacing: 0) {
             statTile(L.walletCredit.t, "\(referralCredit)", suffix: L.afn.t)
             Divider().frame(height: 40).overlay(Brand.petal.opacity(0.5))
-            statTile(L.loyaltyPoints.t, "\(loyaltyPoints)", suffix: nil)
+            // Not disabled below the threshold. A greyed-out STAT reads as a
+            // number that failed to load; the figure is correct either way, so
+            // it stays at full strength and only gains a tappable caption once
+            // there is actually something to spend.
+            if loyaltyPoints >= 100 {
+                Button { showRedeem = true } label: {
+                    VStack(spacing: 3) {
+                        statTile(L.loyaltyPoints.t, "\(loyaltyPoints)", suffix: nil)
+                        Text(L.redeem.t)
+                            .font(Brand.font(11.5, .medium))
+                            .foregroundStyle(Brand.deep)
+                    }
+                }
+                .buttonStyle(.plain)
+            } else {
+                statTile(L.loyaltyPoints.t, "\(loyaltyPoints)", suffix: nil)
+            }
         }
         .padding(.vertical, 15)
+        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// One row shape for every account action, so they read as a set rather
+    /// than as three buttons that happen to be near each other.
+    private func accountRow(_ icon: String, _ title: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(Brand.accent)
+            Text(title).font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+            Spacer()
+            Image(systemName: "chevron.forward").font(.system(size: 12))
+                .foregroundStyle(Brand.accent)
+        }
+        .padding(15)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
     }
 
