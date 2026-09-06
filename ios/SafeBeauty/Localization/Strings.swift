@@ -465,6 +465,17 @@ extension L {
     static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
     static let allNeighbourhoods = L(fa: "همه محله‌ها", ps: "ټول ګاونډونه",
                                      en: "All neighborhoods")
+
+    // MARK: Service categories
+    // The Android values verbatim. The Pashto for eyebrows is وروځې — وریځې is
+    // clouds, one letter apart, and categories.js carries the same warning
+    // because that mistake would silently match nothing.
+    static let categoryAll = L(fa: "همه", ps: "ټول", en: "All")
+    static let categoryHair = L(fa: "مو", ps: "ویښتان", en: "Hair")
+    static let categoryMakeup = L(fa: "آرایش", ps: "سینګار", en: "Makeup")
+    static let categoryNails = L(fa: "ناخن", ps: "نوکان", en: "Nails")
+    static let categorySkincare = L(fa: "مراقبت پوست", ps: "جلدي پاملرنه", en: "Skincare")
+    static let categoryEyebrows = L(fa: "ابرو", ps: "وروځې", en: "Eyebrows")
     static let noMatches = L(fa: "چیزی پیدا نشد.", ps: "څه ونه موندل شول.", en: "Nothing found.")
     static let clearFilters = L(fa: "پاک کردن فیلترها", ps: "فلټرونه پاکول",
                                 en: "Clear filters")

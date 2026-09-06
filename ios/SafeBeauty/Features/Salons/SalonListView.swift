@@ -4,6 +4,7 @@ import SafeBeautyCore
 struct SalonListView: View {
     @State private var repo = SalonRepository()
     @State private var search = ""
+    @State private var category: String?
     @State private var city: String?
     @State private var area: String?
     @State private var showMap = false
@@ -24,7 +25,16 @@ struct SalonListView: View {
         // `visible` twice.
         let city = selectedCity
         let area = activeArea
+        let category = self.category
         return repo.salons.filter { salon in
+            // The categories array is written by the server from the salon's own
+            // free-text service names, and it is deliberately conservative: a
+            // service it cannot place confidently is left out rather than
+            // guessed into a bucket. So a salon can legitimately have none, and
+            // then it appears only under "all" — which is right. A salon filed
+            // under a category it does not serve is found out by a customer
+            // arriving for a haircut nobody there does.
+            guard category == nil || salon.categories.contains(category!) else { return false }
             guard city == nil || cityOf(salon) == city else { return false }
             guard area == nil || areaIdentity(salon) == area else { return false }
             guard !term.isEmpty else { return true }
@@ -75,6 +85,21 @@ struct SalonListView: View {
         salon.city.isEmpty ? Areas.cityOf(areaIdentity(salon)) : salon.city
     }
 
+    /// The salons the sticky filters above a given row have already narrowed to.
+    ///
+    /// Each chip row offers only what leads somewhere given the rows above it,
+    /// so picking «ناخن» and then a neighbourhood cannot land on an empty
+    /// screen — the neighbourhood with no nail salon is simply not offered, and
+    /// that absence is the honest answer to "is there one near me".
+    ///
+    /// Search is deliberately not part of this. It is transient text, and chips
+    /// appearing and vanishing under a customer's fingers as she types would be
+    /// its own kind of broken.
+    private var afterCategory: [Salon] {
+        guard let category else { return repo.salons }
+        return repo.salons.filter { $0.categories.contains(category) }
+    }
+
     /// Only cities that actually have a salon, in Areas' own order.
     ///
     /// Built from the data rather than from the four supported cities. Offering
@@ -84,7 +109,7 @@ struct SalonListView: View {
     /// chips read in the order both platforms list them, with anything the
     /// server knows about and this build does not falling in after.
     private var cities: [String] {
-        let present = Set(repo.salons.map(cityOf).filter { !$0.isEmpty })
+        let present = Set(afterCategory.map(cityOf).filter { !$0.isEmpty })
         let known = Areas.liveCities.map(\.key).filter(present.contains)
         return known + present.subtracting(known).sorted()
     }
@@ -134,7 +159,7 @@ struct SalonListView: View {
     /// because Kabul's neighbourhoods have no parent recorded.
     private var areasHere: [String] {
         guard let city = activeCity else { return [] }
-        let present = Set(repo.salons.filter { cityOf($0) == city }
+        let present = Set(afterCategory.filter { cityOf($0) == city }
             .map(areaIdentity)
             .filter { !$0.isEmpty })
         let known = Areas.areasIn(city).map(\.key).filter(present.contains)
@@ -175,7 +200,9 @@ struct SalonListView: View {
                             .font(Brand.font(16, .medium))
                             .foregroundStyle(Brand.ink)
                     } actions: {
-                        Button(L.clearFilters.t) { search = ""; city = nil; area = nil }
+                        Button(L.clearFilters.t) {
+                            search = ""; category = nil; city = nil; area = nil
+                        }
                             .font(Brand.font(14, .medium))
                             .foregroundStyle(Brand.accent)
                     }
@@ -195,13 +222,33 @@ struct SalonListView: View {
             }
             .safeAreaInset(edge: .top) {
                 VStack(spacing: 0) {
+                    // Categories first, above the place filters, the way Android
+                    // orders them: what she wants done is a bigger cut than where
+                    // she wants it done.
+                    //
+                    // All five always, unlike the city and area rows. Those are
+                    // built from the data because 64 Kabul areas of which two
+                    // lead anywhere is noise; this is a fixed vocabulary of five
+                    // that a customer expects to see, and a category with no
+                    // salon yet is worth showing as a category with no salon yet.
+                    if !repo.salons.isEmpty {
+                        ChipRow {
+                            FilterChip(label: L.categoryAll.t, isSelected: category == nil) {
+                                category = nil
+                            }
+                            ForEach(Categories.canonical, id: \.self) { key in
+                                FilterChip(label: Categories.label(key),
+                                           isSelected: category == key) { category = key }
+                            }
+                        }
+                    }
                     if cities.count > 1 {
                         ChipRow {
-                            CityChip(label: L.allCities.t, isSelected: selectedCity == nil) {
+                            FilterChip(label: L.allCities.t, isSelected: selectedCity == nil) {
                                 city = nil; area = nil
                             }
                             ForEach(cities, id: \.self) { c in
-                                CityChip(label: Areas.cityName(c), isSelected: selectedCity == c) {
+                                FilterChip(label: Areas.cityName(c), isSelected: selectedCity == c) {
                                     // Her old area belongs to the city she just
                                     // left, so keeping it would filter the new
                                     // city down to nothing.
@@ -217,11 +264,11 @@ struct SalonListView: View {
                     // apart.
                     if activeCity != nil && areasHere.count > 1 {
                         ChipRow {
-                            CityChip(label: L.allNeighbourhoods.t, isSelected: activeArea == nil) {
+                            FilterChip(label: L.allNeighbourhoods.t, isSelected: activeArea == nil) {
                                 area = nil
                             }
                             ForEach(areasHere, id: \.self) { a in
-                                CityChip(label: Areas.label(a),
+                                FilterChip(label: Areas.label(a),
                                          isSelected: activeArea == a) { area = a }
                             }
                         }
@@ -371,7 +418,7 @@ struct ChipRow<Content: View>: View {
     }
 }
 
-struct CityChip: View {
+struct FilterChip: View {
     let label: String
     let isSelected: Bool
     let action: () -> Void
