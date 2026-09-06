@@ -520,6 +520,12 @@ extension L {
     }
     static let salonWork = L(fa: "نمونه کارها", ps: "د کار بېلګې", en: "Their work")
 
+    static let recommendedTitle = L(fa: "پیشنهاد برای شما", ps: "ستاسو لپاره وړاندیز",
+                                    en: "Recommended for You")
+    static let recommendedSubtitle = L(fa: "بر اساس رزروهای شما",
+                                       ps: "ستاسو د بکینګونو له مخې",
+                                       en: "Based on your bookings")
+
     // MARK: Group bookings — Android's strings verbatim
     static let groupBooking = L(fa: "رزرو گروهی / عروسی", ps: "ډله‌ییز / د واده بکینګ",
                                 en: "Group / event booking")

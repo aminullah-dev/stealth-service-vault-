@@ -2,6 +2,7 @@ import SwiftUI
 import SafeBeautyCore
 
 struct SalonListView: View {
+    @Environment(AuthService.self) private var auth
     @State private var repo = SalonRepository()
     @State private var search = ""
     @State private var category: String?
@@ -9,6 +10,7 @@ struct SalonListView: View {
     @State private var area: String?
     @State private var showMap = false
     @State private var showNotifications = false
+    @State private var bookings = BookingsRepository()
 
     /// Filtered on the client, not by re-querying.
     ///
@@ -116,6 +118,20 @@ struct SalonListView: View {
         return known + present.subtracting(known).sorted()
     }
 
+    /// Salons scored against what she has actually booked before.
+    ///
+    /// Ranked from the salons already loaded rather than from the whole
+    /// platform, exactly as Android does: this is a ranking of the candidates
+    /// she is scrolling, so a smaller set changes which five come back and not
+    /// whether the row works. Hidden entirely for someone with no history —
+    /// a "recommendation" row that is just the salon list teaches her to
+    /// ignore it.
+    private var recommended: [Salon] {
+        guard search.isEmpty, category == nil, selectedCity == nil, activeArea == nil
+        else { return [] }
+        return Recommendations.rank(salons: repo.salons, history: bookings.past)
+    }
+
     /// The chosen city, but only while its chip is on screen — the same clamp
     /// the area has. The row hides itself once one city is left, and her old
     /// choice then filtered on with nothing to deselect. Recoverable, because an
@@ -209,14 +225,38 @@ struct SalonListView: View {
                             .foregroundStyle(Brand.accent)
                     }
                 } else {
-                    List(visible) { salon in
-                        NavigationLink {
-                            SalonDetailView(salon: salon)
-                        } label: {
-                            SalonRow(salon: salon)
+                    List {
+                        // Above the full list and only when she is not
+                        // filtering — a recommendation under an active filter is
+                        // answering a question she did not ask.
+                        if !recommended.isEmpty {
+                            Section {
+                                ForEach(recommended) { salon in
+                                    NavigationLink { SalonDetailView(salon: salon) } label: {
+                                        SalonRow(salon: salon)
+                                    }
+                                    .listRowBackground(Brand.cream)
+                                    .listRowSeparatorTint(Brand.petal.opacity(0.4))
+                                }
+                            } header: {
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(L.recommendedTitle.t)
+                                        .font(Brand.font(15, .bold)).foregroundStyle(Brand.ink)
+                                    Text(L.recommendedSubtitle.t)
+                                        .font(Brand.font(12)).foregroundStyle(Brand.accent)
+                                }
+                                .textCase(nil)
+                            }
                         }
-                        .listRowBackground(Brand.cream)
-                        .listRowSeparatorTint(Brand.petal.opacity(0.4))
+                        ForEach(visible) { salon in
+                            NavigationLink {
+                                SalonDetailView(salon: salon)
+                            } label: {
+                                SalonRow(salon: salon)
+                            }
+                            .listRowBackground(Brand.cream)
+                            .listRowSeparatorTint(Brand.petal.opacity(0.4))
+                        }
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
@@ -310,6 +350,9 @@ struct SalonListView: View {
             .sheet(isPresented: $showNotifications) { NotificationsView().appDirection() }
         }
         .task { repo.start() }
+        .task(id: auth.session?.uid) {
+            if let uid = auth.session?.uid { bookings.start(customerId: uid) }
+        }
     }
 }
 
