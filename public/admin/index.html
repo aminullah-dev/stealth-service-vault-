@@ -454,8 +454,8 @@ const STR = {
   th_content: {en:'Content', fa:'محتوا', ps:'محتوا'},
   th_reason: {en:'Reason', fa:'دلیل', ps:'دلیل'},
   th_reporter: {en:'Reported by', fa:'گزارش‌دهنده', ps:'راپور ورکوونکی'},
-  btn_removeContent: {en:'Remove', fa:'حذف محتوا', ps:'محتوا لرې کول'},
-  btn_removeSuspend: {en:'Remove + suspend', fa:'حذف و تعلیق', ps:'لرې کول او تعلیق'},
+  btn_removeContent: {en:'Remove', fa:'حذف', ps:'لرې کول'},
+  btn_removeSuspend: {en:'Remove + suspend', fa:'حذف و تعلیق', ps:'لرې او تعلیق'},
   ask_removeContent: {en:'Delete this content permanently?', fa:'این محتوا برای همیشه حذف شود؟', ps:'دا محتوا د تل لپاره حذف شي؟'},
   ask_removeSuspend: {en:'Delete the content and suspend its author?', fa:'محتوا حذف و حساب نویسنده تعلیق شود؟', ps:'محتوا حذف او د لیکوال حساب دې تعلیق شي؟'},
   reason_HARASSMENT: {en:'Harassment', fa:'آزار و توهین', ps:'ځورونه'},
@@ -3553,19 +3553,21 @@ function renderContentReports(){
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th scope="col">${t('th_content')}</th><th scope="col">${t('th_reason')}</th><th scope="col">${t('th_reporter')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead>
         <tbody>` + rows.map(r => `<tr>
-          <td>
+          <td style="max-width:280px">
             <div class="name">${esc(r.targetType||'')}</div>
-            ${r.excerpt?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.excerpt)}"</div>`:''}
+            ${r.excerpt?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic;overflow-wrap:anywhere">"${esc(r.excerpt)}"</div>`:''}
             ${r.imageUrl?`<a href="${esc(r.imageUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:11.5px">🖼️</a>`:''}
-            ${r.note?`<div style="font-size:11.5px;margin-top:2px">${esc(r.note)}</div>`:''}
+            ${r.note?`<div style="font-size:11.5px;margin-top:2px;overflow-wrap:anywhere">${esc(r.note)}</div>`:''}
           </td>
           <td><span class="pill bad">${t('reason_'+(r.reason||'OTHER'))||esc(r.reason||'')}</span></td>
           <td>${esc(r.reporterName||r.reporterId||'—')}</td>
           <td>${fmtDate(r.createdAt)}</td>
-          <td style="text-align:right;white-space:nowrap">
-            <button class="btn-sm" style="background:var(--muted)" data-cdis="${esc(r.id)}">${t('btn_dismiss')}</button>
-            <button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-crem="${esc(r.id)}">${t('btn_removeContent')}</button>
-            ${r.ownerUid?`<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-csus="${esc(r.id)}">${t('btn_removeSuspend')}</button>`:''}
+          <td>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end">
+              <button class="btn-sm" style="background:var(--muted)" data-cdis="${esc(r.id)}">${t('btn_dismiss')}</button>
+              <button class="btn-sm" style="background:var(--red)" data-crem="${esc(r.id)}">${t('btn_removeContent')}</button>
+              ${r.ownerUid?`<button class="btn-sm" style="background:var(--red)" data-csus="${esc(r.id)}">${t('btn_removeSuspend')}</button>`:''}
+            </div>
           </td>
         </tr>`).join('') + `</tbody></table></div>`;
     const act = (id, action) =>
