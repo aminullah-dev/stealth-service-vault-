@@ -63,10 +63,20 @@ struct ProviderBookingRow: View {
     var onDecline: () -> Void = {}
     var isWorking = false
 
+    static func identify(_ booking: Appointment) -> String {
+        if !booking.customerName.isEmpty { return booking.customerName }
+        if !booking.bookingCode.isEmpty { return booking.bookingCode }
+        return booking.serviceName
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
-                Text(booking.customerName.isEmpty ? booking.bookingCode : booking.customerName)
+                // Name, then code, then the service. Every appointment written
+                // before the app stored a customer name has all three of the
+                // first two empty, and a bold blank line is not a row — it is a
+                // gap where an identity should be.
+                Text(Self.identify(booking))
                     .font(Brand.font(15, .bold)).foregroundStyle(Brand.ink)
                 Spacer(minLength: 0)
                 StatusPill(status: booking.status)
@@ -75,7 +85,7 @@ struct ProviderBookingRow: View {
                 Text(booking.serviceName)
                     .font(Brand.font(13)).foregroundStyle(Brand.accent)
             }
-            Text(TimeChip.label(booking.appointmentDate))
+            Text(TimeChip.dateLabel(booking.appointmentDate))
                 .font(Brand.font(13, .medium)).foregroundStyle(Brand.ink.opacity(0.8))
 
             HStack(spacing: 10) {

@@ -18,7 +18,30 @@ struct ProviderIncomeView: View {
         repo.appointments.filter { $0.status == .completed }
     }
 
-    private var taken: Int { completed.reduce(0) { $0 + $1.total } }
+    /// What a visit earned, or nil when that cannot be recovered.
+    ///
+    /// `total` sums the prices stored on the booking, and five of this salon's
+    /// eight completed visits have no `services` array at all — they were
+    /// written before the app stored one. The provider console falls back to
+    /// the salon's current price for the named service, which is why its
+    /// variable is called `est`; here that fallback returns nothing, because
+    /// the bookings name "mo" and the salon's price list now says «مو».
+    ///
+    /// So the price is genuinely unrecoverable, and nil is the answer. Printing
+    /// 0 AFN would be a claim that the visit earned nothing, which is a
+    /// different and false statement — and the one a salon owner would read as
+    /// hers.
+    private func earned(_ booking: Appointment) -> Int? {
+        if booking.total > 0 { return booking.total }
+        if let price = repo.salon?.pricePerService[booking.serviceName], price > 0 { return price }
+        return nil
+    }
+
+    private var taken: Int { completed.compactMap(earned).reduce(0, +) }
+
+    /// How many the total leaves out, so the figure is not read as covering all
+    /// eight visits when it covers three.
+    private var unpriced: Int { completed.filter { earned($0) == nil }.count }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +58,12 @@ struct ProviderIncomeView: View {
                             }
                             .padding(.vertical, 16)
                             .background(.white, in: RoundedRectangle(cornerRadius: 16))
+
+                            if unpriced > 0 {
+                                Text(L.earnedExcludes(unpriced))
+                                    .font(Brand.font(12)).foregroundStyle(Brand.accent)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
 
                             // Shown even at zero. "You owe nothing" is worth
                             // reading; a card that appears only when there is a
@@ -74,22 +103,31 @@ struct ProviderIncomeView: View {
                                     ForEach(completed.prefix(30)) { booking in
                                         HStack(spacing: 8) {
                                             VStack(alignment: .leading, spacing: 2) {
-                                                Text(booking.customerName.isEmpty
-                                                     ? booking.bookingCode : booking.customerName)
+                                                Text(ProviderBookingRow.identify(booking))
                                                     .font(Brand.font(14, .medium))
                                                     .foregroundStyle(Brand.ink)
-                                                Text(TimeChip.label(booking.appointmentDate))
+                                                Text(TimeChip.dateLabel(booking.appointmentDate))
                                                     .font(Brand.font(12))
                                                     .foregroundStyle(Brand.accent)
                                             }
                                             Spacer(minLength: 0)
-                                            HStack(spacing: 3) {
-                                                Text(verbatim: "\(booking.total)")
-                                                    .environment(\.layoutDirection, .leftToRight)
-                                                Text(L.afn.t)
+                                            if let amount = earned(booking) {
+                                                HStack(spacing: 3) {
+                                                    Text(verbatim: "\(amount)")
+                                                        .environment(\.layoutDirection, .leftToRight)
+                                                    Text(L.afn.t)
+                                                }
+                                                .font(Brand.font(13, .medium))
+                                                .foregroundStyle(Brand.deep)
+                                            } else {
+                                                // An em dash, not a zero. "We do
+                                                // not know" and "she earned
+                                                // nothing" are different things
+                                                // to tell a salon owner.
+                                                Text(verbatim: "—")
+                                                    .font(Brand.font(13, .medium))
+                                                    .foregroundStyle(Brand.accent)
                                             }
-                                            .font(Brand.font(13, .medium))
-                                            .foregroundStyle(Brand.deep)
                                         }
                                         .padding(.vertical, 9)
                                         if booking.id != completed.prefix(30).last?.id {

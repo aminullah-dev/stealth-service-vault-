@@ -135,7 +135,9 @@ struct ProviderProfileView: View {
 
     private func servicesCard(_ salon: Salon) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(L.chooseServices.t).font(Brand.font(14, .bold)).foregroundStyle(Brand.ink)
+            // Not "choose services" — that is the customer's screen. She is
+            // reading her own price list, not picking from it.
+            Text(L.servicesAndPrices.t).font(Brand.font(14, .bold)).foregroundStyle(Brand.ink)
             FlowLayout(spacing: 8) {
                 ForEach(salon.services, id: \.self) { service in
                     HStack(spacing: 5) {
@@ -208,12 +210,31 @@ struct ProviderProfileView: View {
                                     .font(.system(size: 11)).foregroundStyle(Brand.gold)
                             }
                             Spacer(minLength: 0)
-                            Text(review.customerName)
+                            // Reviews written before the app stored a name have
+                            // none. "A customer" is what she is; an empty gap
+                            // beside five stars reads as a name that failed to
+                            // load.
+                            Text(review.customerName.isEmpty ? L.anonymousCustomer.t
+                                                             : review.customerName)
                                 .font(Brand.font(12)).foregroundStyle(Brand.accent)
                         }
                         if !review.comment.isEmpty {
                             Text(review.comment)
                                 .font(Brand.font(13)).foregroundStyle(Brand.ink.opacity(0.85))
+                        }
+                        // Her own answer, which the card did not show at all —
+                        // and which is the one thing she needs to know before
+                        // deciding whether a review still wants replying to.
+                        if !review.providerReply.isEmpty {
+                            HStack(alignment: .top, spacing: 6) {
+                                Text(L.yourReply.t)
+                                    .font(Brand.font(11.5, .medium))
+                                    .foregroundStyle(Brand.deep)
+                                Text(review.providerReply)
+                                    .font(Brand.font(12.5))
+                                    .foregroundStyle(Brand.ink.opacity(0.75))
+                            }
+                            .padding(.top, 2)
                         }
                     }
                     .padding(.vertical, 5)

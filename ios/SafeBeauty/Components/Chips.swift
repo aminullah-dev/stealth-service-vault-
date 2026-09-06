@@ -126,6 +126,19 @@ struct TimeChip: View {
         .buttonStyle(.plain)
     }
 
+    /// Day and time together, for a list that spans days.
+    ///
+    /// `label` is time-only, which is right inside one day's slot grid and
+    /// wrong everywhere else: a diary row or an income row that says only
+    /// "۵:۳۰" does not say which visit it was.
+    static func dateLabel(_ millis: Int64) -> String {
+        let f = DateFormatter()
+        f.timeZone = DayGrid.kabul
+        f.locale = AppLanguage.current.locale
+        f.setLocalizedDateFormatFromTemplate("d MMM HH:mm")
+        return f.string(from: Date(timeIntervalSince1970: Double(millis) / 1000))
+    }
+
     static func label(_ millis: Int64) -> String {
         let f = DateFormatter()
         f.timeZone = DayGrid.kabul

@@ -499,11 +499,22 @@ extension L {
         fa: "کمیسیون نوبت‌های نقدی. پس از تسویه، ادمین آن را صفر می‌کند.",
         ps: "د نغدو نوبتونو کمیشن. له تصفیې وروسته، اډمین یې صفر کوي.",
         en: "Commission on cash bookings. An admin clears it once you settle.")
+    static func earnedExcludes(_ count: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(count) نوبت قیمت ثبت‌شده ندارد و در این مجموع نیامده."
+        case .pashto: "\(count) نوبت ثبت شوې بیه نه لري او په دې ټوله کې نه دی راغلی."
+        case .english: "\(count) visits have no recorded price and are not in this total."
+        }
+    }
     static let completedVisits = L(fa: "نوبت‌های انجام‌شده", ps: "ترسره شوي نوبتونه",
                                    en: "Completed visits")
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    static let servicesAndPrices = L(fa: "خدمات و قیمت‌ها", ps: "خدمتونه او بیې",
+                                     en: "Services and prices")
+    static let anonymousCustomer = L(fa: "مشتری", ps: "پیرودونکې", en: "A customer")
+    static let yourReply = L(fa: "پاسخ شما", ps: "ستاسو ځواب", en: "Your reply")
     static let workingHours = L(fa: "ساعات کاری", ps: "د کار ساعتونه", en: "Working hours")
     static let closedDay = L(fa: "تعطیل", ps: "رخصت", en: "Closed")
     static let salonListed = L(fa: "در فهرست است", ps: "په لیست کې دی", en: "Listed")
