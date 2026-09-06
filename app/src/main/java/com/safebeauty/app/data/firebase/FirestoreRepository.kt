@@ -1190,11 +1190,15 @@ class FirestoreRepository @Inject constructor(
                 .limit(USER_PAGE_SIZE)
         }
 
-        // Oldest first, which is the order observeAllUsers produced. createdAt is
-        // written at registration and present on every account — worth stating,
-        // because Firestore drops documents that lack the orderBy field, and an
-        // admin list that silently omits accounts is worse than a slow one.
-        return q.orderBy("createdAt").limit(USER_PAGE_SIZE)
+        // By document id, not createdAt. The comment here used to say createdAt
+        // is "present on every account"; identity.js:855 says the opposite in
+        // as many words — ordering by it "dropped every account written before
+        // createdAt existed, which is exactly the population missing these
+        // keys". Firestore excludes documents that lack the orderBy field, so
+        // an admin browsing users could not see the accounts most likely to
+        // need an admin. The id is on every document by definition, and it is
+        // what idPage already pages by on the server.
+        return q.orderBy(FieldPath.documentId()).limit(USER_PAGE_SIZE)
     }
 
     /** One page of users matching [filter]. */

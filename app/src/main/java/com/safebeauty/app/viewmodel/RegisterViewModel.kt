@@ -32,7 +32,7 @@ class RegisterViewModel @Inject constructor(
         NAME_REQUIRED, PHONE_REQUIRED, PHONE_INVALID, EMAIL_INVALID,
         PIN_TOO_SHORT, PIN_MISMATCH,
         SALON_NAME_REQUIRED, DISTRICT_REQUIRED, SERVICES_REQUIRED,
-        PHONE_CHECK_FAILED, PHONE_EXISTS, EMAIL_EXISTS, REGISTRATION_FAILED,
+        PHONE_EXISTS, EMAIL_EXISTS, REGISTRATION_FAILED,
         // The account EXISTS. She must not register again — that comes back
         // PHONE_EXISTS and reads as a contradiction — she signs in.
         REGISTERED_NOW_SIGN_IN

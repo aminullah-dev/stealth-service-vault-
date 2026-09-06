@@ -443,7 +443,6 @@ fun RegisterScreen(
                     RegisterViewModel.ErrorReason.SALON_NAME_REQUIRED -> strings.regSalonNameRequired
                     RegisterViewModel.ErrorReason.DISTRICT_REQUIRED   -> strings.regDistrictRequired
                     RegisterViewModel.ErrorReason.SERVICES_REQUIRED   -> strings.regServicesRequired
-                    RegisterViewModel.ErrorReason.PHONE_CHECK_FAILED  -> strings.regPhoneCheckFailed
                     RegisterViewModel.ErrorReason.PHONE_EXISTS        -> strings.regPhoneExists
                     RegisterViewModel.ErrorReason.EMAIL_EXISTS        -> strings.regEmailExists
                     RegisterViewModel.ErrorReason.REGISTRATION_FAILED -> strings.regFailed

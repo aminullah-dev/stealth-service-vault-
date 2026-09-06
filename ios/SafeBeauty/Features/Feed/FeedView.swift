@@ -6,6 +6,7 @@ import SafeBeautyCore
 struct FeedView: View {
     @State private var posts: [SalonPost] = []
     @State private var offers: [SalonOffer] = []
+    @State private var loadFailed = false
     @State private var isLoading = true
 
     var body: some View {
@@ -14,6 +15,14 @@ struct FeedView: View {
                 if isLoading && posts.isEmpty && offers.isEmpty {
                     ProgressView().tint(Brand.accent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if loadFailed && posts.isEmpty && offers.isEmpty {
+                    // A read that failed is not an empty feed. Both were
+                    // showing the same reassuring sentence.
+                    ContentUnavailableView {
+                        Text(L.couldNotLoad.t)
+                            .font(Brand.font(17, .medium))
+                            .foregroundStyle(Color(hex: 0xC0392B))
+                    }
                 } else if posts.isEmpty && offers.isEmpty {
                     ContentUnavailableView {
                         Text(L.feedEmpty.t)
@@ -63,6 +72,7 @@ struct FeedView: View {
         // order. Ordering server-side drops a post that lacks createdAt, which
         // is the accepted trade: every post the server writes has one, and
         // showing the wrong fifty is worse than omitting a malformed document.
+        var failed = false
         if let snap = try? await db.collection("salon_posts")
             .order(by: "createdAt", descending: true).limit(to: 50).getDocuments() {
             posts = DocumentDecoding.decodeAll(
@@ -70,7 +80,7 @@ struct FeedView: View {
                 documents: snap.documents.map { (id: $0.documentID, data: $0.data()) },
                 assigningID: { $0.id = $1 }).values
                 .sorted { $0.createdAt > $1.createdAt }
-        }
+        } else { failed = true }
 
         if let snap = try? await db.collection("salon_offers")
             .order(by: "createdAt", descending: true).limit(to: 50).getDocuments() {
@@ -83,7 +93,9 @@ struct FeedView: View {
                 // express "no expiry means never expires".
                 .filter { $0.isLive() }
                 .sorted { $0.createdAt > $1.createdAt }
-        }
+        } else { failed = true }
+
+        loadFailed = failed
     }
 }
 
