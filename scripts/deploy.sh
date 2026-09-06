@@ -88,6 +88,16 @@ if [[ "$TARGETS" == "functions" && "${3:-}" != "all" ]]; then
           functions/domains/*.js) FILES="$FILES $f" ;;
           functions/lib/*.js)
             MOD="$(basename "$f" .js)"
+            # shared.js is imported by every domain, so a lib it requires
+            # reaches every domain too — even ones with no literal
+            # require("../lib/<mod>") of their own. Matching only the literal
+            # left those domains running the OLD lib code while the deploy
+            # exited 0 and recorded the commit as shipped, which is the worst
+            # possible combination: wrong, and marked done.
+            if grep -qE "require\(\"\./lib/$MOD\"\)" functions/shared.js; then
+              echo "── functions: lib/$MOD is reached through shared.js — deploying all"
+              FILES="ALL"; break
+            fi
             for d in functions/domains/*.js; do
               grep -qE "require\(\"\.\./lib/$MOD\"\)" "$d" && FILES="$FILES $d"
             done ;;
@@ -98,9 +108,19 @@ if [[ "$TARGETS" == "functions" && "${3:-}" != "all" ]]; then
         echo "── functions: a file outside domains/ and lib/ changed — deploying all"
         FILES=""
       fi
+      # Only names index.js re-exports are real functions. A domain also
+      # exports pure helpers — deriveSalonDiscovery, storedDiscoveryFields,
+      # parseGsUri — which index.js does not wire up, and asking firebase to
+      # deploy one of those makes it throw during prepare and take the WHOLE
+      # batch with it, including the functions that were fine.
+      WIRED="$(grep -oE '^exports\.[A-Za-z_][A-Za-z0-9_]*' functions/index.js | sed 's/exports\.//' | sort -u)"
       for f in $(tr ' ' '\n' <<<"$FILES" | sort -u); do
         for n in $(grep -oE '^exports\.[A-Za-z_][A-Za-z0-9_]*' "$f" | sed 's/exports\.//'); do
-          NARROWED="${NARROWED:+$NARROWED,}functions:$n"
+          if grep -qx "$n" <<<"$WIRED"; then
+            NARROWED="${NARROWED:+$NARROWED,}functions:$n"
+          else
+            echo "     (skipping $n — a helper index.js does not export)"
+          fi
         done
       done
       if [[ -n "$NARROWED" ]]; then
@@ -126,6 +146,20 @@ echo "── firebase deploy"
 # TTL without a single startTime between them. Five at a time, sequentially,
 # stays under it. Slower, and it finishes.
 DEPLOY_STATUS=0
+# "Deploy all" is the case that most needs batching, and was the one case that
+# skipped it. TARGETS is the bare string "functions" there, which never matched
+# the functions:* test below, so all 79 went out in a single invocation — the
+# exact shape that put seventeen builds in a queue none of them left and had
+# them cancelled at the queue TTL. Expanded into named targets from index.js so
+# it takes the same five-at-a-time path as every narrowed deploy.
+if [[ "$TARGETS" == "functions" ]]; then
+  ALL_FNS="$(grep -oE '^exports\.[A-Za-z_][A-Za-z0-9_]*' functions/index.js \
+             | sed 's/exports\./functions:/' | sort -u | paste -sd, -)"
+  if [[ -n "$ALL_FNS" ]]; then
+    echo "── functions: expanding \"all\" into $(tr ',' '\n' <<<"$ALL_FNS" | wc -l | tr -d ' ') named targets so they batch"
+    TARGETS="$ALL_FNS"
+  fi
+fi
 if [[ "$TARGETS" == functions:* ]]; then
   IFS=',' read -ra FNS <<<"$TARGETS"
   TOTAL=${#FNS[@]}
