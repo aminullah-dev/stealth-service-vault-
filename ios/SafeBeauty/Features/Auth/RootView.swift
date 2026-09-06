@@ -11,6 +11,8 @@ import SafeBeautyCore
 struct RootView: View {
     @State private var auth = AuthService.shared
     @State private var lang = LanguageStore.shared
+    @State private var theme = ThemeStore.shared
+    @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -37,6 +39,17 @@ struct RootView: View {
             }
         }
         .environment(auth)
+        // The whole tree is rebuilt when the look changes. Brand.* are static
+        // lookups, not observable properties, so nothing would re-render on
+        // its own — the same reason the tab bar needed this for language.
+        .id(theme.identity)
+        // colorScheme is only readable from a view, so the store is told.
+        .onAppear { theme.systemIsDark = systemScheme == .dark }
+        .onChange(of: systemScheme) { _, s in theme.systemIsDark = s == .dark }
+        // Pins the whole app when she has chosen, and follows the phone when
+        // she has not.
+        .preferredColorScheme(theme.appearance == .system
+                              ? nil : (theme.isDark ? .dark : .light))
         .environment(\.layoutDirection, lang.current.layoutDirection)
         .environment(\.locale, lang.current.locale)
         .animation(.easeInOut(duration: 0.25), value: auth.session)

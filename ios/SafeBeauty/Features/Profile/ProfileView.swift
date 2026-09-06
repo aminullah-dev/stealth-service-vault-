@@ -23,6 +23,7 @@ struct ProfileView: View {
     @State private var showEditName = false
     @State private var showRedeem = false
     @State private var lang = LanguageStore.shared
+    @State private var theme = ThemeStore.shared
 
     var body: some View {
         NavigationStack {
@@ -50,6 +51,8 @@ struct ProfileView: View {
                     // of and gave no way to change: her name was displayed and
                     // not editable, and there was no path to a password change
                     // on this platform at all.
+                    themeCard
+
                     Button { showEditName = true } label: {
                         accountRow("person.text.rectangle", L.editName.t)
                     }
@@ -158,6 +161,66 @@ struct ProfileView: View {
 
     /// One row shape for every account action, so they read as a set rather
     /// than as three buttons that happen to be near each other.
+    /// Colour and light, the way Android offers them. A woman who picked
+    /// Lavender on her phone and saw Rose on an iPhone would think it was a
+    /// different product.
+    private var themeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L.theme.t).font(Brand.font(13, .medium))
+                .foregroundStyle(Brand.textMuted)
+            swatchRow
+            appearanceRow
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var swatchRow: some View {
+        HStack(spacing: 10) {
+            ForEach(AppBrandTheme.allCases) { b in
+                Button { theme.brand = b } label: {
+                    Circle()
+                        .fill(swatch(b))
+                        .frame(width: 34, height: 34)
+                        .overlay(Circle().strokeBorder(
+                            theme.brand == b ? Brand.ink : Color.clear, lineWidth: 2.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(themeName(b))
+                .accessibilityAddTraits(theme.brand == b ? [.isSelected] : [])
+            }
+        }
+    }
+
+    private var appearanceRow: some View {
+        @Bindable var theme = theme
+        return Picker("", selection: $theme.appearance) {
+            Text(L.appearanceSystem.t).tag(ThemeStore.Appearance.system)
+            Text(L.appearanceLight.t).tag(ThemeStore.Appearance.light)
+            Text(L.appearanceDark.t).tag(ThemeStore.Appearance.dark)
+        }
+        .pickerStyle(.segmented)
+    }
+
+    /// The swatch shows the brand's own rose, taken from its light palette so
+    /// the six read as six colours rather than six shades of the current one.
+    private func swatch(_ b: AppBrandTheme) -> Color {
+        allPalettes[b.rawValue.prefix(1).uppercased() + b.rawValue.dropFirst() + "Light"]?
+            .roseGold ?? Brand.accent
+    }
+
+    private func themeName(_ b: AppBrandTheme) -> String {
+        switch b {
+        case .rose: L.themeRose.t
+        case .lavender: L.themeLavender.t
+        case .sage: L.themeSage.t
+        case .ocean: L.themeOcean.t
+        case .honey: L.themeHoney.t
+        case .maroon: L.themeMaroon.t
+        }
+    }
+
     private func accountRow(_ icon: String, _ title: String) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon).foregroundStyle(Brand.accent)

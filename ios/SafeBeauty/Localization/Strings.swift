@@ -171,6 +171,18 @@ extension L {
         fa: "اولین پیام را بنویسید. سالن آن را در اپ خودش می‌بیند.",
         ps: "لومړی پیغام ولیکئ. سالون یې په خپل اپ کې ویني.",
         en: "Write the first message. The salon sees it in its own app.")
+    // MARK: Appearance
+    static let theme = L(fa: "رنگ برنامه", ps: "د اپ رنګ", en: "Theme")
+    static let themeRose = L(fa: "رز", ps: "ګلابي", en: "Rose")
+    static let themeLavender = L(fa: "اسطوخودوس", ps: "لاوندر", en: "Lavender")
+    static let themeSage = L(fa: "مریم‌گلی", ps: "شنه", en: "Sage")
+    static let themeOcean = L(fa: "اقیانوس", ps: "سمندر", en: "Ocean")
+    static let themeHoney = L(fa: "عسلی", ps: "شاتيز", en: "Honey")
+    static let themeMaroon = L(fa: "زرشکی", ps: "تور سور", en: "Maroon")
+    static let appearanceSystem = L(fa: "خودکار", ps: "اتومات", en: "Auto")
+    static let appearanceLight = L(fa: "روشن", ps: "روښانه", en: "Light")
+    static let appearanceDark = L(fa: "تاریک", ps: "تیاره", en: "Dark")
+
     static let errWrongLogin = L(
         fa: "شماره یا رمز عبور درست نیست.",
         ps: "شمېره یا پټنوم سم نه دی.",
