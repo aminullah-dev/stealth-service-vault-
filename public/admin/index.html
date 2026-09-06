@@ -2616,7 +2616,11 @@ async function renderHealth(){
         $('h-ssflash').className = 'mflash ok';
         $('h-ssflash').textContent =
           `Read ${data.scanned} booking(s); rebuilt ${data.salons} salon tall${data.salons === 1 ? 'y' : 'ies'}.` +
-          (data.ratingsFixed ? ` Recomputed ${data.ratingsFixed} salon rating(s) from their reviews.` : '') +
+          // Always printed, including zero. Hiding it behind a truthy check
+          // made "no salon had reviews" and "you are looking at a cached page
+          // that predates this feature" produce the identical message, and
+          // that ambiguity cost a round trip of investigation.
+          ` Recomputed ${data.ratingsFixed ?? 0} salon rating(s) from their reviews.` +
           (data.skipped ? ` Skipped ${data.skipped} salon(s) that no longer exist.` : '');
       }catch(err){
         $('h-ssflash').className = 'mflash bad';
