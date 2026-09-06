@@ -28,6 +28,17 @@ struct SlotPicker: View {
     /// A failed read is not an empty diary — treating it as one offers every
     /// hour of the day as free.
     @State private var unavailable = false
+    @State private var waitlist = WaitlistStore.shared
+    @State private var joining = false
+    @State private var joinError = false
+
+    @Environment(AuthService.self) private var auth
+
+    /// The day she is looking at, as the start-of-day millis the waitlist keys
+    /// on. Not the slot — the whole point is that no slot is free.
+    private var dayStartMillis: Int64 {
+        Int64(DayGrid.dayStart(selectedDay).timeIntervalSince1970 * 1000)
+    }
 
     /// The next seven days, starting today, in Kabul.
     private var days: [Date] {
@@ -113,6 +124,32 @@ struct SlotPicker: View {
                     Text(isClosedToday ? L.closedThatDay.t : L.noTimesLeft.t)
                         .font(Brand.font(14))
                         .foregroundStyle(Brand.accent)
+
+                    // Full is not the same as closed, and only one of the two
+                    // can still turn into an appointment. A fully-booked day was
+                    // a dead end here: the sentence above was the entire answer,
+                    // so the only way to learn a place had opened was to keep
+                    // reopening the app.
+                    if !isClosedToday {
+                        if waitlist.isWaiting(salonId: salon.id, dayStart: dayStartMillis) {
+                            Text(L.waitlistJoined.t)
+                                .font(Brand.font(13))
+                                .foregroundStyle(Brand.deep)
+                        } else {
+                            Button {
+                                Task { await join() }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    if joining { ProgressView().tint(Brand.accent) }
+                                    Text(L.joinWaitlist.t).font(Brand.font(14, .medium))
+                                }
+                                .foregroundStyle(Brand.deep)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(joining)
+                        }
+                        if joinError { ErrorBanner(message: L.errNetwork.t) }
+                    }
                 } else {
                     FlowLayout(spacing: 8) {
                         ForEach(availableSlots, id: \.self) { slot in
@@ -129,6 +166,18 @@ struct SlotPicker: View {
         // and the span changes with them, so what fits changes too.
         .onChange(of: serviceNames) { _, _ in selectedSlot = nil }
         .onChange(of: reloadToken) { _, _ in Task { await load() } }
+    }
+
+    private func join() async {
+        guard let session = auth.session else { return }
+        joining = true; defer { joining = false }
+        joinError = false
+        do {
+            try await waitlist.join(salon: salon, dayStart: dayStartMillis,
+                                    customerName: session.name)
+        } catch {
+            joinError = true
+        }
     }
 
     /// Asks the server what is taken, rather than reading appointments directly.

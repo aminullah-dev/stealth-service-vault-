@@ -466,6 +466,21 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Waitlist
+    static let joinWaitlist = L(fa: "به لیست انتظار اضافه شو", ps: "د انتظار لیست ته ننوځه",
+                                en: "Join the waitlist")
+    static let waitlist = L(fa: "لیست انتظار", ps: "د انتظار لیست", en: "Waitlist")
+    static let waitlistJoined = L(fa: "در لیست انتظار این روز هستید. اگر جایی باز شود خبرتان می‌کنیم.",
+                                  ps: "د دې ورځې په انتظار لیست کې یاست. که ځای خالي شي، خبر درکوو.",
+                                  en: "You are on the waitlist for that day. We will tell you if a place opens.")
+    static let waitlistOffered = L(fa: "جا باز شد! زودتر رزرو کنید.",
+                                   ps: "ځای خالي شو! ژر بکینګ وکړئ.",
+                                   en: "A place opened. Book before it goes.")
+    static let waitlistWaiting = L(fa: "در انتظار", ps: "په تمه", en: "Waiting")
+    static let dismiss = L(fa: "رد کردن", ps: "رد کول", en: "Dismiss")
+    static let leaveWaitlist = L(fa: "خروج از لیست انتظار", ps: "له انتظار لیسته وتل",
+                                 en: "Leave the waitlist")
+
     // MARK: Wallet, gift cards and tips
     static let topUp = L(fa: "شارژ", ps: "چارج", en: "Top up")
     static let topUpTitle = L(fa: "شارژ کیف پول", ps: "د بټوې چارج", en: "Top up wallet")

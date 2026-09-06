@@ -8,6 +8,7 @@ struct MyBookingsView: View {
     @State private var reviewing: Appointment?
     @State private var rescheduling: Appointment?
     @State private var tipping: Appointment?
+    @State private var waitlist = WaitlistStore.shared
     @State private var error: String?
 
     var body: some View {
@@ -60,6 +61,17 @@ struct MyBookingsView: View {
                                         canReschedule: booking.status == .pending
                                                     || booking.status == .confirmed,
                                         onReschedule: { rescheduling = booking })
+                                }
+                            }
+                        }
+                        // Between the upcoming bookings and the past ones,
+                        // because that is what it is: a booking she does not
+                        // have yet. Android shows the same rows in the same
+                        // sheet.
+                        if !waitlist.live.isEmpty {
+                            Section(L.waitlist.t) {
+                                ForEach(waitlist.live) { entry in
+                                    WaitlistRow(entry: entry)
                                 }
                             }
                         }
@@ -276,5 +288,56 @@ struct StatusPill: View {
         case .awaitingPayment, .pending: Brand.gold
         case .cancelled, .unknown: Color(hex: 0xC0392B)
         }
+    }
+}
+
+/// One waiting place, with the two things she can do about it.
+///
+/// SLOT_AVAILABLE is the row that matters: the salon has offered her a place
+/// and it goes to the next person if she does nothing, so it does not look like
+/// the ones that are merely waiting.
+struct WaitlistRow: View {
+    let entry: WaitlistEntry
+
+    @State private var waitlist = WaitlistStore.shared
+    @State private var working = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(entry.salonName)
+                    .font(Brand.font(15, .bold)).foregroundStyle(Brand.ink)
+                Spacer(minLength: 0)
+                Text(entry.isOffered ? L.waitlistOffered.t : L.waitlistWaiting.t)
+                    .font(Brand.font(11.5, .medium))
+                    .foregroundStyle(entry.isOffered ? .white : Brand.accent)
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(entry.isOffered ? AnyShapeStyle(Brand.gradient)
+                                                : AnyShapeStyle(Brand.petal.opacity(0.45)),
+                                in: Capsule())
+            }
+            Text("\(DayChip.weekdayName(entry.date)) \(DayChip.dayNumber(entry.date))")
+                .font(Brand.font(13)).foregroundStyle(Brand.accent)
+
+            HStack(spacing: 16) {
+                // Dismiss writes EXPIRED so the salon can pass the place on;
+                // leaving deletes the row outright. Two different intentions and
+                // the rules admit both, narrowly.
+                Button(entry.isOffered ? L.dismiss.t : L.leaveWaitlist.t) {
+                    Task {
+                        working = true; defer { working = false }
+                        if entry.isOffered { try? await waitlist.dismiss(entry) }
+                        else { try? await waitlist.leave(entry) }
+                    }
+                }
+                .font(Brand.font(13, .medium))
+                .foregroundStyle(Brand.accent)
+                .buttonStyle(.borderless)
+                .disabled(working)
+            }
+            .padding(.top, 2)
+        }
+        .padding(.vertical, 5)
+        .listRowBackground(Color.white)
     }
 }
