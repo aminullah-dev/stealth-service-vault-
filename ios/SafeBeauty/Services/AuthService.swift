@@ -38,7 +38,6 @@ final class AuthService {
 
     enum AuthError: LocalizedError, Equatable {
         case wrongPhoneOrPassword
-        case accountSuspended(reason: String)
         case phoneTaken
         case emailTaken
         case rateLimited(String)
@@ -53,7 +52,6 @@ final class AuthService {
         var errorDescription: String? {
             switch self {
             case .wrongPhoneOrPassword: "wrongPhoneOrPassword"
-            case .accountSuspended(let r): "suspended: \(r)"
             case .phoneTaken: "phoneTaken"
             case .emailTaken: "emailTaken"
             case .registeredButNotSignedIn: "registeredButNotSignedIn"
@@ -138,12 +136,11 @@ final class AuthService {
               !salt.isEmpty, !firebaseEmail.isEmpty
         else { throw AuthError.wrongPhoneOrPassword }
 
-        if result["status"]?.stringValue == "SUSPENDED" {
-            // A suspended account can still sign in on purpose — she must be
-            // able to read her history and reach support. The app decides what
-            // she may DO; it does not pretend the account is gone.
-            throw AuthError.accountSuspended(reason: result["rejectionReason"]?.stringValue ?? "")
-        }
+        // A suspended account signs in. It used to throw here, two lines above a
+        // comment saying the opposite — and the message it threw told her to
+        // contact support, which lives inside the app it was refusing her. The
+        // server permits the sign-in for exactly this reason and Android has
+        // never blocked it; the callables refuse what she may DO.
 
         let authPassword = try PinHasher.deriveAuthPassword(password, saltBase64: salt)
         try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)

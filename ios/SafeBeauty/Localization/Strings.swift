@@ -97,10 +97,10 @@ extension L {
         fa: "حساب شما ساخته شد. با شماره و رمز عبور خود وارد شوید.",
         ps: "ستاسو حساب جوړ شو. په خپله شمېره او پټنوم سره ننوځئ.",
         en: "Your account was created. Sign in with your phone number and password.")
-    static let errSuspended = L(
-        fa: "حساب شما معلق شده است. با پشتیبانی تماس بگیرید.",
-        ps: "ستاسو حساب ځنډول شوی. له ملاتړ سره اړیکه ونیسئ.",
-        en: "Your account is suspended. Please contact support.")
+    static let accountSuspended = L(
+        fa: "حساب شما فعلاً معلق است. برای بررسی با پشتیبانی در تماس شوید.",
+        ps: "ستاسو حساب اوس مهال ځنډول شوی. د کتنې لپاره له ملاتړ سره اړیکه ونیسئ.",
+        en: "Your account is suspended for now. Contact support to have it reviewed.")
     static let errTooMany = L(
         fa: "تلاش‌های زیاد. کمی بعد دوباره امتحان کنید.",
         ps: "ډېرې هڅې. لږ وروسته بیا هڅه وکړئ.",

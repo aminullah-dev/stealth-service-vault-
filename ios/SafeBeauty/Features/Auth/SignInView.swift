@@ -96,7 +96,6 @@ struct SignInView: View {
     static func message(for e: AuthService.AuthError) -> String {
         switch e {
         case .wrongPhoneOrPassword: L.errWrongLogin.t
-        case .accountSuspended: L.errSuspended.t
         case .phoneTaken: L.errPhoneTaken.t
         case .emailTaken: L.errEmailTaken.t
         case .registeredButNotSignedIn: L.errRegisteredNowSignIn.t

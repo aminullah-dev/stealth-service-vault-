@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseFirestore
 import SafeBeautyCore
 
 /// What the app shows depends only on whether there is a session.
@@ -63,7 +64,9 @@ struct SignedInView: View {
     @State private var lang = LanguageStore.shared
 
     var body: some View {
-        if auth.session?.status == "PENDING" {
+        if auth.session?.status == "SUSPENDED" {
+            SuspendedView()
+        } else if auth.session?.status == "PENDING" {
             PendingApprovalView()
         } else {
             TabView {
@@ -85,6 +88,66 @@ struct SignedInView: View {
             // switch. It costs the selected tab, which resets to the first;
             // that is a fair price for a bar that is legible.
             .id(lang.current)
+        }
+    }
+}
+
+/// What a suspended account sees.
+///
+/// She is signed in, which is the point: the message tells her to contact
+/// support and support is inside the app. Deliberately not the tab bar — a
+/// suspended account may not book, and every callable refuses her, so offering
+/// the whole product would be a screen of failures. This is the reason and the
+/// one door that still opens.
+struct SuspendedView: View {
+    @Environment(AuthService.self) private var auth
+    @State private var reason = ""
+    @State private var showSupport = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "exclamationmark.shield")
+                .font(.system(size: 42))
+                .foregroundStyle(Color(hex: 0xC0392B))
+            Text(auth.session?.name ?? "")
+                .font(Brand.font(22, .bold))
+                .foregroundStyle(Brand.ink)
+            Text(L.accountSuspended.t)
+                .font(Brand.font(15))
+                .foregroundStyle(Brand.deep)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 44)
+            // Shown only when an admin wrote one. "Suspended for: " with
+            // nothing after it reads as a system that will not say why.
+            if !reason.isEmpty {
+                Text(reason)
+                    .font(Brand.font(13.5))
+                    .foregroundStyle(Brand.accent)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+            }
+            Button(L.support.t) { showSupport = true }
+                .font(Brand.font(15, .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28).padding(.vertical, 13)
+                .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 13))
+                .padding(.top, 6)
+            Spacer()
+            Button(L.signOut.t) { auth.signOut() }
+                .font(Brand.font(15, .medium))
+                .foregroundStyle(Brand.accent)
+                .padding(.bottom, 30)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Brand.cream.ignoresSafeArea())
+        .sheet(isPresented: $showSupport) { SupportView() }
+        .task {
+            // Her own document, which the rules already allow her to read.
+            guard let uid = auth.session?.uid, !uid.isEmpty,
+                  let snap = try? await Firestore.firestore().document("users/\(uid)").getDocument()
+            else { return }
+            reason = (snap.data()?["suspendedReason"] as? String) ?? ""
         }
     }
 }
