@@ -119,6 +119,29 @@ jobs:
           name: android-test-report
           path: app/build/reports/tests/testProdDebugUnitTest/
 
+  ios:
+    name: iOS logic tests
+    # macOS, because Swift Testing and Foundation's regex here are not the
+    # Linux toolchain's. It is the most expensive runner on this workflow and
+    # it earns it: SafeBeautyCore holds the slot maths, PinHasher and the area
+    # list, each of which is a second copy of something the server owns, and
+    # each has a test that fails when the two drift. Those guards ran only when
+    # somebody remembered to run them on a Mac — which is this repository's
+    # stated recurring defect, a check that looks healthy and has never run.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+        working-directory: ios/SafeBeautyCore
+      # The area list is GENERATED from Areas.kt. AreasParityTests already fails
+      # on drift, but this says so in the one sentence that fixes it, rather
+      # than leaving a contributor to work out why a diff of 121 rows is failing.
+      - name: Areas.swift is regenerated from Areas.kt
+        run: |
+          python3 scripts/gen-areas.py
+          git diff --exit-code ios/SafeBeautyCore/Sources/SafeBeautyCore/Areas.swift \
+            || { echo "::error::Areas.kt changed without regenerating. Run: python3 scripts/gen-areas.py"; exit 1; }
+
   rules:
     name: Security rules compile
     runs-on: ubuntu-latest

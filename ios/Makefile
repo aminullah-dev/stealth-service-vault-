@@ -13,7 +13,7 @@ DEST = platform=iOS Simulator,name=$(SIM)
 
 help:
 	@echo "make project    regenerate SafeBeauty.xcodeproj from project.yml"
-	@echo "make core-test  test the logic package alone (fast, no simulator)"
+	@echo "make core-test  regenerate Areas.swift, then test the logic package (fast, no simulator)"
 	@echo "make build      build the app for the simulator"
 	@echo "make test       run the app's test bundle on the simulator"
 	@echo "make run        build, install and launch on $(SIM)"
@@ -24,8 +24,15 @@ project:
 
 # The fast loop. Most logic lives in SafeBeautyCore precisely so it can be
 # checked in a second without a simulator in the way.
-core-test:
+core-test: areas
 	cd SafeBeautyCore && swift test
+
+# Areas.swift is generated from Android's Areas.kt. Regenerating before the
+# tests means the parity test tells you about a real disagreement rather than
+# about a generator nobody ran.
+.PHONY: areas
+areas:
+	cd .. && python3 scripts/gen-areas.py
 
 build: project
 	xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination '$(DEST)' \

@@ -105,7 +105,6 @@ extension L {
     static let salonName = L(fa: "نام سالون", ps: "د سالون نوم", en: "Salon name")
     static let serviceName = L(fa: "نام خدمت", ps: "د خدمت نوم", en: "Service name")
     static let add = L(fa: "افزودن", ps: "زیاتول", en: "Add")
-    static let district = L(fa: "ناحیه", ps: "ناحیه", en: "District")
     // The Android values, verbatim: a salon owner who registered on one phone
     // and edits on the other should read the same words for the same field.
     static let city = L(fa: "شهر", ps: "ښار", en: "City")

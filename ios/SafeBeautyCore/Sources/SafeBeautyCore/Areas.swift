@@ -74,7 +74,12 @@ public enum Areas {
     /// value nobody reading it later could interpret, and any aggregation
     /// grouping by area alone would add two cities together.
     public static func cityOf(_ areaKey: String) -> String {
-        cityByPrefix[areaKey.split(separator: "_").first.map(String.init) ?? ""] ?? ""
+        // `split(separator:)` drops empty segments, so it would read "_KBL_x"
+        // as Kabul where Kotlin's substringBefore and the server's split("_")[0]
+        // both read it as no city. omittingEmptySubsequences keeps the three
+        // copies answering the same way for every input, not just the real ones.
+        let prefix = areaKey.split(separator: "_", omittingEmptySubsequences: false).first
+        return cityByPrefix[prefix.map(String.init) ?? ""] ?? ""
     }
 
     public static let liveCities: [City] = cities.filter(\.live)

@@ -62,6 +62,57 @@ struct AreasParityTests {
         #expect(Set(Areas.keys).count == Areas.keys.count)
     }
 
+    @Test("every city and prefix, from the Kotlin rather than from a literal here")
+    func citiesMatchKotlin() throws {
+        // The areas were checked against Areas.kt and the cities against
+        // constants typed into this file, which cannot see the change Areas.kt
+        // documents: "A city is declared here before it opens. City.live gates
+        // it." Add that row, skip the generator, and every assertion still
+        // passed while the city picker silently omitted it.
+        let src = try #require(Self.kotlin, "could not read Areas.kt from the repository")
+
+        let cityRe = try NSRegularExpression(
+            pattern: #"City\(\s*(?:"([^"]+)"|(\w+))\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*live\s*=\s*(true|false)"#)
+        func group(_ m: NSTextCheckingResult, _ i: Int, _ s: String) -> String {
+            guard let r = Range(m.range(at: i), in: s) else { return "" }
+            return String(s[r])
+        }
+        // KABUL is a const in the Kotlin; every other city is a literal.
+        let kabul = try #require(
+            try NSRegularExpression(pattern: #"const val KABUL = "(\w+)""#)
+                .firstMatch(in: src, range: NSRange(src.startIndex..., in: src))
+                .map { group($0, 1, src) })
+
+        let expected = cityRe
+            .matches(in: src, range: NSRange(src.startIndex..., in: src))
+            .map { m -> City in
+                let named = group(m, 1, src)
+                return City(key: named.isEmpty ? kabul : named,
+                            fa: group(m, 3, src), en: group(m, 4, src),
+                            live: group(m, 5, src) == "true")
+            }
+        #expect(!expected.isEmpty, "extracted no cities from Areas.kt")
+        #expect(Areas.cities == expected,
+                "Areas.swift's city list has drifted — run python3 scripts/gen-areas.py")
+        #expect(Areas.kabul == kabul)
+
+        // And the prefix map, which is the other half the generator emits and
+        // nothing was checking: a city with no prefix entry has areas that
+        // belong to no city.
+        let block = try #require(
+            try NSRegularExpression(pattern: #"CITY_BY_PREFIX = mapOf\(([\s\S]*?)\n\s*\)"#)
+                .firstMatch(in: src, range: NSRange(src.startIndex..., in: src))
+                .map { group($0, 1, src) })
+        let pairRe = try NSRegularExpression(pattern: #""(\w+)"\s+to\s+(?:"(\w+)"|(\w+))"#)
+        for m in pairRe.matches(in: block, range: NSRange(block.startIndex..., in: block)) {
+            let named = group(m, 2, block)
+            let city = named.isEmpty ? kabul : named
+            #expect(Areas.cityOf("\(group(m, 1, block))_x") == city)
+        }
+        #expect(Set(expected.map(\.key)) == Set(Areas.keys.map(Areas.cityOf)),
+                "a declared city has no area, or an area has no declared city")
+    }
+
     @Test("every area key names the city it is in")
     func everyKeyHasACity() {
         // The whole reason for the prefix: Herat district 1 and Kabul district 1
@@ -70,9 +121,10 @@ struct AreasParityTests {
         for k in Areas.keys {
             #expect(!Areas.cityOf(k).isEmpty, "\(k) has no city prefix")
         }
-        #expect(Set(Areas.keys.map(Areas.cityOf)).sorted()
-                == ["HERAT", "JALALABAD", "KABUL", "MAZAR"])
-        #expect(Areas.liveCities.map(\.key) == ["KABUL", "HERAT", "MAZAR", "JALALABAD"])
+        // A leading underscore is no city, the way substringBefore('_') and the
+        // server's split("_")[0] both read it.
+        #expect(Areas.cityOf("_KBL_Shirpur").isEmpty)
+        #expect(Areas.cityOf("").isEmpty)
     }
 
     @Test("a pre-prefix key still resolves, because production is full of them")

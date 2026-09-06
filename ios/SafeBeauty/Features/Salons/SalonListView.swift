@@ -17,23 +17,51 @@ struct SalonListView: View {
     /// "all cities" — it is missing a label, not missing.
     private var visible: [Salon] {
         let term = search.trimmingCharacters(in: .whitespaces).lowercased()
+        // Both read once, not once per salon. They are computed properties that
+        // walk the whole catalogue, and referencing them inside the closure made
+        // this quadratic — at the repository's own limit of 200 that is real
+        // work on the main thread for every keystroke, since `body` evaluates
+        // `visible` twice.
+        let city = selectedCity
+        let area = activeArea
         return repo.salons.filter { salon in
             guard city == nil || cityOf(salon) == city else { return false }
-            guard activeArea == nil || Areas.canonicalKey(salon.district) == activeArea
-            else { return false }
+            guard area == nil || areaIdentity(salon) == area else { return false }
             guard !term.isEmpty else { return true }
             // Searches the name, the district and the service names, because a
             // customer looks for "ناخن" as readily as for a salon she knows by
             // name.
             //
-            // The district is matched on its LABEL, not its stored value. She
-            // types "شیرپور"; the document holds "KBL_Shirpur", which contains
-            // no Persian at all, so searching the raw field found nothing a
-            // customer would ever type.
+            // Both the label and the stored value. She types «شیرپور»; the
+            // document holds "KBL_Shirpur", which contains no Persian at all,
+            // so the raw field alone found nothing a customer would type — and
+            // the label alone stopped matching "shirpur" typed in Latin, which
+            // is how the same woman searches with an English keyboard.
             return salon.salonName.lowercased().contains(term)
                 || Areas.label(salon.district).lowercased().contains(term)
+                || salon.district.lowercased().contains(term)
                 || salon.services.contains { $0.lowercased().contains(term) }
         }
+    }
+
+    /// The most specific area this salon is in, as one key.
+    ///
+    /// Three fields can answer this and they disagree. `district` is what the
+    /// owner typed or picked; `districtKey` and `areaKey` are what the server
+    /// resolved from it, including the fuzzy match that turns «ناحیه ۱۷» into
+    /// KBL_D17. Grouping on `district` alone put a salon that picked the key and
+    /// a salon that typed the words into two chips with identical text, each
+    /// holding half the answers.
+    ///
+    /// Most specific first, because `areaKey` is the محله and `districtKey` the
+    /// ناحیه above it — and falling back to the raw text last is what keeps a
+    /// salon whose address resolved to nothing findable at all. Android drops
+    /// that one from every district option; here it gets a chip saying what its
+    /// owner wrote.
+    private func areaIdentity(_ salon: Salon) -> String {
+        if !salon.areaKey.isEmpty { return salon.areaKey }
+        if !salon.districtKey.isEmpty { return salon.districtKey }
+        return Areas.canonicalKey(salon.district)
     }
 
     /// The city field when the server has derived one, else the district key's
@@ -44,7 +72,7 @@ struct SalonListView: View {
     /// district and no city, and belonged to no chip until the sweep caught up.
     /// The prefix is the same answer, available immediately.
     private func cityOf(_ salon: Salon) -> String {
-        salon.city.isEmpty ? Areas.cityOf(Areas.canonicalKey(salon.district)) : salon.city
+        salon.city.isEmpty ? Areas.cityOf(areaIdentity(salon)) : salon.city
     }
 
     /// Only cities that actually have a salon, in Areas' own order.
@@ -61,6 +89,16 @@ struct SalonListView: View {
         return known + present.subtracting(known).sorted()
     }
 
+    /// The chosen city, but only while its chip is on screen — the same clamp
+    /// the area has. The row hides itself once one city is left, and her old
+    /// choice then filtered on with nothing to deselect. Recoverable, because an
+    /// empty result offers Clear filters, but there is no reason to leave the
+    /// asymmetry.
+    private var selectedCity: String? {
+        guard let city, cities.contains(city) else { return nil }
+        return city
+    }
+
     /// The city the area chips belong to.
     ///
     /// Falls back to the only city when there is only one, because the city row
@@ -68,7 +106,7 @@ struct SalonListView: View {
     /// waited on a selection the customer was never offered. Today every salon
     /// in production is in Kabul, so that was every customer.
     private var activeCity: String? {
-        city ?? (cities.count == 1 ? cities.first : nil)
+        selectedCity ?? (cities.count == 1 ? cities.first : nil)
     }
 
     /// The chosen area, but only while its chip is on screen.
@@ -86,15 +124,20 @@ struct SalonListView: View {
     /// The areas of that city that a salon is actually in.
     ///
     /// The ناحیه and محله levels both appear, because both are how an address is
-    /// given here — but only where a salon holds that key. Kabul alone has 64
-    /// filterable areas, and a row of 64 chips of which two lead anywhere is a
-    /// filter that hides its own answers.
+    /// given here — but only where a salon holds that key. Kabul has 64 areas
+    /// and a row of 64 chips of which two lead anywhere is a filter that hides
+    /// its own answers.
+    ///
+    /// Ordered by `areasIn`, which is Areas.kt's own order — ناحیه‌ها first,
+    /// then the محله‌ها — rather than by `filterableIn`, which walks parents and
+    /// so returns Kabul's 22 districts and none of its 42 neighbourhoods,
+    /// because Kabul's neighbourhoods have no parent recorded.
     private var areasHere: [String] {
         guard let city = activeCity else { return [] }
         let present = Set(repo.salons.filter { cityOf($0) == city }
-            .map { Areas.canonicalKey($0.district) }
+            .map(areaIdentity)
             .filter { !$0.isEmpty })
-        let known = Areas.filterableIn(city).map(\.key).filter(present.contains)
+        let known = Areas.areasIn(city).map(\.key).filter(present.contains)
         // Free text an older salon typed sorts in after the known keys rather
         // than being dropped: it is where that salon says it is, and hiding the
         // chip would hide the salon.
@@ -154,11 +197,11 @@ struct SalonListView: View {
                 VStack(spacing: 0) {
                     if cities.count > 1 {
                         ChipRow {
-                            CityChip(label: L.allCities.t, isSelected: city == nil) {
+                            CityChip(label: L.allCities.t, isSelected: selectedCity == nil) {
                                 city = nil; area = nil
                             }
                             ForEach(cities, id: \.self) { c in
-                                CityChip(label: Areas.cityName(c), isSelected: city == c) {
+                                CityChip(label: Areas.cityName(c), isSelected: selectedCity == c) {
                                     // Her old area belongs to the city she just
                                     // left, so keeping it would filter the new
                                     // city down to nothing.
