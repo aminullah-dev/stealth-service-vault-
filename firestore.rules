@@ -367,11 +367,21 @@ service cloud.firestore {
                      ? isSupportParticipant(resource.data.conversationId)
                      : isParticipantInConversation(resource.data.conversationId));
 
+      // salonId is denormalised onto the message so the salon can QUERY its
+      // own threads. Firestore cannot match a suffix, and the conversation id
+      // is "{customerId}_{salonId}", so without this field a salon owner had
+      // no way to list the conversations she is part of — which is why
+      // messages were being written and never read by anyone.
+      //
+      // Constrained to the conversation's own salon, or a message could be
+      // filed into another salon's inbox.
       allow create: if isSignedIn()
                  && request.resource.data.senderId == me()
                  && (isSupportConversation(request.resource.data.conversationId)
                        ? isSupportParticipant(request.resource.data.conversationId)
-                       : isParticipantInConversation(request.resource.data.conversationId));
+                       : (isParticipantInConversation(request.resource.data.conversationId)
+                          && request.resource.data.get('salonId', '')
+                               == request.resource.data.conversationId.split('_')[1]));
 
       allow update, delete: if false;
     }

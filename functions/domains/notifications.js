@@ -65,6 +65,67 @@ exports.sendReengagementNudges = onSchedule(
 // registered device. Without this, "notifications" only ever appeared inside
 // the app's Notification Center while it was open; a salon would never learn
 // about a new paid booking until they happened to open the app.
+// ── notifyOnChatMessage (Firestore trigger) ───────────────────────────────────
+//
+// Nothing told anyone a message had arrived.
+//
+// chat_messages had no trigger at all, the provider console had no inbox, the
+// Android provider dashboard had no messages tab, and the one ChatScreen that
+// exists is on a nav route nothing pushes. So a customer could write to a
+// salon on either platform, the message was stored correctly, and it reached
+// nobody — on both platforms, since the gap was on the receiving side the
+// whole time.
+//
+// This writes the notification; pushOnNotificationCreated below already turns
+// any notification into an FCM push, so one function makes messages arrive
+// everywhere at once.
+//
+// The body deliberately does NOT quote the message or name the salon. A push
+// preview lands on a lock screen, and on this product "Shaghayeq Salon: see
+// you Thursday" sitting on a lock screen is exactly the kind of thing the
+// rest of the product is careful about. The thread itself says who and what.
+exports.notifyOnChatMessage = onDocumentCreated(
+  { document: "chat_messages/{msgId}", region: "us-central1" },
+  async (event) => {
+    const m = event.data ? event.data.data() : null;
+    if (!m || !m.conversationId || !m.senderId) return;
+
+    const conv = String(m.conversationId);
+    let recipientId = "";
+
+    if (conv.startsWith("support_")) {
+      // The platform side is a person watching the Support tab; the USER is
+      // the one with no other way to learn she has been answered.
+      const userId = conv.slice("support_".length);
+      if (m.senderId === userId) return;
+      recipientId = userId;
+    } else {
+      // "{customerId}_{salonId}", parsed exactly as firestore.rules parses it.
+      const parts = conv.split("_");
+      if (parts.length !== 2) return;
+      const [customerId, salonId] = parts;
+      const salonSnap = await db.doc(`salons/${salonId}`).get();
+      if (!salonSnap.exists) return;
+      const providerId = String(salonSnap.data().providerId || "");
+      recipientId = m.senderId === customerId ? providerId : customerId;
+    }
+
+    if (!recipientId || recipientId === m.senderId) return;
+
+    await db.collection("notifications").add({
+      recipientId,
+      type:        "CHAT_MESSAGE",
+      msgKey:      "NEW_CHAT_MESSAGE",
+      msgParams:   {},
+      title:       "New message",
+      body:        "You have a new message.",
+      isRead:      false,
+      createdAt:   Date.now(),
+      relatedId:   conv,
+    });
+  }
+);
+
 exports.pushOnNotificationCreated = onDocumentCreated(
   { document: "notifications/{notifId}", region: "us-central1" },
   async (event) => {
@@ -465,6 +526,11 @@ const NOTIF_I18N = {
       `${p.salon} رزرو شما را به‌موقع تأیید نکرد، بنابراین آن را لغو کردیم. مبلغی از شما گرفته نشده است.` },
     ps: { t: "بکینګ لغوه شو", b: (p) =>
       `${p.salon} ستاسو بکینګ په وخت سره تایید نه کړ، نو موږ یې لغوه کړ. له تاسو څخه پیسې نه دي اخیستل شوي.` },
+  },
+  NEW_CHAT_MESSAGE: {
+    en: { t: "New message", b: () => "You have a new message." },
+    fa: { t: "پیام تازه", b: () => "یک پیام تازه دارید." },
+    ps: { t: "نوی پیغام", b: () => "تاسو یو نوی پیغام لرئ." },
   },
   BOOKING_AUTO_CANCELLED: {
     en: { t: "Booking cancelled — refund on the way", b: (p) =>

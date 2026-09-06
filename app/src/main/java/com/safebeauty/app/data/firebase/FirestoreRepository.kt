@@ -818,7 +818,12 @@ class FirestoreRepository @Inject constructor(
         }
 
     suspend fun sendChatMessage(message: ChatMessage) {
-        chatCol.add(message).await()
+        // Derived here rather than trusted from the caller: it must equal the
+        // second half of the conversation id or the rules refuse the write,
+        // and a support thread has no salon.
+        val parts = message.conversationId.split("_")
+        val salonId = if (parts.size == 2 && parts[0] != "support") parts[1] else ""
+        chatCol.add(message.copy(salonId = salonId)).await()
     }
 
     // ── Reviews ─────────────────────────────────────────────────────────────────

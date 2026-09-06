@@ -69,6 +69,7 @@ exports.adminDemandReport       = discovery.adminDemandReport;
 exports.measureSalonReliability = discovery.measureSalonReliability;
 
 const notifications = require("./domains/notifications");
+exports.notifyOnChatMessage      = notifications.notifyOnChatMessage;
 exports.pushOnNotificationCreated = notifications.pushOnNotificationCreated;
 exports.pushOnBroadcastCreated    = notifications.pushOnBroadcastCreated;
 exports.resumeBroadcasts          = notifications.resumeBroadcasts;

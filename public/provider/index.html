@@ -437,6 +437,14 @@ const STR = {
   requests:{en:'Requests', fa:'درخواست‌ها', ps:'غوښتنې'},
   calendar:{en:'Calendar', fa:'تقویم', ps:'کلیز'},
   reviews:{en:'Reviews', fa:'نظرات', ps:'نظرونه'},
+  messages:{en:'Messages', fa:'پیام‌ها', ps:'پیغامونه'},
+  messagesTitle:{en:'Your conversations', fa:'گفتگوهای شما', ps:'ستاسو خبرې اترې'},
+  noMessages:{en:'No messages yet. When a customer writes to you, it appears here.', fa:'هنوز پیامی نیست. وقتی مشتری برای شما بنویسد، اینجا می‌آید.', ps:'تر اوسه پیغام نشته. کله چې پیرودونکی تاسو ته ولیکي، دلته راځي.'},
+  writeMessage:{en:'Write a reply…', fa:'پاسخ بنویسید…', ps:'ځواب ولیکئ…'},
+  customer:{en:'Customer', fa:'مشتری', ps:'پیرودونکی'},
+  you:{en:'You', fa:'شما', ps:'تاسو'},
+  back:{en:'Back', fa:'بازگشت', ps:'شاته'},
+  send:{en:'Send', fa:'فرستادن', ps:'لېږل'},
   income:{en:'Income', fa:'درآمد', ps:'عاید'},
   offers:{en:'Offers', fa:'آفرها', ps:'وړاندیزونه'},
   profile:{en:'Profile', fa:'پروفایل', ps:'پروفایل'},
@@ -793,6 +801,7 @@ const TABS = [
   { id:'today',    icon:'🏠', render:renderToday },
   { id:'requests', icon:'🔔', render:renderRequests },
   { id:'calendar', icon:'📅', render:renderCalendar },
+  { id:'messages', icon:'💬', render:renderMessages },
   { id:'reviews',  icon:'⭐', render:renderReviews },
   { id:'income',   icon:'💰', render:renderIncome },
   { id:'offers',   icon:'🏷️', render:renderOffers },
@@ -1028,6 +1037,95 @@ function paintCalendar(all){
 }
 
 // ── Reviews (read + reply) ──────────────────────────────────────────────────────
+// ── Messages ─────────────────────────────────────────────────────────────────
+//
+// The salon had no inbox anywhere. Customers could write from either app, the
+// messages were stored correctly, and there was no surface on the salon side at
+// all — no tab here, no messages tab in the Android provider dashboard, and no
+// trigger telling anyone a message had arrived. So "the salon does not receive
+// it" was exactly right, and it was never a delivery bug: nothing had ever been
+// built to receive.
+//
+// Queried by salonId, denormalised onto every message because Firestore cannot
+// match the "{customerId}_{salonId}" suffix.
+let openThread = null;
+
+function renderMessages(){
+  const unsubFn = onSnapshot(
+    query(collection(db,'chat_messages'), where('salonId','==',salonId)),
+    (snap)=>{
+      const all = snap.docs.map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+      if(!all.length){ $('view').innerHTML = `<div class="empty">${t('noMessages')}</div>`; return; }
+
+      const threads = new Map();
+      all.forEach(m=>{
+        if(!threads.has(m.conversationId)) threads.set(m.conversationId, []);
+        threads.get(m.conversationId).push(m);
+      });
+
+      if(openThread && threads.has(openThread)){
+        const msgs = threads.get(openThread);
+        const who = (msgs.find(m=>m.senderId !== provider.uid) || {}).senderName || t('customer');
+        $('view').innerHTML =
+          `<button class="btn-sm" id="msg-back" style="background:var(--line);color:var(--ink)">${esc(t('back'))}</button>
+           <div class="section-title" style="margin-top:10px">${esc(who)}</div>` +
+          msgs.map(m=>{
+            const mine = m.senderId === provider.uid;
+            return `<div class="row" style="text-align:${mine?'start':'end'}">
+                      <div class="name" style="font-weight:400">${esc(m.content||'')}</div>
+                      <div class="sub">${esc(mine ? t('you') : who)} · ${fmtDT(m.timestamp)}</div>
+                    </div>`;
+          }).join('') +
+          `<div class="reply-box" style="margin-top:12px">
+             <textarea class="mini" id="msg-text" placeholder="${esc(t('writeMessage'))}"></textarea>
+             <button class="btn-sm" id="msg-send" style="background:var(--rose)">${esc(t('send'))}</button>
+           </div>`;
+
+        $('msg-back').onclick = ()=>{ openThread = null; renderMessages(); };
+        $('msg-send').onclick = async (e)=>{
+          const text = ($('msg-text').value||'').trim();
+          if(!text) return;
+          const btn = e.target; btn.disabled = true;
+          try{
+            await addDoc(collection(db,'chat_messages'), {
+              conversationId: openThread,
+              salonId,
+              senderId: provider.uid,
+              senderName: (salon && salon.salonName) ? salon.salonName : provider.name,
+              content: text,
+              timestamp: Date.now(),
+            });
+            $('msg-text').value = '';
+          }catch(err){ alert(err.message||String(err)); }
+          finally{ btn.disabled = false; }
+        };
+        return;
+      }
+
+      const rows = [...threads.entries()].map(([conv, msgs])=>{
+        const last = msgs[msgs.length-1];
+        const who = (msgs.find(m=>m.senderId !== provider.uid) || {}).senderName || t('customer');
+        return { conv, who, last };
+      }).sort((a,b)=>(b.last.timestamp||0)-(a.last.timestamp||0));
+
+      $('view').innerHTML =
+        `<div class="section-title">${esc(t('messagesTitle'))}</div>` +
+        rows.map(r =>
+          `<div class="row" data-conv="${esc(r.conv)}" style="cursor:pointer">
+             <div class="name">${esc(r.who)}</div>
+             <div class="sub">${esc((r.last.content||'').slice(0,70))}</div>
+             <div class="sub">${fmtDT(r.last.timestamp)}</div>
+           </div>`).join('');
+      $('view').querySelectorAll('[data-conv]').forEach(el=>{
+        el.onclick = ()=>{ openThread = el.dataset.conv; renderMessages(); };
+      });
+    },
+    ()=>{ $('view').innerHTML = `<div class="empty">${esc(t('errFailed'))}</div>`; }
+  );
+  unsub.push(unsubFn);
+}
+
 function renderReviews(){
   const unsubFn = onSnapshot(query(collection(db,'reviews'), where('salonId','==',salonId)), (snap)=>{
     const list = snap.docs.map(d=>({id:d.id,...d.data()}))

@@ -132,6 +132,12 @@ struct SalonChatView: View {
         do {
             try await Firestore.firestore().collection("chat_messages").addDocument(data: [
                 "conversationId": conversationId,
+                // Denormalised so the salon can query its own threads: the
+                // conversation id ends with the salon, and Firestore cannot
+                // match a suffix. Without it a salon owner has no way to list
+                // the conversations she is in — which is why messages were
+                // written and read by nobody.
+                "salonId": salon.id,
                 "senderId": session.uid,
                 "senderName": session.name,
                 "content": text,
