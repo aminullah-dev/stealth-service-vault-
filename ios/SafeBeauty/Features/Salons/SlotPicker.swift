@@ -79,6 +79,23 @@ struct SlotPicker: View {
             }
     }
 
+    /// Which of the offered hours qualify right now.
+    ///
+    /// Computed from the same rule the server uses — LastMinute mirrors
+    /// lib/money.js and a differential test pins the two together — but only to
+    /// decide what to mark. The charge is still whatever createPaymentSession
+    /// says it is, which is also why a slot can qualify here and not at
+    /// checkout if she takes long enough to fall out of the window.
+    private var discountedSlots: Set<Int64> {
+        guard salon.lastMinuteEnabled else { return [] }
+        return Set(availableSlots.filter {
+            LastMinute.applies(start: $0,
+                               enabled: salon.lastMinuteEnabled,
+                               percent: salon.lastMinutePercent,
+                               windowHours: salon.lastMinuteWindowHours)
+        })
+    }
+
     private var isClosedToday: Bool {
         let weekday = DayGrid.weekday(of: selectedDay)
         return !(salon.workingHours.first { $0.dayOfWeek == weekday }?.isOpen ?? false)
@@ -155,10 +172,33 @@ struct SlotPicker: View {
                         if joinError { ErrorBanner(message: L.errNetwork.t) }
                     }
                 } else {
+                    // The salon's own standing offer on chairs about to go
+                    // empty. It has been in createPaymentSession the whole time
+                    // and iOS decoded none of the three fields, so a salon
+                    // running one had it seen by nobody here — Shaghayeq Ha has
+                    // had 8% inside four hours switched on all along.
+                    if discountedSlots.count > 0 {
+                        Text(L.lastMinuteOff(salon.lastMinutePercent))
+                            .font(Brand.font(12.5, .medium))
+                            .foregroundStyle(Brand.deep)
+                    }
                     FlowLayout(spacing: 8) {
                         ForEach(availableSlots, id: \.self) { slot in
-                            TimeChip(millis: slot, isSelected: selectedSlot == slot) {
-                                selectedSlot = slot
+                            HStack(spacing: 0) {
+                                TimeChip(millis: slot, isSelected: selectedSlot == slot) {
+                                    selectedSlot = slot
+                                }
+                                // A mark, not a figure. The exact saving is the
+                                // server's to compute at checkout, and a number
+                                // shown here would be a second opinion about
+                                // money — the one she would believe.
+                                if discountedSlots.contains(slot) {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Brand.gold)
+                                        .padding(.leading, -6)
+                                        .accessibilityHidden(true)
+                                }
                             }
                         }
                     }

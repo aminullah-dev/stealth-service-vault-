@@ -171,6 +171,20 @@ final class ProviderRepository {
         pendingSalonName = ""; pendingSalonDistrict = ""; pendingSalonServices = []
     }
 
+    /// Answering a review in public, under her own salon's name.
+    ///
+    /// The rules admit exactly two fields from her — providerReply and
+    /// repliedAt, checked with `affectedKeys().hasOnly` — so a merge that
+    /// touched anything else would be refused outright. That narrowness is the
+    /// point: a salon may answer a review and may not edit the rating or the
+    /// words written about it.
+    func reply(to review: Review, text: String) async throws {
+        try await Firestore.firestore().document("reviews/\(review.id)").updateData([
+            "providerReply": text,
+            "repliedAt": Int(Date().timeIntervalSince1970 * 1000),
+        ])
+    }
+
     /// The salon's own note on a customer, after a visit.
     ///
     /// Never shown to her: it feeds the platform's own view of a customer who

@@ -14,6 +14,7 @@ struct ProviderProfileView: View {
     @State private var showSupport = false
     @State private var confirmSignOut = false
     @State private var showEdit = false
+    @State private var replying: Review?
 
     var body: some View {
         NavigationStack {
@@ -98,6 +99,9 @@ struct ProviderProfileView: View {
             .navigationTitle(L.tabMyProfile.t)
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showEdit) { EditSalonSheet(repo: repo).appDirection() }
+            .sheet(item: $replying) { review in
+                ReplyToReviewSheet(review: review, repo: repo).appDirection()
+            }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
                 Button(L.signOut.t, role: .destructive) { auth.signOut() }
@@ -246,6 +250,17 @@ struct ProviderProfileView: View {
                         // Her own answer, which the card did not show at all —
                         // and which is the one thing she needs to know before
                         // deciding whether a review still wants replying to.
+                        // Answering it, which the console can do and this
+                        // could not: a salon owner on an iPhone could read what
+                        // a customer said about her and had no way to say
+                        // anything back.
+                        if review.providerReply.isEmpty {
+                            Button(L.replyToReview.t) { replying = review }
+                                .font(Brand.font(12.5, .medium))
+                                .foregroundStyle(Brand.accent)
+                                .buttonStyle(.borderless)
+                                .padding(.top, 2)
+                        }
                         if !review.providerReply.isEmpty {
                             HStack(alignment: .top, spacing: 6) {
                                 Text(L.yourReply.t)

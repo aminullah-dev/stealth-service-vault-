@@ -511,6 +511,13 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    static func lastMinuteOff(_ percent: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "٪\(percent) تخفیف لحظه‌آخری روی ساعت‌های نشان‌دار"
+        case .pashto: "پر نښه شوو ساعتونو \(percent)٪ د وروستي وخت تخفیف"
+        case .english: "\(percent)% off the marked times — booking soon"
+        }
+    }
     static let salonWork = L(fa: "نمونه کارها", ps: "د کار بېلګې", en: "Their work")
 
     // MARK: Choosing a stylist
@@ -623,6 +630,9 @@ extension L {
     static let servicesAndPrices = L(fa: "خدمات و قیمت‌ها", ps: "خدمتونه او بیې",
                                      en: "Services and prices")
     static let anonymousCustomer = L(fa: "مشتری", ps: "پیرودونکې", en: "A customer")
+    static let replyToReview = L(fa: "پاسخ دادن", ps: "ځواب ورکول", en: "Reply")
+    static let replyPlaceholder = L(fa: "پاسخ شما به این نظر…", ps: "دې نظر ته ستاسو ځواب…",
+                                    en: "Your reply to this review…")
     static let yourReply = L(fa: "پاسخ شما", ps: "ستاسو ځواب", en: "Your reply")
     static let workingHours = L(fa: "ساعات کاری", ps: "د کار ساعتونه", en: "Working hours")
     static let closedDay = L(fa: "تعطیل", ps: "رخصت", en: "Closed")

@@ -59,6 +59,12 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
     /// Bundles the salon sells at a discount. createPaymentSession applies one
     /// by id when every service in it is being booked.
     public var packages: [ServicePackage] = []
+    /// The salon's standing offer on soon-to-be-empty chairs. Read by
+    /// createPaymentSession; until now iOS decoded none of it, so a salon
+    /// running one had it seen by nobody on this platform.
+    public var lastMinuteEnabled = false
+    public var lastMinutePercent = 0
+    public var lastMinuteWindowHours = 0
     public var workingHours: [WorkingHours] = []
 
     /// Days the owner has closed, as "yyyy-MM-dd" in KABUL local time — the
@@ -109,6 +115,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         case isAvailable, isVerified
         case coverImageUrl, latitude, longitude, slotDurationMinutes, staff, workingHours
         case blockedDates, durationPerService, serviceTiming, packages
+        case lastMinuteEnabled, lastMinutePercent, lastMinuteWindowHours
     }
 
     public init(from decoder: Decoder) throws {
@@ -127,6 +134,9 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         pricePerService = (try? c.decodeIfPresent([String: Int].self, forKey: .pricePerService)).flatMap { $0 } ?? [:]
         staff = (try? c.decodeIfPresent([StaffMember].self, forKey: .staff)).flatMap { $0 } ?? []
         packages = (try? c.decodeIfPresent([ServicePackage].self, forKey: .packages)).flatMap { $0 } ?? []
+        lastMinuteEnabled = bool(.lastMinuteEnabled)
+        lastMinutePercent = int(.lastMinutePercent)
+        lastMinuteWindowHours = int(.lastMinuteWindowHours)
         // A salon with no stored week gets the Afghan default rather than
         // an empty one, matching defaultWorkingHours() on the server. Stored
         // empty, it could never be booked at all.
