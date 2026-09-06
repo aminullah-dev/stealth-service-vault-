@@ -23,6 +23,7 @@ struct SalonDetailView: View {
     @State private var slotsUnavailable = false
     @State private var showBooking = false
     @State private var showKyc = false
+    @State private var showChat = false
     @State private var reviews: [Review] = []
 
     /// The next seven days, starting today, in Kabul.
@@ -255,7 +256,16 @@ struct SalonDetailView: View {
         }
         .navigationTitle(salon.salonName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showChat = true } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
+                .accessibilityLabel(L.messageSalon.t)
+            }
+        }
         .task { await loadSlots(); await loadReviews() }
+        .sheet(isPresented: $showChat) { SalonChatView(salon: salon) }
         .sheet(isPresented: $showBooking, onDismiss: {
             // The grid is redrawn on return, so a slot someone else took while
             // she was deciding stops being offered.

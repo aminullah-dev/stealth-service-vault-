@@ -165,6 +165,12 @@ extension L {
         ps: "هر ۱۰۰ امتیاز په ۱۰۰ افغانیو کریډیټ بدلېږي. د ۱۰۰ مضرب ولیکئ.",
         en: "Every 100 points becomes 100 AFN of credit. Enter a multiple of 100.")
 
+    static let messageSalon = L(fa: "پیام به سالن", ps: "سالون ته پیغام", en: "Message the salon")
+    static let send = L(fa: "فرستادن", ps: "لېږل", en: "Send")
+    static let chatFirstMessage = L(
+        fa: "اولین پیام را بنویسید. سالن آن را در اپ خودش می‌بیند.",
+        ps: "لومړی پیغام ولیکئ. سالون یې په خپل اپ کې ویني.",
+        en: "Write the first message. The salon sees it in its own app.")
     static let errWrongLogin = L(
         fa: "شماره یا رمز عبور درست نیست.",
         ps: "شمېره یا پټنوم سم نه دی.",
