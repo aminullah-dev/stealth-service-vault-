@@ -12,12 +12,21 @@ struct RootView: View {
     @State private var auth = AuthService.shared
     @State private var lang = LanguageStore.shared
     @State private var theme = ThemeStore.shared
+    @State private var showOnboarding = !OnboardingState.seen
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
-            if auth.session == nil {
+            if showOnboarding && auth.session == nil {
+                // Before the sign-in screen, and only ever once. Opening
+                // straight on a phone-number field asks a woman to hand over
+                // her number before anything has told her what the app is for.
+                OnboardingView {
+                    OnboardingState.seen = true
+                    showOnboarding = false
+                }
+            } else if auth.session == nil {
                 // The picker lives here and only here. Someone who cannot read
                 // the interface cannot navigate into it to change the language,
                 // so it has to be on the first screen — and once she is signed

@@ -98,6 +98,60 @@ struct ProviderIncomeView: View {
                             .padding(15)
                             .background(.white, in: RoundedRectangle(cornerRadius: 16))
 
+                            // Volume, under the money it explains. Android
+                            // gives this its own tab; on four tabs it belongs
+                            // beside the earnings it accounts for — a month with
+                            // little income and many cancellations is a
+                            // different problem from one with few bookings.
+                            if !repo.appointments.isEmpty {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack(spacing: 0) {
+                                        stat(L.analyticsTotal.t,
+                                             "\(repo.appointments.count)", suffix: nil)
+                                        Divider().frame(height: 34)
+                                            .overlay(Brand.petal.opacity(0.5))
+                                        stat(L.analyticsConfirmed.t,
+                                             "\(count(.confirmed) + count(.completed))",
+                                             suffix: nil)
+                                        Divider().frame(height: 34)
+                                            .overlay(Brand.petal.opacity(0.5))
+                                        stat(L.analyticsCancelled.t,
+                                             "\(count(.cancelled))", suffix: nil)
+                                    }
+                                    if !byService.isEmpty {
+                                        Text(L.analyticsByService.t)
+                                            .font(Brand.font(13, .bold))
+                                            .foregroundStyle(Brand.ink)
+                                            .padding(.top, 4)
+                                        ForEach(byService, id: \.name) { row in
+                                            HStack(spacing: 8) {
+                                                Text(row.name)
+                                                    .font(Brand.font(13))
+                                                    .foregroundStyle(Brand.ink.opacity(0.85))
+                                                    .lineLimit(1)
+                                                // A bar, not a chart library.
+                                                // One salon with one service
+                                                // does not need a framework to
+                                                // draw a proportion.
+                                                GeometryReader { geo in
+                                                    Capsule().fill(Brand.gradient)
+                                                        .frame(width: max(4, geo.size.width
+                                                            * CGFloat(row.count) / CGFloat(topCount)))
+                                                }
+                                                .frame(height: 8)
+                                                Text(verbatim: "\(row.count)")
+                                                    .font(Brand.font(12.5, .medium))
+                                                    .environment(\.layoutDirection, .leftToRight)
+                                                    .foregroundStyle(Brand.deep)
+                                            }
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(15)
+                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            }
+
                             if !completed.isEmpty {
                                 VStack(alignment: .leading, spacing: 0) {
                                     ForEach(completed.prefix(30)) { booking in
@@ -148,6 +202,24 @@ struct ProviderIncomeView: View {
             .navigationTitle(L.tabIncome.t)
         }
     }
+
+    private func count(_ status: AppointmentStatus) -> Int {
+        repo.appointments.filter { $0.status == status }.count
+    }
+
+    /// Bookings per service, busiest first. Grouped by the name stored on the
+    /// booking rather than the salon's current list, because the history is
+    /// what happened and a renamed service did not un-happen.
+    private var byService: [(name: String, count: Int)] {
+        Dictionary(grouping: repo.appointments.filter { !$0.serviceName.isEmpty },
+                   by: \.serviceName)
+            .map { (name: $0.key, count: $0.value.count) }
+            .sorted { $0.count > $1.count }
+            .prefix(6).map { $0 }
+    }
+
+    /// The busiest service, so the bars are proportional to something real.
+    private var topCount: Int { max(1, byService.first?.count ?? 1) }
 
     private func stat(_ label: String, _ value: String, suffix: String?) -> some View {
         VStack(spacing: 3) {

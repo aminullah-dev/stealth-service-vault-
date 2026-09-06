@@ -511,6 +511,39 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    // MARK: Onboarding — Android's copy verbatim, so the promise made on one
+    // phone is the promise made on the other.
+    static let onboardingTitle1 = L(fa: "سالن‌های زیبایی نزدیک خود را پیدا کنید",
+                                    ps: "د ځان نږدې ښکلا سالونونه ومومئ",
+                                    en: "Find beauty salons near you")
+    static let onboardingSubtitle1 = L(
+        fa: "بر اساس خدمت، منطقه و امتیاز جستجو کنید تا بهترین سالن را پیدا کنید.",
+        ps: "د خدمت، سیمې، او درجې پر بنسټ لټون وکړئ ترڅو غوره سالون ومومئ.",
+        en: "Search by service, neighborhood, and rating to find the perfect salon.")
+    static let onboardingTitle2 = L(fa: "رزرو در چند ثانیه", ps: "په څو ثانیو کې بکینګ وکړئ",
+                                    en: "Book in seconds")
+    static let onboardingSubtitle2 = L(
+        fa: "بدون تماس تلفنی — زمان موردنظر را انتخاب کنید و رزروتان تمام است.",
+        ps: "د تلیفون کال پرته — وخت وټاکئ، بکینګ وغواړئ، او دا ده.",
+        en: "No phone calls — pick a time, request your booking, and you're done.")
+    static let onboardingTitle3 = L(fa: "امن و منعطف", ps: "خوندي او انعطاف منونکی",
+                                    en: "Safe and flexible")
+    static let onboardingSubtitle3 = L(
+        fa: "هویت هر سالن بررسی می‌شود. هرطور که راحت هستید پرداخت کنید — نقدی یا آنلاین.",
+        ps: "د هر سالون هویت تایید شوی دی. تاسو چې څنګه غواړئ تادیه وکړئ — نغدې یا آنلاین.",
+        en: "Every salon's identity is verified. Pay however you like — cash or online.")
+    static let onboardingSkip = L(fa: "رد شدن", ps: "پریږدئ", en: "Skip")
+    static let onboardingNext = L(fa: "بعدی", ps: "بل", en: "Next")
+    static let onboardingGetStarted = L(fa: "شروع کنید", ps: "پیل وکړئ", en: "Get Started")
+
+    // Android's analytics strings verbatim.
+    static let analyticsTotal = L(fa: "کل درخواست‌ها", ps: "ټول غوښتنې", en: "Total requests")
+    static let analyticsConfirmed = L(fa: "تایید شده", ps: "تایید شوي", en: "Confirmed")
+    static let analyticsCancelled = L(fa: "لغو شده", ps: "لغو شوي", en: "Cancelled")
+    static let analyticsByService = L(fa: "بر اساس خدمات", ps: "د خدمت له مخې",
+                                      en: "By service")
+    static let noDataYet = L(fa: "هنوز رزروی نیست", ps: "لا هیڅ بکینګ نشته",
+                             en: "No bookings yet")
     static let finishSalonSetup = L(fa: "ساخت سالن را کامل کنید",
                                     ps: "د سالون جوړول بشپړ کړئ",
                                     en: "Finish setting up your salon")
