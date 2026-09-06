@@ -58,6 +58,7 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.TextFaint
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.ChatViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -201,7 +202,7 @@ private fun ChatBubble(message: ChatMessage, isMine: Boolean) {
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                timeFmt.format(Date(message.timestamp)),
+                timeFmt.formatIsolated(Date(message.timestamp)),
                 fontSize = 10.sp,
                 color    = timeColor
             )

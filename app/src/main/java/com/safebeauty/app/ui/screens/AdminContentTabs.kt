@@ -117,6 +117,7 @@ import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.ui.theme.WarningOrange
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -418,7 +419,7 @@ internal fun BroadcastTab(
             }
         } else {
             items(broadcasts, key = { it.id }) { broadcast ->
-                BroadcastCard(broadcast, fmt.format(Date(broadcast.createdAt)))
+                BroadcastCard(broadcast, fmt.formatIsolated(Date(broadcast.createdAt)))
             }
         }
     }

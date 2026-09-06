@@ -142,6 +142,7 @@ import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -478,7 +479,7 @@ private fun BookingRequestCard(
                 Spacer(Modifier.height(8.dp))
 
                 Text(
-                    text     = "${strings.requestedAt} ${dateFmt.format(Date(appointment.appointmentDate))}",
+                    text     = "${strings.requestedAt} ${dateFmt.formatIsolated(Date(appointment.appointmentDate))}",
                     fontSize = 12.sp,
                     color    = TextMuted
                 )

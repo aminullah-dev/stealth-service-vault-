@@ -116,6 +116,7 @@ import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -284,7 +285,7 @@ internal fun FinanceTab(
                 )
             }
             items(payouts, key = { it.id }) { payout ->
-                PayoutHistoryRow(payout, payoutFmt.format(Date(payout.createdAt)))
+                PayoutHistoryRow(payout, payoutFmt.formatIsolated(Date(payout.createdAt)))
             }
         }
 

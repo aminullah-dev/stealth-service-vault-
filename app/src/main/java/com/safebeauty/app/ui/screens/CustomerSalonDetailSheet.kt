@@ -115,6 +115,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -725,7 +726,7 @@ private fun ReviewCard(review: ReviewDocument) {
             }
             Spacer(Modifier.height(5.dp))
             Text(
-                text     = dateFmt.format(Date(review.createdAt)),
+                text     = dateFmt.formatIsolated(Date(review.createdAt)),
                 fontSize = 10.sp,
                 color    = TextFaint
             )

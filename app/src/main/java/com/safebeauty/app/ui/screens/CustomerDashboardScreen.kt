@@ -121,6 +121,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -284,7 +285,7 @@ fun CustomerDashboardScreen(
             val title = latestStrings.bookingUpdatedTitle
             val body  = if (change.newStatus == "CONFIRMED") {
                 val dateFmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
-                "${change.serviceName} at ${change.salonName}\n${dateFmt.format(Date(change.appointmentDate))}"
+                "${change.serviceName} at ${change.salonName}\n${dateFmt.formatIsolated(Date(change.appointmentDate))}"
             } else {
                 latestStrings.bookingDeclinedText(change.salonName)
             }
@@ -1767,7 +1768,7 @@ fun CustomerDashboardScreen(
                                             shape = RoundedCornerShape(12.dp),
                                             colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
                                         ) {
-                                            Text(timeFmt.format(Date(slotMs)), color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                            Text(timeFmt.formatIsolated(Date(slotMs)), color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                                         }
                                     }
                                 }
@@ -1818,7 +1819,7 @@ fun CustomerDashboardScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text     = dateFmt.format(Date(pendingSlotMs)),
+                            text     = dateFmt.formatIsolated(Date(pendingSlotMs)),
                             fontSize = 13.sp,
                             color    = RoseGold
                         )
@@ -2437,7 +2438,7 @@ fun CustomerDashboardScreen(
                                             colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
                                         ) {
                                             Text(
-                                                timeFmt.format(Date(slotMs)),
+                                                timeFmt.formatIsolated(Date(slotMs)),
                                                 color = DeepRose,
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 15.sp,
@@ -3175,7 +3176,7 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text     = dateFmt.format(Date(newest.createdAt)),
+                            text     = dateFmt.formatIsolated(Date(newest.createdAt)),
                             fontSize = 11.sp,
                             color    = RoseGold
                         )

@@ -115,6 +115,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -463,7 +464,7 @@ private fun BookingCard(
                         Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
                     }
                     Text(
-                        "📅 ${dateFmt.format(Date(appt.appointmentDate))}",
+                        "📅 ${dateFmt.formatIsolated(Date(appt.appointmentDate))}",
                         fontSize = 11.sp,
                         color    = TextFaint
                     )
@@ -720,7 +721,7 @@ private fun WaitlistCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(entry.salonName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 13.sp)
                 Text(
-                    "📅 ${dateFmt.format(Date(entry.requestedDate))}",
+                    "📅 ${dateFmt.formatIsolated(Date(entry.requestedDate))}",
                     fontSize = 11.sp, color = TextFaint
                 )
                 if (isSlotAvail) {

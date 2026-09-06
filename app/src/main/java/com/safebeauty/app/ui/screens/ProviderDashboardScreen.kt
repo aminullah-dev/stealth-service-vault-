@@ -143,6 +143,7 @@ import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.WarningOrange
 import androidx.compose.material.icons.filled.Palette
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
@@ -689,7 +690,7 @@ private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text     = dateFmt.format(java.util.Date(newest.createdAt)),
+                            text     = dateFmt.formatIsolated(java.util.Date(newest.createdAt)),
                             fontSize = 11.sp,
                             color    = RoseGold
                         )

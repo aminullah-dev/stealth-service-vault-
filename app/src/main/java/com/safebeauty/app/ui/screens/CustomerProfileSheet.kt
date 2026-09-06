@@ -118,6 +118,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -406,7 +407,7 @@ internal fun CustomerProfileSheetContent(
                             Text(appt.salonName, fontSize = 11.sp, color = RoseGold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
-                            dateFmt.format(Date(appt.appointmentDate)),
+                            dateFmt.formatIsolated(Date(appt.appointmentDate)),
                             fontSize = 10.sp,
                             color    = TextFaint
                         )

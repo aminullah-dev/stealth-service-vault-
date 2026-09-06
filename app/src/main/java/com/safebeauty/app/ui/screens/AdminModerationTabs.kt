@@ -115,6 +115,7 @@ import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
@@ -519,7 +520,7 @@ private fun ReportRow(
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(dateFmt.format(Date(report.createdAt)), fontSize = 11.sp, color = NeutralGrey)
+            Text(dateFmt.formatIsolated(Date(report.createdAt)), fontSize = 11.sp, color = NeutralGrey)
             Spacer(Modifier.height(10.dp))
             if (inProgress) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -592,7 +593,7 @@ internal fun SupportTab(
                             Text(ticket.userName.ifBlank { ticket.userId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
                             Text(ticket.userRole, fontSize = 11.sp, color = RoseGold)
                         }
-                        Text(dateFmt.format(Date(ticket.updatedAt)), fontSize = 11.sp, color = NeutralGrey)
+                        Text(dateFmt.formatIsolated(Date(ticket.updatedAt)), fontSize = 11.sp, color = NeutralGrey)
                     }
                     if (ticket.relatedInfo.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))

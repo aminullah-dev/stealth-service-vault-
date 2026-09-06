@@ -143,6 +143,7 @@ import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.PetalPink
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -372,7 +373,7 @@ private fun CalendarAppointmentRow(appt: AppointmentDocument) {
                     .background(BlushPink)
             ) {
                 Text(
-                    text       = timeFmt.format(java.util.Date(appt.appointmentDate)),
+                    text       = timeFmt.formatIsolated(java.util.Date(appt.appointmentDate)),
                     fontSize   = 11.sp,
                     color      = DeepRose,
                     fontWeight = FontWeight.Bold,

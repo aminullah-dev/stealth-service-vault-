@@ -138,6 +138,7 @@ import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
+import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -233,7 +234,7 @@ internal fun IncomeTab(viewModel: ProviderViewModel) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                payoutFmt.format(java.util.Date(payout.createdAt)),
+                                payoutFmt.formatIsolated(java.util.Date(payout.createdAt)),
                                 fontSize = 12.sp, color = RoseGold
                             )
                         }
