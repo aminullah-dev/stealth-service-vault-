@@ -30,6 +30,7 @@ private struct MoneyForm<Extra: View>: View {
     @State private var isWorking = false
     @State private var error: String?
     @State private var opened = false
+    @State private var watcher = PaymentWatcher()
 
     private var value: Int { Int(amount) ?? 0 }
     private var canSubmit: Bool {
@@ -47,10 +48,27 @@ private struct MoneyForm<Extra: View>: View {
                     Text(rule.t)
                         .font(Brand.font(12.5)).foregroundStyle(Brand.accent)
 
-                    if opened { ErrorBanner(message: L.openingCheckout.t, tone: .notice) }
+                    if opened {
+                        // Three states, not one. "The page is open" was the only
+                        // thing this ever said, including after the money had
+                        // already arrived.
+                        switch watcher.outcome {
+                        case .waiting:
+                            ErrorBanner(message: L.openingCheckout.t, tone: .notice)
+                            HStack(spacing: 6) {
+                                ProgressView().tint(Brand.accent)
+                                Text(L.paymentWaiting.t)
+                                    .font(Brand.font(13)).foregroundStyle(Brand.accent)
+                            }
+                        case .paid:
+                            ErrorBanner(message: L.paymentConfirmed.t, tone: .notice)
+                        case .failed:
+                            ErrorBanner(message: L.paymentFailed.t)
+                        }
+                    }
                     ErrorBanner(message: error)
 
-                    if !opened {
+                    if !opened || watcher.outcome == .failed {
                         BrandButton(title: .payNowShort, isLoading: isWorking,
                                     isEnabled: canSubmit) {
                             Task { await submit() }
@@ -64,6 +82,7 @@ private struct MoneyForm<Extra: View>: View {
             .scrollDismissesKeyboard(.interactively)
             .navigationTitle(title.t)
             .navigationBarTitleDisplayMode(.inline)
+            .onDisappear { watcher.stop() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(opened ? L.close.t : L.cancel.t) { dismiss() }
@@ -85,6 +104,13 @@ private struct MoneyForm<Extra: View>: View {
                 // A session with no URL is not a success to celebrate quietly.
                 error = L.errNetwork.t
                 return
+            }
+            // Watch before opening. The webhook can settle a fast payment
+            // before she is back in the app, and a listener armed afterwards
+            // would still see it — but arming first means there is no window
+            // where the answer exists and nothing is looking.
+            if let paymentId = response["paymentId"]?.stringValue {
+                watcher.watch(paymentId: paymentId)
             }
             openURL(url)
             // Kept open rather than dismissed. She has to come back from

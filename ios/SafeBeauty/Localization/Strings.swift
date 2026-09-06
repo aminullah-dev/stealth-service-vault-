@@ -511,6 +511,15 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    // MARK: Coming back from HesabPay
+    static let paymentConfirmed = L(fa: "پرداخت شما تأیید شد.", ps: "ستاسو تادیه تایید شوه.",
+                                    en: "Your payment went through.")
+    static let paymentFailed = L(fa: "پرداخت انجام نشد. مبلغی کسر نشده است.",
+                                 ps: "تادیه ترسره نه شوه. هیڅ پیسې نه دي کمې شوې.",
+                                 en: "The payment did not go through. Nothing was charged.")
+    static let paymentWaiting = L(fa: "منتظر تأیید پرداخت…", ps: "د تادیې تایید ته انتظار…",
+                                  en: "Waiting for the payment to confirm…")
+
     // MARK: Provider messages, notifications, time off
     static let tabMessages = L(fa: "پیام‌ها", ps: "پیغامونه", en: "Messages")
     static let noMessages = L(fa: "هنوز پیامی از مشتری‌ها نیست.",

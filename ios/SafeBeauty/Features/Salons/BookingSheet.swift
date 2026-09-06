@@ -26,6 +26,8 @@ struct BookingSheet: View {
     @State private var error: String?
     @State private var checkingPromo = false
     @State private var promoNote: PromoNote?
+    @State private var watcher = PaymentWatcher()
+    @State private var checkoutOpened = false
 
     /// What previewPromo said, and whether it was good news. Two colours, not
     /// one banner — "not valid" and "saves 20 AFN" are opposite outcomes.
@@ -160,10 +162,40 @@ struct BookingSheet: View {
             .background(.white, in: RoundedRectangle(cornerRadius: 14))
 
             if !quote.checkoutUrl.isEmpty, let url = URL(string: quote.checkoutUrl) {
-                BrandButton(title: .payNow) { openURL(url) }
+                // The booking is AWAITING_PAYMENT until the webhook flips it,
+                // and nothing on this screen ever noticed the flip. She paid,
+                // came back, and read "pay to confirm" over a booking that was
+                // already confirmed — the one moment she most needs telling.
+                switch watcher.outcome {
+                case .paid:
+                    ErrorBanner(message: L.paymentConfirmed.t, tone: .notice)
+                case .failed:
+                    ErrorBanner(message: L.paymentFailed.t)
+                    BrandButton(title: .payNow) {
+                        checkoutOpened = true
+                        watcher.watch(paymentId: quote.paymentId)
+                        openURL(url)
+                    }
+                case .waiting where checkoutOpened:
+                    // Between opening the browser and the webhook settling.
+                    // Without this the same Pay button sat there after she had
+                    // already paid, which reads as a tap that did nothing.
+                    HStack(spacing: 6) {
+                        ProgressView().tint(Brand.accent)
+                        Text(L.paymentWaiting.t)
+                            .font(Brand.font(13.5)).foregroundStyle(Brand.accent)
+                    }
+                case .waiting:
+                    BrandButton(title: .payNow) {
+                        checkoutOpened = true
+                        watcher.watch(paymentId: quote.paymentId)
+                        openURL(url)
+                    }
+                }
             }
         }
         .padding(.bottom, 30)
+        .onDisappear { watcher.stop() }
     }
 
     // MARK: Bits
