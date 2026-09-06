@@ -235,6 +235,16 @@ struct ReviewEligibilityTests {
         #expect(!ReviewEligibility.canReview(booking(.cancelled, daysFromNow: -1)))
     }
 
+    @Test("a booking already reviewed is not offered again")
+    func alreadyReviewedIsNot() {
+        // submitReview stamps `reviewed` and refuses a second review, so the
+        // button was being offered on something the server would turn down.
+        var a = booking(.completed, daysFromNow: -1)
+        #expect(ReviewEligibility.canReview(a))
+        a.reviewed = true
+        #expect(!ReviewEligibility.canReview(a))
+    }
+
     @Test("an unpaid booking in the past is not reviewable")
     func awaitingPaymentIsNot() {
         // AWAITING_PAYMENT that aged out is an abandoned checkout, not a visit.

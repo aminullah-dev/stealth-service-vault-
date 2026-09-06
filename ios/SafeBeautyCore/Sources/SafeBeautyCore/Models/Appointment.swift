@@ -60,6 +60,9 @@ public struct Appointment: Codable, Identifiable, Hashable, Sendable {
 
     public var slotsCount: Int = 1
     public var busyOffsets: [Int] = []
+    /// Set by submitReview (content.js). Without it the button was offered
+    /// again on a booking already reviewed, and the server refused it.
+    public var reviewed: Bool = false
     public var isParty: Bool = false
     public var partySize: Int = 0
 
@@ -93,6 +96,7 @@ public struct Appointment: Codable, Identifiable, Hashable, Sendable {
     // So every field is decodeIfPresent with the default beside it, and a
     // missing field is what it should be: a default, not a failure.
     private enum CodingKeys: String, CodingKey {
+        case reviewed
         case bookingCode, customerId, customerName, customerPhone
         case salonId, salonName, serviceName, services
         case staffId, staffName, appointmentDate, status, paymentMethod
@@ -116,6 +120,7 @@ public struct Appointment: Codable, Identifiable, Hashable, Sendable {
         createdAt = i64(.createdAt)
         slotsCount = int(.slotsCount, 1)
         partySize = int(.partySize)
+        reviewed = (try? c.decodeIfPresent(Bool.self, forKey: .reviewed)).flatMap { $0 } ?? false
         isParty = bool(.isParty)
         busyOffsets = (try? c.decodeIfPresent([Int].self, forKey: .busyOffsets)).flatMap { $0 } ?? []
         status = (try? c.decodeIfPresent(AppointmentStatus.self, forKey: .status)).flatMap { $0 } ?? .unknown

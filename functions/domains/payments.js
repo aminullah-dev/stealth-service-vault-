@@ -1745,6 +1745,13 @@ exports.expireAbandonedPayments = onSchedule(
         if (payment.appointmentId && !payment.type) {
           tx.update(db.doc(`appointments/${payment.appointmentId}`), { status: "CANCELLED" });
         }
+        // The linked gift card, for the same reason the webhook's failure path
+        // syncs it: otherwise it sits PENDING forever. That path covered a
+        // payment that failed; this one covers a checkout simply abandoned,
+        // and only the first was handled.
+        if (payment.type === "GIFT_CARD" && payment.giftCardId) {
+          tx.update(db.doc(`gift_cards/${payment.giftCardId}`), { status: "FAILED" });
+        }
         return payment;
       });
       if (!outcome) continue;

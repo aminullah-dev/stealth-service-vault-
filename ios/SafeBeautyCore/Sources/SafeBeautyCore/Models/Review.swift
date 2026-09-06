@@ -60,6 +60,9 @@ public enum ReviewEligibility {
     /// rather than predicted.
     public static func canReview(_ appointment: Appointment, now: Date = Date()) -> Bool {
         guard appointment.date < now else { return false }
+        // submitReview stamps the appointment `reviewed` and refuses a second
+        // one, so the button was being offered on bookings already reviewed.
+        guard !appointment.reviewed else { return false }
         return appointment.status == .completed || appointment.status == .confirmed
     }
 }

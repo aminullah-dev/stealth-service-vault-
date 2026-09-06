@@ -193,7 +193,8 @@ exports.verifyFirestoreBackup = onSchedule(
               state: "FAILED", finishedAt: Date.now(),
               error: String(op.error.message).slice(0, 500),
             });
-            logger.error(`verifyFirestoreBackup: ${doc.id} failed`, op.error);
+            alertable("BACKUP_FAILED", `verifyFirestoreBackup: ${doc.id} failed`,
+              { id: doc.id, error: String(op.error.message).slice(0, 500) });
           } else {
             // The operation says it finished. That is not the same claim as
             // "there is a backup", and this file already records what the

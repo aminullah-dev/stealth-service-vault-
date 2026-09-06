@@ -55,6 +55,15 @@ struct SupportView: View {
                                 withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                             }
                         }
+                        // And once when the thread opens. onChange only fires on
+                        // a CHANGE, so a thread whose messages had already
+                        // loaded opened at the oldest one — she had to scroll
+                        // down to find the answer she came back for.
+                        .onAppear {
+                            if let last = messages.last?.id {
+                                proxy.scrollTo(last, anchor: .bottom)
+                            }
+                        }
                     }
                 }
 
