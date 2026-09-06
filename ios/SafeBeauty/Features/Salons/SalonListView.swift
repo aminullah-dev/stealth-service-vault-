@@ -104,18 +104,33 @@ struct SalonListView: View {
         return repo.salons.filter { $0.categories.contains(category) }
     }
 
-    /// Only cities that actually have a salon, in Areas' own order.
+    /// All four cities the product covers, plus any the server knows about and
+    /// this build does not.
     ///
-    /// Built from the data rather than from the four supported cities. Offering
-    /// Herat as a filter when no salon is there sends a woman to an empty
-    /// screen — which is the same overclaim the marketing rules had to be
-    /// corrected for. Ordered by `liveCities` rather than alphabetically so the
-    /// chips read in the order both platforms list them, with anything the
-    /// server knows about and this build does not falling in after.
+    /// This used to be built from the data, on the argument that offering Herat
+    /// when no salon is there sends a woman to an empty screen. That argument
+    /// was wrong here, and it produced a worse result than the thing it
+    /// avoided: every salon today is in Kabul, so the list had one entry, the
+    /// row hid itself, and iOS showed no city control at all. An app that
+    /// covers four cities looked like an app that had never heard of cities.
+    ///
+    /// A city is a fixed vocabulary of four, like the five service categories —
+    /// not the sixty-four areas of Kabul, where building from the data is still
+    /// right because a row of chips that mostly lead nowhere hides its own
+    /// answers. And "no salons in Herat yet" is a true and useful answer, which
+    /// the empty state already gives along with Clear filters.
     private var cities: [String] {
         let present = Set(afterCategory.map(cityOf).filter { !$0.isEmpty })
-        let known = Areas.liveCities.map(\.key).filter(present.contains)
+        let known = Areas.liveCities.map(\.key)
         return known + present.subtracting(known).sorted()
+    }
+
+    /// The cities that do have a salon — used only to decide which one's areas
+    /// to offer before she has picked anything.
+    private var citiesWithSalons: [String] {
+        let present = Set(afterCategory.map(cityOf).filter { !$0.isEmpty })
+        return Areas.liveCities.map(\.key).filter(present.contains)
+            + present.subtracting(Set(Areas.liveCities.map(\.key))).sorted()
     }
 
     /// Salons scored against what she has actually booked before.
@@ -142,6 +157,7 @@ struct SalonListView: View {
         return city
     }
 
+
     /// The city the area chips belong to.
     ///
     /// Falls back to the only city when there is only one, because the city row
@@ -149,7 +165,11 @@ struct SalonListView: View {
     /// waited on a selection the customer was never offered. Today every salon
     /// in production is in Kabul, so that was every customer.
     private var activeCity: String? {
-        selectedCity ?? (cities.count == 1 ? cities.first : nil)
+        // Falls back to the only city that HAS salons, not to the only city
+        // offered — now that all four are always offered, keying off the chip
+        // list would hide the neighbourhood row until she picked a city she had
+        // no reason to pick.
+        selectedCity ?? (citiesWithSalons.count == 1 ? citiesWithSalons.first : nil)
     }
 
     /// The chosen area, but only while its chip is on screen.
@@ -284,7 +304,7 @@ struct SalonListView: View {
                             }
                         }
                     }
-                    if cities.count > 1 {
+                    if !cities.isEmpty {
                         ChipRow {
                             FilterChip(label: L.allCities.t, isSelected: selectedCity == nil) {
                                 city = nil; area = nil
