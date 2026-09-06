@@ -1015,6 +1015,13 @@ extension L {
                                     ps: "چټک ننوتل بندول",
                                     en: "Turn off quick sign-in")
 
+    // MARK: Provider analytics
+    // "Pending" as a stat-card label, from AppStrings.kt verbatim. No
+    // tabAnalytics here: iOS keeps the numbers inside the Income tab rather
+    // than in a sixth tab, because a sixth tab is the one iOS folds into
+    // "More".
+    static let pending = L(fa: "معلق", ps: "انتظار", en: "Pending")
+
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")
