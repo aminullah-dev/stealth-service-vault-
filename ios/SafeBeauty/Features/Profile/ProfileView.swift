@@ -22,6 +22,8 @@ struct ProfileView: View {
     @State private var showChangePassword = false
     @State private var showEditName = false
     @State private var showRedeem = false
+    @State private var showTopUp = false
+    @State private var showGift = false
     @State private var lang = LanguageStore.shared
     @State private var theme = ThemeStore.shared
 
@@ -63,6 +65,14 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Buying credit for someone else, which Android offers here
+                    // and iOS did not offer anywhere. It is also the one thing
+                    // in this app a woman can do FOR another woman.
+                    Button { showGift = true } label: {
+                        accountRow("gift.fill", L.giftCard.t)
+                    }
+                    .buttonStyle(.plain)
+
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "bubble.left.fill").foregroundStyle(Brand.accent)
@@ -98,6 +108,15 @@ struct ProfileView: View {
             .sheet(isPresented: $showEditName) { EditNameSheet().appDirection() }
             .sheet(isPresented: $showRedeem) {
                 RedeemPointsSheet(available: loyaltyPoints) { Task { await load() } }.appDirection()
+            }
+            // Both reload the profile on dismiss: the webhook credits her while
+            // she is on HesabPay, so the balance she comes back to should be the
+            // new one rather than the one she left.
+            .sheet(isPresented: $showTopUp, onDismiss: { Task { await load() } }) {
+                TopUpSheet().appDirection()
+            }
+            .sheet(isPresented: $showGift, onDismiss: { Task { await load() } }) {
+                GiftCardSheet().appDirection()
             }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
@@ -135,7 +154,18 @@ struct ProfileView: View {
 
     private var walletCard: some View {
         HStack(spacing: 0) {
-            statTile(L.walletCredit.t, "\(referralCredit)", suffix: L.afn.t)
+            // The balance and, under it, the way to add to it. It was a figure
+            // she could read and not change: createWalletTopUp was deployed
+            // with no caller on this platform.
+            Button { showTopUp = true } label: {
+                VStack(spacing: 3) {
+                    statTile(L.walletCredit.t, "\(referralCredit)", suffix: L.afn.t)
+                    Text(L.topUp.t)
+                        .font(Brand.font(11.5, .medium))
+                        .foregroundStyle(Brand.deep)
+                }
+            }
+            .buttonStyle(.plain)
             Divider().frame(height: 40).overlay(Brand.petal.opacity(0.5))
             // Not disabled below the threshold. A greyed-out STAT reads as a
             // number that failed to load; the figure is correct either way, so

@@ -7,6 +7,7 @@ struct MyBookingsView: View {
     @State private var cancelling: Appointment?
     @State private var reviewing: Appointment?
     @State private var rescheduling: Appointment?
+    @State private var tipping: Appointment?
     @State private var error: String?
 
     var body: some View {
@@ -71,7 +72,13 @@ struct MyBookingsView: View {
                                         // accept it. A button the server refuses
                                         // teaches her not to trust the buttons.
                                         canReview: ReviewEligibility.canReview(booking),
-                                        onReview: { reviewing = booking })
+                                        onReview: { reviewing = booking },
+                                        // Only on a visit that actually
+                                        // happened. createTipSession refuses
+                                        // anything else, and the whole tip goes
+                                        // to the salon — no commission.
+                                        canTip: booking.status == .completed,
+                                        onTip: { tipping = booking })
                                 }
                             }
                         }
@@ -107,6 +114,7 @@ struct MyBookingsView: View {
                 Text(L.cancelWarning.t)
             }
             .sheet(item: $reviewing) { ReviewSheet(booking: $0).appDirection() }
+            .sheet(item: $tipping) { TipSheet(booking: $0).appDirection() }
             .sheet(item: $rescheduling) { booking in
                 // The list is a live snapshot, so the moved booking redraws on
                 // its own; onMoved only has to close the sheet's own state.
@@ -133,6 +141,8 @@ struct BookingRow: View {
     var onReschedule: () -> Void = {}
     var canReview: Bool = false
     var onReview: () -> Void = {}
+    var canTip = false
+    var onTip: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -204,12 +214,22 @@ struct BookingRow: View {
                 }
                 .padding(.top, 2)
             }
-            if canReview {
-                Button(L.writeReview.t, action: onReview)
-                    .font(Brand.font(13, .medium))
-                    .foregroundStyle(Brand.accent)
-                    .buttonStyle(.borderless)
-                    .padding(.top, 2)
+            if canReview || canTip {
+                HStack(spacing: 16) {
+                    if canReview {
+                        Button(L.writeReview.t, action: onReview)
+                            .font(Brand.font(13, .medium))
+                            .foregroundStyle(Brand.accent)
+                            .buttonStyle(.borderless)
+                    }
+                    if canTip {
+                        Button(L.tip.t, action: onTip)
+                            .font(Brand.font(13, .medium))
+                            .foregroundStyle(Brand.deep)
+                            .buttonStyle(.borderless)
+                    }
+                }
+                .padding(.top, 2)
             }
         }
         .padding(.vertical, 5)

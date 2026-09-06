@@ -465,6 +465,33 @@ extension L {
     static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
+
+    // MARK: Wallet, gift cards and tips
+    static let topUp = L(fa: "شارژ", ps: "چارج", en: "Top up")
+    static let topUpTitle = L(fa: "شارژ کیف پول", ps: "د بټوې چارج", en: "Top up wallet")
+    static let topUpRule = L(fa: "بین ۵۰ تا ۵۰٬۰۰۰ افغانی.",
+                             ps: "د ۵۰ او ۵۰٬۰۰۰ افغانیو ترمنځ.",
+                             en: "Between 50 and 50,000 AFN.")
+    static let walletAutoApplies = L(fa: "اعتبار کیف پول شما به‌طور خودکار در رزرو بعدی اعمال می‌شود.",
+                                     ps: "ستاسو د بټوې اعتبار په راتلونکي بکینګ کې پخپله پلی کیږي.",
+                                     en: "Your wallet credit is applied automatically at your next booking.")
+    static let giftCard = L(fa: "کارت هدیه", ps: "د ډالۍ کارت", en: "Gift card")
+    static let giftTo = L(fa: "شماره تلفن گیرنده", ps: "د ترلاسه‌کوونکي د تلیفون شمېره",
+                          en: "Recipient's phone number")
+    static let giftMessage = L(fa: "پیام (اختیاری)", ps: "پیغام (اختیاري)", en: "Message (optional)")
+    static let giftRule = L(fa: "بین ۵۰ تا ۵۰٬۰۰۰ افغانی. اعتبار مستقیم به کیف پول او می‌رود.",
+                            ps: "د ۵۰ او ۵۰٬۰۰۰ افغانیو ترمنځ. اعتبار مستقیم د هغې بټوې ته ځي.",
+                            en: "Between 50 and 50,000 AFN. The credit goes straight to her wallet.")
+    static let tip = L(fa: "انعام", ps: "انعام", en: "Tip")
+    static let tipTitle = L(fa: "انعام به سالن", ps: "سالون ته انعام", en: "Tip the salon")
+    static let tipRule = L(fa: "بین ۱۰ تا ۲۰٬۰۰۰ افغانی. تمام مبلغ به سالن می‌رسد.",
+                           ps: "د ۱۰ او ۲۰٬۰۰۰ افغانیو ترمنځ. ټوله پیسې سالون ته رسیږي.",
+                           en: "Between 10 and 20,000 AFN. The salon receives all of it.")
+    static let amountAfn = L(fa: "مبلغ (افغانی)", ps: "اندازه (افغانۍ)", en: "Amount (AFN)")
+    static let payNowShort = L(fa: "پرداخت", ps: "تادیه", en: "Pay")
+    static let openingCheckout = L(fa: "صفحهٔ پرداخت باز شد. پس از پرداخت به اپ برگردید.",
+                                   ps: "د تادیې پاڼه پرانیستل شوه. له تادیې وروسته اپ ته راستون شئ.",
+                                   en: "The payment page is open. Come back to the app when you are done.")
     static let rescheduleFrom = L(fa: "زمان فعلی", ps: "اوسنی وخت", en: "Current time")
     static let rescheduleDone = L(fa: "زمان نوبت شما تغییر کرد.",
                                   ps: "ستاسو د نوبت وخت بدل شو.",
