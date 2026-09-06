@@ -798,6 +798,23 @@ const STR = {
   btn_insertTemplate: {en:'Insert', fa:'درج', ps:'ننویستل'},
   ttl_messageTemplates: {en:'Message templates', fa:'قالب‌های پیام', ps:'د پیغامونو کينډۍ'},
   hint_templatesInsert: {en:'Insert into the current reply, or copy.', fa:'در پاسخ فعلی درج کنید، یا کاپی بگیرید.', ps:'اوسني ځواب کې یې ننویسئ، یا یې کاپي کړئ.'},
+  lbl_langFa: {en:'Dari', fa:'دری', ps:'دري'},
+  lbl_langPs: {en:'Pashto', fa:'پشتو', ps:'پښتو'},
+  lbl_langEn: {en:'English', fa:'انگلیسی', ps:'انګلیسي'},
+  lbl_readsLang: {
+    en: (l) => `Reads ${l}`,
+    fa: (l) => `${l} می‌خواند`,
+    ps: (l) => `${l} لولي`,
+  },
+  hint_langUnknown: {en:'Language not recorded — ask before sending a canned reply.',
+                     fa:'زبان ثبت نشده — پیش از فرستادن پاسخ آماده بپرسید.',
+                     ps:'ژبه نه ده ثبت شوې — د چمتو ځواب له لېږلو مخکې وپوښتئ.'},
+  hint_tplMatch: {
+    en: (l) => `This customer reads ${l}. Replies in ${l} are listed first.`,
+    fa: (l) => `این کاربر ${l} می‌خواند. پاسخ‌های ${l} اول فهرست آمده‌اند.`,
+    ps: (l) => `دا کارن ${l} لولي. په ${l} ځوابونه لومړی راغلي.`,
+  },
+  pill_wrongLang: {en:'other language', fa:'زبان دیگر', ps:'بله ژبه'},
   hint_templatesManage: {en:'Copy a reply, or manage your saved messages.', fa:'یک پاسخ را کاپی کنید، یا پیام‌های ذخیره‌شده را مدیریت کنید.', ps:'یو ځواب کاپي کړئ، یا خپل خوندي شوي پیغامونه سم کړئ.'},
   ph_templateTitle: {en:'Title (for your reference)', fa:'عنوان (برای یادآوری خودتان)', ps:'سرلیک (ستاسو د یادونې لپاره)'},
   ph_templateBody: {en:'Message text (what gets sent)', fa:'متن پیام (آنچه فرستاده می‌شود)', ps:'د پیغام متن (هغه څه چې لېږل کېږي)'},
@@ -1355,11 +1372,32 @@ function openChat(userId, name){
   const chat = $('chat');
   chat.innerHTML = `<div class="msgs" id="msgs"></div>
     <div class="composer">
+      <span id="clang" class="pill info" title="">…</span>
       <button id="ctpl" class="btn-sm" style="background:var(--petal);color:var(--deep)" title="Insert a saved reply">📋</button>
       <input id="cin" class="field" placeholder="Reply to ${esc(name)}…" />
       <button id="csend" class="btn-sm" style="background:var(--rose)">${t('btn_send')}</button>
       <button id="cclose" class="btn-sm" style="background:var(--petal);color:var(--deep)">${t('btn_closeGeneric')}</button>
     </div>`;
+  // The language she actually reads, which this screen has never shown. It is
+  // the same `lang` the server already uses to decide what language to write a
+  // push in, so it is not a new field — only one that was never surfaced to the
+  // person choosing between a Dari and a Pashto canned reply.
+  let recipientLang = '';
+  getDoc(doc(db,'users',userId)).then(u => {
+    recipientLang = (u.exists() && String(u.data().lang || '')) || '';
+    const pill = $('clang'); if(!pill) return;
+    if(recipientLang){
+      pill.textContent = t('lbl_readsLang', langName(recipientLang));
+      pill.className = 'pill ok';
+    }else{
+      // Said out loud rather than left blank. "Unknown" and "Dari" lead to
+      // different actions, and a blank pill reads as the second one.
+      pill.textContent = '—';
+      pill.className = 'pill warn';
+      pill.title = t('hint_langUnknown');
+    }
+  }).catch(()=>{ const pill=$('clang'); if(pill) pill.textContent='—'; });
+
   const convId = 'support_'+userId;
   if(chatUnsub){ try{chatUnsub();}catch(_){} }
   const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
@@ -1384,7 +1422,7 @@ function openChat(userId, name){
     }catch(e){ alert(e.message); inp.value=text; }
   };
   $('csend').onclick = send;
-  $('ctpl').onclick = () => openTemplates('cin');
+  $('ctpl').onclick = () => openTemplates('cin', recipientLang);
   $('cin').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
   $('cclose').onclick = () => {
     if(!confirm(t('ask_closeTicket'))) return;
@@ -1395,6 +1433,29 @@ function openChat(userId, name){
 }
 
 // ── Support message templates (canned replies) ────────────────────────────────
+
+/** The language a template is written in, read off its title suffix.
+ *
+ *  The suffix is all there has ever been to tell them apart, and the pairs sit
+ *  next to each other in the list: «لغو/تغییر نوبت (دری)» is directly above
+ *  «لغوه/بدلون (پښتو)». On 2026-09-04 the Pashto one went to a customer whose
+ *  account says lang "fa", and nothing on this screen had ever said which
+ *  language she reads. Returns '' when the title carries no marker. */
+function templateLang(title){
+  const s = String(title || '');
+  if(s.includes('(دری)') || s.includes('(دري)')) return 'fa';
+  if(s.includes('(پښتو)') || s.includes('(پشتو)')) return 'ps';
+  if(/\(English\)/i.test(s)) return 'en';
+  return '';
+}
+
+/** What to call a language code, in the admin's own language. */
+function langName(code){
+  if(code === 'fa') return t('lbl_langFa');
+  if(code === 'ps') return t('lbl_langPs');
+  if(code === 'en') return t('lbl_langEn');
+  return '';
+}
 const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Provider','Closing'];
 // A ready-made trilingual (Dari / Pashto / English) library covering the real
 // support scenarios. Auto-seeded on first open of an empty collection, and
@@ -1463,10 +1524,13 @@ async function seedTemplatesIfEmpty(){
 
 /** Templates panel. When [targetInputId] is set, "Insert" drops the text into
  *  that composer input; otherwise it copies to the clipboard. */
-async function openTemplates(targetInputId){
+async function openTemplates(targetInputId, recipientLang){
+  const matchNote = recipientLang
+    ? `<div class="msub" style="color:var(--deep)">${esc(t('hint_tplMatch', langName(recipientLang)))}</div>` : '';
   showModal(`
     <h2>${t('ttl_messageTemplates')}</h2>
     <div class="msub">${targetInputId ? t('hint_templatesInsert') : t('hint_templatesManage')}</div>
+    ${matchNote}
     <div id="tpl-flash" class="mflash"></div>
     <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">${t('btn_addDefaultReplies')}</button></div>
     <div id="tpl-list"><div class="meta" style="color:var(--muted)">${t('lbl_templatesLoading')}</div></div>
@@ -1494,16 +1558,31 @@ async function openTemplates(targetInputId){
     const snap = await getDocs(collection(db,'support_templates'));
     const tpls = []; snap.forEach(d=>tpls.push({ id:d.id, ...d.data() }));
     tpls.sort((a,b)=> (a.category||'').localeCompare(b.category||'') || (a.order||0)-(b.order||0));
+    // Her language first. The pairs are otherwise adjacent and told apart only
+    // by a suffix at the end of the title, which is how the wrong one gets sent.
+    // A stable sort, so the category grouping above survives inside each half.
+    if(recipientLang){
+      const off = (tp) => (templateLang(tp.title) === recipientLang ? 0 : 1);
+      tpls.sort((a,b) => off(a) - off(b));
+    }
     const list = $('tpl-list'); if(!list) return;
     if(!tpls.length){ list.innerHTML = `<div class="meta" style="color:var(--muted)">${t('hint_noTemplatesYet')}</div>`; return; }
-    list.innerHTML = tpls.map(tp => `<div class="row" style="margin-bottom:8px" data-id="${esc(tp.id)}">
-      <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span></h3>
+    list.innerHTML = tpls.map(tp => {
+      const tl = templateLang(tp.title);
+      // Marked, not hidden. An admin does sometimes need the other language —
+      // a Pashto speaker whose account still says fa — and hiding it would
+      // trade one silent mistake for another.
+      const wrong = recipientLang && tl && tl !== recipientLang
+        ? ` <span class="pill warn">${esc(t('pill_wrongLang'))}</span>` : '';
+      return `<div class="row" style="margin-bottom:8px${wrong?';opacity:.62':''}" data-id="${esc(tp.id)}">
+      <h3>${esc(tp.title||'')} <span class="pill info">${esc(tp.category||'')}</span>${wrong}</h3>
       <div class="meta" style="white-space:pre-wrap;color:var(--ink);margin-top:4px">${esc(tp.body||'')}</div>
       <div class="actions" style="margin-top:9px">
         <button class="btn-sm t-ins" style="background:var(--rose)">${targetInputId?t('btn_insertTemplate'):t('btn_copy')}</button>
         <button class="btn-sm t-cpy" style="background:var(--petal);color:var(--deep)">${t('btn_copy')}</button>
         <button class="btn-sm t-del" style="background:var(--red)">${t('btn_deleteTemplate')}</button>
-      </div></div>`).join('');
+      </div></div>`;
+    }).join('');
     const copy = (txt) => { try{ navigator.clipboard.writeText(txt); }catch(_){} $('tpl-flash').className='mflash ok'; $('tpl-flash').textContent=t('msg_copied'); };
     list.querySelectorAll('.row').forEach(row => {
       const tp = tpls.find(x=>x.id===row.dataset.id);
