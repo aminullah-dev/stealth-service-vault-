@@ -13,6 +13,7 @@ struct ProviderProfileView: View {
     @State private var lang = LanguageStore.shared
     @State private var showSupport = false
     @State private var confirmSignOut = false
+    @State private var showEdit = false
 
     var body: some View {
         NavigationStack {
@@ -39,6 +40,25 @@ struct ProviderProfileView: View {
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.white, in: RoundedRectangle(cornerRadius: 16))
+
+                    // Above support, because it is the thing she came here to
+                    // do. Only offered once the salon exists.
+                    if repo.salon != nil {
+                        Button { showEdit = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "square.and.pencil")
+                                    .foregroundStyle(Brand.accent)
+                                Text(L.editSalon.t)
+                                    .font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+                                Spacer()
+                                Image(systemName: "chevron.forward")
+                                    .font(.system(size: 12)).foregroundStyle(Brand.accent)
+                            }
+                            .padding(15)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
@@ -77,6 +97,7 @@ struct ProviderProfileView: View {
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.tabMyProfile.t)
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
+            .sheet(isPresented: $showEdit) { EditSalonSheet(repo: repo).appDirection() }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
                 Button(L.signOut.t, role: .destructive) { auth.signOut() }

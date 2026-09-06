@@ -187,6 +187,38 @@ final class ProviderRepository {
         ])
     }
 
+    /// Saves what a salon owner may change about her own salon.
+    ///
+    /// A merge, not a set. firestore.rules evaluates `request.resource.data` as
+    /// the MERGED document, and the rule freezes ten fields by comparing them to
+    /// their current values — rating, confirmedCount, categories, districtKey,
+    /// reliability and the rest. A merge leaves every one of them equal by not
+    /// mentioning them; a full set would have to reproduce all ten exactly or be
+    /// refused, and would silently drop any the client does not know about.
+    ///
+    /// districtKey and categories are deliberately absent even though the
+    /// district and the services are being written: deriveSalonFields re-derives
+    /// them, and a salon that could write them directly could file itself under
+    /// every category and every neighbourhood.
+    func saveSalon(name: String, district: String, areaKey: String,
+                   services: [String], prices: [String: Int],
+                   hours: [WorkingHours], isAvailable: Bool) async throws {
+        guard let id = salon?.id, !id.isEmpty else { return }
+        try await Firestore.firestore().document("salons/\(id)").updateData([
+            "salonName": name,
+            "district": district,
+            "areaKey": areaKey,
+            "services": services,
+            "pricePerService": prices,
+            "workingHours": hours.map {
+                ["dayOfWeek": $0.dayOfWeek, "isOpen": $0.isOpen,
+                 "openHour": $0.openHour, "openMinute": $0.openMinute,
+                 "closeHour": $0.closeHour, "closeMinute": $0.closeMinute]
+            },
+            "isAvailable": isAvailable,
+        ])
+    }
+
     /// Accepting a booking. The server checks she owns the salon and that the
     /// slot is still free, so a stale list cannot double-book a chair.
     func confirm(_ appointment: Appointment) async throws {

@@ -511,6 +511,32 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    // MARK: Editing the salon
+    static let neighbourhood = L(fa: "محله", ps: "ګاونډ", en: "Neighbourhood")
+    static let editSalon = L(fa: "ویرایش سالن", ps: "د سالون سمون", en: "Edit salon")
+    static let salonListedToggle = L(fa: "سالن در فهرست باشد", ps: "سالون دې په لیست کې وي",
+                                     en: "List my salon")
+    static let salonListedHint = L(
+        fa: "وقتی خاموش باشد، مشتری‌ها سالن شما را نمی‌بینند و نمی‌توانند رزرو کنند.",
+        ps: "کله چې مړه وي، پیرودونکي ستاسو سالون نه ویني او بکینګ نه شي کولی.",
+        en: "While this is off, customers cannot see your salon or book with it.")
+    static let addService = L(fa: "افزودن خدمت", ps: "خدمت زیاتول", en: "Add service")
+    static let priceAfn = L(fa: "قیمت (افغانی)", ps: "بیه (افغانۍ)", en: "Price (AFN)")
+    static let removeService = L(fa: "حذف خدمت", ps: "خدمت لرې کول", en: "Remove service")
+    static let openTime = L(fa: "باز", ps: "پرانیستل", en: "Opens")
+    static let closeTime = L(fa: "بسته", ps: "تړل", en: "Closes")
+    static let saved = L(fa: "ذخیره شد.", ps: "خوندي شو.", en: "Saved.")
+    static let errNeedOneService = L(fa: "حداقل یک خدمت با قیمت لازم است.",
+                                     ps: "لږ تر لږه یو خدمت له بیې سره اړین دی.",
+                                     en: "At least one service with a price is required.")
+    static let errCloseBeforeOpen = L(fa: "ساعت بسته‌شدن باید بعد از ساعت بازشدن باشد.",
+                                      ps: "د تړلو ساعت باید د پرانیستلو له ساعته وروسته وي.",
+                                      en: "Closing time must be after opening time.")
+    static let editOnConsole = L(
+        fa: "گالری، کارمندان، بسته‌ها و آفرها در کنسول سالن روی کامپیوتر ویرایش می‌شوند.",
+        ps: "ګالري، کارمندان، بنډلونه او آفرونه د سالون په کنسول کې په کمپیوټر کې سمیږي.",
+        en: "Gallery, staff, packages and offers are edited in the salon console on a computer.")
+
     // MARK: Onboarding — Android's copy verbatim, so the promise made on one
     // phone is the promise made on the other.
     static let onboardingTitle1 = L(fa: "سالن‌های زیبایی نزدیک خود را پیدا کنید",
