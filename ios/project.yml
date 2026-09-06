@@ -77,6 +77,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"          # iPhone. The salon and admin consoles are web.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: SafeBeauty/SafeBeauty.entitlements
     info:
       path: SafeBeauty/Resources/Info.plist
       properties:

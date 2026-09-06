@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Without this the device never gets an APNs token, so Firebase never
+       resolves an FCM token and every push the server sends is dropped.
+       Xcode switches it to "production" for a release build automatically. -->
+  <key>aps-environment</key>
+  <string>development</string>
+</dict>
+</plist>

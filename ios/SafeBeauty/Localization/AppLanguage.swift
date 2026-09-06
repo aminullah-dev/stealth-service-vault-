@@ -87,6 +87,10 @@ final class LanguageStore {
         didSet {
             guard current != oldValue else { return }
             AppLanguage.current = current   // the durable copy
+            // And the server's copy, which decides what language a PUSH is
+            // written in. Without this she changes the language, the app
+            // switches, and her notifications keep arriving in the old one.
+            PushService.shared.writeLanguage()
         }
     }
 

@@ -90,6 +90,7 @@ final class AuthService {
             return
         }
         session = stored.session
+        PushService.shared.bind(uid: stored.session.uid)
     }
 
     private func persist(_ session: Session, firebaseEmail: String) {
@@ -161,6 +162,11 @@ final class AuthService {
         )
         session = newSession
         persist(newSession, firebaseEmail: firebaseEmail)
+        // Where to send her notifications, and in which language. Asked for
+        // here rather than at launch: a permission sheet makes sense once she
+        // has an account that things can happen to.
+        PushService.shared.bind(uid: uid)
+        Task { await PushService.shared.requestAuthorisation() }
     }
 
     // MARK: - Register
@@ -251,6 +257,8 @@ final class AuthService {
         )
         session = newSession
         persist(newSession, firebaseEmail: firebaseEmail)
+        PushService.shared.bind(uid: uid)
+        Task { await PushService.shared.requestAuthorisation() }
 
         // The bridge, written LAST on purpose. Her account exists and she is
         // signed in; nothing below should be able to hold the registration
@@ -286,6 +294,9 @@ final class AuthService {
     }
 
     func signOut() {
+        // Before the session goes: a token left behind would send the next
+        // person to hold this phone somebody else's bookings.
+        PushService.shared.unbind()
         bridgePending = false
         try? Auth.auth().signOut()
         // Cleared before the in-memory copy, so a crash between the two lines
