@@ -233,6 +233,27 @@ final class ProviderRepository {
     /// district and the services are being written: deriveSalonFields re-derives
     /// them, and a salon that could write them directly could file itself under
     /// every category and every neighbourhood.
+    /// The salon's stylists.
+    ///
+    /// Written as its own call rather than folded into `saveSalon`, because the
+    /// two are edited on different screens and a partial save of one must not
+    /// blank the other. `staff` is not on the rules' frozen list, so the owner
+    /// may write it directly — unlike rating, categories or verification.
+    ///
+    /// Each entry is a chair: `hasSlotConflict` treats a booking with a
+    /// different `staffId` as not conflicting, so adding a stylist genuinely
+    /// adds capacity and removing one does not free the bookings already made
+    /// against her — those keep her id and stay blocked, which is correct.
+    func saveStaff(_ staff: [StaffMember]) async throws {
+        guard let id = salon?.id, !id.isEmpty else { return }
+        try await Firestore.firestore().document("salons/\(id)").updateData([
+            "staff": staff.map {
+                ["id": $0.id, "name": $0.name,
+                 "specialty": $0.specialty, "active": $0.active]
+            }
+        ])
+    }
+
     func saveSalon(name: String, district: String, areaKey: String,
                    services: [String], prices: [String: Int],
                    hours: [WorkingHours], blockedDates: [String],

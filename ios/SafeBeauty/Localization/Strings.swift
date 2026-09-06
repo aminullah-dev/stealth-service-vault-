@@ -755,10 +755,13 @@ extension L {
     static let closedDay = L(fa: "تعطیل", ps: "رخصت", en: "Closed")
     static let salonListed = L(fa: "در فهرست است", ps: "په لیست کې دی", en: "Listed")
     static let salonHidden = L(fa: "در فهرست نیست", ps: "په لیست کې نه دی", en: "Not listed")
+    // Prices, hours and staff are all editable on the phone now, so naming
+    // them here sent her to a computer for work she could already do. What is
+    // left is the photo-and-table work a phone genuinely makes worse.
     static let providerConsoleHint = L(
-        fa: "برای ویرایش قیمت‌ها، ساعات کاری، گالری و کارمندان، کنسول سالن را در کامپیوتر باز کنید: safebeauty.web.app/provider",
-        ps: "د بیو، د کار ساعتونو، ګالرۍ او کارمندانو د سمولو لپاره، په کمپیوټر کې د سالون کنسول پرانیځئ: safebeauty.web.app/provider",
-        en: "To edit prices, working hours, gallery and staff, open the salon console on a computer: safebeauty.web.app/provider")
+        fa: "برای گالری، پکیج‌ها و آفرها، کنسول سالن را در کامپیوتر باز کنید: safebeauty.web.app/provider",
+        ps: "د ګالرۍ، بستو او وړاندیزونو لپاره، په کمپیوټر کې د سالون کنسول پرانیځئ: safebeauty.web.app/provider",
+        en: "For the gallery, packages and offers, open the salon console on a computer: safebeauty.web.app/provider")
     static let noSalonYet = L(
         fa: "سالن شما هنوز ساخته نشده. پس از تأیید ادمین اینجا ظاهر می‌شود.",
         ps: "ستاسو سالون لا نه دی جوړ شوی. د اډمین له تاییده وروسته دلته ښکاري.",
@@ -1021,6 +1024,39 @@ extension L {
     // than in a sixth tab, because a sixth tab is the one iOS folds into
     // "More".
     static let pending = L(fa: "معلق", ps: "انتظار", en: "Pending")
+
+    // MARK: Staff
+    // The Android values verbatim (AppStrings.kt staffHint…staffRemove).
+    // staffTitle has no Android counterpart — Android's section carries an
+    // icon and the hint; iOS sheets are titled.
+    static let staffTitle = L(
+        fa: "آرایشگران",
+        ps: "آرایشګران",
+        en: "Stylists")
+    static let staffHint = L(
+        fa: "آرایشگر اضافه کنید تا مشتری بتواند فرد مشخصی را رزرو کند. هر آرایشگر فعال در هر بازهٔ زمانی یک رزرو می‌پذیرد.",
+        ps: "آرایشګر اضافه کړئ ترڅو پیرودونکی یو ټاکلی کس بک کولی شي. هر فعال آرایشګر په هره وخت کې یو بکینګ اخلي.",
+        en: "Add stylists so customers can book a specific person. Each active stylist can take one booking per time slot.")
+    static let staffEmpty = L(
+        fa: "آرایشگری اضافه نشده — سالن تک‌نفره است.",
+        ps: "هیڅ کارکوونکی نه دی اضافه شوی — دا یو یو-کسیز سالون دی.",
+        en: "No staff added — this is a solo salon.")
+    static let staffNameLabel = L(
+        fa: "نام آرایشگر",
+        ps: "د آرایشګر نوم",
+        en: "Stylist name")
+    static let staffSpecialtyLabel = L(
+        fa: "تخصص (اختیاری)",
+        ps: "تخصص (اختیاري)",
+        en: "Specialty (optional)")
+    static let staffAdd = L(
+        fa: "افزودن آرایشگر",
+        ps: "آرایشګر اضافه کړئ",
+        en: "Add stylist")
+    static let staffRemove = L(
+        fa: "حذف آرایشگر",
+        ps: "آرایشګر لرې کړئ",
+        en: "Remove stylist")
 
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",

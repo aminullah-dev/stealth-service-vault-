@@ -8,9 +8,13 @@ import SafeBeautyCore
 /// is shut on Thursday, or she needs to come off the listings for a week. None
 /// of those should wait until she is next at a computer.
 ///
-/// Gallery, staff, packages and offers stay on the console — they are
-/// photo-and-table work that a phone makes worse, and the screen says so rather
-/// than leaving her to hunt.
+/// Staff moved off the console and onto the phone (EditStaffSheet), because it
+/// is not table work — it decides how many chairs the salon has, and a salon
+/// with none can serve one customer an hour however many people work there.
+///
+/// Gallery, packages and offers stay on the console — those are photo-and-table
+/// work a phone makes worse, and the screen says so rather than leaving her to
+/// hunt.
 struct EditSalonSheet: View {
     let repo: ProviderRepository
 

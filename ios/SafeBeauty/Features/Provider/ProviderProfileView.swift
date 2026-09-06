@@ -12,6 +12,7 @@ struct ProviderProfileView: View {
     @Environment(AuthService.self) private var auth
     @State private var lang = LanguageStore.shared
     @State private var showSupport = false
+    @State private var showStaff = false
     @State private var confirmSignOut = false
     @State private var showEdit = false
     @State private var replying: Review?
@@ -61,6 +62,28 @@ struct ProviderProfileView: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Above Support, because it is the one that changes what
+                    // the salon can sell: with no staff there is one chair, so
+                    // two customers can never be served at the same hour
+                    // however many people work here.
+                    Button { showStaff = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.2.fill").foregroundStyle(Brand.accent)
+                            Text(L.staffTitle.t)
+                                .font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+                            Spacer()
+                            // The count, so she can see at a glance whether the
+                            // salon has the chairs she thinks it has.
+                            Text(verbatim: "\(repo.salon?.staff.count ?? 0)")
+                                .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 12)).foregroundStyle(Brand.accent)
+                        }
+                        .padding(15)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "bubble.left.fill").foregroundStyle(Brand.accent)
@@ -75,10 +98,9 @@ struct ProviderProfileView: View {
                     }
                     .buttonStyle(.plain)
 
-                    // The editing that is genuinely better on a bigger screen —
-                    // prices, working hours, gallery, staff — stays on the
-                    // console, and this says where rather than leaving her to
-                    // hunt for it.
+                    // What is genuinely better on a bigger screen — the
+                    // gallery, packages, offers — stays on the console, and
+                    // this says where rather than leaving her to hunt.
                     Text(L.providerConsoleHint.t)
                         .font(Brand.font(12.5)).foregroundStyle(Brand.accent)
                         .multilineTextAlignment(.center)
@@ -99,6 +121,7 @@ struct ProviderProfileView: View {
             .navigationTitle(L.tabMyProfile.t)
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showEdit) { EditSalonSheet(repo: repo).appDirection() }
+            .sheet(isPresented: $showStaff) { EditStaffSheet(repo: repo).appDirection() }
             .sheet(item: $replying) { review in
                 ReplyToReviewSheet(review: review, repo: repo).appDirection()
             }
