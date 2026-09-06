@@ -91,6 +91,28 @@ extension L {
         }
     }
 
+    /// "By creating an account, you agree to our Terms and Privacy Policy."
+    ///
+    /// One markdown string per language rather than Android's five concatenated
+    /// Text views. SwiftUI parses the links itself, and a sentence assembled
+    /// from prefix + label + "and" + label + suffix is exactly the shape that
+    /// reads as machine output in at least one of the three — worse in RTL,
+    /// where the fragments are laid out right to left and the punctuation ends
+    /// up on the wrong side.
+    static func registerConsent() -> AttributedString {
+        let terms = "https://safebeauty.web.app/terms"
+        let privacy = "https://safebeauty.web.app/privacy"
+        let markdown = switch AppLanguage.current {
+        case .dari:
+            "با ایجاد حساب، شما [\(legalTermsLabel.t)](\(terms)) و [\(legalPrivacyLabel.t)](\(privacy)) را می‌پذیرید."
+        case .pashto:
+            "د حساب په جوړولو سره، تاسو زموږ [\(legalTermsLabel.t)](\(terms)) او [\(legalPrivacyLabel.t)](\(privacy)) مني."
+        case .english:
+            "By creating an account, you agree to our [\(legalTermsLabel.t)](\(terms)) and [\(legalPrivacyLabel.t)](\(privacy))."
+        }
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }
+
     static func resetSentTo(_ email: String) -> String {
         switch AppLanguage.current {
         case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
@@ -949,6 +971,17 @@ extension L {
     static let blockedHidden = L(fa: "محتوای یک حساب مسدودشده پنهان شد.",
                                  ps: "د یو بند شوي حساب محتوا پټه شوه.",
                                  en: "Content from a blocked account is hidden.")
+
+    // MARK: Legal
+    // The Android values verbatim (AppStrings.kt legalTermsLabel /
+    // legalPrivacyLabel). Android has linked these from Support and from the
+    // registration screen since it shipped; iOS linked them from nowhere, and
+    // both stores expect an app that collects a phone number and a photograph
+    // of an identity document to say where its terms are.
+    static let legalTermsLabel = L(fa: "شرایط استفاده", ps: "د کارونې شرایط",
+                                   en: "Terms of Service")
+    static let legalPrivacyLabel = L(fa: "سیاست حریم خصوصی", ps: "د محرمیت تګلاره",
+                                     en: "Privacy Policy")
 
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",

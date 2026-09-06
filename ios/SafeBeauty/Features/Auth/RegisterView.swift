@@ -111,6 +111,17 @@ struct RegisterView: View {
 
                     ErrorBanner(message: error)
 
+                    // Above the button, not below it: consent she reads after
+                    // pressing Create is not consent. Android says the same
+                    // sentence in the same place.
+                    Text(L.registerConsent())
+                        .font(Brand.font(12))
+                        .foregroundStyle(Brand.textMuted)
+                        .tint(Brand.accent)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+
                     BrandButton(title: .register, isLoading: auth.isWorking) {
                         Task { await submit() }
                     }

@@ -129,6 +129,22 @@ struct ProfileView: View {
                     }
                     .padding(.top, 6)
 
+                    // Terms and privacy, which iOS linked from nowhere.
+                    //
+                    // Android has had them since it shipped, in Support and on
+                    // the registration screen; the pages themselves are live at
+                    // safebeauty.web.app and are the app-facing site the deploy
+                    // notes say must stay where it is. Opened in Safari rather
+                    // than in a web view: a policy shown inside the app it
+                    // describes is a policy the app could have rewritten.
+                    HStack(spacing: 0) {
+                        legalLink(L.legalTermsLabel.t, "https://safebeauty.web.app/terms")
+                        Divider().frame(height: 22).background(Brand.petal)
+                        legalLink(L.legalPrivacyLabel.t, "https://safebeauty.web.app/privacy")
+                    }
+                    .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(.top, 4)
+
                     ErrorBanner(message: deleteError)
 
                     // Below sign-out and quieter than it. requestAccountDeletion
@@ -494,6 +510,18 @@ struct ProfileView: View {
         case "PENDING": L.kycPending.t
         case "REJECTED": L.kycRejected.t
         default: L.kycNone.t
+        }
+    }
+
+    @ViewBuilder
+    private func legalLink(_ title: String, _ url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            Text(title)
+                .font(Brand.font(13.5, .medium))
+                .foregroundStyle(Brand.accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
         }
     }
 
