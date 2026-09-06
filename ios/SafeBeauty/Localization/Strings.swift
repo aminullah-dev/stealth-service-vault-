@@ -113,6 +113,24 @@ extension L {
         return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
     }
 
+    /// "Sign in with Face ID" — the sensor named by the phone itself.
+    static func biometricSignIn(_ kind: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "ورود با \(kind)"
+        case .pashto: "د \(kind) سره ننوتل"
+        case .english: "Sign in with \(kind)"
+        }
+    }
+
+    /// Why the system sheet is asking. Shown by iOS, not by this app.
+    static func biometricReason(_ kind: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "برای ورود به SafeBeauty"
+        case .pashto: "SafeBeauty ته د ننوتلو لپاره"
+        case .english: "to sign in to SafeBeauty"
+        }
+    }
+
     static func resetSentTo(_ email: String) -> String {
         switch AppLanguage.current {
         case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
@@ -982,6 +1000,20 @@ extension L {
                                    en: "Terms of Service")
     static let legalPrivacyLabel = L(fa: "سیاست حریم خصوصی", ps: "د محرمیت تګلاره",
                                      en: "Privacy Policy")
+
+    // MARK: Biometric sign-in
+    // Android's equivalents say "fingerprint", because that is all it offers.
+    // An iPhone naming the wrong sensor is telling her something false about
+    // her own phone, so these take the name the device reports — Face ID,
+    // Touch ID — and the brand names stay Latin, which is how they are written
+    // in Dari and Pashto anyway.
+    static let biometricEnableLabel = L(
+        fa: "دفعهٔ بعد بدون رمز وارد شوم",
+        ps: "بل ځل پرته له پټنوم ننوځم",
+        en: "Sign in without my password next time")
+    static let biometricTurnOff = L(fa: "خاموش کردن ورود سریع",
+                                    ps: "چټک ننوتل بندول",
+                                    en: "Turn off quick sign-in")
 
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",

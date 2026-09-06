@@ -100,6 +100,12 @@ targets:
         NSLocationWhenInUseUsageDescription: >-
           SafeBeauty uses your location only to sort salons by distance. It is
           never stored and never shared.
+        # Required before iOS will show a Face ID prompt at all — without it
+        # the request fails rather than asking. Touch ID needs no equivalent.
+        NSFaceIDUsageDescription: >-
+          SafeBeauty uses Face ID so you can sign in without typing your
+          password. Your password stays on this phone and is never sent
+          anywhere.
 
   SafeBeautyTests:
     type: bundle.unit-test

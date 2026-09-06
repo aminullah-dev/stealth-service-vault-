@@ -414,6 +414,11 @@ final class AuthService {
         PushService.shared.unbind()
         FavoritesStore.shared.unbind()
         WaitlistStore.shared.unbind()
+        // The stored credential goes with the session. Leaving it would let the
+        // next person to hold this phone sign back in as her with a face the
+        // phone already trusts — which is the one thing quick sign-in must not
+        // survive.
+        BiometricVault.disable()
         bridgePending = false
         try? Auth.auth().signOut()
         // Cleared before the in-memory copy, so a crash between the two lines

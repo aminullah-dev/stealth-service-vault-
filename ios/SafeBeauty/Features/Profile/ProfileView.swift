@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State private var phone = ""
     @State private var showKyc = false
     @State private var showBlocked = false
+    @State private var biometryName = BiometricVault.biometryName
     @Environment(Moderation.self) private var moderation
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
@@ -113,6 +114,26 @@ struct ProfileView: View {
                                     .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
                                 Image(systemName: "chevron.forward").font(.system(size: 12))
                                     .foregroundStyle(Brand.accent)
+                            }
+                            .padding(15)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Turning it off without signing out. Only shown when
+                    // there is something to turn off, so it is not a row
+                    // explaining a feature she has not used.
+                    if BiometricVault.isEnabled, biometryName != nil {
+                        Button {
+                            BiometricVault.disable()
+                            biometryName = BiometricVault.biometryName
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "faceid").foregroundStyle(Brand.accent)
+                                Text(L.biometricTurnOff.t).font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
                             }
                             .padding(15)
                             .background(.white, in: RoundedRectangle(cornerRadius: 16))
