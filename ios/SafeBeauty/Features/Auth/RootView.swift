@@ -9,7 +9,7 @@ import SafeBeautyCore
 /// person who signed in.
 struct RootView: View {
     @State private var auth = AuthService.shared
-    @State private var language = AppLanguage.current
+    @State private var lang = LanguageStore.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -22,13 +22,13 @@ struct RootView: View {
                 // TabView it sat on top of the tab bar and hid it.
                 SignInView()
                     .safeAreaInset(edge: .bottom) {
-                        Picker("", selection: $language) {
+                        @Bindable var lang = lang
+                        Picker("", selection: $lang.current) {
                             ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
                         }
                         .pickerStyle(.segmented)
                         .padding(.horizontal, 26)
                         .padding(.bottom, 10)
-                        .onChange(of: language) { _, new in AppLanguage.current = new }
                         .background(Brand.cream)
                     }
             } else {
@@ -36,8 +36,8 @@ struct RootView: View {
             }
         }
         .environment(auth)
-        .environment(\.layoutDirection, language.layoutDirection)
-        .environment(\.locale, language.locale)
+        .environment(\.layoutDirection, lang.current.layoutDirection)
+        .environment(\.locale, lang.current.locale)
         .animation(.easeInOut(duration: 0.25), value: auth.session)
         // Re-read her profile when the app comes forward, so an approval that
         // happened while it was closed is reflected without a sign-out.
@@ -55,6 +55,12 @@ struct RootView: View {
 /// when she is not.
 struct SignedInView: View {
     @Environment(AuthService.self) private var auth
+    /// Observed here, not only in RootView. `L.x.t` reads AppLanguage.current,
+    /// which is a UserDefaults value nothing watches — so this view's body was
+    /// never re-evaluated on a language change and the tab bar stayed in the
+    /// old language while every screen behind it had switched. Verified on the
+    /// simulator: "My account" in English above five Dari tabs.
+    @State private var lang = LanguageStore.shared
 
     var body: some View {
         if auth.session?.status == "PENDING" {
@@ -73,6 +79,12 @@ struct SignedInView: View {
                     .tabItem { Label(L.profile.t, systemImage: "person") }
             }
             .tint(Brand.accent)
+            // Rebuilt on a language change rather than merely re-rendered. A
+            // tab bar caches its item labels in UIKit, so observing the store
+            // is not enough on its own — without this the labels survive the
+            // switch. It costs the selected tab, which resets to the first;
+            // that is a fair price for a bar that is legible.
+            .id(lang.current)
         }
     }
 }

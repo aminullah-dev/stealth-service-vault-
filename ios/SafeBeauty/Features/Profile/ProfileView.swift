@@ -19,7 +19,7 @@ struct ProfileView: View {
     @State private var showKyc = false
     @State private var confirmSignOut = false
     @State private var showSupport = false
-    @State private var language = AppLanguage.current
+    @State private var lang = LanguageStore.shared
 
     var body: some View {
         NavigationStack {
@@ -33,11 +33,11 @@ struct ProfileView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L.language.t).font(Brand.font(13, .medium))
                             .foregroundStyle(Brand.ink.opacity(0.75))
-                        Picker("", selection: $language) {
+                        @Bindable var lang = lang
+                        Picker("", selection: $lang.current) {
                             ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
                         }
                         .pickerStyle(.segmented)
-                        .onChange(of: language) { _, new in AppLanguage.current = new }
                     }
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)

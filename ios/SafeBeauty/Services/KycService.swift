@@ -132,7 +132,7 @@ final class KycService {
                 "tazkiraExpiryDate": .string(expiryDate),
             ])
         } catch let e as Callables.CallableError {
-            if case .failedPrecondition(let message) = e {
+            if case .failedPrecondition(let message, _) = e {
                 let m = message.lowercased()
                 if m.contains("already verified") { throw KycError.alreadyVerified }
                 if m.contains("under review") { throw KycError.alreadyUnderReview }

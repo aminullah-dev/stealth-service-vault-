@@ -116,10 +116,19 @@ struct BookingSheet: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 if quote.hasDiscount {
-                    // Shown only when the server says there is one, using the
-                    // server's own two numbers.
+                    // The discount is DERIVED from the two numbers either side
+                    // of it, not taken from the server's discountAmount.
+                    //
+                    // Those did not reconcile: discountAmount covers the promo
+                    // code, while a salon offer, a last-minute deal and a
+                    // service-package bundle are also applied to the total. So
+                    // whenever one of those landed, the panel showed a price, a
+                    // smaller discount, and a total that did not follow from
+                    // them — three numbers a customer can subtract in her head
+                    // while deciding whether to pay. Shown this way they always
+                    // agree, and the figure is the true total reduction.
                     row(L.listPrice.t, "\(quote.listPrice)", isNumeric: true)
-                    row(L.discount.t, "−\(quote.discountAmount)", isNumeric: true)
+                    row(L.discount.t, "−\(max(0, quote.listPrice - quote.amount))", isNumeric: true)
                 }
                 row(L.total.t, "\(quote.amount)", isNumeric: true, isBold: true)
             }

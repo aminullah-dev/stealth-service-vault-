@@ -93,6 +93,13 @@ struct RegisterView: View {
         if isProvider && salonName.trimmingCharacters(in: .whitespaces).isEmpty {
             return .errSalonNameRequired
         }
+        // registerAccount requires a district for a provider and refuses with
+        // invalid-argument, which this screen renders as "check your internet"
+        // — pointing a salon owner at her connection while the real problem is
+        // an empty field on the form in front of her.
+        if isProvider && district.trimmingCharacters(in: .whitespaces).isEmpty {
+            return .errDistrictRequired
+        }
         return nil
     }
 

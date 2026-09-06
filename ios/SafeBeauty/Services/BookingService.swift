@@ -81,13 +81,36 @@ final class BookingService {
             ])
         } catch let e as Callables.CallableError {
             switch e {
-            case .failedPrecondition(let message):
+            case .failedPrecondition(let message, let reason):
                 // The server distinguishes these, and so should she. "Verify
                 // your identity" and "someone just took that time" lead to
                 // completely different next actions.
-                if message.lowercased().contains("verify") { throw BookingError.needsVerification }
-                throw BookingError.notBookable(message)
+                //
+                // Translated from the server's `reason` code, not from its
+                // message. Every refusal except the KYC one used to reach her
+                // as the English sentence the server wrote for a developer —
+                // in an app she is using in Dari or Pashto.
+                switch reason {
+                case "SLOT_TAKEN":         throw BookingError.slotTaken
+                case "SALON_CLOSED":       throw BookingError.notBookable(L.errSalonClosed.t)
+                case "SALON_UNAVAILABLE":  throw BookingError.notBookable(L.errSalonUnavailable.t)
+                case "AFTER_CLOSING":      throw BookingError.notBookable(L.errAfterClosing.t)
+                case "STAFF_UNAVAILABLE":  throw BookingError.notBookable(L.errStaffUnavailable.t)
+                case "PROMO_LIMIT":        throw BookingError.notBookable(L.errPromoLimit.t)
+                case "FREE_USE_CASH":      throw BookingError.notBookable(L.errFreeUseCash.t)
+                default:
+                    if message.lowercased().contains("verify") {
+                        throw BookingError.needsVerification
+                    }
+                    // A reason this build has not heard of still says something
+                    // she can act on, rather than a server sentence in English.
+                    throw BookingError.notBookable(L.errNotBookable.t)
+                }
             case .alreadyExists:
+                // Kept for exhaustiveness only. createPaymentSession signals a
+                // lost slot as failed-precondition with reason SLOT_TAKEN,
+                // handled above — this case never fired, which is why the
+                // translated L.errSlotTaken could never be shown.
                 throw BookingError.slotTaken
             default:
                 throw BookingError.network

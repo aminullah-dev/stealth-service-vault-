@@ -65,3 +65,30 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: Self.storageKey) }
     }
 }
+
+/// The chosen language, as one observable value the whole app shares.
+///
+/// It needs to be shared because `AppLanguage.current` is a UserDefaults
+/// property, and nothing observes UserDefaults: RootView held its own @State
+/// copy and applied `layoutDirection` and `locale` from it, while the picker in
+/// Profile wrote through to UserDefaults and updated a *different* @State. So
+/// changing the language from the account tab retranslated the text and left
+/// the layout mirrored the old way until the app was relaunched — the one place
+/// it is most obviously wrong, since Dari and Pashto are right-to-left and
+/// English is not.
+///
+/// Same shape as AuthService.shared, so it is read the same way at the call site.
+@MainActor
+@Observable
+final class LanguageStore {
+    static let shared = LanguageStore()
+
+    var current: AppLanguage {
+        didSet {
+            guard current != oldValue else { return }
+            AppLanguage.current = current   // the durable copy
+        }
+    }
+
+    private init() { current = AppLanguage.current }
+}

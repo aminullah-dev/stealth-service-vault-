@@ -83,9 +83,17 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
     /// coordinate, or an unpinned salon sorts as though it were somewhere.
     public var hasLocation: Bool { latitude != 0 || longitude != 0 }
 
+    /// The server writes NO_PRICE into `minPrice` when a salon has priced
+    /// nothing, because Firestore drops documents that LACK an orderBy field —
+    /// so "no price" has to be a number that sorts last rather than an absent
+    /// one. It is a sort key, not an amount, and rendering it put "from
+    /// 9,999,999 AFN" on the card of every salon that had not set a price yet.
+    public static let noPriceSentinel = 9_999_999
+
     public var lowestPrice: Int {
-        if minPrice > 0 { return minPrice }
-        return pricePerService.values.min() ?? 0
+        if minPrice > 0 && minPrice < Self.noPriceSentinel { return minPrice }
+        let priced = pricePerService.values.filter { $0 > 0 }
+        return priced.min() ?? 0
     }
 
     public init() {}

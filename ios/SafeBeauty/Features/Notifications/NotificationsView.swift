@@ -8,7 +8,18 @@ struct NotificationsView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if repo.items.isEmpty && !repo.isLoading {
+                if repo.items.isEmpty && !repo.isLoading && repo.error != nil {
+                    // "Nothing here" and "we could not look" are different
+                    // sentences. The listener already records which; the view
+                    // was showing the reassuring one either way, on the tab a
+                    // customer opens specifically to check whether her salon
+                    // has replied.
+                    ContentUnavailableView {
+                        Text(L.couldNotLoad.t)
+                            .font(Brand.font(17, .medium))
+                            .foregroundStyle(Color(hex: 0xC0392B))
+                    }
+                } else if repo.items.isEmpty && !repo.isLoading {
                     ContentUnavailableView {
                         Text(L.noNotifications.t)
                             .font(Brand.font(16, .medium))

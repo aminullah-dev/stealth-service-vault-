@@ -105,6 +105,37 @@ extension L {
         fa: "تلاش‌های زیاد. کمی بعد دوباره امتحان کنید.",
         ps: "ډېرې هڅې. لږ وروسته بیا هڅه وکړئ.",
         en: "Too many attempts. Please try again shortly.")
+    // The booking refusals, by the server's own reason code. These existed only
+    // as English sentences written for a developer until the code was carried
+    // through to the client.
+    static let errSalonClosed = L(
+        fa: "این سالن در آن روز بسته است. روز دیگری را انتخاب کنید.",
+        ps: "دا سالون په هغه ورځ بند دی. بله ورځ وټاکئ.",
+        en: "The salon is closed that day. Please choose another day.")
+    static let errSalonUnavailable = L(
+        fa: "این سالن فعلاً رزرو نمی‌پذیرد.",
+        ps: "دا سالون اوس مهال بکینګ نه مني.",
+        en: "This salon is not taking bookings right now.")
+    static let errAfterClosing = L(
+        fa: "این نوبت پیش از بسته شدن سالن تمام نمی‌شود. ساعت زودتری را انتخاب کنید.",
+        ps: "دا نوبت د سالون له بندېدو مخکې نه پای ته رسېږي. مخکینی وخت وټاکئ.",
+        en: "That appointment would not finish before the salon closes. Please pick an earlier time.")
+    static let errStaffUnavailable = L(
+        fa: "این آرایشگر در آن ساعت در دسترس نیست.",
+        ps: "دا سینګارګره په هغه وخت شتون نه لري.",
+        en: "That stylist is not available at that time.")
+    static let errPromoLimit = L(
+        fa: "این کد تخفیف دیگر قابل استفاده نیست.",
+        ps: "دا د تخفیف کوډ نور نه کارول کېږي.",
+        en: "That promo code can no longer be used.")
+    static let errFreeUseCash = L(
+        fa: "برای این رزرو پرداخت نقدی را انتخاب کنید.",
+        ps: "د دې بکینګ لپاره نغدي تادیه وټاکئ.",
+        en: "Please choose cash payment for this booking.")
+    static let errNotBookable = L(
+        fa: "این نوبت گرفته نشد. ساعت یا روز دیگری را امتحان کنید.",
+        ps: "دا نوبت ونه نیول شو. بل وخت یا بله ورځ وآزمویئ.",
+        en: "That booking could not be made. Please try another time or day.")
     static let errNetwork = L(
         fa: "اتصال برقرار نشد. اینترنت خود را بررسی کنید.",
         ps: "اړیکه ونه نیول شوه. خپل انټرنټ وګورئ.",
@@ -122,6 +153,8 @@ extension L {
     static let errPasswordMismatch = L(
         fa: "دو رمز عبور یکی نیستند.", ps: "دواړه پټنومونه یو شان نه دي.",
         en: "The two passwords do not match.")
+    static let errDistrictRequired = L(
+        fa: "ناحیه لازم است.", ps: "ناحیه اړینه ده.", en: "District is required.")
     static let errSalonNameRequired = L(
         fa: "نام سالون لازم است.", ps: "د سالون نوم اړین دی.", en: "Salon name is required.")
 

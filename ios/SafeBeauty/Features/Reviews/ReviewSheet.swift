@@ -91,7 +91,7 @@ struct ReviewSheet: View {
             done = true
         } catch let e as Callables.CallableError {
             error = switch e {
-            case .failedPrecondition(let m):
+            case .failedPrecondition(let m, _):
                 // The server distinguishes "not yet" from "already done", and
                 // both are things she can act on differently.
                 m.lowercased().contains("already") ? L.errAlreadyReviewed.t : L.errReviewTooEarly.t

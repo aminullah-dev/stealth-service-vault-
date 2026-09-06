@@ -135,6 +135,12 @@ struct KycView: View {
                 tazkiraNumber: tazkiraNumber, addressProvince: province,
                 addressDetail: addressDetail)
             submitted = true
+            // The server has just moved her to PENDING, and nothing on the
+            // device knew: Profile and the salon banner kept saying "not
+            // verified" and kept offering the button, which submitKyc then
+            // refuses because a review is already open. Re-reading her own
+            // document is what makes the app agree with the server.
+            await auth.refresh()
         } catch let e as KycService.KycError {
             error = switch e {
             case .imageTooLarge: L.kycErrTooLarge.t

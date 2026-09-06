@@ -54,10 +54,17 @@ struct FeedView: View {
         defer { isLoading = false }
         let db = Firestore.firestore()
 
-        // Bounded, and sorted on the client for the same reason the salon list
-        // is: createdAt is server-written, but a post lacking it would be
-        // dropped by an ordered query rather than sorted last.
-        if let snap = try? await db.collection("salon_posts").limit(to: 50).getDocuments() {
+        // Ordered on the SERVER, then sorted again here.
+        //
+        // An unordered limit(50) does not mean "the 50 newest" — Firestore
+        // takes the first 50 by document id, which is arbitrary, so once the
+        // collection passed fifty posts the feed silently stopped showing new
+        // ones and sorting the client's arbitrary 50 only put them in a tidy
+        // order. Ordering server-side drops a post that lacks createdAt, which
+        // is the accepted trade: every post the server writes has one, and
+        // showing the wrong fifty is worse than omitting a malformed document.
+        if let snap = try? await db.collection("salon_posts")
+            .order(by: "createdAt", descending: true).limit(to: 50).getDocuments() {
             posts = DocumentDecoding.decodeAll(
                 SalonPost.self,
                 documents: snap.documents.map { (id: $0.documentID, data: $0.data()) },
@@ -65,7 +72,8 @@ struct FeedView: View {
                 .sorted { $0.createdAt > $1.createdAt }
         }
 
-        if let snap = try? await db.collection("salon_offers").limit(to: 50).getDocuments() {
+        if let snap = try? await db.collection("salon_offers")
+            .order(by: "createdAt", descending: true).limit(to: 50).getDocuments() {
             offers = DocumentDecoding.decodeAll(
                 SalonOffer.self,
                 documents: snap.documents.map { (id: $0.documentID, data: $0.data()) },

@@ -103,7 +103,11 @@ enum Callables {
         case permissionDenied
         case unauthenticated
         case rateLimited(message: String)
-        case failedPrecondition(message: String)
+        /// `reason` is the server's own code — SLOT_TAKEN, SALON_CLOSED,
+        /// AFTER_CLOSING and the rest. It is what makes a refusal
+        /// translatable; `message` is an English sentence written for a
+        /// developer and was going straight to the customer.
+        case failedPrecondition(message: String, reason: String?)
         case other(message: String)
 
         var errorDescription: String? {
@@ -111,7 +115,8 @@ enum Callables {
             case .alreadyExists(let f): "already-exists(\(f ?? "unknown"))"
             case .permissionDenied: "permission-denied"
             case .unauthenticated: "unauthenticated"
-            case .rateLimited(let m), .failedPrecondition(let m), .other(let m): m
+            case .rateLimited(let m), .other(let m): m
+            case .failedPrecondition(let m, let r): r.map { "\($0): \(m)" } ?? m
             }
         }
     }
@@ -155,14 +160,18 @@ enum Callables {
         }
         let message = ns.localizedDescription
         // details.field is how registerAccount says WHICH value collided.
-        let field = (ns.userInfo[FunctionsErrorDetailsKey] as? [String: Any])?["field"] as? String
+        let details = ns.userInfo[FunctionsErrorDetailsKey] as? [String: Any]
+        let field = details?["field"] as? String
+        // details.reason is how the booking path says WHY, in a code the
+        // app can translate rather than a sentence it can only relay.
+        let reason = details?["reason"] as? String
 
         return switch code {
         case .alreadyExists: .alreadyExists(field: field)
         case .permissionDenied: .permissionDenied
         case .unauthenticated: .unauthenticated
         case .resourceExhausted: .rateLimited(message: message)
-        case .failedPrecondition: .failedPrecondition(message: message)
+        case .failedPrecondition: .failedPrecondition(message: message, reason: reason)
         default: .other(message: message)
         }
     }

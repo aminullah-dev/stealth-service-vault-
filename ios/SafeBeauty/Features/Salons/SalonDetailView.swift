@@ -75,7 +75,23 @@ struct SalonDetailView: View {
                 // and pressed Book. createPaymentSession refuses an unverified
                 // customer, and finding that out at the last step wastes the
                 // whole selection.
-                if auth.session?.kycStatus != "APPROVED" {
+                // Only NONE and REJECTED can act. submitKyc refuses a PENDING
+                // account — a review is already open — so offering the button
+                // there sent her to a form that re-uploaded over the files
+                // under review and was then refused. PENDING states itself
+                // instead of inviting the same loop again.
+                let kyc = auth.session?.kycStatus ?? "NONE"
+                if kyc == "PENDING" {
+                    HStack(spacing: 9) {
+                        Image(systemName: "clock.fill")
+                        Text(L.kycPending.t).font(Brand.font(13.5, .medium))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(Brand.deep)
+                    .padding(13)
+                    .background(Brand.gold.opacity(0.16),
+                                in: RoundedRectangle(cornerRadius: 12))
+                } else if kyc != "APPROVED" {
                     Button { showKyc = true } label: {
                         HStack(spacing: 9) {
                             Image(systemName: "person.badge.shield.checkmark")

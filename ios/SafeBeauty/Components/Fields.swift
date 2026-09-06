@@ -40,7 +40,12 @@ struct BrandField: View {
             // A number is not prose: it reads left-to-right in every language,
             // and forcing that here is what keeps "+93" at the front.
             .environment(\.layoutDirection, isPhone || isEmail ? .leftToRight : AppLanguage.current.layoutDirection)
-            .multilineTextAlignment(isPhone || isEmail ? .leading : (AppLanguage.current.layoutDirection == .rightToLeft ? .trailing : .leading))
+            // .leading in both directions, never .trailing. TextAlignment is
+            // resolved AGAINST the layout direction set on the line above, so
+            // asking for .trailing in an RTL field put the text on the physical
+            // LEFT — the one place it must not be. .leading already means "the
+            // side text starts on", which is what this wants in either script.
+            .multilineTextAlignment(.leading)
             .padding(.horizontal, 14)
             .padding(.vertical, 13)
             .background(

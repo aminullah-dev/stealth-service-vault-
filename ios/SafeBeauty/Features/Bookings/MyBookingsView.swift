@@ -27,9 +27,16 @@ struct MyBookingsView: View {
                         if !repo.upcoming.isEmpty {
                             Section(L.upcoming.t) {
                                 ForEach(repo.upcoming) { booking in
-                                    BookingRow(booking: booking, canCancel: true) {
-                                        cancelling = booking
-                                    }
+                                    // cancelAppointment refuses anything that is
+                                    // not PENDING or CONFIRMED, so an
+                                    // AWAITING_PAYMENT row — an abandoned
+                                    // checkout — was offering a button the
+                                    // server always turned down.
+                                    BookingRow(
+                                        booking: booking,
+                                        canCancel: booking.status == .pending
+                                                || booking.status == .confirmed
+                                    ) { cancelling = booking }
                                 }
                             }
                         }
@@ -45,6 +52,12 @@ struct MyBookingsView: View {
                                         onReview: { reviewing = booking })
                                 }
                             }
+                        }
+                        if let error {
+                            // cancel() has always written this and nothing has
+                            // ever rendered it, so a refused cancellation left
+                            // the row exactly as it was and said nothing at all.
+                            Section { ErrorBanner(message: error) }
                         }
                         if repo.unreadable > 0 {
                             // Surfaced rather than hidden. On Android the
