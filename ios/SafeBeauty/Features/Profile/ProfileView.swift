@@ -18,6 +18,9 @@ struct ProfileView: View {
     @State private var phone = ""
     @State private var showKyc = false
     @State private var confirmSignOut = false
+    @State private var confirmDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
     @State private var showSupport = false
     @State private var showChangePassword = false
     @State private var showEditName = false
@@ -95,6 +98,26 @@ struct ProfileView: View {
                             .background(.white, in: RoundedRectangle(cornerRadius: 13))
                     }
                     .padding(.top, 6)
+
+                    ErrorBanner(message: deleteError)
+
+                    // Below sign-out and quieter than it. requestAccountDeletion
+                    // was deployed with no caller on this platform, so an iPhone
+                    // customer could not close her own account — which is also
+                    // something the App Store requires of any app that lets her
+                    // open one.
+                    Button { confirmDelete = true } label: {
+                        HStack(spacing: 6) {
+                            if deleting { ProgressView().tint(Brand.accent) }
+                            Text(L.deleteAccount.t)
+                                .font(Brand.font(13.5, .medium))
+                        }
+                        .foregroundStyle(Color(hex: 0xC0392B))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(deleting)
                     .padding(.bottom, 30)
                 }
                 .padding(.horizontal, 22)
@@ -117,6 +140,17 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showGift, onDismiss: { Task { await load() } }) {
                 GiftCardSheet().appDirection()
+            }
+            .alert(L.deleteAccount.t, isPresented: $confirmDelete) {
+                Button(L.cancel.t, role: .cancel) {}
+                Button(L.deleteAccountConfirm.t, role: .destructive) {
+                    Task { await deleteAccount() }
+                }
+            } message: {
+                // Says what it costs before she agrees, not after. The callable
+                // cancels her upcoming appointments and closes the account, and
+                // neither of those comes back.
+                Text(L.deleteAccountWarning.t)
             }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}
@@ -248,6 +282,26 @@ struct ProfileView: View {
         case .ocean: L.themeOcean.t
         case .honey: L.themeHoney.t
         case .maroon: L.themeMaroon.t
+        }
+    }
+
+    /// Closes the account, then signs out — in that order.
+    ///
+    /// Signing out first would leave her authenticated as nobody with the
+    /// request still in flight, and a failed call would then have closed
+    /// nothing while she was already out of the app with no way back in to try
+    /// again.
+    private func deleteAccount() async {
+        deleting = true; defer { deleting = false }
+        deleteError = nil
+        do {
+            _ = try await Callables.call("requestAccountDeletion")
+            auth.signOut()
+        } catch let e as Callables.CallableError {
+            if case .failedPrecondition(let m, _) = e { deleteError = m }
+            else { deleteError = L.errNetwork.t }
+        } catch {
+            deleteError = L.errNetwork.t
         }
     }
 

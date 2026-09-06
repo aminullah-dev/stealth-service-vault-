@@ -82,3 +82,38 @@ public struct SalonOffer: Codable, Identifiable, Hashable, Sendable {
         createdAt = (try? c.decodeIfPresent(Int64.self, forKey: .createdAt)).flatMap { $0 } ?? 0
     }
 }
+
+/// A comment under a salon's photo.
+///
+/// Public, like the reviews a salon already carries, and signed with the same
+/// stored name — the rules check `authorName` against the author's own user
+/// document so a comment cannot be signed with somebody else's.
+public struct PostComment: Codable, Identifiable, Hashable, Sendable {
+    public var id: String = ""
+    public var postId: String = ""
+    /// The salon whose photo this sits under. The rules read it back through
+    /// the post rather than trusting it, because delete authorises on salonId
+    /// while the thread renders by postId, and nothing used to tie the two
+    /// together.
+    public var salonId: String = ""
+    public var userId: String = ""
+    public var authorName: String = ""
+    public var text: String = ""
+    public var createdAt: Int64 = 0
+
+    public var date: Date { Date(timeIntervalSince1970: Double(createdAt) / 1000) }
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case postId, salonId, userId, authorName, text, createdAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func str(_ k: CodingKeys) -> String { (try? c.decodeIfPresent(String.self, forKey: k)).flatMap { $0 } ?? "" }
+        postId = str(.postId); salonId = str(.salonId)
+        userId = str(.userId); authorName = str(.authorName); text = str(.text)
+        createdAt = (try? c.decodeIfPresent(Int64.self, forKey: .createdAt)).flatMap { $0 } ?? 0
+    }
+}

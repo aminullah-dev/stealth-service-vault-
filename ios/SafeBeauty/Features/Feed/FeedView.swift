@@ -127,6 +127,8 @@ struct FeedView: View {
 struct PostCard: View {
     let post: SalonPost
 
+    @State private var showComments = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // AsyncImage rather than a cache library: the feed is small, and a
@@ -158,13 +160,31 @@ struct PostCard: View {
                     Text(post.caption)
                         .font(Brand.font(13.5)).foregroundStyle(Brand.ink.opacity(0.8))
                 }
-                if post.likeCount > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart.fill").font(.system(size: 11))
-                        Text(verbatim: "\(post.likeCount)")
-                            .environment(\.layoutDirection, .leftToRight)
+                HStack(spacing: 14) {
+                    if post.likeCount > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart.fill").font(.system(size: 11))
+                            Text(verbatim: "\(post.likeCount)")
+                                .environment(\.layoutDirection, .leftToRight)
+                        }
+                        .font(Brand.font(12)).foregroundStyle(Brand.accent)
                     }
-                    .font(Brand.font(12)).foregroundStyle(Brand.accent)
+                    // Always offered, not only when there are comments already.
+                    // The count was a number pointing at nothing: a customer
+                    // could look at a salon's work and had no way to say
+                    // anything about it, and the salon never heard from her.
+                    Button { showComments = true } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bubble.right").font(.system(size: 11))
+                            if post.commentCount > 0 {
+                                Text(verbatim: "\(post.commentCount)")
+                                    .environment(\.layoutDirection, .leftToRight)
+                            }
+                        }
+                        .font(Brand.font(12)).foregroundStyle(Brand.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L.comments.t)
                 }
             }
             .padding(13)
@@ -172,6 +192,9 @@ struct PostCard: View {
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
+        .sheet(isPresented: $showComments) {
+            PostCommentsSheet(post: post).appDirection()
+        }
     }
 }
 

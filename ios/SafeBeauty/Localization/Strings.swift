@@ -466,6 +466,25 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Comments and account deletion
+    static let comments = L(fa: "نظرها", ps: "نظرونه", en: "Comments")
+    static let noComments = L(fa: "هنوز نظری نیست", ps: "تر اوسه نظر نشته", en: "No comments yet")
+    static let writeComment = L(fa: "نظرتان را بنویسید…", ps: "خپل نظر ولیکئ…",
+                                en: "Write a comment…")
+    static let commentTooLong = L(fa: "نظر باید کمتر از ۳۰۰ حرف باشد.",
+                                  ps: "نظر باید له ۳۰۰ تورو لږ وي.",
+                                  en: "A comment must be under 300 characters.")
+    static let deleteComment = L(fa: "حذف نظر", ps: "نظر ړنګول", en: "Delete comment")
+    static let deleteAccount = L(fa: "حذف حساب من", ps: "زما حساب ړنګول", en: "Delete my account")
+    static let deleteAccountWarning = L(
+        fa: "حساب شما بسته می‌شود و دیگر نمی‌توانید وارد شوید. نوبت‌های آیندهٔ شما لغو می‌شود. این کار برگشت‌پذیر نیست.",
+        ps: "ستاسو حساب تړل کیږي او نور نه شئ ننوتلی. ستاسو راتلونکي نوبتونه لغوه کیږي. دا بیرته‌راګرځېدونکې نه ده.",
+        en: "Your account will be closed and you will not be able to sign in. Your upcoming appointments will be cancelled. This cannot be undone.")
+    static let deleteAccountConfirm = L(fa: "بله، حسابم را حذف کن", ps: "هو، زما حساب ړنګ کړه",
+                                        en: "Yes, delete my account")
+    static let deleteAccountDone = L(fa: "حساب شما حذف شد.", ps: "ستاسو حساب ړنګ شو.",
+                                     en: "Your account has been deleted.")
+
     // MARK: Waitlist
     static let joinWaitlist = L(fa: "به لیست انتظار اضافه شو", ps: "د انتظار لیست ته ننوځه",
                                 en: "Join the waitlist")
