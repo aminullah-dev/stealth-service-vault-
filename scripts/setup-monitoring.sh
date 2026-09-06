@@ -157,9 +157,30 @@ for entry in "${ALERTS[@]}"; do
   "enabled": true
 }
 JSON
-  gcloud alpha monitoring policies create --policy-from-file="$tmp" --project="$PROJECT" >/dev/null
+  # A log-based metric is not queryable by Monitoring the moment it is created —
+  # Google says up to ten minutes — so the FIRST run that adds a new alert kind
+  # creates the metric and is then refused the policy that watches it. Retried
+  # rather than failed, because the alternative is what happened when
+  # PASSWORD_ROTATION_STUCK was added: the script aborted mid-list under
+  # `set -e` and never reached the two alerts after it.
+  policy_created=""
+  for attempt in 1 2 3 4 5 6; do
+    if gcloud alpha monitoring policies create --policy-from-file="$tmp" \
+         --project="$PROJECT" >/dev/null 2>&1; then
+      policy_created="yes"; break
+    fi
+    [[ $attempt -lt 6 ]] && { echo "   metric not queryable yet — waiting 120s (attempt $attempt/6)"; sleep 120; }
+  done
   rm -f "$tmp"
-  echo "   policy created"
+  if [[ -n "$policy_created" ]]; then
+    echo "   policy created"
+  else
+    # Recorded and carried on. One new alert kind must not stop the alerts
+    # after it from being checked, and a metric with no policy watching it is
+    # the exact silent-hole this script exists to close.
+    echo "   POLICY NOT CREATED — re-run this script in ten minutes"
+    FAILED_POLICIES="${FAILED_POLICIES:+$FAILED_POLICIES }$KIND"
+  fi
 done
 
 for entry in "${CATCH_ALL[@]}"; do
@@ -212,3 +233,10 @@ echo "   Alerts do not arrive until that link is clicked."
 echo
 echo "   Prove the whole path works by calling adminTestAlert from the admin"
 echo "   console (Health tab). A notification should arrive within ~5 minutes."
+
+if [[ -n "${FAILED_POLICIES:-}" ]]; then
+  echo
+  echo "!! no policy is watching: $FAILED_POLICIES"
+  echo "   The metric exists but nothing alerts on it. Re-run this script."
+  exit 1
+fi
