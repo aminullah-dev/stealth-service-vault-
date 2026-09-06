@@ -117,3 +117,43 @@ public struct PostComment: Codable, Identifiable, Hashable, Sendable {
         createdAt = (try? c.decodeIfPresent(Int64.self, forKey: .createdAt)).flatMap { $0 } ?? 0
     }
 }
+
+/// A salon's 24-hour announcement — "two chairs free this afternoon".
+///
+/// Not gated behind identity verification the way offers are: an empty chair
+/// needs to reach the customers who have not verified yet. Immutable once
+/// written, because a story is a moment and editing one after people have acted
+/// on it would let a salon rewrite what it promised.
+public struct SalonStory: Codable, Identifiable, Hashable, Sendable {
+    public var id: String = ""
+    public var salonId: String = ""
+    public var salonName: String = ""
+    public var text: String = ""
+    public var imageUrl: String = ""
+    public var createdAt: Int64 = 0
+    /// createdAt + 24h. Filtered on the client because Firestore cannot compare
+    /// a field to "now" in a query, and an orderBy on expiresAt would drop every
+    /// story written before the field existed.
+    public var expiresAt: Int64 = 0
+
+    public init() {}
+
+    public var date: Date { Date(timeIntervalSince1970: Double(createdAt) / 1000) }
+
+    public func isLive(now: Date = Date()) -> Bool {
+        Double(expiresAt) / 1000 > now.timeIntervalSince1970
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case salonId, salonName, text, imageUrl, createdAt, expiresAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func str(_ k: CodingKeys) -> String { (try? c.decodeIfPresent(String.self, forKey: k)).flatMap { $0 } ?? "" }
+        func ms(_ k: CodingKeys) -> Int64 { (try? c.decodeIfPresent(Int64.self, forKey: k)).flatMap { $0 } ?? 0 }
+        salonId = str(.salonId); salonName = str(.salonName)
+        text = str(.text); imageUrl = str(.imageUrl)
+        createdAt = ms(.createdAt); expiresAt = ms(.expiresAt)
+    }
+}

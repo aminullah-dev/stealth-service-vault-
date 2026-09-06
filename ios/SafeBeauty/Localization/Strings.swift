@@ -466,6 +466,9 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Stories
+    static let stories = L(fa: "اعلان‌های امروز", ps: "د نن اعلانونه", en: "Today")
+
     // MARK: Profile photo and its reward
     static let changePhoto = L(fa: "تغییر عکس", ps: "عکس بدلول", en: "Change photo")
     static let photoTooLarge = L(fa: "این عکس خیلی بزرگ است. عکس دیگری انتخاب کنید.",

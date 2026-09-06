@@ -10,16 +10,17 @@ struct FeedView: View {
     @State private var repo = SalonRepository()
     @State private var posts: [SalonPost] = []
     @State private var offers: [SalonOffer] = []
+    @State private var stories: [SalonStory] = []
     @State private var loadFailed = false
     @State private var isLoading = true
 
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading && posts.isEmpty && offers.isEmpty {
+                if isLoading && posts.isEmpty && offers.isEmpty && stories.isEmpty {
                     ProgressView().tint(Brand.accent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if loadFailed && posts.isEmpty && offers.isEmpty {
+                } else if loadFailed && posts.isEmpty && offers.isEmpty && stories.isEmpty {
                     // A read that failed is not an empty feed. Both were
                     // showing the same reassuring sentence.
                     ContentUnavailableView {
@@ -27,7 +28,7 @@ struct FeedView: View {
                             .font(Brand.font(17, .medium))
                             .foregroundStyle(Color(hex: 0xC0392B))
                     }
-                } else if posts.isEmpty && offers.isEmpty {
+                } else if posts.isEmpty && offers.isEmpty && stories.isEmpty {
                     ContentUnavailableView {
                         Text(L.feedEmpty.t)
                             .font(Brand.font(16, .medium))
@@ -36,6 +37,24 @@ struct FeedView: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 16) {
+                            // Above everything else, because a story expires in
+                            // a day and nothing else on this screen has a
+                            // deadline. Android places them the same way.
+                            if !stories.isEmpty {
+                                Text(L.stories.t)
+                                    .font(Brand.font(16, .bold))
+                                    .foregroundStyle(Brand.ink)
+                                    .padding(.horizontal, 18)
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(stories) { story in
+                                            StoryBubble(story: story)
+                                        }
+                                    }
+                                    .padding(.horizontal, 18)
+                                }
+                                .defaultScrollAnchor(.leading)
+                            }
                             if !offers.isEmpty {
                                 Text(L.offers.t)
                                     .font(Brand.font(16, .bold))
@@ -98,6 +117,21 @@ struct FeedView: View {
         // is the accepted trade: every post the server writes has one, and
         // showing the wrong fifty is worse than omitting a malformed document.
         var failed = false
+
+        // Expiry is filtered here, not queried. Firestore cannot compare a
+        // field to "now", and an inequality on expiresAt would drop every story
+        // written before that field existed. Sixty is Android's bound too.
+        if let snap = try? await db.collection("salon_stories")
+            .order(by: "createdAt", descending: true).limit(to: 60).getDocuments() {
+            let now = Date()
+            stories = DocumentDecoding.decodeAll(
+                SalonStory.self,
+                documents: snap.documents.map { (id: $0.documentID, data: $0.data()) },
+                assigningID: { $0.id = $1 }).values
+                .filter { $0.isLive(now: now) }
+                .sorted { $0.createdAt > $1.createdAt }
+        }
+
         if let snap = try? await db.collection("salon_posts")
             .order(by: "createdAt", descending: true).limit(to: 50).getDocuments() {
             posts = DocumentDecoding.decodeAll(
@@ -234,5 +268,92 @@ struct OfferCard: View {
         .padding(13)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
+    }
+}
+
+/// One salon's 24-hour announcement.
+///
+/// A bubble rather than a card: it sits in a row, it is read at a glance, and
+/// it is gone tomorrow. The text is the point — a photo is optional and most
+/// of these are a sentence about a free chair.
+struct StoryBubble: View {
+    let story: SalonStory
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle().strokeBorder(Brand.gradient, lineWidth: 2.5)
+                        .frame(width: 66, height: 66)
+                    if let url = URL(string: story.imageUrl), !story.imageUrl.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            if case .success(let image) = phase {
+                                image.resizable().scaledToFill()
+                            } else {
+                                Brand.petal.opacity(0.35)
+                            }
+                        }
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+                    } else {
+                        Circle().fill(Brand.petal.opacity(0.35))
+                            .frame(width: 56, height: 56)
+                            .overlay(
+                                Text(story.salonName.prefix(1))
+                                    .font(Brand.font(20, .bold))
+                                    .foregroundStyle(Brand.deep)
+                            )
+                    }
+                }
+                Text(story.salonName)
+                    .font(Brand.font(11.5))
+                    .foregroundStyle(Brand.ink)
+                    .lineLimit(1)
+                    .frame(width: 70)
+            }
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showing) { StoryView(story: story).appDirection() }
+    }
+}
+
+/// The announcement itself, full screen, because that is how a story is read.
+struct StoryView: View {
+    let story: SalonStory
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let url = URL(string: story.imageUrl), !story.imageUrl.isEmpty {
+                        AsyncImage(url: url) { phase in
+                            if case .success(let image) = phase {
+                                image.resizable().scaledToFit()
+                            } else {
+                                Brand.petal.opacity(0.25).frame(height: 220)
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    if !story.text.isEmpty {
+                        Text(story.text)
+                            .font(Brand.font(16))
+                            .foregroundStyle(Brand.ink)
+                    }
+                    Spacer(minLength: 20)
+                }
+                .padding(.horizontal, 20).padding(.top, 16)
+            }
+            .background(Brand.cream.ignoresSafeArea())
+            .navigationTitle(story.salonName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L.close.t) { dismiss() }.foregroundStyle(Brand.accent)
+                }
+            }
+        }
     }
 }
