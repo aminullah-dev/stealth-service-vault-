@@ -146,8 +146,8 @@ gcloud firestore import gs://safebeauty-firestore-backups/2026-08-22 \
 
 Afterwards:
 
-- Re-run **Health → Assign missing booking references** in the admin console.
-- Re-run **Health → Assign missing phone lookup keys**. Without it, restored
+- Re-run **Health → Fill in missing invite codes** in the admin console.
+- Re-run **Health → Fill in missing lookup keys**. Without it, restored
   legacy accounts fall back to a slower sign-in path.
 - Fire **Health → Send a test alert** to confirm monitoring survived.
 

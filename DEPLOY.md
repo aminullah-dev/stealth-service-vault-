@@ -1,7 +1,7 @@
 # Deploy cheat‑sheet
 
 Quick reference for **what changed → which command**. All commands run from the
-project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
+project root on your Mac (`cd ~/Safe\ beauty`), after
 `git pull origin claude/stealth-android-vault-4zr1d3`.
 
 | What you changed | Command | Then |
@@ -10,6 +10,7 @@ project root on your Mac (`cd ~/Desktop/stealth-service-vault-`), after
 | Cloud Functions (`functions/index.js`, `functions/domains/**`, `functions/lib/**`) | `cd functions && npm test` then `firebase deploy --only functions` | — |
 | Alerting (`scripts/setup-monitoring.sh`) | `./scripts/setup-monitoring.sh safebeauty <your-email>` | Re-run it for **every** project you alert on. Adding a kind to `ALERTS` creates nothing on its own — the metric and the policy exist only after the script runs, so a new `alertable()` label logs to nobody until then. |
 | Firestore rules (`firestore.rules`) | `firebase deploy --only firestore:rules` | — |
+| Firestore indexes (`firestore.indexes.json`) | `firebase deploy --only firestore:indexes` | Wait for the index to finish building before the query is used — until then it fails, it does not just run slowly |
 | Storage rules (`storage.rules`) | `firebase deploy --only storage` | — |
 | Web admin / salon console (`public/**`) | `firebase deploy --only hosting` | Reopen the desktop app / refresh the browser |
 | One console only | `firebase deploy --only hosting:admin` (or `:salon`, or `:app`) | — |

@@ -50,7 +50,9 @@ callable. A drifting counter is invisible — the records it was derived from ar
 no longer read, so nothing ever disagrees with it.
 
 **Client and server maths must agree.** `SlotMath.kt` mirrors `lib/slots.js` and
-`lib/party.js`. The server decides whether a booking is allowed; the device
+`lib/party.js`, and so does `SafeBeautyCore/Booking/Slots.swift` — there are TWO
+clients now, and a change to the server maths that updates only the Kotlin port
+leaves iOS offering a different grid. The server decides whether a booking is allowed; the device
 decides which times to offer. When they drift, a customer is shown a slot and
 refused at the moment she expects to pay. Same assertions in both test suites.
 

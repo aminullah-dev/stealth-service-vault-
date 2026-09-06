@@ -86,9 +86,11 @@ Run what is relevant. Report each with its evidence.
    query orders by, count documents missing that field. `support_tickets` has no
    `createdAt` and never has.
 
-8. **Bounded listeners.** In `FirestoreRepository.kt`, every
+8. **Bounded listeners.** In `FirestoreRepository.kt` AND in the iOS
+   repositories (`ios/SafeBeauty/Services/*Repository.swift`), every
    `addSnapshotListener` on a collection must have `.limit()`, a `whereIn` chunk,
-   or be a single-document read. Invariant Q-1.
+   or be a single-document read. Invariant Q-1. The iOS half was added later and
+   this check named only the Kotlin file, so nothing has ever looked at it.
 
 9. **CI on HEAD.** `gh run list` — green, and on the commit that is actually
    deployed. A deploy from a red commit has happened.
