@@ -466,6 +466,57 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Provider — the salon owner's side
+    // Tab names taken verbatim from Android's AppStrings, so an owner who uses
+    // both phones reads the same words for the same screen.
+    static let tabRequests = L(fa: "درخواست‌ها", ps: "غوښتنې", en: "Requests")
+    static let tabCalendar = L(fa: "تقویم", ps: "کلنډر", en: "Calendar")
+    static let tabIncome = L(fa: "درآمد", ps: "عاید", en: "Income")
+    static let tabMyProfile = L(fa: "پروفایل من", ps: "زما پروفایل", en: "My Profile")
+    static let accept = L(fa: "پذیرفتن", ps: "منل", en: "Accept")
+    static let decline = L(fa: "رد کردن", ps: "ردول", en: "Decline")
+    static let declineConfirm = L(
+        fa: "این نوبت رد شود؟ اگر مشتری پرداخت کرده باشد، پول کامل برگردانده می‌شود.",
+        ps: "دا نوبت رد شي؟ که پیرودونکي تادیه کړې وي، ټولې پیسې بیرته ورکول کیږي.",
+        en: "Decline this booking? If the customer has paid, she is refunded in full.")
+    static let noRequests = L(fa: "درخواست تازه‌ای نیست.", ps: "نوې غوښتنه نشته.",
+                              en: "No new requests.")
+    static let noUpcoming = L(fa: "نوبتی در پیش نیست.", ps: "راتلونکی نوبت نشته.",
+                              en: "Nothing coming up.")
+    // The provider console's own two sentences, verbatim. The sign is the whole
+    // meaning here — commission.js says positive means the platform owes the
+    // salon and negative means the salon owes the platform — so both readings
+    // exist and the figure is always shown as a magnitude.
+    static let platformOwesYou = L(fa: "پلتفرم به شما بدهکار است",
+                                   ps: "پلیټ‌فارم تاسو ته پوروړی دی",
+                                   en: "Platform owes you")
+    static let youOweCommission = L(fa: "شما به پلتفرم بدهکارید (کمیسیون نقدی)",
+                                    ps: "تاسو پلیټ‌فارم ته پوروړي یاست (نغدي کمیشن)",
+                                    en: "You owe the platform (cash commission)")
+    static let balanceSettled = L(fa: "حساب شما تسویه است.", ps: "ستاسو حساب تصفیه دی.",
+                                  en: "Your balance is settled.")
+    static let owedExplain = L(
+        fa: "کمیسیون نوبت‌های نقدی. پس از تسویه، ادمین آن را صفر می‌کند.",
+        ps: "د نغدو نوبتونو کمیشن. له تصفیې وروسته، اډمین یې صفر کوي.",
+        en: "Commission on cash bookings. An admin clears it once you settle.")
+    static let completedVisits = L(fa: "نوبت‌های انجام‌شده", ps: "ترسره شوي نوبتونه",
+                                   en: "Completed visits")
+    static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
+    static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
+                               en: "Waiting for you")
+    static let workingHours = L(fa: "ساعات کاری", ps: "د کار ساعتونه", en: "Working hours")
+    static let closedDay = L(fa: "تعطیل", ps: "رخصت", en: "Closed")
+    static let salonListed = L(fa: "در فهرست است", ps: "په لیست کې دی", en: "Listed")
+    static let salonHidden = L(fa: "در فهرست نیست", ps: "په لیست کې نه دی", en: "Not listed")
+    static let providerConsoleHint = L(
+        fa: "برای ویرایش قیمت‌ها، ساعات کاری، گالری و کارمندان، کنسول سالن را در کامپیوتر باز کنید: safebeauty.web.app/provider",
+        ps: "د بیو، د کار ساعتونو، ګالرۍ او کارمندانو د سمولو لپاره، په کمپیوټر کې د سالون کنسول پرانیځئ: safebeauty.web.app/provider",
+        en: "To edit prices, working hours, gallery and staff, open the salon console on a computer: safebeauty.web.app/provider")
+    static let noSalonYet = L(
+        fa: "سالن شما هنوز ساخته نشده. پس از تأیید ادمین اینجا ظاهر می‌شود.",
+        ps: "ستاسو سالون لا نه دی جوړ شوی. د اډمین له تاییده وروسته دلته ښکاري.",
+        en: "Your salon is not set up yet. It appears here once an admin approves you.")
+
     // MARK: Stories
     static let stories = L(fa: "اعلان‌های امروز", ps: "د نن اعلانونه", en: "Today")
 

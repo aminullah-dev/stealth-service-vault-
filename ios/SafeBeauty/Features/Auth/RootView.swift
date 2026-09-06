@@ -79,6 +79,10 @@ struct SignedInView: View {
     var body: some View {
         if auth.session?.status == "SUSPENDED" {
             SuspendedView()
+        } else if auth.session?.role == "PROVIDER" && auth.session?.status == "APPROVED" {
+            // The salon owner's own app, where a card telling her to open a
+            // laptop used to be.
+            ProviderRootView()
         } else if auth.session?.role == "PROVIDER" {
             // iOS has no provider side. Without this branch an approved salon
             // owner landed in the CUSTOMER tabs — able to browse salons and
