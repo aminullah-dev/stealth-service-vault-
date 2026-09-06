@@ -11,6 +11,7 @@ const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
 const { assertAdmin, assertDocId, assertNotSuspended, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { averageRating } = require("../lib/reviews");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -1256,8 +1257,28 @@ exports.adminRebuildSalonStats = onCall({ region: "us-central1" }, async (reques
     written += 1;
   }
 
-  await logAdminAction(me, "REBUILD_SALON_STATS", { scanned, salons: written, skipped });
-  return { ok: true, scanned, salons: written, skipped };
+  // The salon's average rating, which nothing repaired.
+  //
+  // submitReview recomputes salons/{id}.rating on every review it creates, so
+  // a salon whose reviews predate that code has rating 0 for good — the exact
+  // "derived field only new writes populate" shape this codebase keeps
+  // producing. This callable's own comment promises to repair drift "for any
+  // reason" and covered only the booking tallies. Recomputed from the reviews
+  // themselves, which is the same source submitReview uses.
+  let ratingsFixed = 0;
+  const salonSnap = await db.collection("salons").select().get();
+  for (const salonDoc of salonSnap.docs) {
+    const reviews = await db.collection("reviews")
+      .where("salonId", "==", salonDoc.id).get();
+    if (reviews.empty) continue;
+    const avg = averageRating(reviews.docs.map((d) => d.data()));
+    await db.doc(`salons/${salonDoc.id}`).set({ rating: avg }, { merge: true });
+    ratingsFixed += 1;
+  }
+
+  await logAdminAction(me, "REBUILD_SALON_STATS",
+    { scanned, salons: written, skipped, ratingsFixed });
+  return { ok: true, scanned, salons: written, skipped, ratingsFixed };
 });
 
 // ── adminCancelAppointment ───────────────────────────────────────────────────

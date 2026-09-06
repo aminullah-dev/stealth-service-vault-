@@ -48,6 +48,25 @@ extension L {
         }
     }
 
+    static func visitCount(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "(\(n) مراجعه)"
+        case .pashto: "(\(n) مراجعې)"
+        case .english: n == 1 ? "(1 visit)" : "(\(n) visits)"
+        }
+    }
+
+    /// One sentence for VoiceOver, so the star glyph and the decimal are not
+    /// read as separate, meaningless items.
+    static func ratingLabel(_ rating: Double, _ visits: Int) -> String {
+        let r = String(format: "%.1f", rating)
+        return switch AppLanguage.current {
+        case .dari: visits > 0 ? "امتیاز \(r) از ۵، \(visits) مراجعه" : "امتیاز \(r) از ۵"
+        case .pashto: visits > 0 ? "\(r) له ۵ څخه، \(visits) مراجعې" : "\(r) له ۵ څخه"
+        case .english: visits > 0 ? "Rated \(r) out of 5, \(visits) visits" : "Rated \(r) out of 5"
+        }
+    }
+
     static func starsLabel(_ n: Int) -> String {
         switch AppLanguage.current {
         case .dari: "\(n) ستاره"

@@ -116,6 +116,7 @@ struct SalonListView: View {
                     // looks in.
                     Button { showMap = true } label: {
                         Image(systemName: "map").foregroundStyle(Brand.accent)
+                            .accessibilityLabel(L.map.t)
                     }
                     .accessibilityLabel(L.map.t)
                 }
@@ -129,16 +130,37 @@ struct SalonListView: View {
 struct SalonRow: View {
     let salon: Salon
 
+    private var letterTile: some View {
+        Brand.gradient.overlay(
+            Text(salon.salonName.prefix(1))
+                .font(Brand.font(22, .bold))
+                .foregroundStyle(.white)
+        )
+    }
+
     var body: some View {
         HStack(spacing: 13) {
-            RoundedRectangle(cornerRadius: 13)
-                .fill(Brand.gradient)
-                .frame(width: 56, height: 56)
-                .overlay(
-                    Text(salon.salonName.prefix(1))
-                        .font(Brand.font(22, .bold))
-                        .foregroundStyle(.white)
-                )
+            // The salon's own photo when it has one. A beauty salon sells a
+            // room and a look; a coloured tile with a letter in it says
+            // nothing about either, and coverImageUrl was on the model and
+            // rendered nowhere. The letter stays as the fallback, because most
+            // salons have not uploaded a photo yet and an empty grey box would
+            // be worse than the tile.
+            Group {
+                if let url = URL(string: salon.coverImageUrl), !salon.coverImageUrl.isEmpty {
+                    AsyncImage(url: url) { phase in
+                        if case .success(let image) = phase {
+                            image.resizable().scaledToFill()
+                        } else {
+                            letterTile
+                        }
+                    }
+                } else {
+                    letterTile
+                }
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(RoundedRectangle(cornerRadius: 13))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -152,6 +174,29 @@ struct SalonRow: View {
                             .foregroundStyle(Brand.gold)
                             .accessibilityLabel(L.verified.t)
                     }
+                }
+
+                // Rating before district. It is the field that decides which
+                // salon she opens, it was already on the model, and the list
+                // showed neither it nor the number of visits behind it.
+                if salon.rating > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11)).foregroundStyle(Brand.gold)
+                        Text(String(format: "%.1f", salon.rating))
+                            .font(Brand.font(12.5, .medium))
+                            .foregroundStyle(Brand.ink)
+                            .environment(\.layoutDirection, .leftToRight)
+                        if salon.confirmedCount > 0 {
+                            Text(L.visitCount(salon.confirmedCount))
+                                .font(Brand.font(11.5))
+                                .foregroundStyle(Brand.accent)
+                        }
+                    }
+                    // One label for the pair, so VoiceOver says "4.8 stars,
+                    // 12 visits" instead of reading a star glyph and a decimal.
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(L.ratingLabel(salon.rating, salon.confirmedCount))
                 }
 
                 if !salon.district.isEmpty {
