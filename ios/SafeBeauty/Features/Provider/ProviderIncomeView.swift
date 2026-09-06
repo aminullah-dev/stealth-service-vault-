@@ -103,11 +103,11 @@ struct ProviderIncomeView: View {
                             // beside the earnings it accounts for — a month with
                             // little income and many cancellations is a
                             // different problem from one with few bookings.
-                            if !repo.appointments.isEmpty {
+                            if totalBookings > 0 {
                                 VStack(alignment: .leading, spacing: 10) {
                                     HStack(spacing: 0) {
                                         stat(L.analyticsTotal.t,
-                                             "\(repo.appointments.count)", suffix: nil)
+                                             "\(totalBookings)", suffix: nil)
                                         Divider().frame(height: 34)
                                             .overlay(Brand.petal.opacity(0.5))
                                         stat(L.analyticsConfirmed.t,
@@ -203,17 +203,32 @@ struct ProviderIncomeView: View {
         }
     }
 
+    /// Prefer the server's tally, which counts every booking this salon has
+    /// ever had. The local list is bounded at three hundred, so counting it is
+    /// right until a salon passes that and then quietly wrong — and the salon
+    /// that passes it is the one this screen matters most to. Falls back to
+    /// counting when the tally has not been written yet.
+    private var haveStats: Bool { repo.totalBookings > 0 }
+
+    private var totalBookings: Int {
+        haveStats ? repo.totalBookings : repo.appointments.count
+    }
+
     private func count(_ status: AppointmentStatus) -> Int {
-        repo.appointments.filter { $0.status == status }.count
+        if haveStats { return repo.byStatus[status.rawValue] ?? 0 }
+        return repo.appointments.filter { $0.status == status }.count
     }
 
     /// Bookings per service, busiest first. Grouped by the name stored on the
     /// booking rather than the salon's current list, because the history is
     /// what happened and a renamed service did not un-happen.
     private var byService: [(name: String, count: Int)] {
-        Dictionary(grouping: repo.appointments.filter { !$0.serviceName.isEmpty },
-                   by: \.serviceName)
-            .map { (name: $0.key, count: $0.value.count) }
+        let source: [String: Int] = haveStats
+            ? repo.byService
+            : Dictionary(grouping: repo.appointments.filter { !$0.serviceName.isEmpty },
+                         by: \.serviceName).mapValues(\.count)
+        return source
+            .map { (name: $0.key, count: $0.value) }
             .sorted { $0.count > $1.count }
             .prefix(6).map { $0 }
     }

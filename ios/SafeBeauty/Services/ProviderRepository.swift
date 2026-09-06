@@ -18,6 +18,15 @@ final class ProviderRepository {
     private(set) var appointments: [Appointment] = []
     private(set) var reviews: [Review] = []
     private(set) var owed = 0
+    /// The salon's running tally, maintained by the deriveSalonStats trigger.
+    ///
+    /// The reason it exists, in its own words: so the Income tab does not have
+    /// to read every appointment to count them. The listener above is bounded
+    /// at three hundred, so counting locally is right until a salon passes that
+    /// and then silently wrong — and a busy salon is exactly the one that cares.
+    private(set) var totalBookings = 0
+    private(set) var byStatus: [String: Int] = [:]
+    private(set) var byService: [String: Int] = [:]
     private(set) var isLoading = true
     /// The salon details registration parked on her user document when it could
     /// not finish. Their presence is the difference between "waiting for an
@@ -121,6 +130,15 @@ final class ProviderRepository {
         // Bounded, and ordered server-side. An unordered limit is not "the
         // newest 300" — Firestore takes the first 300 by document id, which is
         // arbitrary, so a busy salon would silently stop seeing new bookings.
+        salonListeners.append(db.document("salon_stats/\(salonId)")
+            .addSnapshotListener { [weak self] snap, _ in
+                guard let self else { return }
+                let d = snap?.data() ?? [:]
+                self.totalBookings = (d["total"] as? Int) ?? 0
+                self.byStatus = (d["byStatus"] as? [String: Int]) ?? [:]
+                self.byService = (d["byService"] as? [String: Int]) ?? [:]
+            })
+
         salonListeners.append(db.collection("appointments")
             .whereField("salonId", isEqualTo: salonId)
             .order(by: "appointmentDate", descending: true)
@@ -151,6 +169,7 @@ final class ProviderRepository {
         listeners = []; salonListeners = []
         watchedSalon = ""; uid = ""
         salon = nil; appointments = []; reviews = []; owed = 0
+        totalBookings = 0; byStatus = [:]; byService = [:]
         pendingSalonName = ""; pendingSalonDistrict = ""; pendingSalonServices = []
         isLoading = true; loadFailed = false
     }
