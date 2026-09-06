@@ -13,6 +13,7 @@ struct BookingSheet: View {
     let salon: Salon
     let serviceNames: [String]
     let startMillis: Int64
+    var packageId: String = ""
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -23,6 +24,12 @@ struct BookingSheet: View {
     @State private var notes = ""
     @State private var quote: BookingService.Quote?
     @State private var error: String?
+    @State private var checkingPromo = false
+    @State private var promoNote: PromoNote?
+
+    /// What previewPromo said, and whether it was good news. Two colours, not
+    /// one banner — "not valid" and "saves 20 AFN" are opposite outcomes.
+    private struct PromoNote { let text: String; let isGood: Bool }
 
     private var estimate: Int {
         serviceNames.reduce(0) { $0 + (salon.pricePerService[$1] ?? 0) }
@@ -68,7 +75,24 @@ struct BookingSheet: View {
             .pickerStyle(.segmented)
         }
 
-        BrandField(label: .promoCode, text: $promoCode)
+        // Checked before she commits, not after. previewPromo was deployed
+        // with no caller here, so a mistyped code was discovered by pressing
+        // Confirm and being refused — at which point she has already chosen a
+        // slot and a payment method.
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                BrandField(label: .promoCode, text: $promoCode)
+                Button(L.checkCode.t) { Task { await checkPromo() } }
+                    .font(Brand.font(13.5, .medium))
+                    .foregroundStyle(Brand.accent)
+                    .disabled(promoCode.trimmingCharacters(in: .whitespaces).isEmpty || checkingPromo)
+            }
+            if let promoNote {
+                Text(promoNote.text)
+                    .font(Brand.font(12.5))
+                    .foregroundStyle(promoNote.isGood ? Color(hex: 0x1F7A5C) : Color(hex: 0xC0392B))
+            }
+        }
         BrandField(label: .notesOptional, text: $notes)
 
         ErrorBanner(message: error)
@@ -170,13 +194,48 @@ struct BookingSheet: View {
         return f.string(from: Date(timeIntervalSince1970: Double(millis) / 1000))
     }
 
+    /// Asks the server what the code is worth for THIS basket.
+    ///
+    /// The discount depends on the services and the salon, not just the code,
+    /// so a preview computed on the client would be a second opinion about
+    /// money — and the one the customer would believe.
+    private func checkPromo() async {
+        let code = promoCode.trimmingCharacters(in: .whitespaces).uppercased()
+        guard !code.isEmpty else { return }
+        checkingPromo = true; defer { checkingPromo = false }
+        promoNote = nil
+        do {
+            let response = try await Callables.call("previewPromo", [
+                "code": .string(code),
+                "salonId": .string(salon.id),
+                "serviceNames": .strings(serviceNames),
+            ])
+            if response["valid"]?.boolValue == true {
+                let saving = response["discountAmount"]?.intValue ?? 0
+                promoNote = PromoNote(text: L.promoSaves(saving), isGood: true)
+            } else {
+                promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
+            }
+        } catch let e as Callables.CallableError {
+            // The server says why — expired, used up, wrong salon — and its
+            // sentence is more use than a generic refusal.
+            if case .failedPrecondition(let m, _) = e {
+                promoNote = PromoNote(text: m, isGood: false)
+            } else {
+                promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
+            }
+        } catch {
+            promoNote = PromoNote(text: L.errNetwork.t, isGood: false)
+        }
+    }
+
     private func submit() async {
         error = nil
         do {
             quote = try await booking.book(
                 salonId: salon.id, serviceNames: serviceNames,
                 startMillis: startMillis, method: method,
-                notes: notes, promoCode: promoCode)
+                notes: notes, promoCode: promoCode, packageId: packageId)
         } catch let e as BookingService.BookingError {
             error = switch e {
             case .slotTaken: L.errSlotTaken.t

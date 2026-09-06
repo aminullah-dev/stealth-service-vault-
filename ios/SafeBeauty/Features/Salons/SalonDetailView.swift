@@ -27,6 +27,14 @@ struct SalonDetailView: View {
         selectedServices.reduce(0) { $0 + (salon.pricePerService[$1] ?? 0) }
     }
 
+    /// The bundle that covers exactly what she has chosen, if the salon sells
+    /// one. Offered only when every service in it is in the basket, because
+    /// packageDiscountFor refuses a partial match and a saving the server then
+    /// declines to give is worse than no saving offered.
+    private var appliedPackage: ServicePackage? {
+        salon.packages.first { $0.applies(to: selectedServices) }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -92,6 +100,25 @@ struct SalonDetailView: View {
                             }
                         }
                     }
+                }
+
+                // Shown the moment the basket qualifies, not at checkout. She
+                // is choosing services here, and a bundle she could have had by
+                // adding one more is only useful while she is still choosing.
+                if let pkg = appliedPackage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: 13)).foregroundStyle(.white)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(pkg.name.isEmpty ? L.packageApplied.t : pkg.name)
+                                .font(Brand.font(13.5, .bold)).foregroundStyle(.white)
+                            Text(L.packageOff(pkg.discountPercent))
+                                .font(Brand.font(12)).foregroundStyle(.white.opacity(0.9))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(12)
+                    .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 12))
                 }
 
                 SlotPicker(salon: salon,
@@ -179,7 +206,8 @@ struct SalonDetailView: View {
             if let slot = selectedSlot {
                 BookingSheet(salon: salon,
                              serviceNames: Array(selectedServices),
-                             startMillis: slot)
+                             startMillis: slot,
+                             packageId: appliedPackage?.id ?? "")
                     .appDirection()
             }
         }

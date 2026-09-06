@@ -56,6 +56,9 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
     public var longitude: Double = 0
     public var slotDurationMinutes: Int = 60
     public var staff: [StaffMember] = []
+    /// Bundles the salon sells at a discount. createPaymentSession applies one
+    /// by id when every service in it is being booked.
+    public var packages: [ServicePackage] = []
     public var workingHours: [WorkingHours] = []
 
     /// Days the owner has closed, as "yyyy-MM-dd" in KABUL local time — the
@@ -105,7 +108,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         case rating, sortRating, confirmedCount, minPrice
         case isAvailable, isVerified
         case coverImageUrl, latitude, longitude, slotDurationMinutes, staff, workingHours
-        case blockedDates, durationPerService, serviceTiming
+        case blockedDates, durationPerService, serviceTiming, packages
     }
 
     public init(from decoder: Decoder) throws {
@@ -123,6 +126,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         categories = (try? c.decodeIfPresent([String].self, forKey: .categories)).flatMap { $0 } ?? []
         pricePerService = (try? c.decodeIfPresent([String: Int].self, forKey: .pricePerService)).flatMap { $0 } ?? [:]
         staff = (try? c.decodeIfPresent([StaffMember].self, forKey: .staff)).flatMap { $0 } ?? []
+        packages = (try? c.decodeIfPresent([ServicePackage].self, forKey: .packages)).flatMap { $0 } ?? []
         // A salon with no stored week gets the Afghan default rather than
         // an empty one, matching defaultWorkingHours() on the server. Stored
         // empty, it could never be booked at all.
@@ -148,5 +152,41 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
                 processing:   pair.value["processing"]   ?? 0,
                 activeAfter:  pair.value["activeAfter"]  ?? 0)
         }
+    }
+}
+
+/// A bundle a salon sells: book all of these together and take a percentage off.
+///
+/// The discount is applied server-side by `createPaymentSession` from the
+/// packageId, and `packageDiscountFor` refuses one whose services are not all
+/// in the booking — so the client offers it only when they are, rather than
+/// promising a saving the server then declines to give.
+public struct ServicePackage: Codable, Identifiable, Hashable, Sendable {
+    public var id: String = ""
+    public var name: String = ""
+    public var services: [String] = []
+    public var discountPercent: Int = 0
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey { case id, name, services, discountPercent }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decodeIfPresent(String.self, forKey: .id)).flatMap { $0 } ?? ""
+        name = (try? c.decodeIfPresent(String.self, forKey: .name)).flatMap { $0 } ?? ""
+        services = (try? c.decodeIfPresent([String].self, forKey: .services)).flatMap { $0 } ?? []
+        discountPercent = (try? c.decodeIfPresent(Int.self, forKey: .discountPercent)).flatMap { $0 } ?? 0
+    }
+
+    /// Worth offering only when it names services and takes something off.
+    /// The live data has one with an empty name, so the name is decoration and
+    /// the services are the identity.
+    public var isUsable: Bool { !services.isEmpty && discountPercent > 0 && !id.isEmpty }
+
+    /// Every service in the bundle is in the basket. A partial match gets no
+    /// discount server-side, so it gets no offer here.
+    public func applies(to selected: Set<String>) -> Bool {
+        isUsable && services.allSatisfy(selected.contains)
     }
 }

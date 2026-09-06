@@ -61,7 +61,11 @@ final class BookingService {
         method: String,
         staffId: String = "",
         notes: String = "",
-        promoCode: String = ""
+        promoCode: String = "",
+        /// The bundle the basket qualifies for, "" for none. The server finds
+        /// it on the salon by id and refuses one whose services are not all
+        /// being booked, so sending it is safe even if the basket changed.
+        packageId: String = ""
     ) async throws -> Quote {
         isWorking = true
         defer { isWorking = false }
@@ -78,6 +82,7 @@ final class BookingService {
                 "staffId": .string(staffId),
                 "notes": .string(notes),
                 "promoCode": .string(promoCode.trimmingCharacters(in: .whitespaces).uppercased()),
+                "packageId": .string(packageId),
             ])
         } catch let e as Callables.CallableError {
             switch e {

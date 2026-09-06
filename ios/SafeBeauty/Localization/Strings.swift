@@ -466,6 +466,27 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Packages and promo codes
+    static let packageApplied = L(fa: "بستهٔ خدمات اعمال شد", ps: "د خدمتونو بنډل پلی شو",
+                                  en: "Package applied")
+    static func packageOff(_ percent: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "٪\(percent) تخفیف روی این خدمات"
+        case .pashto: "پر دې خدمتونو \(percent)٪ تخفیف"
+        case .english: "\(percent)% off these services"
+        }
+    }
+    static let checkCode = L(fa: "بررسی کد", ps: "کوډ وګورئ", en: "Check code")
+    static let promoInvalid = L(fa: "این کد معتبر نیست.", ps: "دا کوډ سم نه دی.",
+                                en: "That code is not valid.")
+    static func promoSaves(_ amount: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "کد پذیرفته شد — \(amount) افغانی کمتر."
+        case .pashto: "کوډ ومنل شو — \(amount) افغانۍ لږ."
+        case .english: "Code accepted — \(amount) AFN off."
+        }
+    }
+
     // MARK: Comments and account deletion
     static let comments = L(fa: "نظرها", ps: "نظرونه", en: "Comments")
     static let noComments = L(fa: "هنوز نظری نیست", ps: "تر اوسه نظر نشته", en: "No comments yet")
