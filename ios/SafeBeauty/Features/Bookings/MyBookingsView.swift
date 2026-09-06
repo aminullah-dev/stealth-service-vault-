@@ -18,9 +18,23 @@ struct MyBookingsView: View {
                     ContentUnavailableView {
                         // Only said when the read succeeded and there really
                         // are none. An unreadable list says something else.
-                        Text(repo.error == nil ? L.noBookingsYet.t : L.couldNotLoad.t)
-                            .font(Brand.font(17, .medium))
-                            .foregroundStyle(Brand.ink)
+                        Label {
+                            Text(repo.error == nil ? L.noBookingsYet.t : L.couldNotLoad.t)
+                                .font(Brand.font(17, .medium))
+                                .foregroundStyle(repo.error == nil ? Brand.ink : Color(hex: 0xC0392B))
+                        } icon: {
+                            Image(systemName: repo.error == nil ? "calendar" : "exclamationmark.triangle")
+                                .foregroundStyle(repo.error == nil ? Brand.accent : Color(hex: 0xC0392B))
+                        }
+                    } description: {
+                        // Only on the genuinely-empty branch: telling someone
+                        // whose list failed to load to go and book something
+                        // answers a question she did not ask.
+                        if repo.error == nil {
+                            Text(L.noBookingsHint.t)
+                                .font(Brand.font(13.5))
+                                .foregroundStyle(Brand.accent)
+                        }
                     }
                 } else {
                     List {

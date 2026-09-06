@@ -20,10 +20,23 @@ struct NotificationsView: View {
                             .foregroundStyle(Color(hex: 0xC0392B))
                     }
                 } else if repo.items.isEmpty && !repo.isLoading {
+                    // An icon and a sentence saying what will appear here.
+                    // A single line of text in an otherwise blank screen reads
+                    // as something failing to load rather than as a tab with
+                    // nothing in it yet.
                     ContentUnavailableView {
-                        Text(L.noNotifications.t)
-                            .font(Brand.font(16, .medium))
-                            .foregroundStyle(Brand.ink)
+                        Label {
+                            Text(L.noNotifications.t)
+                                .font(Brand.font(16, .medium))
+                                .foregroundStyle(Brand.ink)
+                        } icon: {
+                            Image(systemName: "bell")
+                                .foregroundStyle(Brand.accent)
+                        }
+                    } description: {
+                        Text(L.noNotificationsHint.t)
+                            .font(Brand.font(13.5))
+                            .foregroundStyle(Brand.accent)
                     }
                 } else {
                     List(repo.items) { item in

@@ -126,6 +126,14 @@ extension L {
         fa: "حساب سالون شما فعال است. مدیریت سالون فعلاً در اپ اندروید و کنسول وب انجام می‌شود.",
         ps: "ستاسو د سالون حساب فعال دی. د سالون مدیریت اوس مهال په اندرویډ اپ او ویب کنسول کې کیږي.",
         en: "Your salon account is active. Managing your salon is on the Android app and the web console for now.")
+    static let noNotificationsHint = L(
+        fa: "وقتی سالنی رزرو شما را تأیید یا لغو کند، اینجا خبر می‌شوید.",
+        ps: "کله چې سالون ستاسو بکینګ تایید یا لغوه کړي، دلته به خبر شئ.",
+        en: "When a salon confirms or cancels your booking, you will hear about it here.")
+    static let noBookingsHint = L(
+        fa: "از بخش سالن‌ها یک سالن انتخاب کنید و اولین نوبت خود را بگیرید.",
+        ps: "د سالونونو له برخې یو سالون وټاکئ او خپل لومړی وخت ونیسئ.",
+        en: "Pick a salon from the Salons tab and book your first appointment.")
     static let errWrongLogin = L(
         fa: "شماره یا رمز عبور درست نیست.",
         ps: "شمېره یا پټنوم سم نه دی.",
