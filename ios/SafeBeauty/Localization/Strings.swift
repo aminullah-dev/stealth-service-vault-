@@ -106,6 +106,14 @@ extension L {
     static let serviceName = L(fa: "نام خدمت", ps: "د خدمت نوم", en: "Service name")
     static let add = L(fa: "افزودن", ps: "زیاتول", en: "Add")
     static let district = L(fa: "ناحیه", ps: "ناحیه", en: "District")
+    // The Android values, verbatim: a salon owner who registered on one phone
+    // and edits on the other should read the same words for the same field.
+    static let city = L(fa: "شهر", ps: "ښار", en: "City")
+    static let districtArea = L(fa: "ناحیه / منطقه", ps: "سیمه / ناحیه",
+                                en: "District / Area")
+    static let pickCityFirst = L(fa: "اول شهر را انتخاب کنید",
+                                 ps: "لومړی ښار وټاکئ", en: "Choose a city first")
+    static let selectOne = L(fa: "انتخاب کنید", ps: "وټاکئ", en: "Select")
     static let haveAccount = L(fa: "حساب دارید؟ وارد شوید",
                                ps: "حساب لرئ؟ ننوځئ", en: "Have an account? Sign in")
 
@@ -456,6 +464,8 @@ extension L {
     static let searchSalons = L(fa: "جستجوی سالن یا خدمات", ps: "د سالون یا خدمتونو لټون",
                                 en: "Search salons or services")
     static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
+    static let allNeighbourhoods = L(fa: "همه محله‌ها", ps: "ټول ګاونډونه",
+                                     en: "All neighborhoods")
     static let noMatches = L(fa: "چیزی پیدا نشد.", ps: "څه ونه موندل شول.", en: "Nothing found.")
     static let clearFilters = L(fa: "پاک کردن فیلترها", ps: "فلټرونه پاکول",
                                 en: "Clear filters")

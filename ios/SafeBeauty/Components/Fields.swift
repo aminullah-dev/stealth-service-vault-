@@ -61,6 +61,61 @@ struct BrandField: View {
     }
 }
 
+/// A labelled choice from a fixed list, wearing BrandField's chrome.
+///
+/// A district is not free text: the app stores a stable key and every filter
+/// compares keys, so a typed answer only matches by the server's fuzzy pass and
+/// a typo never matches at all. The list is the only place a salon owner can
+/// give an address the rest of the product can read back.
+struct BrandPicker: View {
+    let label: L
+    /// The selected key, "" for nothing chosen yet.
+    @Binding var selection: String
+    /// Key and the label to show for it, in the order they should be offered.
+    let options: [(key: String, title: String)]
+    var isEnabled = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.t)
+                .font(Brand.font(13, .medium))
+                .foregroundStyle(Brand.ink.opacity(0.75))
+
+            Menu {
+                ForEach(options, id: \.key) { option in
+                    Button(option.title) { selection = option.key }
+                }
+            } label: {
+                HStack {
+                    Text(options.first { $0.key == selection }?.title ?? L.selectOne.t)
+                        .font(Brand.font(16))
+                        // Grey until something is chosen, so an untouched picker
+                        // does not read as an answer already given.
+                        .foregroundStyle(selection.isEmpty ? Brand.ink.opacity(0.45) : Brand.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Brand.accent)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 13)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Brand.petal.opacity(0.55), lineWidth: 1)
+                        )
+                )
+            }
+            .disabled(!isEnabled || options.isEmpty)
+            .opacity(isEnabled ? 1 : 0.5)
+        }
+    }
+}
+
 struct BrandButton: View {
     let title: L
     var isLoading = false

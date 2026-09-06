@@ -22,6 +22,7 @@ struct RegisterView: View {
     @State private var confirm = ""
     @State private var isProvider = false
     @State private var salonName = ""
+    @State private var cityKey = ""
     @State private var district = ""
     @State private var services: [String] = []
     @State private var serviceInput = ""
@@ -45,7 +46,33 @@ struct RegisterView: View {
 
                     if isProvider {
                         BrandField(label: .salonName, text: $salonName)
-                        BrandField(label: .district, text: $district)
+
+                        // Chosen from the list, not typed.
+                        //
+                        // This was a free-text field, and what a salon owner
+                        // writes in it is stored verbatim: "خیرخانه" and
+                        // "خیر خانه" become two different places, and neither
+                        // is the key every district filter compares against.
+                        // Her salon then exists and appears under no
+                        // neighbourhood, which is where a customer looks for a
+                        // salon near her.
+                        BrandPicker(
+                            label: .city, selection: $cityKey,
+                            options: Areas.liveCities.map { (key: $0.key, title: Areas.label(of: $0)) }
+                        )
+                        BrandPicker(
+                            label: cityKey.isEmpty ? .pickCityFirst : .districtArea,
+                            selection: $district,
+                            options: Areas.districtsIn(cityKey)
+                                .map { (key: $0.key, title: Areas.label(of: $0)) },
+                            isEnabled: !cityKey.isEmpty
+                        )
+                        // The city is not sent and not stored: the server reads
+                        // it off the district key's prefix, so there is no
+                        // second field that could disagree about where a salon
+                        // is. It exists here only to cut 121 districts down to
+                        // the one city's worth.
+                        .onChange(of: cityKey) { _, _ in district = "" }
 
                         // Asked for, not invented. This used to send a
                         // hard-coded literal purely to satisfy the server's

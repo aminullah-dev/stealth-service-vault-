@@ -32,12 +32,40 @@ struct SalonMapView: View {
             span: MKCoordinateSpan(latitudeDelta: 0.08, longitudeDelta: 0.08)))
     }
 
+    /// The name, and under it the neighbourhood.
+    ///
+    /// Android puts the same thing in the marker's snippet — a map of a city
+    /// this size is read by neighbourhood, and two pins a centimetre apart in
+    /// «شهرنو» and «کارته سه» are a different answer to "which one is near me"
+    /// than two unlabelled dots. Written out rather than hidden behind a tap
+    /// because tapping a pin here opens the salon, and a label nobody can reach
+    /// without leaving the map is a label the map does not have.
+    @ViewBuilder
+    private func pinLabel(_ salon: Salon) -> some View {
+        VStack(spacing: 0) {
+            Text(salon.salonName)
+                .font(Brand.font(12, .medium))
+                .foregroundStyle(Brand.ink)
+            if !salon.district.isEmpty {
+                // The label, never the stored key: the document holds
+                // "KBL_Shirpur" and the map would have printed exactly that.
+                Text(Areas.label(salon.district))
+                    .font(Brand.font(10.5))
+                    .foregroundStyle(Brand.accent)
+            }
+        }
+        // Two short lines rather than one long one wrapped by MapKit, which
+        // breaks a Persian place name wherever it happens to run out of room.
+        .multilineTextAlignment(.center)
+        .lineLimit(1)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack(alignment: .bottom) {
                 Map(initialPosition: camera) {
                     ForEach(pinned) { salon in
-                        Annotation(salon.salonName, coordinate: .init(
+                        Annotation(coordinate: .init(
                             latitude: salon.latitude, longitude: salon.longitude)) {
                             Button { selected = salon } label: {
                                 ZStack {
@@ -47,6 +75,8 @@ struct SalonMapView: View {
                                 }
                                 .shadow(radius: 3)
                             }
+                        } label: {
+                            pinLabel(salon)
                         }
                     }
                 }
