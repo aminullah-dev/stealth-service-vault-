@@ -1070,6 +1070,15 @@ extension L {
     static let offerActive = L(fa: "فعال", ps: "فعال", en: "Active")
     static let offerRemove = L(fa: "حذف پیشنهاد", ps: "وړاندیز لرې کول", en: "Remove offer")
 
+    // The Android value verbatim. Only an accessibility label here — the heart
+    // itself is the control, and a word beside it would say what the icon says.
+    static let feedLikes = L(fa: "پسندها", ps: "خوښې", en: "Likes")
+
+    // MARK: Export
+    // The Android values verbatim (AppStrings.kt exportTitle).
+    static let exportTitle = L(fa: "خروجی داده‌های من", ps: "زما معلومات صادرول",
+                               en: "Export My Data")
+
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")

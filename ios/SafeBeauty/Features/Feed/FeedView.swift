@@ -5,6 +5,7 @@ import SafeBeautyCore
 /// What the salons are showing and offering.
 struct FeedView: View {
     @Environment(Moderation.self) private var moderation
+    @Environment(AuthService.self) private var auth
     /// The salon catalogue, so a card can open the salon it belongs to.
     /// Posts and offers carry only a salonId; without this the feed is a
     /// gallery you cannot act on.
@@ -14,6 +15,13 @@ struct FeedView: View {
     @State private var stories: [SalonStory] = []
     @State private var loadFailed = false
     @State private var isLoading = true
+    /// Which of the posts on screen this customer has liked.
+    ///
+    /// Read here rather than per card: a listener per tile would put fifty of
+    /// them on this screen. The rules let her read only her own like rows, so
+    /// filtering by userId is both the query and the whole permission.
+    @State private var liked: Set<String> = []
+    @State private var likeListener: ListenerRegistration?
 
     /// A blocked salon's work disappears from the feed, which is the whole
     /// point of blocking one. Filtered here rather than in the query: the
@@ -96,11 +104,15 @@ struct FeedView: View {
                                 ForEach(visiblePosts) { post in
                                     if let salon = repo.salons.first(where: { $0.id == post.salonId }) {
                                         NavigationLink { SalonDetailView(salon: salon) } label: {
-                                            PostCard(post: post, moderation: moderation)
+                                            PostCard(post: post, moderation: moderation,
+                                                     isLiked: liked.contains(post.id),
+                                                     onToggleLike: { toggleLike(post) })
                                         }
                                         .buttonStyle(.plain)
                                     } else {
-                                        PostCard(post: post, moderation: moderation)
+                                        PostCard(post: post, moderation: moderation,
+                                                 isLiked: liked.contains(post.id),
+                                                 onToggleLike: { toggleLike(post) })
                                     }
                                 }
                             }
@@ -114,6 +126,64 @@ struct FeedView: View {
             .refreshable { await load() }
         }
         .task { repo.start(); await load() }
+        // Rebuilt when the feed changes or she signs in, and torn down with the
+        // view — a Firestore listener that outlives its owner keeps billing.
+        .task(id: "\(auth.session?.uid ?? "")|\(posts.map(\.id).joined())") {
+            watchLikes(uid: auth.session?.uid ?? "", postIds: posts.map(\.id))
+        }
+        .onDisappear { likeListener?.remove(); likeListener = nil }
+    }
+
+    /// One listener for every post on screen, refreshed when that set changes.
+    ///
+    /// `whereIn` takes at most thirty values, so the ids are chunked — the feed
+    /// reads fifty. A chunk that has not reported yet contributes nothing,
+    /// which shows an unfilled heart for a moment rather than a wrong one.
+    private func watchLikes(uid: String, postIds: [String]) {
+        likeListener?.remove()
+        likeListener = nil
+        liked = []
+        let wanted = Array(Set(postIds.filter { !$0.isEmpty })).prefix(30)
+        guard !uid.isEmpty, !wanted.isEmpty else { return }
+        likeListener = Firestore.firestore().collection("post_likes")
+            .whereField("userId", isEqualTo: uid)
+            .whereField("postId", in: Array(wanted))
+            .addSnapshotListener { snap, _ in
+                let ids = (snap?.documents ?? []).compactMap { $0.data()["postId"] as? String }
+                Task { @MainActor in liked = Set(ids) }
+            }
+    }
+
+    /// The document id is "{postId}_{userId}", which is what the rules check —
+    /// so a second like from the same person is impossible to write rather than
+    /// merely discouraged, and the count on the post is maintained by a trigger
+    /// that no client can inflate.
+    private func toggleLike(_ post: SalonPost) {
+        guard let uid = auth.session?.uid, !uid.isEmpty else { return }
+        let ref = Firestore.firestore().document("post_likes/\(post.id)_\(uid)")
+        let wasLiked = liked.contains(post.id)
+        // Optimistic: the snapshot will confirm, and a heart that waits for a
+        // round trip feels broken.
+        if wasLiked { liked.remove(post.id) } else { liked.insert(post.id) }
+        Task {
+            do {
+                if wasLiked {
+                    try await ref.delete()
+                } else {
+                    try await ref.setData([
+                        "postId": post.id,
+                        "salonId": post.salonId,
+                        "userId": uid,
+                        "createdAt": Int(Date().timeIntervalSince1970 * 1000),
+                    ])
+                }
+            } catch {
+                // Put it back rather than leaving a heart that lies.
+                await MainActor.run {
+                    if wasLiked { liked.insert(post.id) } else { liked.remove(post.id) }
+                }
+            }
+        }
     }
 
     private func load() async {
@@ -179,6 +249,8 @@ struct FeedView: View {
 struct PostCard: View {
     let post: SalonPost
     let moderation: Moderation
+    let isLiked: Bool
+    let onToggleLike: () -> Void
 
     @State private var showComments = false
     @State private var showReport = false
@@ -215,14 +287,24 @@ struct PostCard: View {
                         .font(Brand.font(13.5)).foregroundStyle(Brand.ink.opacity(0.8))
                 }
                 HStack(spacing: 14) {
-                    if post.likeCount > 0 {
+                    // A control, not a readout. iOS drew the count and gave her
+                    // no way to add to it: the heart was a number pointing at
+                    // something she could not do, and a salon never heard that
+                    // anyone liked its work from an iPhone.
+                    Button(action: onToggleLike) {
                         HStack(spacing: 4) {
-                            Image(systemName: "heart.fill").font(.system(size: 11))
-                            Text(verbatim: "\(post.likeCount)")
-                                .environment(\.layoutDirection, .leftToRight)
+                            Image(systemName: isLiked ? "heart.fill" : "heart")
+                                .font(.system(size: 12))
+                            if post.likeCount > 0 {
+                                Text(verbatim: "\(post.likeCount)")
+                                    .environment(\.layoutDirection, .leftToRight)
+                            }
                         }
-                        .font(Brand.font(12)).foregroundStyle(Brand.accent)
+                        .font(Brand.font(12))
+                        .foregroundStyle(isLiked ? Brand.ink : Brand.accent)
                     }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L.feedLikes.t)
                     // Always offered, not only when there are comments already.
                     // The count was a number pointing at nothing: a customer
                     // could look at a salon's work and had no way to say

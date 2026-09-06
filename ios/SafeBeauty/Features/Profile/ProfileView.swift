@@ -26,6 +26,10 @@ struct ProfileView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var photoItem: PhotosPickerItem?
+    /// Her own bookings, for the export. Read here rather than passed in: this
+    /// screen is the only place that needs them and the list is her own.
+    @State private var bookings = BookingsRepository()
+    @State private var exportURL: URL?
     @State private var photos = ProfilePhotoService()
     @State private var photoUrl = ""
     @State private var photoNote: String?
@@ -150,6 +154,26 @@ struct ProfileView: View {
                     }
                     .padding(.top, 6)
 
+                    // Her booking history as a file she can keep, which Android
+                    // has had and iOS had not. A ShareLink rather than a button
+                    // and a sheet: iOS gives her every destination she already
+                    // uses, and the file is written before the sheet opens so
+                    // there is nothing to fail once it is up.
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundStyle(Brand.accent)
+                                Text(L.exportTitle.t)
+                                    .font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
+                            }
+                            .padding(15)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+
                     // Terms and privacy, which iOS linked from nowhere.
                     //
                     // Android has had them since it shipped, in Support and on
@@ -192,6 +216,12 @@ struct ProfileView: View {
             }
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.profile.t)
+            .task(id: auth.session?.uid) {
+                if let uid = auth.session?.uid { bookings.start(customerId: uid) }
+            }
+            .onChange(of: bookings.upcoming.count + bookings.past.count) { _, _ in
+                refreshExport()
+            }
             .sheet(isPresented: $showKyc) { KycView().appDirection() }
             .sheet(isPresented: $showBlocked) {
                 BlockedAccountsSheet(moderation: moderation).appDirection()
@@ -544,6 +574,23 @@ struct ProfileView: View {
                 .padding(.vertical, 12)
                 .contentShape(Rectangle())
         }
+    }
+
+    /// Writes the CSV to a temp file so ShareLink has something to hand over.
+    ///
+    /// Rewritten whenever the booking list changes, because a share sheet
+    /// offering yesterday's file is worse than no button: she would not know
+    /// it was stale.
+    private func refreshExport() {
+        // Everything, newest first — the export is a record, so a booking
+        // being in the past is exactly why she wants it in the file.
+        let all = (bookings.upcoming + bookings.past)
+            .sorted { $0.appointmentDate > $1.appointmentDate }
+        let csv = BookingExport.csv(all)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(BookingExport.filename)
+        exportURL = (try? csv.write(to: url, atomically: true, encoding: .utf8)) == nil
+            ? nil : url
     }
 
     private func load() async {

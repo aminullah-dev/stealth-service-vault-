@@ -18,6 +18,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import javax.inject.Inject
 
 enum class ExportPhase { IDLE, WORKING, DONE, ERROR }
@@ -60,13 +61,35 @@ class ExportViewModel @Inject constructor(
         shareUri = null
     }
 
+    /**
+     * RFC 4180: a field holding a comma, a quote or a newline is wrapped in
+     * quotes and its quotes are doubled.
+     *
+     * These were written raw, so one salon that names itself "Zohra, Kabul"
+     * silently shifted every column after it and the file opened wrong in every
+     * spreadsheet — and a service name typed with a comma did the same. Salons
+     * name themselves, so that is not hypothetical.
+     */
+    private fun esc(field: String): String =
+        if (field.any { it == ',' || it == '"' || it == '\n' || it == '\r' })
+            "\"" + field.replace("\"", "\"\"") + "\""
+        else field
+
     private fun buildCsv(appointments: List<AppointmentDocument>): String {
-        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
+        // Kabul's clock, not the phone's. A woman travelling with her phone on
+        // another timezone would otherwise get an export whose times do not
+        // match the appointments she actually has.
+        val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("Asia/Kabul")
+        }
         return buildString {
             appendLine("Date,Service,Salon,Status")
             for (appt in appointments) {
                 val date = fmt.format(Date(appt.appointmentDate))
-                appendLine("$date,${appt.serviceName},${appt.salonName},${appt.status}")
+                appendLine(
+                    listOf(date, appt.serviceName, appt.salonName, appt.status)
+                        .joinToString(",") { esc(it) }
+                )
             }
         }
     }
