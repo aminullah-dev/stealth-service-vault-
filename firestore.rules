@@ -407,11 +407,32 @@ service cloud.firestore {
     }
 
     // ── salon_gallery ──────────────────────────────────────────────────────────
+    // The storage object a media document may point at.
+    //
+    // storagePath is written by the client and later handed to a DELETE by two
+    // privileged callers: the admin console's Remove button, which runs under
+    // an admin token that storage.rules lets delete anything under kyc/,
+    // salon_gallery/, salon_posts/, staff_portfolio/ and reviews/; and
+    // cleanupExpiredStories, which uses the Admin SDK and so bypasses
+    // storage.rules altogether. Unconstrained, an approved provider could point
+    // her own post at "kyc/<rival>/tazkira.jpg" and have someone else's
+    // identity document deleted for her — by an admin who is only trying to
+    // take down an offensive photo.
+    //
+    // createSalonPost already checks exactly this shape server-side
+    // (functions/domains/content.js). This is the same check on the path that
+    // does not go through it.
+    function ownsStoragePath(prefix, salonId, docId) {
+      return request.resource.data.get('storagePath', '') ==
+             prefix + '/' + salonId + '/' + docId + '.jpg';
+    }
+
     match /salon_gallery/{imageId} {
       allow read: if isSignedIn();
 
       allow create: if isProvider() && isApproved()
-                 && ownsThisSalon(request.resource.data.salonId);
+                 && ownsThisSalon(request.resource.data.salonId)
+                 && ownsStoragePath('salon_gallery', request.resource.data.salonId, imageId);
 
       // Images are replaced by delete + re-upload; no in-place edits.
       allow update: if false;
@@ -447,7 +468,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       allow create: if isProvider() && isApproved()
-                 && ownsThisSalon(request.resource.data.salonId);
+                 && ownsThisSalon(request.resource.data.salonId)
+                 && ownsStoragePath('salon_posts', request.resource.data.salonId, postId);
 
       allow update: if false;
 
@@ -465,7 +487,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       allow create: if isProvider() && isApproved()
-                 && ownsThisSalon(request.resource.data.salonId);
+                 && ownsThisSalon(request.resource.data.salonId)
+                 && ownsStoragePath('salon_stories', request.resource.data.salonId, storyId);
 
       allow update: if false;
 

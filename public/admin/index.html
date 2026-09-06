@@ -2035,7 +2035,7 @@ async function renderContent(){
           <td>${Number(p.commentCount||0)}</td>
           <td>${fmtDate(p.createdAt)}</td>
           <td style="text-align:right"><button class="btn-sm" style="background:var(--red)"
-                data-delp="${esc(p.id)}" data-path="${esc(p.storagePath||'')}">${t('btn_removeItem')}</button></td>
+                data-delp="${esc(p.id)}" data-delsalon="${esc(p.salonId||'')}" data-path="${esc(p.storagePath||'')}">${t('btn_removeItem')}</button></td>
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPostsYet')}</div>`}
     `;
 
@@ -2056,8 +2056,27 @@ async function renderContent(){
       after(async () => {
         // cleanupDeletedPost collects the likes and comments; the image is the
         // only part that does not belong to Firestore.
-        await deleteDoc(doc(db,'salon_posts', b.dataset.delp));
-        if(b.dataset.path){ try{ await deleteObject(sref(storage, b.dataset.path)); }catch(_){} }
+        //
+        // The path is DERIVED, not read from the document. storagePath is
+        // written by the provider, and this delete runs under an admin token
+        // that storage.rules lets delete anything under kyc/, salon_gallery/,
+        // salon_posts/, staff_portfolio/ and reviews/. Trusting the stored
+        // value let a provider point her own post at another salon's KYC
+        // photo and have an admin destroy it by pressing Remove on an
+        // offensive caption. createSalonPost checks this same shape on the way
+        // in (functions/domains/content.js); this is the check on the way out.
+        const postId = b.dataset.delp, salonId = b.dataset.delsalon || '';
+        await deleteDoc(doc(db,'salon_posts', postId));
+        if(salonId){
+          const expected = `salon_posts/${salonId}/${postId}.jpg`;
+          if(b.dataset.path && b.dataset.path !== expected){
+            // Not deleted, and not silent: a mismatch is either an old
+            // document or someone aiming this button at another file.
+            console.warn('storagePath does not match this post; image left in place', b.dataset.path);
+          } else {
+            try{ await deleteObject(sref(storage, expected)); }catch(_){}
+          }
+        }
       })(b);
     });
   }catch(e){
@@ -2636,11 +2655,11 @@ async function renderHealth(){
         while (Date.now() - started < 120000) {
           btn.textContent = `${lbl} … ${rotated}`;
           const { data } = await httpsCallable(fns,'adminRevokeKycUrls')(
-            { limit: 100, dryRun, cursor: refCursors[key] || '' });
+            { limit: 100, dryRun, cursor: jobCursors['adminRevokeKycUrls:' + key] || '' });
           scanned += data.scanned; cleared += data.cleared; rotated += data.rotated;
           failures.push(...(data.failures||[]));
-          refCursors[key] = data.cursor;
-          if (data.done) { complete = true; refCursors[key] = ''; break; }
+          jobCursors['adminRevokeKycUrls:' + key] = data.cursor;
+          if (data.done) { complete = true; jobCursors['adminRevokeKycUrls:' + key] = ''; break; }
         }
         const head = dryRun ? t('flash_kycDry', scanned, rotated)
                             : t('flash_kycDone', scanned, rotated, cleared);

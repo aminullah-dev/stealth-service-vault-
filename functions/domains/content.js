@@ -482,6 +482,18 @@ exports.cleanupExpiredStories = onSchedule(
     for (const d of snap.docs) {
       const path = String(d.data().storagePath || "");
       if (!path) continue;
+      // Derived and compared, never followed as given. This runs with the
+      // Admin SDK, which bypasses storage.rules entirely — so an unchecked
+      // storagePath here is a delete of ANY object in the bucket, chosen by
+      // whoever wrote the story document. firestore.rules now constrains the
+      // field on create, and this is the same check on the documents written
+      // before it did.
+      const expected = `salon_stories/${String(d.data().salonId || "")}/${d.id}.jpg`;
+      if (path !== expected) {
+        logger.warn("cleanupExpiredStories: storagePath does not match its story; file left in place",
+          { storyId: d.id, path });
+        continue;
+      }
       try {
         await admin.storage().bucket().file(path).delete();
       } catch (e) {
