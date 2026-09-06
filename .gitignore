@@ -62,6 +62,14 @@ Thumbs.db
 # would narrow the next deploy to nothing.
 .firebase/functions-deployed-*
 
+# The same argument for hosting. These are upload caches — one
+# "filename,mtime,hash" line per file, rewritten by every `firebase deploy` so
+# the next one can skip what has not changed. Nobody reads them and they carry
+# no decision, but they are dirty after every deploy, and a dirty tracked file
+# blocks `git checkout` — which is exactly how an 83-commit merge to main got
+# stopped by three files describing when someone last uploaded privacy.html.
+.firebase/hosting.*.cache
+
 # ── iOS ──────────────────────────────────────────────────────────────────────
 # SafeBeauty.xcodeproj is GENERATED from ios/project.yml by `make project`.
 # Keeping it out of git is the point: a .pbxproj cannot be reviewed and cannot
