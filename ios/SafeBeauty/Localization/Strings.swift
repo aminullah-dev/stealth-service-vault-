@@ -511,6 +511,12 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    // MARK: Choosing a stylist
+    static let chooseStaff = L(fa: "آرایشگر را انتخاب کنید", ps: "آرایشګر وټاکئ",
+                               en: "Choose a stylist")
+    static let staffAny = L(fa: "هر کدام که در دسترس است", ps: "هر یو چې شتون ولري",
+                            en: "Any available")
+
     // MARK: Coming back from HesabPay
     static let paymentConfirmed = L(fa: "پرداخت شما تأیید شد.", ps: "ستاسو تادیه تایید شوه.",
                                     en: "Your payment went through.")

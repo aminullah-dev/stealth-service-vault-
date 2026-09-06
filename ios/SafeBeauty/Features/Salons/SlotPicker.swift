@@ -15,6 +15,10 @@ struct SlotPicker: View {
     /// The booking being moved. A booking never conflicts with its own slot,
     /// and without this the time she is already on reads as taken.
     var excluding: String = ""
+    /// The chair she picked, "" for "any available". It changes which existing
+    /// bookings count as a clash: the server skips one on a different staff id,
+    /// so a grid computed for the wrong chair offers times it will refuse.
+    var staffId: String = ""
 
     @Binding var selectedDay: Date
     @Binding var selectedSlot: Int64?
@@ -71,7 +75,7 @@ struct SlotPicker: View {
                     existing: booked.filter { $0.id != excluding || excluding.isEmpty },
                     requestedStart: start,
                     requestedOffsets: layout.busyOffsets,
-                    staffId: "", slotMinutes: salon.slotDurationMinutes)
+                    staffId: staffId, slotMinutes: salon.slotDurationMinutes)
             }
     }
 
@@ -165,6 +169,7 @@ struct SlotPicker: View {
         // The services can change under it — she adds one on the salon page —
         // and the span changes with them, so what fits changes too.
         .onChange(of: serviceNames) { _, _ in selectedSlot = nil }
+        .onChange(of: staffId) { _, _ in selectedSlot = nil }
         .onChange(of: reloadToken) { _, _ in Task { await load() } }
     }
 

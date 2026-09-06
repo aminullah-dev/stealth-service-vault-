@@ -14,6 +14,7 @@ struct BookingSheet: View {
     let serviceNames: [String]
     let startMillis: Int64
     var packageId: String = ""
+    var staffId: String = ""
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -267,6 +268,7 @@ struct BookingSheet: View {
             quote = try await booking.book(
                 salonId: salon.id, serviceNames: serviceNames,
                 startMillis: startMillis, method: method,
+                staffId: staffId,
                 notes: notes, promoCode: promoCode, packageId: packageId)
         } catch let e as BookingService.BookingError {
             error = switch e {

@@ -16,6 +16,7 @@ struct SalonDetailView: View {
     @State private var selectedServices: Set<String> = []
     @State private var selectedDay = Date()
     @State private var selectedSlot: Int64?
+    @State private var selectedStaff = ""
     /// Bumped to make the picker re-read what is taken.
     @State private var slotReload = 0
     @State private var showBooking = false
@@ -31,6 +32,12 @@ struct SalonDetailView: View {
     /// one. Offered only when every service in it is in the basket, because
     /// packageDiscountFor refuses a partial match and a saving the server then
     /// declines to give is worse than no saving offered.
+    /// The stylists a customer may actually be booked with. `active` is the
+    /// salon's own flag for someone who has left.
+    private var activeStaff: [StaffMember] {
+        salon.staff.filter { $0.active && !$0.id.isEmpty && !$0.name.isEmpty }
+    }
+
     private var appliedPackage: ServicePackage? {
         salon.packages.first { $0.applies(to: selectedServices) }
     }
@@ -121,8 +128,37 @@ struct SalonDetailView: View {
                     .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 12))
                 }
 
+                // Whose chair. Offered only where the salon has named someone,
+                // because a picker with one option that says "any" is not a
+                // choice.
+                //
+                // It is not decoration: hasSlotConflict skips a booking on a
+                // DIFFERENT staff id, so a booking sent with "" occupies a chair
+                // of its own. Until now every iOS booking was "" — which meant
+                // an iPhone customer and an Android customer could take the same
+                // hour with the same stylist and the server would accept both.
+                if !activeStaff.isEmpty {
+                    section(L.chooseStaff) {
+                        FlowLayout(spacing: 8) {
+                            ServiceChip(name: L.staffAny.t, price: nil,
+                                        isSelected: selectedStaff.isEmpty) {
+                                selectedStaff = ""
+                                selectedSlot = nil
+                            }
+                            ForEach(activeStaff) { member in
+                                ServiceChip(name: member.name, price: nil,
+                                            isSelected: selectedStaff == member.id) {
+                                    selectedStaff = member.id
+                                    selectedSlot = nil
+                                }
+                            }
+                        }
+                    }
+                }
+
                 SlotPicker(salon: salon,
                            serviceNames: Array(selectedServices),
+                           staffId: selectedStaff,
                            selectedDay: $selectedDay,
                            selectedSlot: $selectedSlot,
                            reloadToken: slotReload)
@@ -207,7 +243,8 @@ struct SalonDetailView: View {
                 BookingSheet(salon: salon,
                              serviceNames: Array(selectedServices),
                              startMillis: slot,
-                             packageId: appliedPackage?.id ?? "")
+                             packageId: appliedPackage?.id ?? "",
+                             staffId: selectedStaff)
                     .appDirection()
             }
         }
