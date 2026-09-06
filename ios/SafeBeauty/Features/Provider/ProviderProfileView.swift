@@ -13,6 +13,7 @@ struct ProviderProfileView: View {
     @State private var lang = LanguageStore.shared
     @State private var showSupport = false
     @State private var showStaff = false
+    @State private var showOffers = false
     @State private var confirmSignOut = false
     @State private var showEdit = false
     @State private var replying: Review?
@@ -84,6 +85,24 @@ struct ProviderProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    Button { showOffers = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "tag.fill").foregroundStyle(Brand.accent)
+                            Text(L.offers.t)
+                                .font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+                            Spacer()
+                            // Live ones, not all of them: the number she cares
+                            // about is how many a customer can see.
+                            Text(verbatim: "\(repo.offers.filter { $0.isLive() }.count)")
+                                .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 12)).foregroundStyle(Brand.accent)
+                        }
+                        .padding(15)
+                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "bubble.left.fill").foregroundStyle(Brand.accent)
@@ -122,6 +141,7 @@ struct ProviderProfileView: View {
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showEdit) { EditSalonSheet(repo: repo).appDirection() }
             .sheet(isPresented: $showStaff) { EditStaffSheet(repo: repo).appDirection() }
+            .sheet(isPresented: $showOffers) { EditOffersSheet(repo: repo).appDirection() }
             .sheet(item: $replying) { review in
                 ReplyToReviewSheet(review: review, repo: repo).appDirection()
             }

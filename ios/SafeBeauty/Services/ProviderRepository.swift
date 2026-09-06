@@ -17,6 +17,9 @@ final class ProviderRepository {
     private(set) var salon: Salon?
     private(set) var appointments: [Appointment] = []
     private(set) var reviews: [Review] = []
+    /// The salon's own offers, including the inactive and expired ones — she is
+    /// the person who needs to see those, unlike a customer.
+    private(set) var offers: [SalonOffer] = []
     private(set) var owed = 0
     /// The salon's running tally, maintained by the deriveSalonStats trigger.
     ///
@@ -152,6 +155,19 @@ final class ProviderRepository {
                     Appointment.self, documents: docs, assigningID: { $0.id = $1 }).values
             })
 
+        // Bounded. Her own offers, newest first — createdAt is written on
+        // every one, so ordering on it drops nothing.
+        salonListeners.append(db.collection("salon_offers")
+            .whereField("salonId", isEqualTo: salonId)
+            .order(by: "createdAt", descending: true)
+            .limit(to: 50)
+            .addSnapshotListener { [weak self] snap, _ in
+                guard let self else { return }
+                let docs = (snap?.documents ?? []).map { (id: $0.documentID, data: $0.data()) }
+                self.offers = DocumentDecoding.decodeAll(
+                    SalonOffer.self, documents: docs, assigningID: { $0.id = $1 }).values
+            })
+
         salonListeners.append(db.collection("reviews")
             .whereField("salonId", isEqualTo: salonId)
             .limit(to: 100)
@@ -244,6 +260,46 @@ final class ProviderRepository {
     /// different `staffId` as not conflicting, so adding a stylist genuinely
     /// adds capacity and removing one does not free the bookings already made
     /// against her — those keep her id and stay blocked, which is correct.
+    /// Posts an offer.
+    ///
+    /// A direct write, which the rules allow the owning provider — and the
+    /// server is already listening: pushOfferToFavoriters fires on create and
+    /// notifies every customer who favourited this salon. That trigger has been
+    /// deployed the whole time with no way to reach it from an iPhone.
+    ///
+    /// `active` is true on creation because an offer nobody can see is not an
+    /// offer; she turns it off from the list.
+    func addOffer(title: String, details: String, discountPercent: Int) async throws {
+        guard let salon, !salon.id.isEmpty else { return }
+        let doc = Firestore.firestore().collection("salon_offers").document()
+        try await doc.setData([
+            "salonId": salon.id,
+            "providerId": salon.providerId,
+            // Denormalized so the customer's deals strip can name the salon
+            // without a second read, which is how Android writes it too.
+            "salonName": salon.salonName,
+            "title": title,
+            "description": details,
+            "service": "",
+            "discountPercent": discountPercent,
+            "discountAmount": 0,
+            "expiresAt": 0,
+            "active": true,
+            "createdAt": Int(Date().timeIntervalSince1970 * 1000),
+        ])
+    }
+
+    func setOfferActive(_ offer: SalonOffer, active: Bool) async throws {
+        guard !offer.id.isEmpty else { return }
+        try await Firestore.firestore().document("salon_offers/\(offer.id)")
+            .updateData(["active": active])
+    }
+
+    func deleteOffer(_ offer: SalonOffer) async throws {
+        guard !offer.id.isEmpty else { return }
+        try await Firestore.firestore().document("salon_offers/\(offer.id)").delete()
+    }
+
     func saveStaff(_ staff: [StaffMember]) async throws {
         guard let id = salon?.id, !id.isEmpty else { return }
         try await Firestore.firestore().document("salons/\(id)").updateData([

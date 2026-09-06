@@ -1058,6 +1058,18 @@ extension L {
         ps: "آرایشګر لرې کړئ",
         en: "Remove stylist")
 
+    // MARK: Provider offers
+    // The Android values verbatim (AppStrings.kt addOffer…offerActive).
+    // offerRemove has no Android counterpart — Android deletes from a
+    // long-press menu; this is a button and buttons need names.
+    static let addOffer = L(fa: "افزودن پیشنهاد", ps: "وړاندیز اضافه کړئ", en: "Add offer")
+    static let offerTitleHint = L(fa: "عنوان پیشنهاد (مثلاً ۲۰٪ تخفیف ناخن)", ps: "د وړاندیز سرلیک (لکه ۲۰٪ د نوکانو تخفیف)", en: "Offer title (e.g. 20% off nails)")
+    static let offerDescHint = L(fa: "توضیح (اختیاری)", ps: "تفصیل (اختیاري)", en: "Details (optional)")
+    static let offerPercentHint = L(fa: "درصد تخفیف (اختیاری)", ps: "د تخفیف سلنه (اختیاري)", en: "Discount % (optional)")
+    static let noOffersYet = L(fa: "هنوز پیشنهادی نیست", ps: "تر اوسه وړاندیز نشته", en: "No offers yet")
+    static let offerActive = L(fa: "فعال", ps: "فعال", en: "Active")
+    static let offerRemove = L(fa: "حذف پیشنهاد", ps: "وړاندیز لرې کول", en: "Remove offer")
+
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")
