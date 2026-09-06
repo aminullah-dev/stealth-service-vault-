@@ -442,6 +442,30 @@ const NOTIF_I18N = {
       ? "یو پیرودونکي تادیه کړې او ستاسو د بکینګ تایید ته انتظار باسي."
       : `${p.count} پیرودونکو تادیه کړې او ستاسو د خپلو بکینګونو تایید ته انتظار باسي.` },
   },
+  // The cash variants. A CASH booking is written status PENDING
+  // (payments.js), so it reaches the unconfirmed sweep exactly like an online
+  // one — and both of the messages above are false for it: nobody has paid,
+  // and there is nothing to refund. The customer was being promised a transfer
+  // that no refund_requests row exists for, and would wait for it.
+  PENDING_BOOKINGS_WAITING_CASH: {
+    en: { t: "Bookings waiting for you ⏳", b: (p) => p.count === 1
+      ? "A customer is waiting for you to confirm their booking."
+      : `${p.count} customers are waiting for you to confirm their bookings.` },
+    fa: { t: "رزروها در انتظار شما ⏳", b: (p) => p.count === 1
+      ? "یک مشتری منتظر تأیید رزرو توسط شماست."
+      : `${p.count} مشتری منتظر تأیید رزروهایشان توسط شما هستند.` },
+    ps: { t: "بکینګونه ستاسو په تمه دي ⏳", b: (p) => p.count === 1
+      ? "یو پیرودونکی ستاسو د بکینګ تایید ته انتظار باسي."
+      : `${p.count} پیرودونکي ستاسو د خپلو بکینګونو تایید ته انتظار باسي.` },
+  },
+  BOOKING_AUTO_CANCELLED_CASH: {
+    en: { t: "Booking cancelled", b: (p) =>
+      `${p.salon} did not confirm your booking in time, so we cancelled it. You were not charged.` },
+    fa: { t: "رزرو لغو شد", b: (p) =>
+      `${p.salon} رزرو شما را به‌موقع تأیید نکرد، بنابراین آن را لغو کردیم. مبلغی از شما گرفته نشده است.` },
+    ps: { t: "بکینګ لغوه شو", b: (p) =>
+      `${p.salon} ستاسو بکینګ په وخت سره تایید نه کړ، نو موږ یې لغوه کړ. له تاسو څخه پیسې نه دي اخیستل شوي.` },
+  },
   BOOKING_AUTO_CANCELLED: {
     en: { t: "Booking cancelled — refund on the way", b: (p) =>
       `${p.salon} did not confirm your booking in time, so we cancelled it. Your payment is being refunded.` },

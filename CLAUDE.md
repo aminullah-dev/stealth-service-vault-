@@ -57,8 +57,9 @@ silently hit "permission denied".
   `+93…`. Uniqueness is enforced **server‑side** via `lookupAccountByPhone`
   (the users collection is not client‑listable). Any phone lookup must normalize.
 - **Payments**: HesabPay. `createPaymentSession` handles online (returns a
-  checkout URL, webhook flips AWAITING_PAYMENT→PENDING) and cash (confirmed
-  immediately, commission becomes a debt on `provider_balances`). Commission and
+  checkout URL, webhook flips AWAITING_PAYMENT→PENDING) and cash (skips
+  AWAITING_PAYMENT but is still written PENDING — the salon must still accept
+  it — and commission becomes a debt on `provider_balances`). Commission and
   every discount apply here — promo code, referral credit, salon offer,
   last‑minute deal and service‑package bundle (discount math is pure/tested in
   `functions/lib/money.js`). It also rejects a slot already taken on the same

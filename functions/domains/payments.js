@@ -552,8 +552,12 @@ exports.createPaymentSession = onCall(
     const providerId        = salon.providerId || "";
 
     // ── Cash path: the customer pays the salon in person, so the platform
-    // never receives the money. The booking is confirmed immediately (no
-    // payment to await) and the platform's commission becomes a debt the
+    // never receives the money. There is no payment to await, so the booking
+    // skips AWAITING_PAYMENT — but it is written PENDING, not CONFIRMED: the
+    // salon still has to accept it. This comment used to say "confirmed
+    // immediately", which is what made the unconfirmed sweep tell a cash
+    // customer her payment was being refunded. The platform's commission
+    // becomes a debt the
     // provider owes, deducted automatically from their next online-payment
     // payout (see recordProviderPayout, which refuses to pay out <= 0).
     if (paymentMethod === "CASH") {

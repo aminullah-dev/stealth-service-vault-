@@ -1008,16 +1008,24 @@ exports.nudgeUnconfirmedBookings = onSchedule(
 
     let notified = 0;
     for (const [providerId, docs] of byProvider) {
+      const allCash = docs.every((x) => x.data().paymentMethod === "CASH");
       const batch = db.batch();
       batch.set(db.collection("notifications").doc(), {
         recipientId: providerId,
         type:        "NEW_BOOKING",             // taps route to the requests tab
-        msgKey:      "PENDING_BOOKINGS_WAITING",
+        // "has paid" is false for a cash booking, and cash bookings are written
+        // PENDING like any other, so they reach this sweep too. Only claimed
+        // when every booking in the group actually was paid.
+        msgKey:      allCash ? "PENDING_BOOKINGS_WAITING_CASH" : "PENDING_BOOKINGS_WAITING",
         msgParams:   { count: docs.length },
         title:       "Bookings waiting for you ⏳",
-        body:        docs.length === 1
-          ? "A customer has paid and is waiting for you to confirm their booking."
-          : `${docs.length} customers have paid and are waiting for you to confirm their bookings.`,
+        body:        allCash
+          ? (docs.length === 1
+              ? "A customer is waiting for you to confirm their booking."
+              : `${docs.length} customers are waiting for you to confirm their bookings.`)
+          : (docs.length === 1
+              ? "A customer has paid and is waiting for you to confirm their booking."
+              : `${docs.length} customers have paid and are waiting for you to confirm their bookings.`),
         isRead:      false,
         createdAt:   now,
         relatedId:   docs[0].id,
@@ -1070,6 +1078,7 @@ exports.nudgeUnconfirmedBookings = onSchedule(
     let cancelled = 0;
     for (const d of expired) {
       const appt = d.data();
+      const isCash = appt.paymentMethod === "CASH";
       try {
         // Reuses the same path as a provider decline, so the refund request,
         // the payment status and the provider's owed balance all unwind exactly
@@ -1079,10 +1088,14 @@ exports.nudgeUnconfirmedBookings = onSchedule(
         await db.collection("notifications").add({
           recipientId: appt.customerId,
           type:        "BOOKING_CANCELLED",
-          msgKey:      "BOOKING_AUTO_CANCELLED",
+          // A CASH booking took no money, so there is no refund to promise and
+          // no refund_requests row behind one. She would have waited for it.
+          msgKey:      isCash ? "BOOKING_AUTO_CANCELLED_CASH" : "BOOKING_AUTO_CANCELLED",
           msgParams:   { salon: appt.salonName || "The salon" },
-          title:       "Booking cancelled — refund on the way",
-          body:        `${appt.salonName || "The salon"} did not confirm your booking in time, so we cancelled it. Your payment is being refunded.`,
+          title:       isCash ? "Booking cancelled" : "Booking cancelled — refund on the way",
+          body:        isCash
+            ? `${appt.salonName || "The salon"} did not confirm your booking in time, so we cancelled it. You were not charged.`
+            : `${appt.salonName || "The salon"} did not confirm your booking in time, so we cancelled it. Your payment is being refunded.`,
           isRead:      false,
           createdAt:   Date.now(),
           relatedId:   d.id,
