@@ -97,8 +97,13 @@ struct SignedInView: View {
                     .tabItem { Label(L.discover.t, systemImage: "sparkles") }
                 MyBookingsView()
                     .tabItem { Label(L.myBookings.t, systemImage: "calendar") }
-                NotificationsView()
-                    .tabItem { Label(L.notifications.t, systemImage: "bell") }
+                // Favourites, where notifications used to be. Notifications
+                // moved to the bell in the salon list's header — the same trade
+                // Android makes, because five tabs is the whole budget and a
+                // list she opens once a week was holding a slot the salons she
+                // saved had no room in.
+                FavoritesView()
+                    .tabItem { Label(L.favorites.t, systemImage: "heart") }
                 ProfileView()
                     .tabItem { Label(L.profile.t, systemImage: "person") }
             }

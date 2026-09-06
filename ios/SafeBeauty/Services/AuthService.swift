@@ -91,6 +91,7 @@ final class AuthService {
         }
         session = stored.session
         PushService.shared.bind(uid: stored.session.uid)
+        FavoritesStore.shared.bind(uid: stored.session.uid)
     }
 
     private func persist(_ session: Session, firebaseEmail: String) {
@@ -166,6 +167,7 @@ final class AuthService {
         // here rather than at launch: a permission sheet makes sense once she
         // has an account that things can happen to.
         PushService.shared.bind(uid: uid)
+        FavoritesStore.shared.bind(uid: uid)
         Task { await PushService.shared.requestAuthorisation() }
     }
 
@@ -367,6 +369,7 @@ final class AuthService {
         session = newSession
         persist(newSession, firebaseEmail: firebaseEmail)
         PushService.shared.bind(uid: uid)
+        FavoritesStore.shared.bind(uid: uid)
         Task { await PushService.shared.requestAuthorisation() }
 
         // The bridge, written LAST on purpose. Her account exists and she is
@@ -406,6 +409,7 @@ final class AuthService {
         // Before the session goes: a token left behind would send the next
         // person to hold this phone somebody else's bookings.
         PushService.shared.unbind()
+        FavoritesStore.shared.unbind()
         bridgePending = false
         try? Auth.auth().signOut()
         // Cleared before the in-memory copy, so a crash between the two lines

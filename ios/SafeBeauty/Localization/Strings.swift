@@ -463,6 +463,17 @@ extension L {
     static let searchSalons = L(fa: "جستجوی سالن یا خدمات", ps: "د سالون یا خدمتونو لټون",
                                 en: "Search salons or services")
     static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
+    static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
+    static let noFavourites = L(fa: "هنوز سالنی را نشان نکرده‌اید.",
+                                ps: "تر اوسه مو کوم سالون نه دی خوښ کړی.",
+                                en: "You have not saved any salons yet.")
+    static let noFavouritesHint = L(fa: "روی ❤ در کنار نام سالن بزنید تا اینجا بماند.",
+                                    ps: "د سالون د نوم تر څنګ ❤ کېکاږئ چې دلته پاتې شي.",
+                                    en: "Tap ❤ beside a salon to keep it here.")
+    static let addFavourite = L(fa: "افزودن به علاقه‌مندی‌ها", ps: "خوښو ته زیاتول",
+                                en: "Add to favorites")
+    static let removeFavourite = L(fa: "برداشتن از علاقه‌مندی‌ها", ps: "له خوښو لرې کول",
+                                   en: "Remove from favorites")
     static let allNeighbourhoods = L(fa: "همه محله‌ها", ps: "ټول ګاونډونه",
                                      en: "All neighborhoods")
 

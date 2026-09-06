@@ -339,6 +339,11 @@ struct SalonDetailView: View {
                         .foregroundStyle(Brand.gold)
                         .accessibilityLabel(L.verified.t)
                 }
+                Spacer(minLength: 8)
+                // Also here, not only on the card. This is the screen she reads
+                // before deciding, and the decision to keep a salon is made
+                // while reading it — not afterwards, back in a list.
+                FavoriteButton(salonId: salon.id, size: 21)
             }
             HStack(spacing: 10) {
                 if salon.rating > 0 {

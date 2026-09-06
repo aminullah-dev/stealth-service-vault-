@@ -8,6 +8,7 @@ struct SalonListView: View {
     @State private var city: String?
     @State private var area: String?
     @State private var showMap = false
+    @State private var showNotifications = false
 
     /// Filtered on the client, not by re-querying.
     ///
@@ -293,8 +294,20 @@ struct SalonListView: View {
                     }
                     .accessibilityLabel(L.map.t)
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    // Android puts the bell in the header and gives the fifth
+                    // tab to favourites. Five slots is the whole budget, and a
+                    // list she opens once a week should not hold one while the
+                    // salons she saved have nowhere to live.
+                    Button { showNotifications = true } label: {
+                        Image(systemName: "bell").foregroundStyle(Brand.accent)
+                            .accessibilityLabel(L.notifications.t)
+                    }
+                    .accessibilityLabel(L.notifications.t)
+                }
             }
             .sheet(isPresented: $showMap) { SalonMapView().appDirection() }
+            .sheet(isPresented: $showNotifications) { NotificationsView().appDirection() }
         }
         .task { repo.start() }
     }
@@ -398,6 +411,11 @@ struct SalonRow: View {
                 }
             }
             Spacer(minLength: 0)
+            // Outside the NavigationLink's label would be cleaner, but a List
+            // row's whole label is the tap target — so the heart lives here and
+            // takes its own tap with .buttonStyle(.plain), which stops the row
+            // from also navigating.
+            FavoriteButton(salonId: salon.id)
         }
         .padding(.vertical, 7)
     }
