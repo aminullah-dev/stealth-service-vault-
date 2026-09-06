@@ -76,24 +76,41 @@ public enum DayGrid {
     /// Returns nothing when the salon is closed that day, which is different
     /// from returning an empty grid because the day is full — the caller shows
     /// different words for each.
+    /// `span` is how many slots the whole booking occupies, not how many the
+    /// first service does. It defaults to 1 only so an existing caller that has
+    /// no booking in hand still compiles; every caller offering times for a real
+    /// selection must pass the layout's span.
+    ///
+    /// `blockedDates` are "yyyy-MM-dd" in Kabul local time, the form the salon
+    /// stores and createPaymentSession compares against.
     public static func slots(
         for date: Date,
         hours: [WorkingHours],
         slotMinutes: Int,
+        span: Int = 1,
+        blockedDates: [String] = [],
         now: Date = Date()
     ) -> [Int64] {
         let step = max(minimumSlotMinutes, slotMinutes)
+        let spanSlots = max(1, span)
         let weekday = weekday(of: date)
         guard let today = hours.first(where: { $0.dayOfWeek == weekday }), today.isOpen else {
             return []
         }
+        // A day the owner closed is not a short day, it is no day. The server
+        // refuses the booking with SALON_CLOSED, so offering times here would
+        // only take her as far as the payment screen.
+        if !blockedDates.isEmpty && blockedDates.contains(dayKey(date)) { return [] }
 
         let midnight = dayStart(date)
         var out: [Int64] = []
         var minute = today.openMinuteOfDay
-        // The last slot must END by closing time, not start at it — a salon
-        // that closes at 18:00 does not begin a 90-minute appointment at 17:30.
-        while minute + step <= today.closeMinuteOfDay {
+        // The WHOLE booking must end by closing time, not merely its first slot.
+        // This read `minute + step`, so a salon closing at 18:00 offered 17:30
+        // for a ninety-minute appointment — and the server refused it with
+        // AFTER_CLOSING, whose rule is `minuteOfDay + span * step > close`
+        // (functions/lib/hours.js). The grid now asks the same question.
+        while minute + step * spanSlots <= today.closeMinuteOfDay {
             let start = midnight.addingTimeInterval(TimeInterval(minute * 60))
             // A slot already past is not bookable. Compared as instants rather
             // than by comparing hour numbers, so the half-hour offset cannot
@@ -104,6 +121,18 @@ public enum DayGrid {
             minute += step
         }
         return out
+    }
+
+    /// A date as the salon stores it: "yyyy-MM-dd" in Kabul, which is UTC+4:30.
+    /// Formatting this in the phone's zone would put a customer in Toronto on
+    /// the wrong side of the date line for half of every day.
+    public static func dayKey(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = kabul
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
     }
 
     /// Whether a salon can be booked on any day at all.

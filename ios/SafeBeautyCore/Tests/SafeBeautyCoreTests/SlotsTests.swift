@@ -241,3 +241,81 @@ struct ReviewEligibilityTests {
         #expect(!ReviewEligibility.canReview(booking(.awaitingPayment, daysFromNow: -1)))
     }
 }
+
+/// The grid the customer actually sees, against the rules the server enforces.
+///
+/// Every expectation here mirrors a specific server check: AFTER_CLOSING in
+/// `functions/lib/hours.js` (`minuteOfDay + span * step > close`) and
+/// SALON_CLOSED in `createPaymentSession`. A grid that is wider than either
+/// offers a time that is refused at payment, after she has chosen it.
+@Suite("The day grid refuses what the server would refuse")
+struct DayGridBoundsTests {
+
+    private func week(open: Int, close: Int) -> [WorkingHours] {
+        (1...7).map { WorkingHours(dayOfWeek: $0, openHour: open, closeHour: close) }
+    }
+
+    /// A fixed day well in the past for `now`, so nothing is filtered as gone.
+    private var day: Date { Date(timeIntervalSince1970: 1_800_000_000) }
+    private var longAgo: Date { Date(timeIntervalSince1970: 0) }
+
+    @Test("the whole booking must end by closing, not just its first slot")
+    func spanMustFit() {
+        let hours = week(open: 9, close: 18)
+        let one = DayGrid.slots(for: day, hours: hours, slotMinutes: 30,
+                                span: 1, now: longAgo)
+        let three = DayGrid.slots(for: day, hours: hours, slotMinutes: 30,
+                                  span: 3, now: longAgo)
+        // 09:00–18:00 at 30 minutes is 18 starts for a one-slot booking. A
+        // three-slot booking cannot start in the last two of them.
+        #expect(one.count == 18)
+        #expect(three.count == 16)
+        #expect(three.last! < one.last!, "the 90-minute booking cannot take 17:30")
+    }
+
+    @Test("a span of one is unchanged, so nothing shifts for a simple booking")
+    func spanOneIsTheOldBehaviour() {
+        let hours = week(open: 9, close: 18)
+        #expect(DayGrid.slots(for: day, hours: hours, slotMinutes: 60, now: longAgo)
+                == DayGrid.slots(for: day, hours: hours, slotMinutes: 60,
+                                 span: 1, now: longAgo))
+    }
+
+    @Test("a booking too long for the whole day is offered no times at all")
+    func nothingFitsAtAll() {
+        // Better than offering a start the server refuses: she is told the day
+        // has nothing rather than choosing a time and being turned away.
+        let hours = week(open: 9, close: 12)
+        #expect(DayGrid.slots(for: day, hours: hours, slotMinutes: 60,
+                              span: 4, now: longAgo).isEmpty)
+    }
+
+    @Test("a blocked day is empty, whatever the working hours say")
+    func blockedDayIsEmpty() {
+        let hours = week(open: 9, close: 18)
+        let key = DayGrid.dayKey(day)
+        #expect(!DayGrid.slots(for: day, hours: hours, slotMinutes: 30, now: longAgo).isEmpty)
+        #expect(DayGrid.slots(for: day, hours: hours, slotMinutes: 30,
+                              blockedDates: [key], now: longAgo).isEmpty)
+    }
+
+    @Test("another day's block does not close this one")
+    func onlyTheBlockedDay() {
+        let hours = week(open: 9, close: 18)
+        #expect(!DayGrid.slots(for: day, hours: hours, slotMinutes: 30,
+                               blockedDates: ["1999-01-01"], now: longAgo).isEmpty)
+    }
+
+    @Test("the day key is Kabul's, not the phone's")
+    func dayKeyIsKabul() {
+        // 2027-01-15 20:00 UTC is already the 16th in Kabul (UTC+4:30). A phone
+        // in Toronto formatting locally would call it the 15th and miss a block
+        // the salon set for the 16th.
+        let d = Date(timeIntervalSince1970: 1_800_216_000)
+        let kabul = DateFormatter()
+        kabul.timeZone = DayGrid.kabul
+        kabul.locale = Locale(identifier: "en_US_POSIX")
+        kabul.dateFormat = "yyyy-MM-dd"
+        #expect(DayGrid.dayKey(d) == kabul.string(from: d))
+    }
+}

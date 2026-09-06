@@ -20,7 +20,7 @@ public enum Slots {
     }
 
     /// Where a service's time goes: occupied, then unattended, then occupied.
-    public struct Timing: Sendable, Equatable {
+    public struct Timing: Sendable, Equatable, Hashable, Codable {
         public let activeBefore: Int   // minutes the stylist is with her
         public let processing: Int     // minutes the chair is free — dye developing
         public let activeAfter: Int

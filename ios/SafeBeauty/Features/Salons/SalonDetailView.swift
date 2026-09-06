@@ -18,6 +18,9 @@ struct SalonDetailView: View {
     @State private var selectedSlot: Int64?
     @State private var booked: [Appointment] = []
     @State private var isLoadingSlots = false
+    /// Whether the last getBookedSlots read failed. A failed read is not an
+    /// empty diary — treating it as one offers every hour of the day as free.
+    @State private var slotsUnavailable = false
     @State private var showBooking = false
     @State private var showKyc = false
     @State private var reviews: [Review] = []
@@ -35,14 +38,22 @@ struct SalonDetailView: View {
     /// asks for two hours — offering a slot that only fits one is how someone
     /// picks a time the server then refuses.
     private var availableSlots: [Int64] {
+        // The salon's own timings, not empty maps. These were `[:]`, so the
+        // client laid every service out as one slot while the server built the
+        // span from the stored durations — the narrow direction, which offers
+        // times the server then refuses at payment, after she has chosen one
+        // and started paying.
         let layout = Slots.serviceLayout(
             serviceNames: Array(selectedServices),
-            durationPerService: [:],
+            timings: salon.serviceTiming,
+            durationPerService: salon.durationPerService,
             slotMinutes: salon.slotDurationMinutes)
 
         return DayGrid.slots(for: selectedDay,
                              hours: salon.workingHours,
-                             slotMinutes: salon.slotDurationMinutes)
+                             slotMinutes: salon.slotDurationMinutes,
+                             span: layout.span,
+                             blockedDates: salon.blockedDates)
             .filter { start in
                 !Slots.hasConflict(
                     existing: booked, requestedStart: start,
@@ -131,6 +142,12 @@ struct SalonDetailView: View {
                     if isLoadingSlots {
                         ProgressView().tint(Brand.accent)
                             .frame(maxWidth: .infinity, alignment: .center)
+                    } else if slotsUnavailable {
+                        // Three reasons now, not two. "Could not load" is not
+                        // "fully booked", and it is certainly not a free day.
+                        Text(L.couldNotLoad.t)
+                            .font(Brand.font(14))
+                            .foregroundStyle(Color(hex: 0xC0392B))
                     } else if availableSlots.isEmpty {
                         // Two different reasons, two different sentences: a
                         // salon that is shut that day is not a salon that is
@@ -265,11 +282,24 @@ struct SalonDetailView: View {
 
         let start = DayGrid.dayStart(selectedDay)
         let end = start.addingTimeInterval(24 * 3600)
-        let response = try? await Callables.call("getBookedSlots", [
-            "salonId": .string(salon.id),
-            "dayStart": .int(Int(start.timeIntervalSince1970 * 1000)),
-            "dayEnd": .int(Int(end.timeIntervalSince1970 * 1000)),
-        ])
+        // Not `try?`. A swallowed failure here left `booked` empty, and an empty
+        // booked list means "nothing is taken" — so a salon that is full renders
+        // as a whole day of free times, and she picks one the server refuses.
+        // The read failing is a different thing from the diary being empty and
+        // she is told which.
+        let response: JSON?
+        do {
+            response = try await Callables.call("getBookedSlots", [
+                "salonId": .string(salon.id),
+                "dayStart": .int(Int(start.timeIntervalSince1970 * 1000)),
+                "dayEnd": .int(Int(end.timeIntervalSince1970 * 1000)),
+            ])
+            slotsUnavailable = false
+        } catch {
+            slotsUnavailable = true
+            booked = []
+            return
+        }
 
         // Each entry becomes a one-slot appointment: the server has already
         // expanded multi-slot bookings into individual busy times, so nothing

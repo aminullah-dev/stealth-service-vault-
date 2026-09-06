@@ -58,6 +58,23 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
     public var staff: [StaffMember] = []
     public var workingHours: [WorkingHours] = []
 
+    /// Days the owner has closed, as "yyyy-MM-dd" in KABUL local time — the
+    /// form createPaymentSession compares against. Not decoding this was not a
+    /// cosmetic gap: the grid rendered a blocked day as an ordinary full one
+    /// and every booking on it was refused at the till.
+    public var blockedDates: [String] = []
+
+    /// How long each service takes, in minutes, when the salon has said.
+    /// Absent means one slot, which is what most salons mean.
+    public var durationPerService: [String: Int] = [:]
+
+    /// The per-service breakdown for services with a gap in the middle — dye
+    /// developing, where the chair is free but the booking is not over. The
+    /// server lays the booking out from this; a client that ignores it computes
+    /// a shorter footprint than the server does, which is the direction that
+    /// gets refused at payment after she has chosen a time.
+    public var serviceTiming: [String: Slots.Timing] = [:]
+
     /// True once the owner has actually pinned the salon.
     ///
     /// 0,0 is the Gulf of Guinea, and one production salon was sitting at
@@ -80,6 +97,7 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         case rating, sortRating, confirmedCount, minPrice
         case isAvailable, isVerified
         case coverImageUrl, latitude, longitude, slotDurationMinutes, staff, workingHours
+        case blockedDates, durationPerService, serviceTiming
     }
 
     public init(from decoder: Decoder) throws {
@@ -107,5 +125,20 @@ public struct Salon: Codable, Identifiable, Hashable, Sendable {
         confirmedCount = int(.confirmedCount); minPrice = int(.minPrice)
         slotDurationMinutes = int(.slotDurationMinutes, 60)
         isAvailable = bool(.isAvailable); isVerified = bool(.isVerified)
+
+        blockedDates = (try? c.decodeIfPresent([String].self, forKey: .blockedDates)).flatMap { $0 } ?? []
+        durationPerService =
+            (try? c.decodeIfPresent([String: Int].self, forKey: .durationPerService)).flatMap { $0 } ?? [:]
+        // Decoded field by field rather than through a synthesised Codable:
+        // a salon that has set the timing for one service and left another
+        // half-written should lose that one entry, not the whole map.
+        let rawTiming =
+            (try? c.decodeIfPresent([String: [String: Int]].self, forKey: .serviceTiming)).flatMap { $0 } ?? [:]
+        serviceTiming = rawTiming.reduce(into: [:]) { out, pair in
+            out[pair.key] = Slots.Timing(
+                activeBefore: pair.value["activeBefore"] ?? 0,
+                processing:   pair.value["processing"]   ?? 0,
+                activeAfter:  pair.value["activeAfter"]  ?? 0)
+        }
     }
 }
