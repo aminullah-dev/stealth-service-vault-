@@ -114,7 +114,36 @@ function commissionToReturn(payment) {
   return Math.round(amount);
 }
 
+/**
+ * The founding-salon offer: the first FOUNDING_FREE_BOOKINGS bookings of a
+ * salon we recruited during the launch carry no commission.
+ *
+ * `confirmedCount` is the counter the salon already keeps, so bookings that
+ * were cancelled do not burn the allowance — which is the fair reading of
+ * "your first 50 bookings" and the one a salon owner would expect.
+ *
+ * Gated on an explicit flag rather than on age or salon count, so the offer
+ * ends when someone decides it ends rather than by accident. The flag is
+ * admin-set and frozen against provider writes in firestore.rules: a salon
+ * that could set it would be setting its own commission to zero.
+ */
+const FOUNDING_FREE_BOOKINGS = 50;
+
+function isCommissionFree(salon) {
+  if (!salon || typeof salon !== "object") return false;
+  if (salon.foundingSalon !== true) return false;
+  // Strict about the type, not merely about the value. Number(null) is 0 and
+  // Number("12") is 12, so a coercing check hands free bookings to a salon
+  // whose counter is missing or malformed. This decides money, so anything
+  // that is not a real count charges commission.
+  const used = salon.confirmedCount;
+  return typeof used === "number" && Number.isInteger(used)
+      && used >= 0 && used < FOUNDING_FREE_BOOKINGS;
+}
+
 module.exports = {
+  FOUNDING_FREE_BOOKINGS,
+  isCommissionFree,
   LEDGER_VERSION,
   writtenWithWalletCredit,
   shouldReverseCommission,

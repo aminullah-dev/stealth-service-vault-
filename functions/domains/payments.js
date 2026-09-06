@@ -7,7 +7,7 @@ const { capDiscount, computeCheckout, DEFAULT_MAX_DISCOUNT_FRACTION, lastMinuteD
 const { SlotTakenError, commitBookingAtomically, pendingWrites, slotConflictWindow } = require("../lib/reservation");
 const { hasSlotConflict, serviceLayout } = require("../lib/slots");
 const { cashAllowed } = require("../lib/commitment");
-const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta } = require("../lib/commission");
+const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta, isCommissionFree } = require("../lib/commission");
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
@@ -466,7 +466,10 @@ exports.createPaymentSession = onCall(
     // remaining amount; the used portion is deducted from their balance when the
     // booking completes (immediately for cash; in the webhook for online). The
     // arithmetic lives in lib/money.js so it can be unit-tested without Firebase.
-    const commissionPercent = await getCommissionPercent();
+    // Zero for a founding salon that still has bookings left on the offer —
+    // "first 50 bookings, no commission", which sb-owner-founding.json has been
+    // promising with nothing behind it.
+    const commissionPercent = isCommissionFree(salon) ? 0 : await getCommissionPercent();
     // Capped, not just summed. Four discounts land on one booking and three of
     // them are the salon's own — it may discount itself as deeply as it likes.
     // The promo code is not: an admin issues it and it stacks on top of whatever

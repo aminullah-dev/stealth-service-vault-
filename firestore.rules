@@ -300,6 +300,8 @@ service cloud.firestore {
                      // can't self-award a GOLD/SILVER badge (badge() thresholds on
                      // both) or a top rating: confirmedCount by confirmAppointment,
                      // and rating by the awardReviewPoints review trigger.
+                     && request.resource.data.get('foundingSalon', false)
+                          == resource.data.get('foundingSalon', false)
                      && request.resource.data.get('confirmedCount', 0)
                           == resource.data.get('confirmedCount', 0)
                      && request.resource.data.get('rating', 0)

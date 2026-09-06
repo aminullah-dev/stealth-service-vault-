@@ -2,7 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert");
-const { commissionToReturn, shouldReverseCommission } = require("../lib/commission");
+const { commissionToReturn, shouldReverseCommission , isCommissionFree } = require("../lib/commission");
 
 const cash = (over = {}) => ({
   method: "CASH",
@@ -172,3 +172,36 @@ test("a malformed payment moves the ledger by nothing rather than by NaN", () =>
   assert.strictEqual(cashLedgerDelta(paid({ commissionAmount: "x", referralUsed: null })), 0);
   assert.strictEqual(onlineLedgerDelta(paid({ providerNet: undefined, referralUsed: "y" })), 0);
 })
+
+// ── the founding-salon offer ─────────────────────────────────────────────────
+//
+// sb-owner-founding.json promises "your first 50 bookings, no commission" to
+// the salons recruited at launch. It had nothing behind it: commission was one
+// global percentage applied from the first booking onward.
+
+test("a founding salon pays no commission until it has used the offer", () => {
+  assert.strictEqual(isCommissionFree({ foundingSalon: true, confirmedCount: 0 }), true);
+  assert.strictEqual(isCommissionFree({ foundingSalon: true, confirmedCount: 49 }), true);
+  assert.strictEqual(isCommissionFree({ foundingSalon: true, confirmedCount: 50 }), false,
+    "the 51st booking is the first that pays");
+  assert.strictEqual(isCommissionFree({ foundingSalon: true, confirmedCount: 900 }), false);
+});
+
+test("an ordinary salon is never commission-free", () => {
+  // The flag is the whole gate. Without it the offer would quietly apply to
+  // every salon that ever joins, which is a different business than the one
+  // being advertised.
+  assert.strictEqual(isCommissionFree({ confirmedCount: 0 }), false);
+  assert.strictEqual(isCommissionFree({ foundingSalon: false, confirmedCount: 0 }), false);
+  assert.strictEqual(isCommissionFree({ foundingSalon: "true", confirmedCount: 0 }), false,
+    "a string is not the flag");
+});
+
+test("a missing or nonsense count does not hand out a free booking", () => {
+  for (const bad of [undefined, null, "", "12", NaN, -1, {}]) {
+    assert.strictEqual(isCommissionFree({ foundingSalon: true, confirmedCount: bad }), false,
+      String(bad));
+  }
+  assert.strictEqual(isCommissionFree(null), false);
+  assert.strictEqual(isCommissionFree(undefined), false);
+});
