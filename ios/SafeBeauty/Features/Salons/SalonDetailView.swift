@@ -69,6 +69,9 @@ struct SalonDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                cover
+                    .padding(.horizontal, -22)   // full-bleed inside the padded stack
+                    .padding(.top, -12)
                 header
 
                 // Said before she picks a time, not after she has chosen one
@@ -137,6 +140,13 @@ struct SalonDetailView: View {
                     // and the first day she sees is next week — verified on the
                     // simulator, where today was off-screen and Tuesday was the
                     // first thing visible.
+                    // Full-bleed, with the inset moved onto the scroll CONTENT.
+                    // Inside the page's 22pt padding the first chip — today —
+                    // was clipped by the viewport edge, so the one day she is
+                    // most likely to want was the one she could not read.
+                    // contentMargins gives the row its own breathing space and
+                    // lets the last chip run to the edge, which is also the
+                    // honest signal that there are more days to scroll to.
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 9) {
                             ForEach(days, id: \.timeIntervalSince1970) { day in
@@ -149,8 +159,9 @@ struct SalonDetailView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, 2)
                     }
+                    .contentMargins(.horizontal, 22, for: .scrollContent)
+                    .padding(.horizontal, -22)
                     .defaultScrollAnchor(.leading)
                 }
 
@@ -206,17 +217,42 @@ struct SalonDetailView: View {
                     }
                 }
 
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+        }
+        .background(Brand.cream.ignoresSafeArea())
+        // The one action this page exists for, pinned rather than scrolled to.
+        // It sat at the bottom of the content, so on a salon with services,
+        // seven days, a full grid and reviews it was several screens below the
+        // time she had just chosen — and the moment after choosing is exactly
+        // when she is ready to book. safeAreaInset keeps the scroll content
+        // clear of it rather than covering the last row.
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 6) {
+                // The total, so the price is in front of her at the moment she
+                // commits rather than only inside the sheet that follows.
+                if total > 0 {
+                    HStack(spacing: 4) {
+                        Text(L.total.t).font(Brand.font(12.5)).foregroundStyle(Brand.accent)
+                        Text(verbatim: "\(total)")
+                            .font(Brand.font(14, .bold)).foregroundStyle(Brand.ink)
+                            .environment(\.layoutDirection, .leftToRight)
+                        Text(L.afn.t).font(Brand.font(12.5)).foregroundStyle(Brand.accent)
+                    }
+                }
                 BrandButton(title: .book,
                             isEnabled: !selectedServices.isEmpty && selectedSlot != nil
                                        && auth.session?.kycStatus == "APPROVED") {
                     showBooking = true
                 }
-                .padding(.bottom, 30)
             }
             .padding(.horizontal, 22)
-            .padding(.top, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+            .background(.regularMaterial)
         }
-        .background(Brand.cream.ignoresSafeArea())
         .navigationTitle(salon.salonName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadSlots(); await loadReviews() }
@@ -261,7 +297,28 @@ struct SalonDetailView: View {
         return !(salon.workingHours.first { $0.dayOfWeek == weekday }?.isOpen ?? false)
     }
 
+    /// The salon's own photo, full width. Same field the list now uses, and
+    /// the same reason: the room is what she is choosing. Shown only when
+    /// there is one — a placeholder band of grey at the top of every salon
+    /// that has not uploaded a photo makes the page look broken rather than
+    /// plain.
     @ViewBuilder
+    private var cover: some View {
+        if let url = URL(string: salon.coverImageUrl), !salon.coverImageUrl.isEmpty {
+            AsyncImage(url: url) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    Brand.petal.opacity(0.35)
+                }
+            }
+            .frame(height: 180)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .accessibilityHidden(true)   // decorative; the name is right below it
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -272,8 +329,21 @@ struct SalonDetailView: View {
                         .accessibilityLabel(L.verified.t)
                 }
             }
-            if !salon.district.isEmpty {
-                Text(salon.district).font(Brand.font(13)).foregroundStyle(Brand.accent)
+            HStack(spacing: 10) {
+                if salon.rating > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12)).foregroundStyle(Brand.gold)
+                        Text(String(format: "%.1f", salon.rating))
+                            .font(Brand.font(13, .medium)).foregroundStyle(Brand.ink)
+                            .environment(\.layoutDirection, .leftToRight)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(L.ratingLabel(salon.rating, salon.confirmedCount))
+                }
+                if !salon.district.isEmpty {
+                    Text(salon.district).font(Brand.font(13)).foregroundStyle(Brand.accent)
+                }
             }
         }
     }
