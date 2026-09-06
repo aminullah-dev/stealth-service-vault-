@@ -148,6 +148,13 @@ struct SalonListView: View {
     /// the sort alone, and the sort flips only once a coordinate is in hand.
     /// A chip that lights up while the list has not moved is a lie about what
     /// she is looking at.
+    @ViewBuilder
+    private func areaChoices(_ keys: [String]) -> some View {
+        ForEach(keys, id: \.self) { key in
+            MenuChoice(Areas.label(key), isSelected: activeArea == key) { area = key }
+        }
+    }
+
     private func resetFilters() {
         filters = SalonFilters()
         wantsNearest = false
@@ -300,27 +307,47 @@ struct SalonListView: View {
         return area
     }
 
-    /// The areas of that city that a salon is actually in.
+    /// Every ناحیه of the city.
     ///
-    /// The ناحیه and محله levels both appear, because both are how an address is
-    /// given here — but only where a salon holds that key. Kabul has 64 areas
-    /// and a row of 64 chips of which two lead anywhere is a filter that hides
-    /// its own answers.
-    ///
-    /// Ordered by `areasIn`, which is Areas.kt's own order — ناحیه‌ها first,
-    /// then the محله‌ها — rather than by `filterableIn`, which walks parents and
-    /// so returns Kabul's 22 districts and none of its 42 neighbourhoods,
-    /// because Kabul's neighbourhoods have no parent recorded.
-    private var areasHere: [String] {
+    /// The whole list, not the ones a salon happens to be in. This used to be
+    /// built from the data on the argument that a row of 64 chips of which two
+    /// lead anywhere hides its own answers — which was true of a row of chips
+    /// and is not true of a menu. "No salon in ناحیه ۵ yet" is an answer, and
+    /// the empty state gives it along with Clear filters. A customer who cannot
+    /// even ask the question gets no answer at all.
+    private var districtsHere: [String] {
         guard let city = activeCity else { return [] }
+        return Areas.districtsIn(city).map(\.key)
+    }
+
+    /// Every محله and گذر of the city.
+    ///
+    /// From `areasIn` minus the districts, deliberately not from `filterableIn`
+    /// — that one reaches a neighbourhood only through its parent district, and
+    /// none of Kabul's 42 has a parent recorded, so it returns 22 districts and
+    /// nothing else. Android's dropdown is built that way and cannot offer
+    /// خیرخانه, which is where one of the two live salons is.
+    private var neighbourhoodsHere: [String] {
+        guard let city = activeCity else { return [] }
+        return Areas.areasIn(city).filter { $0.kind != .district }.map(\.key)
+    }
+
+    /// Keys a salon holds that this build has never heard of.
+    ///
+    /// Free text an older salon typed, resolved to nothing. Offered last rather
+    /// than dropped: it is where that salon says it is, and leaving it out of
+    /// the menu hides the salon.
+    private var unlistedHere: [String] {
+        guard let city = activeCity else { return [] }
+        let known = Set(Areas.areasIn(city).map(\.key))
         let present = Set(afterCategory.filter { cityOf($0) == city }
             .map(areaIdentity)
             .filter { !$0.isEmpty })
-        let known = Areas.areasIn(city).map(\.key).filter(present.contains)
-        // Free text an older salon typed sorts in after the known keys rather
-        // than being dropped: it is where that salon says it is, and hiding the
-        // chip would hide the salon.
-        return known + present.subtracting(known).sorted()
+        return present.subtracting(known).sorted()
+    }
+
+    private var areasHere: [String] {
+        districtsHere + neighbourhoodsHere + unlistedHere
     }
 
     var body: some View {
@@ -425,36 +452,61 @@ struct SalonListView: View {
                             }
                         }
                     }
-                    if !cities.isEmpty {
-                        ChipRow {
-                            FilterChip(label: L.allCities.t, isSelected: selectedCity == nil) {
-                                city = nil; area = nil
+                    // Menus rather than chip rows, the way Android has always
+                    // had them. A chip row can only carry what fits, so it was
+                    // built from the data and offered whatever the two live
+                    // salons happened to hold; a menu carries the whole
+                    // vocabulary, which is what a customer needs to ask "is
+                    // there anyone in ناحیه ۵".
+                    if !repo.salons.isEmpty {
+                        VStack(spacing: 8) {
+                            DropdownField(icon: "building.2",
+                                          value: selectedCity.map(Areas.cityName)
+                                              ?? L.allCities.t) {
+                                MenuChoice(L.allCities.t, isSelected: selectedCity == nil) {
+                                    city = nil; area = nil
+                                }
+                                ForEach(cities, id: \.self) { c in
+                                    MenuChoice(Areas.cityName(c), isSelected: selectedCity == c) {
+                                        // Her old area belongs to the city she
+                                        // just left, so keeping it would filter
+                                        // the new city down to nothing.
+                                        if city != c { area = nil }
+                                        city = c
+                                    }
+                                }
                             }
-                            ForEach(cities, id: \.self) { c in
-                                FilterChip(label: Areas.cityName(c), isSelected: selectedCity == c) {
-                                    // Her old area belongs to the city she just
-                                    // left, so keeping it would filter the new
-                                    // city down to nothing.
-                                    if city != c { area = nil }
-                                    city = c
+                            // Second level, and only inside one city: areas are
+                            // only meaningful within a city, and «ناحیه ۱» of
+                            // Kabul beside «ناحیه ۱» of Herat is two entries
+                            // with nothing to tell them apart.
+                            if activeCity != nil {
+                                DropdownField(icon: "mappin.and.ellipse",
+                                              value: activeArea.map(Areas.label)
+                                                  ?? L.allNeighbourhoods.t) {
+                                    MenuChoice(L.allNeighbourhoods.t,
+                                               isSelected: activeArea == nil) { area = nil }
+                                    // Sectioned by level, because that is what
+                                    // the two are: «ناحیه ۱۷» is the ناحیه above
+                                    // «خیرخانه», and 64 of them in one flat list
+                                    // is a wall.
+                                    if !districtsHere.isEmpty {
+                                        Section(L.districtsGroup.t) {
+                                            areaChoices(districtsHere)
+                                        }
+                                    }
+                                    if !neighbourhoodsHere.isEmpty {
+                                        Section(L.neighbourhoodsGroup.t) {
+                                            areaChoices(neighbourhoodsHere)
+                                        }
+                                    }
+                                    if !unlistedHere.isEmpty {
+                                        Section { areaChoices(unlistedHere) }
+                                    }
                                 }
                             }
                         }
-                    }
-                    // Second level, and only inside one city: areas are only
-                    // meaningful within a city, and «ناحیه ۱» of Kabul beside
-                    // «ناحیه ۱» of Herat is two chips with nothing to tell them
-                    // apart.
-                    if activeCity != nil && areasHere.count > 1 {
-                        ChipRow {
-                            FilterChip(label: L.allNeighbourhoods.t, isSelected: activeArea == nil) {
-                                area = nil
-                            }
-                            ForEach(areasHere, id: \.self) { a in
-                                FilterChip(label: Areas.label(a),
-                                         isSelected: activeArea == a) { area = a }
-                            }
-                        }
+                        .padding(.horizontal, 16).padding(.top, 2)
                     }
                     // How many she is looking at, and the way into the sheet —
                     // the last row of the header on Android too.
@@ -683,5 +735,69 @@ struct FilterChip: View {
                     isSelected ? .clear : Brand.petal.opacity(0.6), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A full-width control that opens a menu — Android's ExposedDropdownMenuBox.
+///
+/// The chevron and the icon sit at the two ends and `layoutDirection` swaps
+/// which end is which, so this reads the same way round as the Compose version
+/// in Dari and Pashto.
+struct DropdownField<Content: View>: View {
+    let icon: String
+    let value: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Menu {
+            content
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Brand.accent)
+                Text(value)
+                    .font(Brand.font(14, .medium))
+                    .foregroundStyle(Brand.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Brand.accent)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Brand.petal.opacity(0.7), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        // Declaration order, not "nearest the thumb first". SwiftUI's default
+        // reverses a menu that opens upward, and twenty-two districts read
+        // backwards are not a list anyone can use.
+        .menuOrder(.fixed)
+    }
+}
+
+/// One row of a `DropdownField` menu, ticked when it is the current choice.
+struct MenuChoice: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    init(_ title: String, isSelected: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.isSelected = isSelected
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            if isSelected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 }

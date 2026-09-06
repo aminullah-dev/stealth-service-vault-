@@ -88,6 +88,49 @@ class AreasTest {
     }
 
     @Test
+    fun `the neighbourhood picker offers every area, not only the ones with a parent`() {
+        // The picker was built on filterableIn, which reaches a neighbourhood
+        // only through its parent district. None of Kabul's 42 has a parent
+        // recorded, so it offered the 22 ناحیه and not one محله — «خیرخانه»
+        // included, which is where one of the two live salons is. A salon that
+        // cannot be filtered to is a salon a customer does not find.
+        val kabul = com.safebeauty.app.viewmodel.neighborhoodOptionsFor("KABUL")
+        assertTrue(
+            "خیرخانه must be pickable",
+            kabul.any { it.key == "KBL_Khair_Khana" }
+        )
+        assertEquals(Areas.areasIn("KABUL"), kabul)
+        assertTrue(
+            "the picker must offer more than filterableIn reaches",
+            kabul.size > Areas.filterableIn("KABUL").size
+        )
+    }
+
+    @Test
+    fun `the picker's rows and the keys they filter by read one list`() {
+        // They were two, matched by position: labels from districtsIn, keys
+        // from filterableIn. Those agree only where no neighbourhood has a
+        // parent — so Kabul and Jalalabad were fine and Herat and Mazar were
+        // not. Picking Herat's «ناحیه دوم» queried HRT_BaghMurad; 14 of its 16
+        // rows filtered by an area other than the one they named.
+        //
+        // The label half lives in a Composable and no unit test can reach it.
+        // What this can hold is the other half: the options function both sides
+        // now read must stay the city's own list, so that a labels list built
+        // from it lines up row for row.
+        for (city in Areas.liveCities) {
+            assertEquals(
+                "${city.key}: the picker must read one list",
+                Areas.areasIn(city.key),
+                com.safebeauty.app.viewmodel.neighborhoodOptionsFor(city.key)
+            )
+        }
+        // Index 0 is the "all" row and belongs to no area, which is why the
+        // filter drops it rather than querying for it.
+        assertTrue(com.safebeauty.app.viewmodel.neighborhoodOptionsFor("").isEmpty())
+    }
+
+    @Test
     fun `every recorded sub-area names a parent in its own city`() {
         for (a in Areas.areas.filter { it.parent.isNotEmpty() }) {
             val parent = Areas.areas.firstOrNull { it.key == a.parent }

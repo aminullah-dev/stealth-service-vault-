@@ -848,6 +848,13 @@ extension L {
                                    en: "Remove from favorites")
     static let allNeighbourhoods = L(fa: "همه محله‌ها", ps: "ټول ګاونډونه",
                                      en: "All neighborhoods")
+    /// The two levels an Afghan address is given at, as menu section headers.
+    /// Not from AppStrings.kt — Android's dropdown is one flat list, and one
+    /// flat list of Kabul's 64 areas is a wall. Plain plurals of the two words
+    /// already in `allNeighbourhoods` and `Areas`, so nothing new is invented.
+    static let districtsGroup = L(fa: "ناحیه‌ها", ps: "ناحیې", en: "Districts")
+    static let neighbourhoodsGroup = L(fa: "محله‌ها", ps: "ګاونډونه",
+                                       en: "Neighborhoods")
 
     // MARK: Service categories
     // The Android values verbatim. The Pashto for eyebrows is وروځې — وریځې is
