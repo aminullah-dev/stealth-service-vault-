@@ -23,6 +23,7 @@ struct SalonDetailView: View {
     @State private var showKyc = false
     @State private var showChat = false
     @State private var reviews: [Review] = []
+    @State private var gallery: [GalleryImage] = []
 
     private var total: Int {
         selectedServices.reduce(0) { $0 + (salon.pricePerService[$1] ?? 0) }
@@ -126,6 +127,32 @@ struct SalonDetailView: View {
                     }
                     .padding(12)
                     .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                // The salon's own work, which iOS showed one photo of — the
+                // cover — while the rest of `salon_gallery` sat unread. A beauty
+                // salon sells a look, and the gallery IS the look.
+                if !gallery.isEmpty {
+                    section(L.salonWork) {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(gallery) { image in
+                                    AsyncImage(url: URL(string: image.imageUrl)) { phase in
+                                        if case .success(let img) = phase {
+                                            img.resizable().scaledToFill()
+                                        } else {
+                                            Brand.petal.opacity(0.25)
+                                        }
+                                    }
+                                    .frame(width: 116, height: 116)
+                                    .clipShape(RoundedRectangle(cornerRadius: 13))
+                                }
+                            }
+                        }
+                        .contentMargins(.horizontal, 22, for: .scrollContent)
+                        .padding(.horizontal, -22)
+                        .defaultScrollAnchor(.leading)
+                    }
                 }
 
                 // Whose chair. Offered only where the salon has named someone,
@@ -232,7 +259,7 @@ struct SalonDetailView: View {
                 .accessibilityLabel(L.messageSalon.t)
             }
         }
-        .task { await loadReviews() }
+        .task { await loadReviews(); await loadGallery() }
         .sheet(isPresented: $showChat) { SalonChatView(salon: salon).appDirection() }
         .sheet(isPresented: $showBooking, onDismiss: {
             // The grid is redrawn on return, so a slot someone else took while
@@ -255,6 +282,22 @@ struct SalonDetailView: View {
     ///
     /// `allow read: if isSignedIn()` covers this, and the query is bounded —
     /// a salon with hundreds would otherwise pull all of them to show five.
+    /// The portfolio. Bounded, and ordered on the server: an unordered limit is
+    /// not "the newest thirty" — Firestore takes the first thirty by document
+    /// id, which is arbitrary, so a salon that kept uploading would silently
+    /// stop showing its recent work.
+    private func loadGallery() async {
+        guard let snap = try? await Firestore.firestore().collection("salon_gallery")
+            .whereField("salonId", isEqualTo: salon.id)
+            .order(by: "createdAt", descending: true)
+            .limit(to: 30).getDocuments() else { return }
+        gallery = DocumentDecoding.decodeAll(
+            GalleryImage.self,
+            documents: snap.documents.map { (id: $0.documentID, data: $0.data()) },
+            assigningID: { $0.id = $1 }).values
+            .filter { !$0.imageUrl.isEmpty }
+    }
+
     private func loadReviews() async {
         guard let snap = try? await Firestore.firestore()
                 .collection("reviews")

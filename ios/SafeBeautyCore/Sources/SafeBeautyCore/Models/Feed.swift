@@ -157,3 +157,28 @@ public struct SalonStory: Codable, Identifiable, Hashable, Sendable {
         createdAt = ms(.createdAt); expiresAt = ms(.expiresAt)
     }
 }
+
+/// One portfolio photo a salon has uploaded.
+///
+/// Its own collection rather than an array on the salon, because the legacy
+/// shape stored a base64 payload per document and a hundred of those would not
+/// fit in one Firestore document.
+public struct GalleryImage: Codable, Identifiable, Hashable, Sendable {
+    public var id: String = ""
+    public var salonId: String = ""
+    /// Preferred. `imageBase64` is the legacy field and is deliberately not
+    /// decoded — an image inlined into a list query is bytes nobody asked for.
+    public var imageUrl: String = ""
+    public var createdAt: Int64 = 0
+
+    public init() {}
+
+    private enum CodingKeys: String, CodingKey { case salonId, imageUrl, createdAt }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        salonId = (try? c.decodeIfPresent(String.self, forKey: .salonId)).flatMap { $0 } ?? ""
+        imageUrl = (try? c.decodeIfPresent(String.self, forKey: .imageUrl)).flatMap { $0 } ?? ""
+        createdAt = (try? c.decodeIfPresent(Int64.self, forKey: .createdAt)).flatMap { $0 } ?? 0
+    }
+}
