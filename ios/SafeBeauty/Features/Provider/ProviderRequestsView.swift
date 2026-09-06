@@ -13,6 +13,7 @@ struct ProviderRequestsView: View {
     @State private var declining: Appointment?
     @State private var working: String?
     @State private var error: String?
+    @State private var showNotifications = false
 
     var body: some View {
         NavigationStack {
@@ -54,6 +55,19 @@ struct ProviderRequestsView: View {
             }
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.tabRequests.t)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    // A provider gets notifications too — a new booking, a
+                    // payout, an admin decision — and had no screen that showed
+                    // them. Same bell, same list, same rules.
+                    Button { showNotifications = true } label: {
+                        Image(systemName: "bell").foregroundStyle(Brand.accent)
+                            .accessibilityLabel(L.notifications.t)
+                    }
+                    .accessibilityLabel(L.notifications.t)
+                }
+            }
+            .sheet(isPresented: $showNotifications) { NotificationsView().appDirection() }
             .confirmationDialog(L.decline.t, isPresented: .constant(declining != nil),
                                 titleVisibility: .visible) {
                 Button(L.decline.t, role: .destructive) {

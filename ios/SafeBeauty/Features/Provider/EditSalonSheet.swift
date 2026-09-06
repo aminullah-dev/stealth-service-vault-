@@ -24,6 +24,8 @@ struct EditSalonSheet: View {
     @State private var prices: [String: String] = [:]
     @State private var hours: [WorkingHours] = []
     @State private var isAvailable = true
+    @State private var blockedDates: [String] = []
+    @State private var newDayOff = Date()
     @State private var newService = ""
     @State private var working = false
     @State private var error: String?
@@ -64,6 +66,7 @@ struct EditSalonSheet: View {
 
                     servicesSection
                     hoursSection
+                    daysOffSection
 
                     Text(L.editOnConsole.t)
                         .font(Brand.font(12.5)).foregroundStyle(Brand.accent)
@@ -166,6 +169,59 @@ struct EditSalonSheet: View {
         }
     }
 
+    /// The days she is shut regardless of her hours — Eid, a wedding, illness.
+    ///
+    /// Stored as Kabul-local "yyyy-MM-dd", which is what DayGrid filters on and
+    /// what rescheduleAppointment checks server-side. A different timezone here
+    /// would block the wrong day by a few hours either side of midnight.
+    private var daysOffSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(L.timeOff.t).font(Brand.font(15, .bold)).foregroundStyle(Brand.ink)
+            Text(L.timeOffHint.t).font(Brand.font(12.5)).foregroundStyle(Brand.accent)
+
+            ForEach(blockedDates, id: \.self) { day in
+                HStack {
+                    Text(day)
+                        .font(Brand.font(14))
+                        .environment(\.layoutDirection, .leftToRight)
+                        .foregroundStyle(Brand.ink)
+                    Spacer()
+                    Button {
+                        blockedDates.removeAll { $0 == day }
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13)).foregroundStyle(Color(hex: 0xC0392B))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack(spacing: 10) {
+                DatePicker("", selection: $newDayOff, in: Date()...,
+                           displayedComponents: .date)
+                    .labelsHidden()
+                Button(L.addDayOff.t) {
+                    let key = Self.kabulDayKey(newDayOff)
+                    guard !blockedDates.contains(key) else { return }
+                    blockedDates.append(key)
+                    blockedDates.sort()
+                }
+                .font(Brand.font(14, .medium)).foregroundStyle(Brand.accent)
+            }
+        }
+    }
+
+    /// The same key DayGrid and the server compute. Locale-independent on
+    /// purpose: a Persian calendar would produce ۱۴۰۴-۰۶-۱۸ and match nothing.
+    static func kabulDayKey(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = DayGrid.kabul
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: date)
+    }
+
     /// Whole hours only. A salon that opens at 09:15 is not a thing anyone here
     /// has ever asked for, and a full time picker per day is seven wheels on one
     /// screen.
@@ -205,6 +261,7 @@ struct EditSalonSheet: View {
         // document happened to store it.
         hours = salon.workingHours.sorted { $0.dayOfWeek < $1.dayOfWeek }
         isAvailable = salon.isAvailable
+        blockedDates = salon.blockedDates.sorted()
     }
 
     private func save() async {
@@ -231,7 +288,8 @@ struct EditSalonSheet: View {
                 name: name.trimmingCharacters(in: .whitespaces),
                 district: district, areaKey: areaKey,
                 services: services.filter { priced[$0] != nil },
-                prices: priced, hours: hours, isAvailable: isAvailable)
+                prices: priced, hours: hours, blockedDates: blockedDates,
+                isAvailable: isAvailable)
             saved = true
         } catch {
             self.error = L.errNetwork.t

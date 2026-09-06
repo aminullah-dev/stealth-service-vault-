@@ -25,6 +25,12 @@ struct ProviderRootView: View {
                 // The only number in the app she must act on. A request nobody
                 // answers becomes a customer who books elsewhere.
                 .badge(repo.pending.count)
+            // Fifth and last slot — exactly the budget before iOS folds a tab
+            // into "More". A customer messages the salon, notifyOnChatMessage
+            // pushes it, and until now the notification led nowhere on this
+            // platform.
+            ProviderMessagesView(repo: repo)
+                .tabItem { Label(L.tabMessages.t, systemImage: "bubble.left.and.bubble.right") }
             ProviderCalendarView(repo: repo)
                 .tabItem { Label(L.tabCalendar.t, systemImage: "calendar") }
             ProviderIncomeView(repo: repo)

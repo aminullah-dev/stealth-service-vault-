@@ -202,7 +202,8 @@ final class ProviderRepository {
     /// every category and every neighbourhood.
     func saveSalon(name: String, district: String, areaKey: String,
                    services: [String], prices: [String: Int],
-                   hours: [WorkingHours], isAvailable: Bool) async throws {
+                   hours: [WorkingHours], blockedDates: [String],
+                   isAvailable: Bool) async throws {
         guard let id = salon?.id, !id.isEmpty else { return }
         try await Firestore.firestore().document("salons/\(id)").updateData([
             "salonName": name,
@@ -215,6 +216,9 @@ final class ProviderRepository {
                  "openHour": $0.openHour, "openMinute": $0.openMinute,
                  "closeHour": $0.closeHour, "closeMinute": $0.closeMinute]
             },
+            // Kabul-local "yyyy-MM-dd", the same key DayGrid filters on and the
+            // same one rescheduleAppointment checks server-side.
+            "blockedDates": blockedDates,
             "isAvailable": isAvailable,
         ])
     }

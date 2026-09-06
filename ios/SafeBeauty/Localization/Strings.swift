@@ -511,6 +511,18 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    // MARK: Provider messages, notifications, time off
+    static let tabMessages = L(fa: "پیام‌ها", ps: "پیغامونه", en: "Messages")
+    static let noMessages = L(fa: "هنوز پیامی از مشتری‌ها نیست.",
+                              ps: "تر اوسه د پیرودونکو پیغام نشته.",
+                              en: "No messages from customers yet.")
+    static let timeOff = L(fa: "روزهای تعطیل", ps: "د رخصتۍ ورځې", en: "Days off")
+    static let timeOffHint = L(
+        fa: "در این روزها هیچ نوبتی پیشنهاد نمی‌شود، حتی اگر ساعات کاری باز باشد.",
+        ps: "په دې ورځو کې هیڅ نوبت نه وړاندې کیږي، که څه هم د کار ساعتونه پرانیستي وي.",
+        en: "No times are offered on these days, even if your hours say open.")
+    static let addDayOff = L(fa: "افزودن روز", ps: "ورځ زیاتول", en: "Add a day")
+
     // MARK: Editing the salon
     static let neighbourhood = L(fa: "محله", ps: "ګاونډ", en: "Neighbourhood")
     static let editSalon = L(fa: "ویرایش سالن", ps: "د سالون سمون", en: "Edit salon")
