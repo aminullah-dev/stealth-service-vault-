@@ -9,11 +9,13 @@ import SafeBeautyCore
 struct ProviderCalendarView: View {
     let repo: ProviderRepository
 
+    @State private var reporting: Appointment?
+
     var body: some View {
         NavigationStack {
             Group {
                 if repo.salon == nil {
-                    NoSalonYet()
+                    NoSalonYet(repo: repo)
                 } else if repo.upcoming.isEmpty && repo.past.isEmpty {
                     ContentUnavailableView {
                         Text(L.noUpcoming.t)
@@ -28,7 +30,23 @@ struct ProviderCalendarView: View {
                         }
                         if !repo.past.isEmpty {
                             Section(L.pastBookings.t) {
-                                ForEach(repo.past) { ProviderBookingRow(booking: $0) }
+                                ForEach(repo.past) { booking in
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        ProviderBookingRow(booking: booking)
+                                        // Only on a visit that was supposed to
+                                        // happen. There is nothing to say about
+                                        // a booking the salon itself declined.
+                                        if booking.status == .completed
+                                            || booking.status == .confirmed {
+                                            Button(L.rateCustomer.t) { reporting = booking }
+                                                .font(Brand.font(13, .medium))
+                                                .foregroundStyle(Brand.accent)
+                                                .buttonStyle(.borderless)
+                                                .padding(.top, 2)
+                                        }
+                                    }
+                                    .listRowBackground(Color.white)
+                                }
                             }
                         }
                     }
@@ -38,6 +56,9 @@ struct ProviderCalendarView: View {
             }
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.tabCalendar.t)
+            .sheet(item: $reporting) { booking in
+                ReportCustomerSheet(booking: booking, repo: repo).appDirection()
+            }
         }
     }
 }

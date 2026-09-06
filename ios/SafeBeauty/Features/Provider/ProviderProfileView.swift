@@ -24,7 +24,7 @@ struct ProviderProfileView: View {
                         hoursCard(salon)
                         reviewsCard
                     } else {
-                        NoSalonYet().frame(height: 180)
+                        NoSalonYet(repo: repo).frame(height: 180)
                     }
 
                     VStack(alignment: .leading, spacing: 8) {

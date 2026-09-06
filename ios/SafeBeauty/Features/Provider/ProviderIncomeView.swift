@@ -47,7 +47,7 @@ struct ProviderIncomeView: View {
         NavigationStack {
             Group {
                 if repo.salon == nil {
-                    NoSalonYet()
+                    NoSalonYet(repo: repo)
                 } else {
                     ScrollView {
                         VStack(spacing: 16) {

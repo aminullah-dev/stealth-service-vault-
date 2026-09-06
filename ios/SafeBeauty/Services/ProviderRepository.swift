@@ -19,6 +19,16 @@ final class ProviderRepository {
     private(set) var reviews: [Review] = []
     private(set) var owed = 0
     private(set) var isLoading = true
+    /// The salon details registration parked on her user document when it could
+    /// not finish. Their presence is the difference between "waiting for an
+    /// admin" and "one tap away from existing".
+    private(set) var pendingSalonName = ""
+    private(set) var pendingSalonDistrict = ""
+    private(set) var pendingSalonServices: [String] = []
+
+    var canFinishSalonSetup: Bool {
+        salon == nil && !pendingSalonName.isEmpty && !pendingSalonDistrict.isEmpty
+    }
     /// A failed read is not an empty diary. Told apart, because "no requests"
     /// and "could not load" send a salon owner to two different places.
     private(set) var loadFailed = false
@@ -62,6 +72,17 @@ final class ProviderRepository {
                 self?.owed = (d["owedAmount"] as? Int)
                     ?? Int((d["owedAmount"] as? Double) ?? 0)
             })
+
+        // Read once, not watched: these only change when registration writes
+        // them or createProviderSalon clears them, and the second case is
+        // followed by a reload anyway.
+        Task { [weak self] in
+            let snap = try? await db.document("users/\(providerId)").getDocument()
+            guard let self, let d = snap?.data() else { return }
+            self.pendingSalonName = (d["pendingSalonName"] as? String) ?? ""
+            self.pendingSalonDistrict = (d["pendingSalonDistrict"] as? String) ?? ""
+            self.pendingSalonServices = (d["pendingSalonServices"] as? [String]) ?? []
+        }
 
         listeners.append(db.collection("salons")
             .whereField("providerId", isEqualTo: providerId)
@@ -130,7 +151,40 @@ final class ProviderRepository {
         listeners = []; salonListeners = []
         watchedSalon = ""; uid = ""
         salon = nil; appointments = []; reviews = []; owed = 0
+        pendingSalonName = ""; pendingSalonDistrict = ""; pendingSalonServices = []
         isLoading = true; loadFailed = false
+    }
+
+    /// Finishes a salon that registration started and could not complete.
+    ///
+    /// A dropped connection at the one moment registration creates the salon
+    /// used to end the story on iOS: the details were parked on her user
+    /// document, nothing read them, and the app told her to wait for an admin
+    /// who had nothing to approve. The callable is idempotent — a retry racing
+    /// another retry returns the same salon rather than making a second one.
+    func finishSalonSetup() async throws {
+        _ = try await Callables.call("createProviderSalon", [
+            "salonName": .string(pendingSalonName),
+            "district": .string(pendingSalonDistrict),
+            "services": .strings(pendingSalonServices),
+        ])
+        pendingSalonName = ""; pendingSalonDistrict = ""; pendingSalonServices = []
+    }
+
+    /// The salon's own note on a customer, after a visit.
+    ///
+    /// Never shown to her: it feeds the platform's own view of a customer who
+    /// books and does not come, which is a real cost to a salon that held a
+    /// chair for her.
+    func report(_ booking: Appointment, rating: Int, noShow: Bool,
+                flagged: Bool, comment: String) async throws {
+        _ = try await Callables.call("reportCustomer", [
+            "appointmentId": .string(booking.id),
+            "rating": .int(rating),
+            "noShow": .bool(noShow),
+            "flagged": .bool(flagged),
+            "comment": .string(comment),
+        ])
     }
 
     /// Accepting a booking. The server checks she owns the salon and that the

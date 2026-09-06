@@ -21,7 +21,7 @@ struct ProviderRequestsView: View {
                     ProgressView().tint(Brand.accent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if repo.salon == nil {
-                    NoSalonYet()
+                    NoSalonYet(repo: repo)
                 } else if repo.loadFailed && repo.appointments.isEmpty {
                     // Not the same as "no requests", and telling her the wrong
                     // one means she stops checking.

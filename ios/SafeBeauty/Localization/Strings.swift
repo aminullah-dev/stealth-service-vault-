@@ -511,6 +511,27 @@ extension L {
     static let earnedTotal = L(fa: "مجموع دریافتی", ps: "ټوله ترلاسه شوې", en: "Total taken")
     static let awaitingYou = L(fa: "منتظر پاسخ شما", ps: "ستاسو د ځواب په تمه",
                                en: "Waiting for you")
+    static let finishSalonSetup = L(fa: "ساخت سالن را کامل کنید",
+                                    ps: "د سالون جوړول بشپړ کړئ",
+                                    en: "Finish setting up your salon")
+    static let finishSalonExplain = L(
+        fa: "جزئیات سالن شما هنگام ثبت‌نام ذخیره شد ولی سالن ساخته نشد. با یک ضربه کاملش کنید.",
+        ps: "ستاسو د سالون جزئیات د نوم‌لیکنې پر مهال خوندي شول خو سالون جوړ نه شو. په یوه کېکاږلو یې بشپړ کړئ.",
+        en: "Your salon details were saved at registration but the salon was never created. One tap finishes it.")
+    static let rateCustomer = L(fa: "ثبت بازخورد مشتری", ps: "د پیرودونکې نظر ثبتول",
+                                en: "Rate this customer")
+    static let customerNoShow = L(fa: "مشتری نیامد", ps: "پیرودونکې رانغله",
+                                  en: "Customer did not come")
+    static let customerFlag = L(fa: "این مشتری مشکل‌ساز بود", ps: "دا پیرودونکې ستونزمنه وه",
+                                en: "This customer was a problem")
+    static let rateCustomerNote = L(
+        fa: "این بازخورد فقط برای پلتفرم است و به مشتری نشان داده نمی‌شود.",
+        ps: "دا نظر یوازې د پلیټ‌فارم لپاره دی او پیرودونکې ته نه ښودل کیږي.",
+        en: "This feedback is for the platform only and is never shown to the customer.")
+    static let rateCustomerDone = L(fa: "بازخورد ثبت شد.", ps: "نظر ثبت شو.",
+                                    en: "Feedback recorded.")
+    static let commentOptional = L(fa: "توضیح (اختیاری)", ps: "تشریح (اختیاري)",
+                                   en: "Note (optional)")
     static let servicesAndPrices = L(fa: "خدمات و قیمت‌ها", ps: "خدمتونه او بیې",
                                      en: "Services and prices")
     static let anonymousCustomer = L(fa: "مشتری", ps: "پیرودونکې", en: "A customer")

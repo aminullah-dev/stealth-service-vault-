@@ -44,14 +44,45 @@ struct ProviderRootView: View {
 }
 
 /// Shown in place of any provider tab before her salon exists.
+///
+/// Two different states wear the same empty screen and only one of them is a
+/// waiting game. When registration parked her salon details and could not
+/// create the salon, nobody is coming to approve it — the details are sitting
+/// on her own user document and one call finishes the job.
 struct NoSalonYet: View {
+    var repo: ProviderRepository?
+
+    @State private var working = false
+    @State private var error: String?
+
     var body: some View {
-        ContentUnavailableView {
-            Text(L.noSalonYet.t)
-                .font(Brand.font(15))
-                .foregroundStyle(Brand.ink)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 14) {
+            if let repo, repo.canFinishSalonSetup {
+                Text(L.finishSalonSetup.t)
+                    .font(Brand.font(16, .bold)).foregroundStyle(Brand.ink)
+                Text(L.finishSalonExplain.t)
+                    .font(Brand.font(13.5)).foregroundStyle(Brand.accent)
+                    .multilineTextAlignment(.center)
+                Text(repo.pendingSalonName)
+                    .font(Brand.font(15, .medium)).foregroundStyle(Brand.deep)
+                ErrorBanner(message: error)
+                BrandButton(title: .finishSalonSetup, isLoading: working) {
+                    Task {
+                        working = true; defer { working = false }
+                        error = nil
+                        do { try await repo.finishSalonSetup() }
+                        catch { self.error = L.errNetwork.t }
+                    }
+                }
+            } else {
+                Text(L.noSalonYet.t)
+                    .font(Brand.font(15))
+                    .foregroundStyle(Brand.ink)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .padding(.horizontal, 30)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
