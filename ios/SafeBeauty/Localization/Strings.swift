@@ -466,6 +466,21 @@ extension L {
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
     static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
 
+    // MARK: Profile photo and its reward
+    static let changePhoto = L(fa: "تغییر عکس", ps: "عکس بدلول", en: "Change photo")
+    static let photoTooLarge = L(fa: "این عکس خیلی بزرگ است. عکس دیگری انتخاب کنید.",
+                                 ps: "دا عکس ډېر لوی دی. بل عکس وټاکئ.",
+                                 en: "That photo is too large. Please choose another.")
+    static let photoUploadFailed = L(fa: "عکس بارگذاری نشد.", ps: "عکس پورته نه شو.",
+                                     en: "The photo could not be uploaded.")
+    static func rewardEarned(_ points: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "پروفایل شما کامل شد — \(points) امتیاز گرفتید."
+        case .pashto: "ستاسو پروفایل بشپړ شو — \(points) ټکي مو ترلاسه کړل."
+        case .english: "Your profile is complete — you earned \(points) points."
+        }
+    }
+
     // MARK: Packages and promo codes
     static let packageApplied = L(fa: "بستهٔ خدمات اعمال شد", ps: "د خدمتونو بنډل پلی شو",
                                   en: "Package applied")

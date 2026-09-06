@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import FirebaseFirestore
 import SafeBeautyCore
 
@@ -21,6 +22,11 @@ struct ProfileView: View {
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
+    @State private var photoItem: PhotosPickerItem?
+    @State private var photos = ProfilePhotoService()
+    @State private var photoUrl = ""
+    @State private var photoNote: String?
+    @State private var photoError: String?
     @State private var showSupport = false
     @State private var showChangePassword = false
     @State private var showEditName = false
@@ -164,13 +170,43 @@ struct ProfileView: View {
 
     private var identityCard: some View {
         VStack(spacing: 8) {
-            Circle()
-                .fill(Brand.gradient)
-                .frame(width: 66, height: 66)
-                .overlay(
-                    Text(String(auth.session?.name.prefix(1) ?? ""))
-                        .font(Brand.font(26, .bold)).foregroundStyle(.white)
-                )
+            // Her photograph, with the pencil Android has had all along. The
+            // letter tile stays as the fallback, because most accounts have no
+            // photo and an empty grey circle says less than an initial does.
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                ZStack(alignment: .bottomTrailing) {
+                    Group {
+                        if let url = URL(string: photoUrl), !photoUrl.isEmpty {
+                            AsyncImage(url: url) { phase in
+                                if case .success(let image) = phase {
+                                    image.resizable().scaledToFill()
+                                } else {
+                                    letterAvatar
+                                }
+                            }
+                        } else {
+                            letterAvatar
+                        }
+                    }
+                    .frame(width: 66, height: 66)
+                    .clipShape(Circle())
+
+                    if photos.isUploading {
+                        ProgressView().tint(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Brand.deep, in: Circle())
+                    } else {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(Brand.deep, in: Circle())
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(photos.isUploading)
+            .accessibilityLabel(L.changePhoto.t)
             Text(auth.session?.name ?? "")
                 .font(Brand.font(19, .bold)).foregroundStyle(Brand.ink)
             if !phone.isEmpty {
@@ -180,10 +216,48 @@ struct ProfileView: View {
                     .environment(\.layoutDirection, .leftToRight)
                     .foregroundStyle(Brand.accent)
             }
+            if let photoNote {
+                Text(photoNote)
+                    .font(Brand.font(12.5)).foregroundStyle(Color(hex: 0x1F7A5C))
+                    .multilineTextAlignment(.center)
+            }
+            ErrorBanner(message: photoError)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
+        .padding(.horizontal, 14)
         .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .onChange(of: photoItem) { _, item in
+            Task { await uploadPhoto(item) }
+        }
+    }
+
+    private var letterAvatar: some View {
+        Brand.gradient.overlay(
+            Text(String(auth.session?.name.prefix(1) ?? ""))
+                .font(Brand.font(26, .bold)).foregroundStyle(.white)
+        )
+    }
+
+    /// Uploading also completes the profile, so the reward is claimed in the
+    /// same breath rather than waiting for a screen she may never open again.
+    private func uploadPhoto(_ item: PhotosPickerItem?) async {
+        guard let item, let uid = auth.session?.uid else { return }
+        photoError = nil; photoNote = nil
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            photoError = L.photoUploadFailed.t
+            return
+        }
+        do {
+            let points = try await photos.upload(image, uid: uid)
+            await load()
+            if points > 0 { photoNote = L.rewardEarned(points) }
+        } catch ProfilePhotoService.PhotoError.tooLarge {
+            photoError = L.photoTooLarge.t
+        } catch {
+            photoError = L.photoUploadFailed.t
+        }
     }
 
     private var walletCard: some View {
@@ -408,5 +482,6 @@ struct ProfileView: View {
         loyaltyPoints = (d["loyaltyPoints"] as? Int) ?? 0
         referralCode = (d["referralCode"] as? String) ?? ""
         phone = (d["phone"] as? String) ?? ""
+        photoUrl = (d["profilePhotoUrl"] as? String) ?? ""
     }
 }
