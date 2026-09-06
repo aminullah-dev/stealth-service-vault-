@@ -194,6 +194,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.Flag
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -206,6 +207,11 @@ internal fun SalonDetailSheetContent(
     onToggleFavorite: () -> Unit,
     onBook: () -> Unit,
     onBookPackage: (ServicePackage) -> Unit = {},
+    /** Uids whose reviews she has chosen not to see. */
+    blocked: Set<String> = emptySet(),
+    /** Flagging somebody else's review. Reviews are the customer-written half
+     *  of what a salon page shows, and had no way to be reported at all. */
+    onReportReview: (ReviewDocument) -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val strings  = LocalStrings.current
@@ -667,15 +673,24 @@ internal fun SalonDetailSheetContent(
                 Text(strings.noReviewsYet, fontSize = 14.sp, color = TextFaint, textAlign = TextAlign.Center)
             }
         } else {
+            // A blocked customer's review is gone from here too. The same
+            // person's words on the feed and on a salon's page have to obey one
+            // decision, or blocking means "sometimes" — and the app has just
+            // promised her "you will not see anything from them again".
+            val shown = reviews.filter { it.customerId !in blocked }.take(20)
+            if (shown.isEmpty()) {
+                Text(strings.blockedHidden, fontSize = 12.sp, color = TextFaint)
+            }
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                reviews.take(20).forEach { review -> ReviewCard(review) }
+                shown.forEach { review -> ReviewCard(review, onReport = { onReportReview(review) }) }
             }
         }
     }
 }
 
 @Composable
-private fun ReviewCard(review: ReviewDocument) {
+private fun ReviewCard(review: ReviewDocument, onReport: () -> Unit = {}) {
+    val strings = LocalStrings.current
     val dateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
     Card(
         shape    = RoundedCornerShape(12.dp),
@@ -701,6 +716,14 @@ private fun ReviewCard(review: ReviewDocument) {
                             contentDescription = null,
                             tint               = WarmGold,
                             modifier           = Modifier.size(14.dp)
+                        )
+                    }
+                    IconButton(onClick = onReport, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Outlined.Flag,
+                            contentDescription = strings.reportAction,
+                            tint = TextFaint,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }

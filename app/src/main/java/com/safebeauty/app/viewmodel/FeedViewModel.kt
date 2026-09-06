@@ -84,6 +84,11 @@ class FeedViewModel @Inject constructor(
         }
     }
 
+    // ── Reporting and blocking ───────────────────────────────────────────────
+    // Shared with the salon sheet through ModerationState, so a block made in
+    // one is honoured by the other.
+    val moderation = ModerationState(repo, userId, viewModelScope)
+
     fun openComments(postId: String) { openThread.value = postId }
     fun closeComments() { openThread.value = "" }
 

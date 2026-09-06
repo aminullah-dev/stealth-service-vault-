@@ -1034,6 +1034,73 @@ class FirestoreRepository @Inject constructor(
         ref.set(comment.copy(id = ref.id)).await()
     }
 
+    // ── Moderation ───────────────────────────────────────────────────────────
+    //
+    // Reporting somebody else's post, story, comment or review, and choosing
+    // not to see them again. The app carried other people's words and pictures
+    // and offered neither, which Play's user-generated-content policy asks for
+    // and which — before any policy — left a woman looking at something ugly
+    // with nothing to do about it.
+
+    /**
+     * Files a report. Server-side because the report has to name the content's
+     * author, and that is a fact a client must not be able to invent.
+     */
+    suspend fun reportContent(targetType: String, targetId: String, reason: String, note: String) {
+        functions.getHttpsCallable("reportContent").call(
+            hashMapOf(
+                "targetType" to targetType,
+                "targetId" to targetId,
+                "reason" to reason,
+                "note" to note,
+            )
+        ).await()
+    }
+
+    /**
+     * Blocks are one customer's own preference and change nobody else's view,
+     * so they are a direct write rather than a callable. The document id is
+     * "{blocker}_{blocked}", which is what the rules check — a block written on
+     * somebody else's behalf cannot even be named.
+     */
+    suspend fun blockAccount(myUid: String, otherUid: String, kind: String) {
+        if (myUid.isBlank() || otherUid.isBlank() || myUid == otherUid) return
+        db.collection("blocks").document("${myUid}_${otherUid}").set(
+            hashMapOf(
+                "blockerId" to myUid,
+                "blockedId" to otherUid,
+                "blockedKind" to kind,
+                "createdAt" to System.currentTimeMillis(),
+            )
+        ).await()
+    }
+
+    suspend fun unblockAccount(myUid: String, otherUid: String) {
+        if (myUid.isBlank() || otherUid.isBlank()) return
+        db.collection("blocks").document("${myUid}_${otherUid}").delete().await()
+    }
+
+    /** The uids this customer has blocked, live — she blocks from a comment
+     *  thread and the feed behind it must stop showing them without a restart. */
+    fun observeBlocked(myUid: String): Flow<Set<String>> = callbackFlow {
+        if (myUid.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+        val listener = db.collection("blocks")
+            .whereEqualTo("blockerId", myUid)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(500)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
+                trySend(
+                    snap?.documents
+                        ?.mapNotNull { it.getString("blockedId") }
+                        ?.filter { it.isNotBlank() }
+                        ?.toSet()
+                        ?: emptySet()
+                )
+            }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun deleteComment(commentId: String) {
         if (commentId.isBlank()) return
         postCommentsCol.document(commentId).delete().await()

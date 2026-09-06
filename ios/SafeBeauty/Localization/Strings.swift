@@ -900,6 +900,56 @@ extension L {
         fa: "برای این کار اجازهٔ دسترسی به موقعیت لازم است.",
         ps: "د دې کار لپاره د موقعیت اجازه اړینه ده.",
         en: "Location permission is needed to do this.")
+    // MARK: Reporting and blocking
+    // Not from AppStrings.kt — Android has none of this either. The app carries
+    // salon photos, stories, customer comments and customer reviews and had no
+    // way to report any of it, which is an App Store rejection on its own
+    // (Guideline 1.2) and, before that, a woman with no recourse.
+    static let reportTitle = L(fa: "گزارش محتوا", ps: "د محتوا راپور",
+                               en: "Report content")
+    static let reportAction = L(fa: "گزارش", ps: "راپور", en: "Report")
+    static let reportWhy = L(fa: "مشکل چیست؟", ps: "ستونزه څه ده؟",
+                             en: "What is wrong with it?")
+    static let reportHarassment = L(fa: "آزار و توهین", ps: "ځورونه او سپکاوی",
+                                    en: "Harassment or abuse")
+    static let reportNudity = L(fa: "محتوای غیراخلاقی", ps: "غیراخلاقي محتوا",
+                                en: "Nudity or sexual content")
+    static let reportHate = L(fa: "نفرت‌پراکنی", ps: "کرکه خپرول",
+                              en: "Hate speech")
+    static let reportScam = L(fa: "کلاهبرداری", ps: "درغلي", en: "Scam or fraud")
+    static let reportSpam = L(fa: "تبلیغ ناخواسته", ps: "ناغوښتی اعلان", en: "Spam")
+    static let reportOther = L(fa: "چیز دیگر", ps: "بل څه", en: "Something else")
+    static let reportNotePlaceholder = L(
+        fa: "اگر می‌خواهید توضیح بدهید (اختیاری)",
+        ps: "که غواړئ تشریح یې کړئ (اختیاري)",
+        en: "Tell us more, if you want to (optional)")
+    static let reportSubmit = L(fa: "فرستادن گزارش", ps: "راپور لېږل",
+                                en: "Send report")
+    static let reportAlsoBlock = L(fa: "این حساب را هم مسدود کن",
+                                   ps: "دا حساب هم بند کړه",
+                                   en: "Also block this account")
+    static let reportAlsoBlockHint = L(
+        fa: "دیگر هیچ نوشته و عکسی از او نمی‌بینید.",
+        ps: "نور به یې هیڅ لیکنه او عکس ونه وینئ.",
+        en: "You will not see anything from them again.")
+    static let reportSentTitle = L(fa: "گزارش شما رسید", ps: "ستاسو راپور ورسېد",
+                                   en: "Report received")
+    // The 24-hour commitment Apple asks for, said to her and not only promised
+    // to the reviewer. It is also the honest answer to "what happens now".
+    static let reportSentBody = L(
+        fa: "تیم SafeBeauty در کمتر از ۲۴ ساعت آن را بررسی می‌کند. نام شما به کسی گفته نمی‌شود.",
+        ps: "د SafeBeauty ټیم به یې په ۲۴ ساعتونو کې وګوري. ستاسو نوم هیچا ته نه ویل کیږي.",
+        en: "The SafeBeauty team reviews it within 24 hours. Your name is never shared.")
+    static let unblockAction = L(fa: "رفع مسدودی", ps: "بند لرې کول", en: "Unblock")
+    static let blockedTitle = L(fa: "حساب‌های مسدودشده", ps: "بند شوي حسابونه",
+                                en: "Blocked accounts")
+    static let blockedEmpty = L(fa: "کسی را مسدود نکرده‌اید.",
+                                ps: "تاسو څوک نه دي بند کړي.",
+                                en: "You have not blocked anyone.")
+    static let blockedHidden = L(fa: "محتوای یک حساب مسدودشده پنهان شد.",
+                                 ps: "د یو بند شوي حساب محتوا پټه شوه.",
+                                 en: "Content from a blocked account is hidden.")
+
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")

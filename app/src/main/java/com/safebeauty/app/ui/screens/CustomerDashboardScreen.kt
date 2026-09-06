@@ -42,6 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -215,6 +216,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
 import com.safebeauty.app.ui.components.SwipeHint
 import kotlin.math.abs
+import com.safebeauty.app.viewmodel.ReportTarget
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -333,6 +335,7 @@ fun CustomerDashboardScreen(
     val maxPrice                  by viewModel.maxPrice.collectAsStateWithLifecycle()
     val customerLoc               by viewModel.customerLoc.collectAsStateWithLifecycle()
     var showFilterSheet           by remember { mutableStateOf(false) }
+    var showBlocked               by remember { mutableStateOf(false) }
     val filtersActive = sortMode != SalonSort.RECOMMENDED || minRating > 0.0 || maxPrice > 0
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
@@ -343,6 +346,11 @@ fun CustomerDashboardScreen(
     val referralCredit            by viewModel.referralCredit.collectAsStateWithLifecycle()
     val recommendedSalons         by viewModel.recommendedSalons.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
+    val blocked                   by viewModel.moderation.blocked.collectAsStateWithLifecycle()
+    val reporting                 by viewModel.moderation.reporting.collectAsStateWithLifecycle()
+    val reportSending             by viewModel.moderation.sending.collectAsStateWithLifecycle()
+    val reportSent                by viewModel.moderation.sent.collectAsStateWithLifecycle()
+    val reportFailed              by viewModel.moderation.failed.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
     val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
@@ -536,6 +544,14 @@ fun CustomerDashboardScreen(
                                     strings.exportTitle,
                                     enabled = exportVm.phase != ExportPhase.WORKING
                                 ) { exportVm.export() }
+                                // Only once she has blocked somebody. An empty
+                                // list is a menu row teaching her about a
+                                // feature she has not used.
+                                if (blocked.isNotEmpty()) {
+                                    item(Icons.Default.Block, strings.blockedTitle) {
+                                        showBlocked = true
+                                    }
+                                }
                                 HorizontalDivider()
                                 item(Icons.AutoMirrored.Filled.Logout, strings.signOut) {
                                     viewModel.signOut()
@@ -2218,6 +2234,42 @@ fun CustomerDashboardScreen(
         // ── Admin announcement popup (one-time per broadcast) ─────────────────
         com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
 
+        // ── Report sheet ──────────────────────────────────────────────────────
+        // Hosted here rather than inside the salon sheet: a ModalBottomSheet
+        // opened from inside another one is a sheet on top of a sheet, and
+        // dismissing the inner one takes the outer with it.
+        reporting?.let { target ->
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.moderation.cancel() },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.ReportSheetContent(
+                    authorId = target.authorId,
+                    sending  = reportSending,
+                    sent     = reportSent,
+                    error    = if (reportFailed) strings.actionFailedTitle else "",
+                    onSubmit = { reason, note, alsoBlock ->
+                        viewModel.moderation.submit(reason, note, alsoBlock)
+                    }
+                )
+            }
+        }
+
+        // ── Blocked accounts ──────────────────────────────────────────────────
+        // A block she could make and never lift is a mis-tap that lasts
+        // forever: it lives on the server, so reinstalling does not clear it.
+        if (showBlocked) {
+            ModalBottomSheet(
+                onDismissRequest = { showBlocked = false },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.BlockedAccountsSheetContent(
+                    blocked   = blocked,
+                    onUnblock = { viewModel.moderation.unblock(it) }
+                )
+            }
+        }
+
         // ── Filter / sort sheet ───────────────────────────────────────────────
         if (showFilterSheet) {
             ModalBottomSheet(
@@ -2508,6 +2560,12 @@ fun CustomerDashboardScreen(
                     // Special offers are a verified-customer perk (see deals gate).
                     offers           = if (dealsUnlocked) offersForSalon else emptyList(),
                     isFavorite       = favoriteIds.contains(salon.id),
+                    blocked          = blocked,
+                    onReportReview   = { r ->
+                        viewModel.moderation.start(
+                            ReportTarget("REVIEW", r.id, r.customerId, "USER")
+                        )
+                    },
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
                         if (viewModel.needsKycBeforeBooking()) {

@@ -12,6 +12,7 @@ struct PostCommentsSheet: View {
     let post: SalonPost
 
     @Environment(AuthService.self) private var auth
+    @Environment(Moderation.self) private var moderation
     @Environment(\.dismiss) private var dismiss
 
     @State private var comments: [PostComment] = []
@@ -19,6 +20,15 @@ struct PostCommentsSheet: View {
     @State private var isSending = false
     @State private var error: String?
     @State private var listener: ListenerRegistration?
+
+    /// A blocked person's comments are gone from the thread, not greyed out.
+    /// "You blocked this person" under every one of their comments is still
+    /// their words on the screen, which is what she asked not to see.
+    private var visible: [PostComment] {
+        comments.filter { !moderation.isBlocked($0.userId) }
+    }
+
+    private var hiddenCount: Int { comments.count - visible.count }
 
     private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canSend: Bool { !trimmed.isEmpty && trimmed.count <= 300 && !isSending }
@@ -28,17 +38,26 @@ struct PostCommentsSheet: View {
             VStack(spacing: 0) {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
-                        if comments.isEmpty {
+                        if visible.isEmpty {
                             Text(L.noComments.t)
                                 .font(Brand.font(14)).foregroundStyle(Brand.accent)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.top, 30)
                         }
-                        ForEach(comments) { comment in
+                        ForEach(visible) { comment in
                             CommentRow(comment: comment,
-                                       isMine: comment.userId == auth.session?.uid) {
+                                       isMine: comment.userId == auth.session?.uid,
+                                       moderation: moderation) {
                                 Task { await delete(comment) }
                             }
+                        }
+                        // Said once at the bottom rather than in place of each
+                        // one: she knows she blocked someone, and a row per
+                        // hidden comment rebuilds the thread she hid.
+                        if hiddenCount > 0 {
+                            Text(L.blockedHidden.t)
+                                .font(Brand.font(12)).foregroundStyle(Brand.textMuted)
+                                .frame(maxWidth: .infinity, alignment: .center)
                         }
                     }
                     .padding(.horizontal, 18).padding(.vertical, 14)
@@ -139,9 +158,11 @@ struct PostCommentsSheet: View {
 private struct CommentRow: View {
     let comment: PostComment
     let isMine: Bool
+    let moderation: Moderation
     let onDelete: () -> Void
 
     @State private var confirming = false
+    @State private var showReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -156,8 +177,17 @@ private struct CommentRow: View {
                         Image(systemName: "trash")
                             .font(.system(size: 12)).foregroundStyle(Brand.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
                     .accessibilityLabel(L.deleteComment.t)
+                } else {
+                    // Somebody else's words, which is the only case where
+                    // reporting means anything.
+                    Button { showReport = true } label: {
+                        Image(systemName: "flag")
+                            .font(.system(size: 12)).foregroundStyle(Brand.textMuted)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L.reportAction.t)
                 }
             }
             Text(comment.text)
@@ -169,6 +199,12 @@ private struct CommentRow: View {
         .confirmationDialog(L.deleteComment.t, isPresented: $confirming, titleVisibility: .visible) {
             Button(L.deleteComment.t, role: .destructive, action: onDelete)
             Button(L.cancel.t, role: .cancel) {}
+        }
+        .sheet(isPresented: $showReport) {
+            ReportSheet(target: .comment, targetId: comment.id,
+                        authorId: comment.userId, authorKind: "USER",
+                        moderation: moderation)
+                .appDirection()
         }
     }
 }

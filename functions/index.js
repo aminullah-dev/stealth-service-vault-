@@ -154,6 +154,9 @@ exports.cleanupDeletedPost   = content.cleanupDeletedPost;
 exports.adminPostForSalon    = content.adminPostForSalon;
 exports.cleanupExpiredStories = content.cleanupExpiredStories;
 exports.submitReview         = content.submitReview;
+exports.reportContent        = content.reportContent;
+exports.resolveContentReport = content.resolveContentReport;
+exports.cleanupDeletedReview = content.cleanupDeletedReview;
 exports.awardReviewPoints    = content.awardReviewPoints;
 exports.pushOfferToFavoriters = content.pushOfferToFavoriters;
 

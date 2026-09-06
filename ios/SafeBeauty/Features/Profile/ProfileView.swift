@@ -18,6 +18,8 @@ struct ProfileView: View {
     @State private var referralCode = ""
     @State private var phone = ""
     @State private var showKyc = false
+    @State private var showBlocked = false
+    @Environment(Moderation.self) private var moderation
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
     @State private var deleting = false
@@ -96,6 +98,28 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.plain)
 
+                    // Only once she has actually blocked someone. An empty
+                    // list is a row that teaches her the app has a feature she
+                    // does not need.
+                    if !moderation.blocked.isEmpty {
+                        Button { showBlocked = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "hand.raised.fill")
+                                    .foregroundStyle(Brand.accent)
+                                Text(L.blockedTitle.t).font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
+                                Text(verbatim: "\(moderation.blocked.count)")
+                                    .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                                Image(systemName: "chevron.forward").font(.system(size: 12))
+                                    .foregroundStyle(Brand.accent)
+                            }
+                            .padding(15)
+                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button(role: .destructive) { confirmSignOut = true } label: {
                         Text(L.signOut.t)
                             .font(Brand.font(15, .medium))
@@ -132,6 +156,9 @@ struct ProfileView: View {
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.profile.t)
             .sheet(isPresented: $showKyc) { KycView().appDirection() }
+            .sheet(isPresented: $showBlocked) {
+                BlockedAccountsSheet(moderation: moderation).appDirection()
+            }
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showChangePassword) { ChangePasswordSheet().appDirection() }
             .sheet(isPresented: $showEditName) { EditNameSheet().appDirection() }

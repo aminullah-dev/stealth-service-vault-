@@ -134,6 +134,10 @@ struct StarPicker: View {
 struct ReviewRow: View {
     let review: Review
 
+    @Environment(AuthService.self) private var auth
+    @Environment(Moderation.self) private var moderation
+    @State private var showReport = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 7) {
@@ -150,6 +154,18 @@ struct ReviewRow: View {
                     .font(Brand.font(13, .medium))
                     .foregroundStyle(Brand.ink)
                 Spacer()
+                // A review is another customer's words under her own name, so
+                // it needs the same flag the feed has. Not on her own review —
+                // there is nothing to report about yourself, and the salon and
+                // the admin moderate through their own tools.
+                if review.customerId != auth.session?.uid {
+                    Button { showReport = true } label: {
+                        Image(systemName: "flag")
+                            .font(.system(size: 11)).foregroundStyle(Brand.textMuted)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L.reportAction.t)
+                }
             }
 
             if !review.comment.isEmpty {
@@ -172,5 +188,11 @@ struct ReviewRow: View {
             }
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showReport) {
+            ReportSheet(target: .review, targetId: review.id,
+                        authorId: review.customerId, authorKind: "USER",
+                        moderation: moderation)
+                .appDirection()
+        }
     }
 }

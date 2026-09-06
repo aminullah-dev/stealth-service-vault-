@@ -25,7 +25,17 @@ struct SalonDetailView: View {
     @State private var showKyc = false
     @State private var showChat = false
     @State private var reviews: [Review] = []
+
     @State private var gallery: [GalleryImage] = []
+
+    @Environment(Moderation.self) private var moderation
+
+    /// A blocked customer's review is gone from the salon's page too. The same
+    /// person's words on three different screens have to obey one decision, or
+    /// blocking means "sometimes".
+    private var visibleReviews: [Review] {
+        reviews.filter { !moderation.isBlocked($0.customerId) }
+    }
 
     private var total: Int {
         selectedServices.reduce(0) { $0 + (salon.pricePerService[$1] ?? 0) }
@@ -241,7 +251,7 @@ struct SalonDetailView: View {
                 if !reviews.isEmpty {
                     section(L.reviews) {
                         VStack(alignment: .leading, spacing: 12) {
-                            ForEach(reviews) { ReviewRow(review: $0) }
+                            ForEach(visibleReviews) { ReviewRow(review: $0) }
                         }
                     }
                 }

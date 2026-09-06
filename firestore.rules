@@ -892,6 +892,57 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── content_reports ──────────────────────────────────────────────────────────
+    // Somebody flagging a post, story, comment or review. Written exclusively by
+    // the reportContent callable, which is where the author of the reported
+    // content is looked up — a client that could write this row could name
+    // anybody as the author and get them suspended.
+    //
+    // The reporter may read her own reports so the app can show her that she has
+    // already reported something; admins read all, because the queue is the
+    // whole point. Nobody else, including the person reported: knowing who
+    // reported you is how reporting becomes dangerous for the reporter, and in
+    // this market that is not a theoretical concern.
+    match /content_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.reporterId == me() || isAdmin());
+      allow write: if false;
+    }
+
+    // ── blocks ───────────────────────────────────────────────────────────────────
+    // "I do not want to see this person." Client-written, because it is one
+    // customer's own preference and affects nobody else's view — the apps filter
+    // locally on it.
+    //
+    // The document id is "{blocker}_{blocked}", which makes a block written on
+    // somebody else's behalf impossible to name rather than merely refused, and
+    // makes unblocking a delete of a known id instead of a query.
+    //
+    // Read is the blocker's own only. A list of who has blocked a salon would be
+    // a reputational fact the salon could act on, and a customer's block list is
+    // a statement about people she is avoiding.
+    match /blocks/{blockId} {
+      allow read:   if isSignedIn() && resource.data.blockerId == me();
+      allow create: if isSignedIn()
+                 && request.resource.data.blockerId == me()
+                 && request.resource.data.blockedId is string
+                 && request.resource.data.blockedId.size() > 0
+                 && request.resource.data.blockedId != me()
+                 && blockId == me() + '_' + request.resource.data.blockedId
+                 && request.resource.data.keys().hasOnly(
+                      ['blockerId', 'blockedId', 'blockedKind', 'createdAt'])
+                 // Required, not merely permitted. hasOnly says which keys MAY
+                 // appear, not which must, and both apps list blocks with
+                 // orderBy(createdAt) — an orderBy returns no document missing
+                 // the field. A block written without it would filter content
+                 // silently and never appear in the list that could lift it.
+                 && request.resource.data.createdAt is number;
+      // A block is created or removed, never edited: an editable block is a way
+      // to point an existing row at a different person.
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.blockerId == me();
+    }
+
     // ── rate_limits ──────────────────────────────────────────────────────────────
     // Abuse counters for the two pre-login callables (phone lookup, password
     // login). Server-only: a client that could read these would learn how close

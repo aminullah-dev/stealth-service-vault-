@@ -13,6 +13,10 @@ struct RootView: View {
     @State private var lang = LanguageStore.shared
     @State private var theme = ThemeStore.shared
     @State private var showOnboarding = !OnboardingState.seen
+    /// Owned at the root so one block list serves the feed, the comment threads
+    /// and a salon's reviews — three screens that must agree about who she has
+    /// blocked, and would each hold a different answer if each read its own.
+    @State private var moderation = Moderation()
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
 
@@ -48,6 +52,11 @@ struct RootView: View {
             }
         }
         .environment(auth)
+        .environment(moderation)
+        .task(id: auth.session?.uid) {
+            if let uid = auth.session?.uid { moderation.start(uid: uid) }
+            else { moderation.stop() }
+        }
         // The whole tree is rebuilt when the look changes. Brand.* are static
         // lookups, not observable properties, so nothing would re-render on
         // its own — the same reason the tab bar needed this for language.

@@ -448,6 +448,22 @@ const STR = {
   empty_noCommentsYet: {en:'No comments yet', fa:'هنوز نظری نیست', ps:'تر اوسه نظر نشته'},
   empty_noDemandYetThatNobodyCanServe: {en:'No demand yet that nobody can serve', fa:'هنوز تقاضای بی‌پاسخ وجود ندارد', ps:'تر اوسه بې‌ځوابه تقاضا نشته'},
   empty_noFlaggedReports: {en:'No flagged reports 🎉', fa:'گزارشی نیست 🎉', ps:'هیڅ راپور نشته 🎉'},
+  empty_noContentReports: {en:'No reported content 🎉', fa:'محتوای گزارش‌شده‌ای نیست 🎉', ps:'راپور شوې محتوا نشته 🎉'},
+  hint_contentReports: {en:(a0)=>`Reported content (${a0})`, fa:(a0)=>`محتوای گزارش‌شده (${a0})`, ps:(a0)=>`راپور شوې محتوا (${a0})`},
+  hint_contentSla: {en:'Reports are answered within 24 hours.', fa:'گزارش‌ها در کمتر از ۲۴ ساعت بررسی می‌شوند.', ps:'راپورونه په ۲۴ ساعتونو کې کتل کیږي.'},
+  th_content: {en:'Content', fa:'محتوا', ps:'محتوا'},
+  th_reason: {en:'Reason', fa:'دلیل', ps:'دلیل'},
+  th_reporter: {en:'Reported by', fa:'گزارش‌دهنده', ps:'راپور ورکوونکی'},
+  btn_removeContent: {en:'Remove', fa:'حذف محتوا', ps:'محتوا لرې کول'},
+  btn_removeSuspend: {en:'Remove + suspend', fa:'حذف و تعلیق', ps:'لرې کول او تعلیق'},
+  ask_removeContent: {en:'Delete this content permanently?', fa:'این محتوا برای همیشه حذف شود؟', ps:'دا محتوا د تل لپاره حذف شي؟'},
+  ask_removeSuspend: {en:'Delete the content and suspend its author?', fa:'محتوا حذف و حساب نویسنده تعلیق شود؟', ps:'محتوا حذف او د لیکوال حساب دې تعلیق شي؟'},
+  reason_HARASSMENT: {en:'Harassment', fa:'آزار و توهین', ps:'ځورونه'},
+  reason_NUDITY: {en:'Nudity', fa:'غیراخلاقی', ps:'غیراخلاقي'},
+  reason_HATE: {en:'Hate speech', fa:'نفرت‌پراکنی', ps:'کرکه خپرول'},
+  reason_SCAM: {en:'Scam', fa:'کلاهبرداری', ps:'درغلي'},
+  reason_SPAM: {en:'Spam', fa:'تبلیغ ناخواسته', ps:'ناغوښتی اعلان'},
+  reason_OTHER: {en:'Other', fa:'دیگر', ps:'بل'},
   empty_noIdentityChecksAwaitingReview: {en:'No identity checks awaiting review ✓', fa:'احراز هویتی در انتظار بررسی نیست ✓', ps:'د بیاکتنې په تمه د هویت تصدیق نشته ✓'},
   empty_noMatchingSalons: {en:'No matching salons', fa:'هیچ سالنی مطابقت ندارد', ps:'هیڅ سالون سمون نه خوري'},
   ask_closeTicket: {en:'Close this support ticket?', fa:'این تیکت پشتیبانی بسته شود؟', ps:'دا د ملاتړ ټکټ وتړل شي؟'},
@@ -500,6 +516,7 @@ const STR = {
   tab_kyc: {en:'KYC', fa:'KYC', ps:'KYC'},
   tab_promo: {en:'Promo', fa:'کد تخفیف', ps:'د تخفیف کوډ'},
   tab_reports: {en:'Reports', fa:'گزارش‌ها', ps:'راپورونه'},
+  tab_content: {en:'Content', fa:'محتوا', ps:'محتوا'},
   tab_salons: {en:'Salons', fa:'سالن‌ها', ps:'سالونونه'},
   tab_stats: {en:'Statistics', fa:'آمار', ps:'احصایه'},
   tab_stuck: {en:'Stuck pay', fa:'پرداخت گیرمانده', ps:'ایسارې تادیې'},
@@ -1080,6 +1097,7 @@ const TABS = [
   { id:'stuck',      icon:'🧯', render:renderStuck },
   { id:'promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',    icon:'🚩', render:renderReports },
+  { id:'content',    icon:'🛡️', render:renderContentReports },
   { id:'admins',     icon:'🛡️', render:renderAdmins },
   { id:'audit',      icon:'🧾', render:renderAudit },
 ];
@@ -3509,6 +3527,57 @@ function renderPromo(){
     el.querySelectorAll('[data-tog]').forEach(b => b.onclick = () =>
       httpsCallable(fns,'setPromoActive')({ code:b.dataset.tog, active:b.dataset.act==='1' }).catch(e=>alert(e.message)));
   }, err => { const el=$('plist'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Content reports ────────────────────────────────────────────────────────────
+//
+// The half of Guideline 1.2 that lives outside the apps. Reporting is worth
+// nothing without somebody looking at the queue, and the apps now tell every
+// reporter it is answered within 24 hours — so this tab is a promise made on
+// their behalf, not a nicety.
+//
+// Live rather than one-shot: a report filed while this is open should appear
+// without a reload, because the person watching it is watching it for that.
+function renderContentReports(){
+  // Bounded and ordered by the server. `status == 'OPEN'` is not a bound — it
+  // is exactly the set an abuser controls, and reportContent has no rate limit
+  // beyond one report per person per item. orderBy(createdAt desc) also uses
+  // the composite index this tab is the reason for; createdAt is server-written
+  // on every report, so nothing is dropped by ordering on it.
+  unsub.push(onSnapshot(query(collection(db,'content_reports'),
+      where('status','==','OPEN'), orderBy('createdAt','desc'), limit(200)), snap => {
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noContentReports')}</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">${t('hint_contentReports', rows.length)}</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${t('hint_contentSla')}</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">${t('th_content')}</th><th scope="col">${t('th_reason')}</th><th scope="col">${t('th_reporter')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td>
+            <div class="name">${esc(r.targetType||'')}</div>
+            ${r.excerpt?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic">"${esc(r.excerpt)}"</div>`:''}
+            ${r.imageUrl?`<a href="${esc(r.imageUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:11.5px">🖼️</a>`:''}
+            ${r.note?`<div style="font-size:11.5px;margin-top:2px">${esc(r.note)}</div>`:''}
+          </td>
+          <td><span class="pill bad">${t('reason_'+(r.reason||'OTHER'))||esc(r.reason||'')}</span></td>
+          <td>${esc(r.reporterName||r.reporterId||'—')}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn-sm" style="background:var(--muted)" data-cdis="${esc(r.id)}">${t('btn_dismiss')}</button>
+            <button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-crem="${esc(r.id)}">${t('btn_removeContent')}</button>
+            ${r.ownerUid?`<button class="btn-sm" style="background:var(--red);margin-inline-start:6px" data-csus="${esc(r.id)}">${t('btn_removeSuspend')}</button>`:''}
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    const act = (id, action) =>
+      httpsCallable(fns,'resolveContentReport')({ reportId:id, action }).catch(e=>alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-cdis]').forEach(b => b.onclick = () => act(b.dataset.cdis, 'DISMISS'));
+    $('view').querySelectorAll('[data-crem]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_removeContent'))) act(b.dataset.crem, 'REMOVE');
+    });
+    $('view').querySelectorAll('[data-csus]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_removeSuspend'))) act(b.dataset.csus, 'REMOVE_AND_SUSPEND');
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
 }
 
 // ── Reports (flagged customers) ─────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import SafeBeautyCore
 
 /// What the salons are showing and offering.
 struct FeedView: View {
+    @Environment(Moderation.self) private var moderation
     /// The salon catalogue, so a card can open the salon it belongs to.
     /// Posts and offers carry only a salonId; without this the feed is a
     /// gallery you cannot act on.
@@ -13,6 +14,18 @@ struct FeedView: View {
     @State private var stories: [SalonStory] = []
     @State private var loadFailed = false
     @State private var isLoading = true
+
+    /// A blocked salon's work disappears from the feed, which is the whole
+    /// point of blocking one. Filtered here rather than in the query: the
+    /// block list is small and local, and a Firestore `not-in` is capped at ten
+    /// values and would silently start dropping the wrong salons at eleven.
+    private var visiblePosts: [SalonPost] {
+        posts.filter { !moderation.isBlocked($0.salonId) }
+    }
+
+    private var visibleStories: [SalonStory] {
+        stories.filter { !moderation.isBlocked($0.salonId) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -47,7 +60,7 @@ struct FeedView: View {
                                     .padding(.horizontal, 18)
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 12) {
-                                        ForEach(stories) { story in
+                                        ForEach(visibleStories) { story in
                                             StoryBubble(story: story)
                                         }
                                     }
@@ -80,14 +93,14 @@ struct FeedView: View {
                                     .foregroundStyle(Brand.ink)
                                     .padding(.horizontal, 18)
                                     .padding(.top, offers.isEmpty ? 0 : 6)
-                                ForEach(posts) { post in
+                                ForEach(visiblePosts) { post in
                                     if let salon = repo.salons.first(where: { $0.id == post.salonId }) {
                                         NavigationLink { SalonDetailView(salon: salon) } label: {
-                                            PostCard(post: post)
+                                            PostCard(post: post, moderation: moderation)
                                         }
                                         .buttonStyle(.plain)
                                     } else {
-                                        PostCard(post: post)
+                                        PostCard(post: post, moderation: moderation)
                                     }
                                 }
                             }
@@ -158,10 +171,17 @@ struct FeedView: View {
     }
 }
 
+/// A salon's photo in the feed.
+///
+/// The report control is on the card rather than behind a long-press: a control
+/// nobody can find is the same as not having one, and this is the one Apple
+/// asks for by name.
 struct PostCard: View {
     let post: SalonPost
+    let moderation: Moderation
 
     @State private var showComments = false
+    @State private var showReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -207,6 +227,13 @@ struct PostCard: View {
                     // The count was a number pointing at nothing: a customer
                     // could look at a salon's work and had no way to say
                     // anything about it, and the salon never heard from her.
+                    Button { showReport = true } label: {
+                        Image(systemName: "flag")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Brand.textMuted)
+                            .accessibilityLabel(L.reportAction.t)
+                    }
+                    .buttonStyle(.borderless)
                     Button { showComments = true } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "bubble.right").font(.system(size: 11))
@@ -228,6 +255,12 @@ struct PostCard: View {
         .padding(.horizontal, 16)
         .sheet(isPresented: $showComments) {
             PostCommentsSheet(post: post).appDirection()
+        }
+        .sheet(isPresented: $showReport) {
+            ReportSheet(target: .post, targetId: post.id,
+                        authorId: post.salonId, authorKind: "SALON",
+                        moderation: moderation)
+                .appDirection()
         }
     }
 }
@@ -322,6 +355,8 @@ struct StoryBubble: View {
 struct StoryView: View {
     let story: SalonStory
     @Environment(\.dismiss) private var dismiss
+    @Environment(Moderation.self) private var moderation
+    @State private var showReport = false
 
     var body: some View {
         NavigationStack {
@@ -353,6 +388,21 @@ struct StoryView: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(L.close.t) { dismiss() }.foregroundStyle(Brand.accent)
                 }
+                // A story is a salon's photograph and free text shown to every
+                // customer, and it was the one surface the server, the rules
+                // and the index all supported but no screen could reach.
+                ToolbarItem(placement: .primaryAction) {
+                    Button { showReport = true } label: {
+                        Image(systemName: "flag").foregroundStyle(Brand.textMuted)
+                            .accessibilityLabel(L.reportAction.t)
+                    }
+                }
+            }
+            .sheet(isPresented: $showReport) {
+                ReportSheet(target: .story, targetId: story.id,
+                            authorId: story.salonId, authorKind: "SALON",
+                            moderation: moderation)
+                    .appDirection()
             }
         }
     }

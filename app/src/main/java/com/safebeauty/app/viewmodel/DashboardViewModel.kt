@@ -430,6 +430,12 @@ class DashboardViewModel @Inject constructor(
         _showFavoritesOnly.value         = false
     }
 
+    // ── Reporting and blocking ───────────────────────────────────────────────
+    // The same object the feed uses, so a block made on a comment is honoured
+    // by the reviews on a salon's page. Two copies would be two answers to
+    // "has she blocked him", and she would be told the second one is a bug.
+    val moderation = ModerationState(firestoreRepository, customerId, viewModelScope)
+
     /** The cheapest priced service at a salon (null if none priced). */
     private fun salonMinPrice(s: SalonDocument): Int? =
         s.pricePerService.values.filter { it > 0 }.minOrNull()
