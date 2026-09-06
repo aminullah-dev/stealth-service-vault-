@@ -35,13 +35,21 @@ struct FeedView: View {
         stories.filter { !moderation.isBlocked($0.salonId) }
     }
 
+    /// Offers too. The post and the story disappeared and the salon's offer sat
+    /// there with its name on it, one row above — right after the app promised
+    /// "you will not see anything from them again". Found by blocking a salon
+    /// and looking, not by reading this file.
+    private var visibleOffers: [SalonOffer] {
+        offers.filter { !moderation.isBlocked($0.salonId) }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading && posts.isEmpty && offers.isEmpty && stories.isEmpty {
+                if isLoading && visiblePosts.isEmpty && visibleOffers.isEmpty && visibleStories.isEmpty {
                     ProgressView().tint(Brand.accent)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if loadFailed && posts.isEmpty && offers.isEmpty && stories.isEmpty {
+                } else if loadFailed && visiblePosts.isEmpty && visibleOffers.isEmpty && visibleStories.isEmpty {
                     // A read that failed is not an empty feed. Both were
                     // showing the same reassuring sentence.
                     ContentUnavailableView {
@@ -49,7 +57,7 @@ struct FeedView: View {
                             .font(Brand.font(17, .medium))
                             .foregroundStyle(Color(hex: 0xC0392B))
                     }
-                } else if posts.isEmpty && offers.isEmpty && stories.isEmpty {
+                } else if visiblePosts.isEmpty && visibleOffers.isEmpty && visibleStories.isEmpty {
                     ContentUnavailableView {
                         Text(L.feedEmpty.t)
                             .font(Brand.font(16, .medium))
@@ -76,12 +84,12 @@ struct FeedView: View {
                                 }
                                 .defaultScrollAnchor(.leading)
                             }
-                            if !offers.isEmpty {
+                            if !visibleOffers.isEmpty {
                                 Text(L.offers.t)
                                     .font(Brand.font(16, .bold))
                                     .foregroundStyle(Brand.ink)
                                     .padding(.horizontal, 18)
-                                ForEach(offers) { offer in
+                                ForEach(visibleOffers) { offer in
                                     if let salon = repo.salons.first(where: { $0.id == offer.salonId }) {
                                         NavigationLink { SalonDetailView(salon: salon) } label: {
                                             OfferCard(offer: offer)
@@ -100,7 +108,7 @@ struct FeedView: View {
                                     .font(Brand.font(16, .bold))
                                     .foregroundStyle(Brand.ink)
                                     .padding(.horizontal, 18)
-                                    .padding(.top, offers.isEmpty ? 0 : 6)
+                                    .padding(.top, visibleOffers.isEmpty ? 0 : 6)
                                 ForEach(visiblePosts) { post in
                                     if let salon = repo.salons.first(where: { $0.id == post.salonId }) {
                                         NavigationLink { SalonDetailView(salon: salon) } label: {

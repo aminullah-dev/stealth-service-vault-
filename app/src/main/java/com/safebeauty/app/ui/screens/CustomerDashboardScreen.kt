@@ -353,7 +353,11 @@ fun CustomerDashboardScreen(
     val reportFailed              by viewModel.moderation.failed.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
-    val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
+    // Blocked salons' deals leave the strip too. The post and the story go and
+    // the same salon's offer stays one row up, immediately after the app said
+    // "you will not see anything from them again".
+    val allActiveOffers           by viewModel.activeOffers.collectAsStateWithLifecycle()
+    val activeOffers = allActiveOffers.filter { it.salonId !in blocked }
     val offerSalonIds             by viewModel.offerSalonIds.collectAsStateWithLifecycle()
     // Identity gate: deals & special offers are a verified-customer perk, shown
     // only once KYC is APPROVED. While the status is still loading (null) we lock
