@@ -856,6 +856,13 @@ exports.lookupAccountByPhone = onCall({ region: "us-central1" }, async (request)
 
 const LIVE_APPOINTMENT_STATUSES = ["AWAITING_PAYMENT", "PENDING", "CONFIRMED"];
 
+/** Split a list into pieces an `in` filter will accept (Firestore caps it at 30). */
+function chunk(items, size) {
+  const out = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 /** Commit a batch every 400 writes (Firestore's hard limit is 500). */
 
 async function flushIfFull(batch, count) {
@@ -885,13 +892,34 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
   const add = async (fn) => { fn(batch); count++; ({ batch, count } = await flushIfFull(batch, count)); };
 
   // 1. Cancel every live appointment on both sides of the marketplace.
+  //
+  // The salon side is reached through her SALONS, not through a providerId on
+  // the appointment. There is no such field — bookings.js:58 says so in as many
+  // words ("AppointmentDocument has no providerId field — it lives on the
+  // payment") — so `.where("providerId","==",uid)` matched nothing, every time,
+  // and a departing provider's customers kept live bookings against a salon
+  // whose owner no longer existed. They would have turned up to it.
+  const ownedSalons = await db.collection("salons").where("providerId", "==", uid).get();
+  const salonIds = ownedSalons.docs.map((d) => d.id);
+
+  const liveQueries = [
+    db.collection("appointments").where("customerId", "==", uid)
+      .where("status", "in", LIVE_APPOINTMENT_STATUSES).get(),
+    // `in` takes at most 30 values; a provider with more salons than that is
+    // not a case this product has, but chunking costs nothing and a silent
+    // truncation is exactly the shape of the bug being fixed.
+    ...chunk(salonIds, 30).map((ids) =>
+      db.collection("appointments").where("salonId", "in", ids)
+        .where("status", "in", LIVE_APPOINTMENT_STATUSES).get()),
+  ];
+
   let cancelled = 0;
-  for (const field of ["customerId", "providerId"]) {
-    const snap = await db.collection("appointments")
-      .where(field, "==", uid)
-      .where("status", "in", LIVE_APPOINTMENT_STATUSES)
-      .get();
+  const seen = new Set();
+  for (const q of liveQueries) {
+    const snap = await q;
     for (const d of snap.docs) {
+      if (seen.has(d.id)) continue;   // she may be both sides of one booking
+      seen.add(d.id);
       await add((b) => b.update(d.ref, {
         status: "CANCELLED",
         cancelledAt: now,
@@ -936,7 +964,14 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
   // 5. A departing provider's salon must stop taking bookings.
   const salons = await db.collection("salons").where("providerId", "==", uid).get();
   for (const d of salons.docs) {
-    await add((b) => b.update(d.ref, { hidden: true, isVerified: false, deletedAt: now }));
+    // isAvailable, not `hidden`. Nothing anywhere reads `hidden` — discovery
+    // filters on `isAvailable !== true` (domains/discovery.js) and so does the
+    // iOS list — so the salon of a deleted provider stayed listed and stayed
+    // bookable. `hidden` is kept alongside it only so an older reader that
+    // learned to look for it is not surprised.
+    await add((b) => b.update(d.ref, {
+      isAvailable: false, hidden: true, isVerified: false, deletedAt: now,
+    }));
   }
 
   // 6. The uid_map bridge (there may be several, one per Auth account used).
