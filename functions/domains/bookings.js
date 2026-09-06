@@ -1291,3 +1291,8 @@ exports.adminCancelAppointment = onCall({ region: "us-central1" }, async (reques
   await logAdminAction(me, "CANCEL_APPOINTMENT", { appointmentId, reason: why });
   return result;
 });
+
+// Exported for requestAccountDeletion, which was cancelling paid bookings with
+// a bare status write and therefore never flagging the money. Not a callable —
+// index.js does not re-export it, and deploy.sh now skips helper names.
+exports.cancelPaidAppointment = cancelPaidAppointment;

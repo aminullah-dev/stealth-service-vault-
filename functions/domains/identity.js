@@ -4,6 +4,7 @@
 // so the deployed function set is unchanged by the move.
 
 const { phoneKey } = require("../lib/phone");
+const { cancelPaidAppointment } = require("./bookings");
 const { defaultWorkingHours } = require("../lib/hours");
 const { deriveReferralCode, maxAttempts, BACKFILL_MIN_ATTEMPT } = require("../lib/referral");
 const { acceptedReferral, buildRegistrationDocument, selfRegisterRole } = require("../lib/registration");
@@ -920,6 +921,28 @@ exports.requestAccountDeletion = onCall({ region: "us-central1" }, async (reques
     for (const d of snap.docs) {
       if (seen.has(d.id)) continue;   // she may be both sides of one booking
       seen.add(d.id);
+
+      // A booking that was PAID online is money, not a status. A bare write
+      // marks it cancelled and leaves the payment untouched, so nothing ever
+      // flags it for refund and the customer is simply out the amount — on a
+      // cancellation she did not ask for and cannot appeal, because the
+      // account that would have appealed it is being deleted. Routed through
+      // the same helper the ordinary cancel path uses, which reverses the
+      // commission and marks the payment refundable.
+      if (d.data().status === "PENDING" || d.data().status === "CONFIRMED") {
+        try {
+          await cancelPaidAppointment(d.id, "SYSTEM", () => true, null, "ACCOUNT_DELETED");
+          cancelled++;
+          continue;
+        } catch (e) {
+          // Falls through to the plain write: an unpaid or already-settled
+          // booking is not worth failing a deletion over, but it is worth
+          // knowing which ones took this path.
+          logger.warn("requestAccountDeletion: paid-cancel failed, falling back",
+            { appointmentId: d.id, err: String(e) });
+        }
+      }
+
       await add((b) => b.update(d.ref, {
         status: "CANCELLED",
         cancelledAt: now,

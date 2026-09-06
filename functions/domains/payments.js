@@ -216,6 +216,16 @@ exports.createPaymentSession = onCall(
     }
     const salon = salonSnap.data();
 
+    // Existence was the whole gate. isAvailable is what discovery and both apps
+    // filter on, and what requestAccountDeletion now clears when an owner
+    // leaves — so without this a salon that had closed, been hidden by an
+    // admin, or whose owner had deleted her account was still bookable by
+    // anyone holding a link or a stale list, and took the customer's money.
+    if (salon.isAvailable !== true) {
+      throw new HttpsError("failed-precondition", "This salon is not taking bookings.",
+        { reason: "SALON_UNAVAILABLE" });
+    }
+
     // A provider may not book her own salon.
     //
     // Nothing else in the chain stops it, and the chain pays out. confirmAppointment

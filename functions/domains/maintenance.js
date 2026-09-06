@@ -259,10 +259,27 @@ exports.pruneOldBackups = onSchedule(
       .limit(20).get();
     if (old.empty) return;
 
+    // "never the newest one", which the comment above has always promised and
+    // the code never did. After thirty days without a successful export every
+    // DONE record is past the cutoff, so this deleted ALL of them — leaving no
+    // backup at all, on exactly the day a restore would be needed. The state
+    // that produces it is a broken exporter, which is also the state in which
+    // nobody is reading the logs.
+    const newest = await db.collection("system_backups")
+      .where("state", "==", "DONE")
+      .orderBy("finishedAt", "desc")
+      .limit(1).get();
+    const keepId = newest.empty ? "" : newest.docs[0].id;
+
     const bucketName = BACKUP_BUCKET.replace("gs://", "");
     const bucket = admin.storage().bucket(bucketName);
 
     for (const doc of old.docs) {
+      if (doc.id === keepId) {
+        logger.warn("pruneOldBackups: keeping the newest backup though it is past retention — " +
+                    "no successful export in " + BACKUP_RETENTION_DAYS + " days", { id: doc.id });
+        continue;
+      }
       try {
         await bucket.deleteFiles({ prefix: `${doc.id}/`, force: true });
         await doc.ref.update({ state: "PRUNED", prunedAt: Date.now() });

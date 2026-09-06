@@ -668,7 +668,19 @@ service cloud.firestore {
                  && request.resource.data.customerId == me();
 
       // Provider marks slot as available; admin can do anything.
-      allow update: if ownsThisSalon(resource.data.salonId) || isAdmin();
+      //
+      // And the customer may dismiss her OWN entry, which she could not: the
+      // Dismiss button on a SLOT_AVAILABLE card writes status EXPIRED
+      // (FirestoreRepository.dismissWaitlistEntry) and this rule admitted only
+      // the provider, so the button was denied every time and the card stayed.
+      // Narrow on purpose — she may set her own entry to EXPIRED and change
+      // nothing else, so this cannot be used to claim a slot by writing
+      // SLOT_AVAILABLE to her own row.
+      allow update: if ownsThisSalon(resource.data.salonId) || isAdmin()
+                 || (resource.data.customerId == me()
+                     && request.resource.data.status == 'EXPIRED'
+                     && request.resource.data.customerId == resource.data.customerId
+                     && request.resource.data.salonId == resource.data.salonId);
 
       allow delete: if resource.data.customerId == me() || isAdmin();
     }
@@ -685,8 +697,31 @@ service cloud.firestore {
       // any signed-in user push arbitrary text to any user's phone.
       allow create: if false;
 
-      // Only the recipient marks as read / deletes.
-      allow update: if resource.data.recipientId == me() || isAdmin();
+      // Only the recipient marks as READ. Not "the recipient may update".
+      //
+      // `create` is closed above with the reason spelled out — an open client
+      // path would let anyone put arbitrary text in front of any user. Update
+      // reopened exactly that: the recipient could rewrite title, body, type
+      // AND recipientId, handing a notification she wrote herself to someone
+      // else. It arrives without a push, since pushOnNotificationCreated fires
+      // on create, but it sits in the victim's notification list in the app's
+      // own voice, which is the part that makes it worth writing.
+      //
+      // Both clients write exactly this one field and nothing else:
+      // FirestoreRepository.kt update("isRead", true) and
+      // NotificationsRepository.swift updateData(["isRead": true]).
+      allow update: if isAdmin()
+                 || (resource.data.recipientId == me()
+                     && request.resource.data.recipientId == resource.data.recipientId
+                     && request.resource.data.get('title', '') == resource.data.get('title', '')
+                     && request.resource.data.get('body', '')  == resource.data.get('body', '')
+                     && request.resource.data.get('type', '')  == resource.data.get('type', '')
+                     && request.resource.data.get('appointmentId', '')
+                          == resource.data.get('appointmentId', '')
+                     && request.resource.data.get('salonId', '')
+                          == resource.data.get('salonId', '')
+                     && request.resource.data.get('createdAt', 0)
+                          == resource.data.get('createdAt', 0));
       allow delete: if resource.data.recipientId == me() || isAdmin();
     }
 

@@ -37,7 +37,24 @@ fi
 # ever catch failures someone already thought of. Three jobs in this project
 # were dead from the day they were written and none of the labelled alerts said
 # so, because a crash is not a labelled event.
-SCHEDULED_SERVICES="scheduledfirestorebackup|verifyfirestorebackup|pruneoldbackups|reconcileintegrity|normalizesalonsdaily|nudgeunconfirmedbookings|completepastappointments|sendbookingreminders|expireabandonedpayments|sendreengagementnudges|cleanupexpiredstories|cleanupratelimits"
+# Derived from the source, not typed out. The hand-written list had drifted to
+# twelve names while fifteen onSchedule functions were deployed, so a crash in
+# measureSalonReliability, resumeBroadcasts or rotateWaitlistOffers matched no
+# policy and woke nobody — and this is the alert that exists precisely for jobs
+# nothing else notices. A list that has to be updated by hand is a list that
+# will be wrong again.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SCHEDULED_SERVICES="$(grep -hoE '^exports\.[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*onSchedule' \
+  "$REPO_ROOT"/functions/domains/*.js \
+  | sed -E 's/^exports\.([A-Za-z_][A-Za-z0-9_]*).*/\1/' \
+  | tr 'A-Z' 'a-z' | sort -u | paste -sd'|' -)"
+if [[ -z "$SCHEDULED_SERVICES" ]]; then
+  # An empty alternation would compile to a filter that matches nothing, which
+  # looks exactly like a healthy system.
+  echo "could not derive the scheduled-function list from functions/domains — refusing to write an alert that matches nothing" >&2
+  exit 3
+fi
+echo "── scheduled jobs watched: $(tr '|' ' ' <<<"$SCHEDULED_SERVICES")"
 
 CATCH_ALL=(
   "safebeauty_scheduled_job_error|A scheduled job failed|0|severity>=ERROR AND resource.type=\"cloud_run_revision\" AND resource.labels.service_name=~\"^(${SCHEDULED_SERVICES})\$\"|A background job logged an error. These run on a timer, rarely, and nothing else notices when one stops working."
