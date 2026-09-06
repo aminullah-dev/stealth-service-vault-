@@ -450,6 +450,19 @@ const STR = {
   empty_noFlaggedReports: {en:'No flagged reports 🎉', fa:'گزارشی نیست 🎉', ps:'هیڅ راپور نشته 🎉'},
   empty_noIdentityChecksAwaitingReview: {en:'No identity checks awaiting review ✓', fa:'احراز هویتی در انتظار بررسی نیست ✓', ps:'د بیاکتنې په تمه د هویت تصدیق نشته ✓'},
   empty_noMatchingSalons: {en:'No matching salons', fa:'هیچ سالنی مطابقت ندارد', ps:'هیڅ سالون سمون نه خوري'},
+  ask_closeTicket: {en:'Close this support ticket?', fa:'این تیکت پشتیبانی بسته شود؟', ps:'دا د ملاتړ ټکټ وتړل شي؟'},
+  ask_suspendUser: {en:(n)=>`Suspend ${n}? They keep access to their own history and to support.`, fa:(n)=>`${n} معلق شود؟ دسترسی او به سوابق خودش و به پشتیبانی باقی می‌ماند.`, ps:(n)=>`${n} دې وځنډول شي؟ خپلو سوابقو او ملاتړ ته یې لاسرسی پاتې کیږي.`},
+  ask_deleteUser: {en:(n)=>`Delete ${n}?\n\nThis is for duplicates and test rows. It is refused if the account has any history, and it is recoverable for 7 days.`, fa:(n)=>`${n} حذف شود؟\n\nاین برای موارد تکراری و ردیف‌های آزمایشی است. اگر حساب سابقه‌ای داشته باشد رد می‌شود، و تا ۷ روز قابل بازیابی است.`, ps:(n)=>`${n} دې ړنګ شي؟\n\nدا د تکراري او ازموینې کرښو لپاره دی. که حساب کوم سابقه ولري، رد کیږي، او تر ۷ ورځو بیرته ترلاسه کیدای شي.`},
+  ask_grantAdmin: {en:'Give this user full admin access?', fa:'به این کاربر دسترسی کامل ادمین داده شود؟', ps:'دې کاروونکي ته د ادمین بشپړ لاسرسی ورکړل شي؟'},
+  ask_revokeAdmin: {en:'Remove admin access from this user?', fa:'دسترسی ادمین از این کاربر گرفته شود؟', ps:'د دې کاروونکي د ادمین لاسرسی واخیستل شي؟'},
+  ask_revokeAdminNamed: {en:(n)=>`Remove admin access from ${n}?`, fa:(n)=>`دسترسی ادمین از ${n} گرفته شود؟`, ps:(n)=>`د ${n} د ادمین لاسرسی واخیستل شي؟`},
+  ask_removeComment: {en:'Remove this comment?', fa:'این نظر حذف شود؟', ps:'دا نظر ړنګ شي؟'},
+  ask_removeStory: {en:'Remove this story?', fa:'این استوری حذف شود؟', ps:'دا سټوري ړنګ شي؟'},
+  ask_removePhoto: {en:'Remove this photo? Its likes and comments go with it.', fa:'این عکس حذف شود؟ لایک‌ها و نظرهایش هم با آن می‌روند.', ps:'دا انځور ړنګ شي؟ خوښې او نظرونه یې هم ورسره ځي.'},
+  ask_cancelBooking: {en:'Cancel this booking? The payment is flagged for refund and the salon\u2019s balance is unwound.', fa:'این رزرو لغو شود؟ پرداخت برای بازپرداخت علامت می‌خورد و موجودی سالن برگردانده می‌شود.', ps:'دا بکینګ لغوه شي؟ تادیه د بیرته ورکړې لپاره نښه کیږي او د سالون بیلانس بیرته اوړي.'},
+  ask_markPaid: {en:(a,n)=>`Mark ${a} paid to ${n}?`, fa:(a,n)=>`${a} پرداخت‌شده به ${n} ثبت شود؟`, ps:(a,n)=>`${a} چې ${n} ته ورکړل شوی، ثبت شي؟`},
+  ask_markRefunded: {en:(a)=>`Mark ${a} as refunded?`, fa:(a)=>`${a} به‌عنوان بازپرداخت‌شده ثبت شود؟`, ps:(a)=>`${a} د بیرته ورکړل شوي په توګه ثبت شي؟`},
+  ask_suspendCustomer: {en:'Suspend this customer?', fa:'این مشتری معلق شود؟', ps:'دا پیرودونکی وځنډول شي؟'},
   empty_noMatchingUsers: {en:'No matching users', fa:'هیچ کاربری مطابقت ندارد', ps:'هیڅ کاروونکی سمون نه خوري'},
   btn_searchServer: {en:'Search the server by phone', fa:'جستجوی سرور با شماره', ps:'په شمېره سره د سرور لټون'},
   empty_noOpenSupportRequests: {en:'No open support requests', fa:'درخواست پشتیبانی بازی وجود ندارد', ps:'هیڅ خلاصه د ملاتړ غوښتنه نشته'},
@@ -1374,7 +1387,7 @@ function openChat(userId, name){
   $('ctpl').onclick = () => openTemplates('cin');
   $('cin').addEventListener('keydown', e => { if(e.key==='Enter') send(); });
   $('cclose').onclick = () => {
-    if(!confirm('Close this support ticket?')) return;
+    if(!confirm(t('ask_closeTicket'))) return;
     updateDoc(doc(db,'support_tickets',userId), { status:'CLOSED' }).catch(e=>alert(e.message));
     selectedTicket = null;
     $('chat').innerHTML = `<div class="chat-empty">Select a conversation</div>`;
@@ -1721,7 +1734,7 @@ function openUserModal(u, onChanged){
   if($('m-suspend')) $('m-suspend').onclick = async (e) => {
     const reason = $('m-susreason').value.trim();
     if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A suspension needs a reason on the record.'; return; }
-    if(!confirm(`Suspend ${u.name||u.id}? They keep access to their own history and to support.`)) return;
+    if(!confirm(t('ask_suspendUser', u.name||u.id))) return;
     if(await callFn('adminSetUserStatus', { targetUid:u.id, suspend:true, reason }, e.target, 'm-flash', 'Suspended ✓')) refresh();
   };
   if($('m-reinstate')) $('m-reinstate').onclick = async (e) => {
@@ -1731,7 +1744,7 @@ function openUserModal(u, onChanged){
   $('m-delete').onclick = async (e) => {
     const reason = $('m-delreason').value.trim();
     if(!reason){ $('m-flash').className='mflash bad'; $('m-flash').textContent='A deletion needs a reason on the record.'; return; }
-    if(!confirm(`Delete ${u.name||u.id}?\n\nThis is for duplicates and test rows. It is refused if the account has any history, and it is recoverable for 7 days.`)) return;
+    if(!confirm(t('ask_deleteUser', u.name||u.id))) return;
 
     const btn = e.target, lbl = btn.textContent;
     btn.disabled = true; btn.textContent = 'Deleting…';
@@ -1808,11 +1821,11 @@ function openUserModal(u, onChanged){
     if(await callFn('adminGrantCredit', { customerId:u.id, amount, reason:$('m-credreason').value.trim() }, e.target, 'm-flash', 'Credit granted ✓')){ $('m-credamt').value=''; }
   };
   if($('m-grant')) $('m-grant').onclick = async (e) => {
-    if(!confirm('Give this user full admin access?')) return;
+    if(!confirm(t('ask_grantAdmin'))) return;
     if(await callFn('grantAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Now an admin ✓')) refresh();
   };
   if($('m-revoke')) $('m-revoke').onclick = async (e) => {
-    if(!confirm('Remove admin access from this user?')) return;
+    if(!confirm(t('ask_revokeAdmin'))) return;
     if(await callFn('revokeAdmin', { targetUid:u.id }, e.target, 'm-flash', 'Admin access removed ✓')) refresh();
   };
 }
@@ -1848,7 +1861,7 @@ async function renderAdmins(){
 
     $('view').querySelectorAll('[data-rev]').forEach(b => b.onclick = async () => {
       const a = admins.find(x=>x.id===b.dataset.rev);
-      if(!confirm(`Remove admin access from ${a.name||a.id}?`)) return;
+      if(!confirm(t('ask_revokeAdminNamed', a.name||a.id))) return;
       if(await callFn('revokeAdmin', { targetUid:b.dataset.rev }, b, 'aflash2', 'Removed ✓')) setTimeout(renderAdmins, 700);
     });
 
@@ -2076,13 +2089,13 @@ async function renderContent(){
     };
 
     $('view').querySelectorAll('[data-delc]').forEach(b => b.onclick = () => {
-      if(confirm('Remove this comment?')) after(() => deleteDoc(doc(db,'post_comments', b.dataset.delc)))(b);
+      if(confirm(t('ask_removeComment'))) after(() => deleteDoc(doc(db,'post_comments', b.dataset.delc)))(b);
     });
     $('view').querySelectorAll('[data-dels]').forEach(b => b.onclick = () => {
-      if(confirm('Remove this story?')) after(() => deleteDoc(doc(db,'salon_stories', b.dataset.dels)))(b);
+      if(confirm(t('ask_removeStory'))) after(() => deleteDoc(doc(db,'salon_stories', b.dataset.dels)))(b);
     });
     $('view').querySelectorAll('[data-delp]').forEach(b => b.onclick = () => {
-      if(!confirm('Remove this photo? Its likes and comments go with it.')) return;
+      if(!confirm(t('ask_removePhoto'))) return;
       after(async () => {
         // cleanupDeletedPost collects the likes and comments; the image is the
         // only part that does not belong to Firestore.
@@ -2199,7 +2212,7 @@ function renderBooking(){
         $('bk-reason').focus();
         return;
       }
-      if(!window.confirm('Cancel this booking? The payment is flagged for refund and the salon\u2019s balance is unwound.')) return;
+      if(!window.confirm(t('ask_cancelBooking'))) return;
       ok = await callFn('adminCancelAppointment', { appointmentId: id, reason: why },
                         btn, 'bk-actflash', 'Cancelled \u2713 Refund flagged for a person to settle.');
     }
@@ -3330,7 +3343,7 @@ async function renderFinance(){
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_nothingOwed')}</div>`;
       bel.querySelectorAll('[data-pay]').forEach(btn => btn.onclick = async () => {
         const b = bals[+btn.dataset.pay];
-        if(!confirm(`Mark ${AFN(b.owedAmount)} paid to ${b.name}?`)) return;
+        if(!confirm(t('ask_markPaid', AFN(b.owedAmount), b.name))) return;
         btn.disabled = true; btn.textContent='…';
         try{ await httpsCallable(fns,'recordProviderPayout')({ providerId:b.providerId });
           bals.splice(bals.indexOf(b),1); drawBal(); }
@@ -3356,7 +3369,7 @@ async function renderFinance(){
         </tr>`).join('') + `</tbody></table></div>` : `<div class="empty">${t('empty_noPendingRefunds')}</div>`;
       rel.querySelectorAll('[data-ref]').forEach(btn => btn.onclick = async () => {
         const r = refunds[+btn.dataset.ref];
-        if(!confirm(`Mark ${AFN(r.amount)} as refunded?`)) return;
+        if(!confirm(t('ask_markRefunded', AFN(r.amount)))) return;
         btn.disabled = true; btn.textContent='…';
         try{ await httpsCallable(fns,'recordRefundProcessed')({ refundRequestId:r.id });
           refunds.splice(refunds.indexOf(r),1); drawRef(); }
@@ -3438,7 +3451,7 @@ function renderReports(){
       httpsCallable(fns,'resolveCustomerReport')({ reportId:id, suspend }).catch(e=>alert(e.message||'Failed'));
     $('view').querySelectorAll('[data-dis]').forEach(b => b.onclick = () => resolve(b.dataset.dis, false));
     $('view').querySelectorAll('[data-sus]').forEach(b => b.onclick = () => {
-      if(confirm('Suspend this customer?')) resolve(b.dataset.sus, true);
+      if(confirm(t('ask_suspendCustomer'))) resolve(b.dataset.sus, true);
     });
   }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
 }

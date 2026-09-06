@@ -23,6 +23,8 @@ struct RegisterView: View {
     @State private var isProvider = false
     @State private var salonName = ""
     @State private var district = ""
+    @State private var services: [String] = []
+    @State private var serviceInput = ""
     @State private var error: String?
 
     var body: some View {
@@ -44,6 +46,40 @@ struct RegisterView: View {
                     if isProvider {
                         BrandField(label: .salonName, text: $salonName)
                         BrandField(label: .district, text: $district)
+
+                        // Asked for, not invented. This used to send a
+                        // hard-coded literal purely to satisfy the server's
+                        // at-least-one-service check, so every salon created on
+                        // iOS had exactly one service with a name its owner had
+                        // never typed — and that name is what customers browse
+                        // and what the category matcher reads.
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                BrandField(label: .serviceName, text: $serviceInput)
+                                Button(L.add.t) { addService() }
+                                    .font(Brand.font(14, .medium))
+                                    .foregroundStyle(Brand.accent)
+                                    .disabled(serviceInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                            if !services.isEmpty {
+                                FlowLayout(spacing: 8) {
+                                    ForEach(services, id: \.self) { name in
+                                        Button {
+                                            services.removeAll { $0 == name }
+                                        } label: {
+                                            HStack(spacing: 5) {
+                                                Text(name).font(Brand.font(13))
+                                                Image(systemName: "xmark").font(.system(size: 9))
+                                            }
+                                            .foregroundStyle(Brand.deep)
+                                            .padding(.horizontal, 11).padding(.vertical, 6)
+                                            .background(Brand.petal.opacity(0.45), in: Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     ErrorBanner(message: error)
@@ -100,7 +136,15 @@ struct RegisterView: View {
         if isProvider && district.trimmingCharacters(in: .whitespaces).isEmpty {
             return .errDistrictRequired
         }
+        if isProvider && services.isEmpty { return .errServicesRequired }
         return nil
+    }
+
+    private func addService() {
+        let name = serviceInput.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, !services.contains(name) else { return }
+        services.append(name)
+        serviceInput = ""
     }
 
     private func submit() async {
@@ -110,7 +154,7 @@ struct RegisterView: View {
             try await auth.register(
                 name: name, phone: phone, email: email, password: password,
                 isProvider: isProvider, salonName: salonName, district: district,
-                services: isProvider ? ["خدمات"] : []
+                services: isProvider ? services : []
             )
             dismiss()
         } catch AuthService.AuthError.registeredButNotSignedIn {

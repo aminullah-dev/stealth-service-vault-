@@ -68,6 +68,8 @@ extension L {
     static let iAmASalon = L(fa: "صاحب سالون هستم", ps: "زه د سالون مالک یم",
                              en: "I own a salon")
     static let salonName = L(fa: "نام سالون", ps: "د سالون نوم", en: "Salon name")
+    static let serviceName = L(fa: "نام خدمت", ps: "د خدمت نوم", en: "Service name")
+    static let add = L(fa: "افزودن", ps: "زیاتول", en: "Add")
     static let district = L(fa: "ناحیه", ps: "ناحیه", en: "District")
     static let haveAccount = L(fa: "حساب دارید؟ وارد شوید",
                                ps: "حساب لرئ؟ ننوځئ", en: "Have an account? Sign in")
@@ -153,6 +155,9 @@ extension L {
     static let errPasswordMismatch = L(
         fa: "دو رمز عبور یکی نیستند.", ps: "دواړه پټنومونه یو شان نه دي.",
         en: "The two passwords do not match.")
+    static let errServicesRequired = L(
+        fa: "حداقل یک خدمت اضافه کنید.", ps: "لږ تر لږه یوه خدمت اضافه کړئ.",
+        en: "Add at least one service.")
     static let errDistrictRequired = L(
         fa: "ناحیه لازم است.", ps: "ناحیه اړینه ده.", en: "District is required.")
     static let errSalonNameRequired = L(
