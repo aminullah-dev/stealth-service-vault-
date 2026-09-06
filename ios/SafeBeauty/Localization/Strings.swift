@@ -464,6 +464,20 @@ extension L {
                                 en: "Search salons or services")
     static let allCities = L(fa: "همه شهرها", ps: "ټول ښارونه", en: "All cities")
     static let favorites = L(fa: "علاقه‌مندی‌ها", ps: "خوښې", en: "Favorites")
+    static let reschedule = L(fa: "تغییر زمان", ps: "د وخت بدلون", en: "Change time")
+    static let rescheduleFrom = L(fa: "زمان فعلی", ps: "اوسنی وخت", en: "Current time")
+    static let rescheduleDone = L(fa: "زمان نوبت شما تغییر کرد.",
+                                  ps: "ستاسو د نوبت وخت بدل شو.",
+                                  en: "Your appointment has been moved.")
+    static let rescheduleClosed = L(fa: "سالن آن روز بسته است.",
+                                    ps: "سالون هغه ورځ تړلی دی.",
+                                    en: "The salon is closed that day.")
+    static let rescheduleTaken = L(fa: "آن زمان همین حالا گرفته شد. زمان دیگری انتخاب کنید.",
+                                   ps: "هغه وخت همدا اوس ونیول شو. بل وخت وټاکئ.",
+                                   en: "That time was just taken. Please pick another.")
+    static let rescheduleTooLate = L(fa: "این نوبت دیگر قابل تغییر نیست.",
+                                     ps: "دا نوبت نور نه شي بدلېدلی.",
+                                     en: "This booking can no longer be changed.")
     static let noFavourites = L(fa: "هنوز سالنی را نشان نکرده‌اید.",
                                 ps: "تر اوسه مو کوم سالون نه دی خوښ کړی.",
                                 en: "You have not saved any salons yet.")

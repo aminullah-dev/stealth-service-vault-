@@ -6,6 +6,7 @@ struct MyBookingsView: View {
     @State private var repo = BookingsRepository()
     @State private var cancelling: Appointment?
     @State private var reviewing: Appointment?
+    @State private var rescheduling: Appointment?
     @State private var error: String?
 
     var body: some View {
@@ -49,8 +50,15 @@ struct MyBookingsView: View {
                                     BookingRow(
                                         booking: booking,
                                         canCancel: booking.status == .pending
-                                                || booking.status == .confirmed
-                                    ) { cancelling = booking }
+                                                || booking.status == .confirmed,
+                                        onCancel: { cancelling = booking },
+                                        // rescheduleAppointment accepts exactly
+                                        // the same two statuses cancel does, so
+                                        // the two buttons appear and disappear
+                                        // together.
+                                        canReschedule: booking.status == .pending
+                                                    || booking.status == .confirmed,
+                                        onReschedule: { rescheduling = booking })
                                 }
                             }
                         }
@@ -99,6 +107,11 @@ struct MyBookingsView: View {
                 Text(L.cancelWarning.t)
             }
             .sheet(item: $reviewing) { ReviewSheet(booking: $0).appDirection() }
+            .sheet(item: $rescheduling) { booking in
+                // The list is a live snapshot, so the moved booking redraws on
+                // its own; onMoved only has to close the sheet's own state.
+                RescheduleSheet(booking: booking, onMoved: {}).appDirection()
+            }
         }
         .task(id: auth.session?.uid) {
             if let uid = auth.session?.uid { repo.start(customerId: uid) }
@@ -116,6 +129,8 @@ struct BookingRow: View {
     let booking: Appointment
     let canCancel: Bool
     let onCancel: () -> Void
+    var canReschedule = false
+    var onReschedule: () -> Void = {}
     var canReview: Bool = false
     var onReview: () -> Void = {}
 
@@ -164,15 +179,36 @@ struct BookingRow: View {
                     .foregroundStyle(Brand.gold)
             }
 
-            if canCancel {
-                Button(L.cancelBooking.t, role: .destructive, action: onCancel)
-                    .font(Brand.font(13, .medium))
-                    .padding(.top, 2)
+            if canReschedule || canCancel {
+                HStack(spacing: 16) {
+                    // Moving it comes before cancelling it. Most people who open
+                    // this row want a different hour, not to lose the booking,
+                    // and putting the destructive one first invites the wrong
+                    // tap.
+                    // .borderless on both, which is not cosmetic. A List row
+                    // with a single Button lets the whole row trigger it; add a
+                    // second and SwiftUI stops routing the tap to either, so
+                    // both buttons go dead. That is what happened the moment
+                    // «تغییر زمان» was added beside «لغو رزرو».
+                    if canReschedule {
+                        Button(L.reschedule.t, action: onReschedule)
+                            .font(Brand.font(13, .medium))
+                            .foregroundStyle(Brand.accent)
+                            .buttonStyle(.borderless)
+                    }
+                    if canCancel {
+                        Button(L.cancelBooking.t, role: .destructive, action: onCancel)
+                            .font(Brand.font(13, .medium))
+                            .buttonStyle(.borderless)
+                    }
+                }
+                .padding(.top, 2)
             }
             if canReview {
                 Button(L.writeReview.t, action: onReview)
                     .font(Brand.font(13, .medium))
                     .foregroundStyle(Brand.accent)
+                    .buttonStyle(.borderless)
                     .padding(.top, 2)
             }
         }

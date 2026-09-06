@@ -16,52 +16,12 @@ struct SalonDetailView: View {
     @State private var selectedServices: Set<String> = []
     @State private var selectedDay = Date()
     @State private var selectedSlot: Int64?
-    @State private var booked: [Appointment] = []
-    @State private var isLoadingSlots = false
-    /// Whether the last getBookedSlots read failed. A failed read is not an
-    /// empty diary — treating it as one offers every hour of the day as free.
-    @State private var slotsUnavailable = false
+    /// Bumped to make the picker re-read what is taken.
+    @State private var slotReload = 0
     @State private var showBooking = false
     @State private var showKyc = false
     @State private var showChat = false
     @State private var reviews: [Review] = []
-
-    /// The next seven days, starting today, in Kabul.
-    private var days: [Date] {
-        (0..<7).compactMap {
-            DayGrid.kabulCalendar.date(byAdding: .day, value: $0, to: Date())
-        }
-    }
-
-    /// What the salon offers that day, minus what is already taken.
-    ///
-    /// The layout is computed from the chosen services so a two-hour booking
-    /// asks for two hours — offering a slot that only fits one is how someone
-    /// picks a time the server then refuses.
-    private var availableSlots: [Int64] {
-        // The salon's own timings, not empty maps. These were `[:]`, so the
-        // client laid every service out as one slot while the server built the
-        // span from the stored durations — the narrow direction, which offers
-        // times the server then refuses at payment, after she has chosen one
-        // and started paying.
-        let layout = Slots.serviceLayout(
-            serviceNames: Array(selectedServices),
-            timings: salon.serviceTiming,
-            durationPerService: salon.durationPerService,
-            slotMinutes: salon.slotDurationMinutes)
-
-        return DayGrid.slots(for: selectedDay,
-                             hours: salon.workingHours,
-                             slotMinutes: salon.slotDurationMinutes,
-                             span: layout.span,
-                             blockedDates: salon.blockedDates)
-            .filter { start in
-                !Slots.hasConflict(
-                    existing: booked, requestedStart: start,
-                    requestedOffsets: layout.busyOffsets,
-                    staffId: "", slotMinutes: salon.slotDurationMinutes)
-            }
-    }
 
     private var total: Int {
         selectedServices.reduce(0) { $0 + (salon.pricePerService[$1] ?? 0) }
@@ -134,66 +94,11 @@ struct SalonDetailView: View {
                     }
                 }
 
-                section(L.chooseDay) {
-                    // Anchored to the leading edge, which mirrors: in a
-                    // right-to-left layout that is the RIGHT edge, where today
-                    // sits. Without it the row opens scrolled to the far end
-                    // and the first day she sees is next week — verified on the
-                    // simulator, where today was off-screen and Tuesday was the
-                    // first thing visible.
-                    // Full-bleed, with the inset moved onto the scroll CONTENT.
-                    // Inside the page's 22pt padding the first chip — today —
-                    // was clipped by the viewport edge, so the one day she is
-                    // most likely to want was the one she could not read.
-                    // contentMargins gives the row its own breathing space and
-                    // lets the last chip run to the edge, which is also the
-                    // honest signal that there are more days to scroll to.
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 9) {
-                            ForEach(days, id: \.timeIntervalSince1970) { day in
-                                DayChip(day: day,
-                                        isSelected: DayGrid.kabulCalendar.isDate(
-                                            day, inSameDayAs: selectedDay)) {
-                                    selectedDay = day
-                                    selectedSlot = nil
-                                    Task { await loadSlots() }
-                                }
-                            }
-                        }
-                    }
-                    .contentMargins(.horizontal, 22, for: .scrollContent)
-                    .padding(.horizontal, -22)
-                    .defaultScrollAnchor(.leading)
-                }
-
-                section(L.chooseTime) {
-                    if isLoadingSlots {
-                        ProgressView().tint(Brand.accent)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                    } else if slotsUnavailable {
-                        // Three reasons now, not two. "Could not load" is not
-                        // "fully booked", and it is certainly not a free day.
-                        Text(L.couldNotLoad.t)
-                            .font(Brand.font(14))
-                            .foregroundStyle(Color(hex: 0xC0392B))
-                    } else if availableSlots.isEmpty {
-                        // Two different reasons, two different sentences: a
-                        // salon that is shut that day is not a salon that is
-                        // fully booked, and telling her the wrong one wastes
-                        // her time on the other six days.
-                        Text(isClosedToday ? L.closedThatDay.t : L.noTimesLeft.t)
-                            .font(Brand.font(14))
-                            .foregroundStyle(Brand.accent)
-                    } else {
-                        FlowLayout(spacing: 8) {
-                            ForEach(availableSlots, id: \.self) { slot in
-                                TimeChip(millis: slot, isSelected: selectedSlot == slot) {
-                                    selectedSlot = slot
-                                }
-                            }
-                        }
-                    }
-                }
+                SlotPicker(salon: salon,
+                           serviceNames: Array(selectedServices),
+                           selectedDay: $selectedDay,
+                           selectedSlot: $selectedSlot,
+                           reloadToken: slotReload)
 
                 if total > 0 {
                     HStack {
@@ -264,12 +169,12 @@ struct SalonDetailView: View {
                 .accessibilityLabel(L.messageSalon.t)
             }
         }
-        .task { await loadSlots(); await loadReviews() }
+        .task { await loadReviews() }
         .sheet(isPresented: $showChat) { SalonChatView(salon: salon).appDirection() }
         .sheet(isPresented: $showBooking, onDismiss: {
             // The grid is redrawn on return, so a slot someone else took while
             // she was deciding stops being offered.
-            Task { await loadSlots() }
+            slotReload += 1
         }) {
             if let slot = selectedSlot {
                 BookingSheet(salon: salon,
@@ -301,11 +206,6 @@ struct SalonDetailView: View {
             Review.self, documents: docs, assigningID: { $0.id = $1 })
             .values
             .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    private var isClosedToday: Bool {
-        let weekday = DayGrid.weekday(of: selectedDay)
-        return !(salon.workingHours.first { $0.dayOfWeek == weekday }?.isOpen ?? false)
     }
 
     /// The salon's own photo, full width. Same field the list now uses, and
@@ -373,50 +273,4 @@ struct SalonDetailView: View {
         }
     }
 
-    /// Asks the server what is taken, rather than reading appointments directly.
-    ///
-    /// `getBookedSlots` returns only {time, staffId, isParty, id} — no customer
-    /// names, no phone numbers. Reading the appointments collection would need
-    /// permissions a customer does not have and should not have: who else is
-    /// booked at this salon today is not her business.
-    private func loadSlots() async {
-        isLoadingSlots = true
-        defer { isLoadingSlots = false }
-
-        let start = DayGrid.dayStart(selectedDay)
-        let end = start.addingTimeInterval(24 * 3600)
-        // Not `try?`. A swallowed failure here left `booked` empty, and an empty
-        // booked list means "nothing is taken" — so a salon that is full renders
-        // as a whole day of free times, and she picks one the server refuses.
-        // The read failing is a different thing from the diary being empty and
-        // she is told which.
-        let response: JSON?
-        do {
-            response = try await Callables.call("getBookedSlots", [
-                "salonId": .string(salon.id),
-                "dayStart": .int(Int(start.timeIntervalSince1970 * 1000)),
-                "dayEnd": .int(Int(end.timeIntervalSince1970 * 1000)),
-            ])
-            slotsUnavailable = false
-        } catch {
-            slotsUnavailable = true
-            booked = []
-            return
-        }
-
-        // Each entry becomes a one-slot appointment: the server has already
-        // expanded multi-slot bookings into individual busy times, so nothing
-        // here needs to re-expand them.
-        booked = (response?["booked"]?.arrayValue ?? []).compactMap { entry in
-            guard let time = entry["time"]?.intValue else { return nil }
-            var a = Appointment()
-            a.id = entry["id"]?.stringValue ?? ""
-            a.appointmentDate = Int64(time)
-            a.staffId = entry["staffId"]?.stringValue ?? ""
-            a.isParty = entry["isParty"]?.boolValue ?? false
-            a.slotsCount = 1
-            a.status = .confirmed
-            return a
-        }
-    }
 }
