@@ -169,6 +169,43 @@ final class AuthService {
         Task { await PushService.shared.requestAuthorisation() }
     }
 
+    // MARK: - Forgot password
+
+    /// What happened, because the three outcomes need three different sentences.
+    enum ResetOutcome { case sent(String), noEmail, notFound }
+
+    /// Mirrors Android's ForgotPinViewModel exactly, including its refusal.
+    ///
+    /// The reset link lands on the hosted /reset page, which re-derives the
+    /// PBKDF2 material and syncs pinHash + salt — so there is no SetNewPin
+    /// screen to build here, and deliberately so: a second implementation of
+    /// that derivation is a second place for it to drift.
+    func sendPasswordReset(phone rawPhone: String) async throws -> ResetOutcome {
+        isWorking = true
+        defer { isWorking = false }
+
+        let phone = PhoneUtils.normalizeForLogin(rawPhone)
+        let result: JSON
+        do {
+            result = try await Callables.call("lookupAccountByPhone", ["phone": .string(phone)])
+        } catch let e as Callables.CallableError {
+            if case .rateLimited(let m) = e { throw AuthError.rateLimited(m) }
+            throw AuthError.server(e.localizedDescription)
+        }
+
+        guard result["found"]?.boolValue == true else { return .notFound }
+        let firebaseEmail = result["firebaseEmail"]?.stringValue ?? ""
+        let email = result["email"]?.stringValue ?? ""
+
+        // An account registered without an email has no address to send to.
+        // Its Firebase credential is a synthetic @sb.app one, and mailing that
+        // reaches nobody — she needs support, not a link.
+        guard !email.isEmpty, !firebaseEmail.hasSuffix("@sb.app") else { return .noEmail }
+
+        try await Auth.auth().sendPasswordReset(withEmail: firebaseEmail)
+        return .sent(email)
+    }
+
     // MARK: - Register
 
     /// One call. The password itself never travels — PinHasher runs here and

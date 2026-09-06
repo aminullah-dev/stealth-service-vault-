@@ -66,6 +66,14 @@ struct SignedInView: View {
     var body: some View {
         if auth.session?.status == "SUSPENDED" {
             SuspendedView()
+        } else if auth.session?.role == "PROVIDER" {
+            // iOS has no provider side. Without this branch an approved salon
+            // owner landed in the CUSTOMER tabs — able to browse salons and
+            // book appointments, with no way to see her own booking requests,
+            // her calendar or her income. Registration still works, so she can
+            // sign up here and her salon is created; she is told where to
+            // manage it rather than handed the wrong app in silence.
+            ProviderElsewhereView()
         } else if auth.session?.status == "PENDING" {
             PendingApprovalView()
         } else {
@@ -149,6 +157,41 @@ struct SuspendedView: View {
             else { return }
             reason = (snap.data()?["suspendedReason"] as? String) ?? ""
         }
+    }
+}
+
+/// A salon owner on iOS, until the provider screens exist.
+struct ProviderElsewhereView: View {
+    @Environment(AuthService.self) private var auth
+    @State private var showSupport = false
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "laptopcomputer.and.iphone")
+                .font(.system(size: 40)).foregroundStyle(Brand.accent)
+            Text(auth.session?.name ?? "")
+                .font(Brand.font(22, .bold)).foregroundStyle(Brand.ink)
+            Text(L.providerUseOtherApp.t)
+                .font(Brand.font(15)).foregroundStyle(Brand.deep)
+                .multilineTextAlignment(.center).padding(.horizontal, 40)
+            Text(verbatim: "safebeauty-salon.web.app")
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .environment(\.layoutDirection, .leftToRight)
+                .foregroundStyle(Brand.accent)
+            Button(L.support.t) { showSupport = true }
+                .font(Brand.font(15, .medium)).foregroundStyle(.white)
+                .padding(.horizontal, 28).padding(.vertical, 13)
+                .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 13))
+                .padding(.top, 6)
+            Spacer()
+            Button(L.signOut.t) { auth.signOut() }
+                .font(Brand.font(15, .medium)).foregroundStyle(Brand.accent)
+                .padding(.bottom, 30)
+        }
+        .frame(maxWidth: .infinity)
+        .background(Brand.cream.ignoresSafeArea())
+        .sheet(isPresented: $showSupport) { SupportView() }
     }
 }
 

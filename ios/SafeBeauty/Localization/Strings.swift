@@ -40,6 +40,14 @@ extension L {
         }
     }
 
+    static func resetSentTo(_ email: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
+        case .pashto: "د بیا تنظیم کولو لینک \(email) ته ولېږل شو. خپل صندوق وګورئ."
+        case .english: "A reset link was sent to \(email). Please check your inbox."
+        }
+    }
+
     static func starsLabel(_ n: Int) -> String {
         switch AppLanguage.current {
         case .dari: "\(n) ستاره"
@@ -80,6 +88,25 @@ extension L {
     // generic one is last and is used only when nothing more useful is known —
     // the registration failure that told 99 people nothing is the reason this
     // list is not shorter.
+    // MARK: Forgot password
+    static let forgotPasswordHelp = L(
+        fa: "شمارهٔ خود را وارد کنید. اگر روی حسابتان ایمیل ثبت باشد، لینک بازنشانی به آن فرستاده می‌شود.",
+        ps: "خپله شمېره ولیکئ. که ستاسو په حساب کې بریښنالیک ثبت وي، د بیا تنظیم کولو لینک ورته لېږل کیږي.",
+        en: "Enter your phone number. If your account has an email address, we send a reset link to it.")
+    static let sendResetLink = L(fa: "ارسال لینک بازنشانی", ps: "د بیا تنظیم کولو لینک لېږل",
+                                 en: "Send reset link")
+    static let resetNoEmail = L(
+        fa: "روی این حساب ایمیلی ثبت نیست، پس لینکی نمی‌توان فرستاد. با پشتیبانی تماس بگیرید.",
+        ps: "په دې حساب کې بریښنالیک نشته، نو لینک نه شي لېږل کېدای. له ملاتړ سره اړیکه ونیسئ.",
+        en: "This account has no email address, so no link can be sent. Please contact support.")
+    static let resetNoAccount = L(
+        fa: "حسابی با این شماره پیدا نشد.", ps: "په دې شمېره سره حساب و نه موندل شو.",
+        en: "No account was found with that phone number.")
+
+    static let providerUseOtherApp = L(
+        fa: "حساب سالون شما فعال است. مدیریت سالون فعلاً در اپ اندروید و کنسول وب انجام می‌شود.",
+        ps: "ستاسو د سالون حساب فعال دی. د سالون مدیریت اوس مهال په اندرویډ اپ او ویب کنسول کې کیږي.",
+        en: "Your salon account is active. Managing your salon is on the Android app and the web console for now.")
     static let errWrongLogin = L(
         fa: "شماره یا رمز عبور درست نیست.",
         ps: "شمېره یا پټنوم سم نه دی.",

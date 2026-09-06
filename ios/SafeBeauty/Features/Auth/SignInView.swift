@@ -13,6 +13,7 @@ struct SignInView: View {
     /// This survives failed attempts and clears only when she is actually in.
     @State private var notice: L?
     @State private var showRegister = false
+    @State private var showForgot = false
 
     private var canSubmit: Bool { !phone.isEmpty && !password.isEmpty }
 
@@ -39,6 +40,14 @@ struct SignInView: View {
                     Task { await submit() }
                 }
                 .padding(.top, 4)
+
+                // L.forgotPassword has existed since the first version of this
+                // screen and was rendered nowhere, so a woman who forgot her
+                // password had no route at all — only an admin reset.
+                Button(L.forgotPassword.t) { showForgot = true }
+                    .font(Brand.font(13.5))
+                    .foregroundStyle(Brand.accent)
+                    .padding(.top, 2)
 
                 Button(L.noAccountYet.t) {
                     // Stale by definition once she opens registration again,
@@ -72,6 +81,7 @@ struct SignInView: View {
             // server, and the Task outlives the view either way.
             .interactiveDismissDisabled(auth.isWorking)
         }
+        .sheet(isPresented: $showForgot) { ForgotPasswordView(initialPhone: phone) }
     }
 
     private func submit() async {
