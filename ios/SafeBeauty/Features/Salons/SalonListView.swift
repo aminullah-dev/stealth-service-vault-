@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 import SafeBeautyCore
 
@@ -11,6 +12,13 @@ struct SalonListView: View {
     @State private var showMap = false
     @State private var showNotifications = false
     @State private var bookings = BookingsRepository()
+    @State private var filters = SalonFilters()
+    @State private var showFilters = false
+    @State private var location = LocationProvider()
+    /// She tapped Nearest before the phone had a fix. Held here rather than in
+    /// the sheet so closing the sheet while the system dialog is up does not
+    /// throw the request away.
+    @State private var wantsNearest = false
 
     /// Filtered on the client, not by re-querying.
     ///
@@ -29,7 +37,7 @@ struct SalonListView: View {
         let city = selectedCity
         let area = activeArea
         let category = self.category
-        return repo.salons.filter { salon in
+        let matched = repo.salons.filter { salon in
             // The categories array is written by the server from the salon's own
             // free-text service names, and it is deliberately conservative: a
             // service it cannot place confidently is left out rather than
@@ -56,6 +64,113 @@ struct SalonListView: View {
                 || salon.district.lowercased().contains(term)
                 || salon.services.contains { $0.lowercased().contains(term) }
         }
+        return ordered(narrowed(matched))
+    }
+
+    /// The rating floor and the price ceiling from the Filters sheet.
+    ///
+    /// A salon with nothing priced is excluded by a price ceiling rather than
+    /// kept — the same call Android makes. "Under 500" is a promise about what
+    /// she will pay, and a salon that has published no price cannot make it.
+    private func narrowed(_ salons: [Salon]) -> [Salon] {
+        var list = salons
+        if filters.minRating > 0 { list = list.filter { $0.rating >= filters.minRating } }
+        if filters.maxPrice > 0 {
+            list = list.filter { salon in
+                guard let price = startingPrice(salon) else { return false }
+                return price <= filters.maxPrice
+            }
+        }
+        return list
+    }
+
+    /// The chosen ordering, with a name as the tiebreak.
+    ///
+    /// Kotlin's `sortedBy` is stable, so on Android equal ratings keep the
+    /// server's order underneath. Swift's `sorted(by:)` is documented as not
+    /// stable, and an unstable sort over the many salons that share rating 0
+    /// would reshuffle the list on every keystroke. Naming the tiebreak makes
+    /// the order the same every time and matches what the repository already
+    /// does with equal `sortRating`.
+    private func ordered(_ salons: [Salon]) -> [Salon] {
+        switch filters.sort {
+        case .recommended:
+            // The repository's own order: sortRating descending, then name.
+            return salons
+        case .topRated:
+            return salons.sorted {
+                $0.rating != $1.rating ? $0.rating > $1.rating
+                                       : $0.salonName < $1.salonName
+            }
+        case .priceLow:
+            return salons.sorted {
+                let a = startingPrice($0) ?? Int.max
+                let b = startingPrice($1) ?? Int.max
+                return a != b ? a < b : $0.salonName < $1.salonName
+            }
+        case .nearest:
+            // No fix yet: leave the order alone rather than pretend to a
+            // distance. The chip only turns on once a coordinate arrives, so
+            // this is the window between the tap and the answer.
+            guard let here = location.coordinate else { return salons }
+            let origin = CLLocation(latitude: here.latitude, longitude: here.longitude)
+            return salons
+                .map { salon -> (salon: Salon, metres: Double) in
+                    guard salon.hasLocation else {
+                        // Sorted to the end, not dropped. One of the two live
+                        // salons has no coordinate at all.
+                        return (salon, .greatestFiniteMagnitude)
+                    }
+                    let there = CLLocation(latitude: salon.latitude, longitude: salon.longitude)
+                    return (salon, origin.distance(from: there))
+                }
+                .sorted {
+                    $0.metres != $1.metres ? $0.metres < $1.metres
+                                           : $0.salon.salonName < $1.salon.salonName
+                }
+                .map(\.salon)
+        }
+    }
+
+    /// The cheapest published service, or nil when nothing is priced.
+    ///
+    /// `lowestPrice` prefers the server's `minPrice` sort key and falls back to
+    /// the same prices Android's `salonMinPrice` reads; it returns 0 when there
+    /// is nothing to derive from, and zero here means unpriced, not free.
+    private func startingPrice(_ salon: Salon) -> Int? {
+        let price = salon.lowestPrice
+        return price > 0 ? price : nil
+    }
+
+    /// Nearest is the one sort that cannot simply be selected.
+    ///
+    /// Android's chip does the same: tapping it asks for permission and leaves
+    /// the sort alone, and the sort flips only once a coordinate is in hand.
+    /// A chip that lights up while the list has not moved is a lie about what
+    /// she is looking at.
+    private func resetFilters() {
+        filters = SalonFilters()
+        wantsNearest = false
+        location.clearFailure()
+    }
+
+    private func selectSort(_ mode: SalonSort) {
+        guard mode == .nearest else {
+            filters.sort = mode
+            // The note was about Nearest; she has stopped asking for it.
+            location.clearFailure()
+            return
+        }
+        if location.coordinate != nil { filters.sort = .nearest; return }
+        wantsNearest = true
+        location.request()
+        // A phone that has already refused answers synchronously, inside that
+        // call. `onChange` cannot see it: the second tap takes `failure` from
+        // .denied to nil and back to .denied in one transaction, so the value
+        // never appears to change and the pending flag would stay on for the
+        // life of the view — waiting to overwrite whatever sort she picked
+        // next, the moment a coordinate ever arrived.
+        if location.failure != nil { wantsNearest = false }
     }
 
     /// The most specific area this salon is in, as one key.
@@ -142,7 +257,8 @@ struct SalonListView: View {
     /// a "recommendation" row that is just the salon list teaches her to
     /// ignore it.
     private var recommended: [Salon] {
-        guard search.isEmpty, category == nil, selectedCity == nil, activeArea == nil
+        guard search.isEmpty, category == nil, selectedCity == nil, activeArea == nil,
+              !filters.isActive
         else { return [] }
         return Recommendations.rank(salons: repo.salons, history: bookings.past)
     }
@@ -239,7 +355,12 @@ struct SalonListView: View {
                             .foregroundStyle(Brand.ink)
                     } actions: {
                         Button(L.clearFilters.t) {
+                            // Everything that could have emptied the list, not
+                            // just the chips. A customer who filtered to
+                            // "≤ 500 AFN" and got nothing would otherwise tap
+                            // Clear and still see nothing.
                             search = ""; category = nil; city = nil; area = nil
+                            resetFilters()
                         }
                             .font(Brand.font(14, .medium))
                             .foregroundStyle(Brand.accent)
@@ -335,6 +456,37 @@ struct SalonListView: View {
                             }
                         }
                     }
+                    // How many she is looking at, and the way into the sheet —
+                    // the last row of the header on Android too.
+                    if !repo.salons.isEmpty {
+                        HStack(spacing: 10) {
+                            // Nothing when nothing matches: the empty state
+                            // below already says so, in a whole sentence.
+                            Text(visible.isEmpty ? "" : L.providersFound(visible.count))
+                                .font(Brand.font(11.5))
+                                .foregroundStyle(Brand.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button { showFilters = true } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.system(size: 11.5, weight: .semibold))
+                                    Text(L.filtersButton.t).font(Brand.font(13, .medium))
+                                }
+                                .padding(.horizontal, 13).padding(.vertical, 7)
+                                .background(filters.isActive ? AnyShapeStyle(Brand.gradient)
+                                                             : AnyShapeStyle(Color.white))
+                                .foregroundStyle(filters.isActive ? Color.white : Brand.ink)
+                                .clipShape(Capsule())
+                                .overlay(Capsule().strokeBorder(
+                                    filters.isActive ? .clear : Brand.petal.opacity(0.6),
+                                    lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(L.filtersButton.t)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 2).padding(.bottom, 9)
+                    }
                 }
                 .background(Brand.cream)
             }
@@ -368,6 +520,19 @@ struct SalonListView: View {
             }
             .sheet(isPresented: $showMap) { SalonMapView().appDirection() }
             .sheet(isPresented: $showNotifications) { NotificationsView().appDirection() }
+            .sheet(isPresented: $showFilters) {
+                FilterSheet(filters: $filters,
+                            onSelectSort: selectSort,
+                            onReset: resetFilters,
+                            location: location)
+                    .appDirection()
+            }
+            .onChange(of: location.hasLocation) { _, has in
+                if has && wantsNearest { filters.sort = .nearest; wantsNearest = false }
+            }
+            .onChange(of: location.failure) { _, failure in
+                if failure != nil { wantsNearest = false }
+            }
         }
         .task { repo.start() }
         .task(id: auth.session?.uid) {

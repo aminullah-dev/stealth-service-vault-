@@ -40,6 +40,57 @@ extension L {
         }
     }
 
+    /// "۲ ارائه‌دهنده پیدا شد" — the line Android shows above the list and iOS
+    /// did not. Here it counts what is on screen, which is the whole matching
+    /// set: this list is one bounded read of at most 200 salons filtered on the
+    /// device, not Android's page, so there is no page size to mistake for a
+    /// total. Past 200 salons it would become a floor rather than a count, and
+    /// the repository's limit is the thing to revisit then.
+    static func providersFound(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(n) ارائه‌دهنده پیدا شد"
+        case .pashto: "\(n) چمتو کوونکي وموندل شول"
+        case .english: n == 1 ? "1 provider found" : "\(n) providers found"
+        }
+    }
+
+    /// The max-price chips.
+    ///
+    /// Grouped like Android's `"%,d".format(p)`, but pinned to en_US rather
+    /// than the device locale: `formatted()` on a phone set to Persian would
+    /// give ۱٬۰۰۰ in Persian digits while the salon cards next to it say
+    /// "از 80 افغانی" in Latin ones. The ≤ needs no help — the Afghani word
+    /// beside it is strong RTL, so both platforms mirror the glyph the same.
+    static func priceUnder(_ price: Int) -> String {
+        let n = price.formatted(.number.grouping(.automatic)
+            .locale(Locale(identifier: "en_US")))
+        return switch AppLanguage.current {
+        case .dari: "≤ \(n) افغانی"
+        case .pashto: "≤ \(n) افغانۍ"
+        case .english: "≤ \(n) AFN"
+        }
+    }
+
+    /// The rating-floor chips: 3.0+, 4.0+, 4.5+.
+    ///
+    /// The RIGHT-TO-LEFT MARK is not decoration. "4.5+" holds no strong
+    /// character, so SwiftUI resolves it as an LTR island and draws the plus on
+    /// the right; read right-to-left that is "+4.5". Compose takes the
+    /// paragraph direction from the layout instead, and Android puts the plus
+    /// on the left — after the number, where an RTL reader looks for it. One
+    /// invisible mark gives the string the strong character it lacks, and the
+    /// two platforms then draw the same chip.
+    ///
+    /// The number is a literal rather than `formatted()` for the same reason as
+    /// above: Android's is a literal, and a Persian locale would otherwise turn
+    /// it into ۴٫۵.
+    static func ratingAtLeast(_ value: String) -> String {
+        switch AppLanguage.current {
+        case .dari, .pashto: "\u{200F}\(value)+"
+        case .english: "\(value)+"
+        }
+    }
+
     static func resetSentTo(_ email: String) -> String {
         switch AppLanguage.current {
         case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
@@ -811,6 +862,37 @@ extension L {
     static let noMatches = L(fa: "چیزی پیدا نشد.", ps: "څه ونه موندل شول.", en: "Nothing found.")
     static let clearFilters = L(fa: "پاک کردن فیلترها", ps: "فلټرونه پاکول",
                                 en: "Clear filters")
+
+    // MARK: Filters & sort
+    // The Android values verbatim — AppStrings.kt filtersButton…maxPriceLabel,
+    // plus the two location sentences the Nearest sort needs. The whole sheet
+    // existed on Android and not here, so on an iPhone there was no way to sort
+    // by price, by rating or by distance at all.
+    static let filtersButton = L(fa: "فیلترها", ps: "فلټرونه", en: "Filters")
+    static let filtersTitle = L(fa: "فیلتر و مرتب‌سازی", ps: "فلټر او ترتیب",
+                                en: "Filters & sort")
+    static let filtersReset = L(fa: "بازنشانی", ps: "بیا تنظیم", en: "Reset")
+    static let sortByLabel = L(fa: "مرتب‌سازی بر اساس", ps: "ترتیب پر بنسټ",
+                               en: "Sort by")
+    static let sortRecommended = L(fa: "پیشنهادی", ps: "وړاندیز شوی",
+                                   en: "Recommended")
+    static let sortNearest = L(fa: "نزدیک‌ترین", ps: "نږدې", en: "Nearest")
+    static let sortTopRated = L(fa: "بالاترین امتیاز", ps: "لوړ امتیاز",
+                                en: "Top rated")
+    static let sortCheapest = L(fa: "ارزان‌ترین", ps: "ارزانه", en: "Cheapest")
+    static let minRatingLabel = L(fa: "حداقل امتیاز", ps: "لږ تر لږه امتیاز",
+                                  en: "Minimum rating")
+    static let maxPriceLabel = L(fa: "سقف قیمت شروع", ps: "د پیل اعظمي بیه",
+                                 en: "Max starting price")
+    static let filterAny = L(fa: "همه", ps: "ټول", en: "Any")
+    static let locationUnavailable = L(
+        fa: "موقعیت پیدا نشد. در فضای باز دوباره امتحان کنید.",
+        ps: "موقعیت ونه موندل شو. په خلاصه فضا کې بیا هڅه وکړئ.",
+        en: "Couldn't get a location fix. Try again outdoors.")
+    static let locationPermissionNeeded = L(
+        fa: "برای این کار اجازهٔ دسترسی به موقعیت لازم است.",
+        ps: "د دې کار لپاره د موقعیت اجازه اړینه ده.",
+        en: "Location permission is needed to do this.")
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")
