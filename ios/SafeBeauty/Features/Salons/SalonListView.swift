@@ -48,7 +48,8 @@ struct SalonListView: View {
             // the label alone stopped matching "shirpur" typed in Latin, which
             // is how the same woman searches with an English keyboard.
             return salon.salonName.lowercased().contains(term)
-                || Areas.label(salon.district).lowercased().contains(term)
+                || Areas.address(district: salon.district, areaKey: salon.areaKey)
+                        .lowercased().contains(term)
                 || salon.district.lowercased().contains(term)
                 || salon.services.contains { $0.lowercased().contains(term) }
         }
@@ -376,7 +377,7 @@ struct SalonRow: View {
                     // holds and never what anyone calls the place; Android has
                     // always resolved it here, so the same salon read as two
                     // different addresses depending on the phone.
-                    Text(Areas.label(salon.district))
+                    Text(Areas.address(district: salon.district, areaKey: salon.areaKey))
                         .font(Brand.font(12.5))
                         .foregroundStyle(Brand.accent)
                         .lineLimit(1)

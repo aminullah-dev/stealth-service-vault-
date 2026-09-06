@@ -353,7 +353,7 @@ struct SalonDetailView: View {
                     .accessibilityLabel(L.ratingLabel(salon.rating, salon.confirmedCount))
                 }
                 if !salon.district.isEmpty {
-                    Text(Areas.label(salon.district))
+                    Text(Areas.address(district: salon.district, areaKey: salon.areaKey))
                         .font(Brand.font(13)).foregroundStyle(Brand.accent)
                 }
             }

@@ -49,7 +49,7 @@ struct SalonMapView: View {
             if !salon.district.isEmpty {
                 // The label, never the stored key: the document holds
                 // "KBL_Shirpur" and the map would have printed exactly that.
-                Text(Areas.label(salon.district))
+                Text(Areas.address(district: salon.district, areaKey: salon.areaKey))
                     .font(Brand.font(10.5))
                     .foregroundStyle(Brand.accent)
             }

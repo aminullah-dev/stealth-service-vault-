@@ -23,6 +23,21 @@ extension Areas {
     /// generator would have to keep emitting.
     static func label(of area: Area) -> String { area.label(english: english) }
     static func label(of city: City) -> String { city.label(english: english) }
+
+    /// A salon's address at every level it actually has.
+    ///
+    /// The two fields hold different levels — «ناحیه ۱۷» and «خیرخانه» — and
+    /// showing only the district made the card disagree with the chip that had
+    /// just filtered to that salon. Both, joined, is also how the address was
+    /// written in the first place: this salon's owner typed
+    /// «خیرخانه مینه ناحیه ۱۷» before anything resolved it into two keys.
+    static func address(district: String, areaKey: String) -> String {
+        let district = label(district)
+        guard !areaKey.isEmpty else { return district }
+        let area = label(areaKey)
+        if district.isEmpty { return area }
+        return area == district ? district : "\(district) – \(area)"
+    }
 }
 
 /// A category key in the reader's language.
