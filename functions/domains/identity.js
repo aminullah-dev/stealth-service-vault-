@@ -1489,3 +1489,8 @@ exports.deriveUserPhoneKey = onDocumentWritten(
     }
   }
 );
+
+// Shared with the gift-card path in domains/payments.js, which asks the same
+// "does this phone have an account?" question this module rate-limits
+// everywhere else.
+exports.enforceRateLimit = enforceRateLimit;

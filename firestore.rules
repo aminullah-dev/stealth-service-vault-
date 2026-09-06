@@ -637,7 +637,15 @@ service cloud.firestore {
     // ever reads/writes their own rows; the offer fan-out runs server-side.
     match /favorites/{favId} {
       allow read:   if isSignedIn() && (resource.data.customerId == me() || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.customerId == me();
+      // The id is bound to the caller, not just the customerId field. Both
+      // clients write favorites/{customerId}_{salonId}, and without this
+      // anyone could create that exact id for someone ELSE — after which the
+      // victim's own create is refused (the document exists, and update is
+      // closed) and she can never favourite that salon, nor delete the row,
+      // because deleting needs the customerId she does not have.
+      allow create: if isSignedIn()
+                 && request.resource.data.customerId == me()
+                 && favId == me() + '_' + request.resource.data.salonId;
       allow delete: if isSignedIn() && resource.data.customerId == me();
       allow update: if false;
     }

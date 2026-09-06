@@ -11,6 +11,7 @@ const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta, isCommissionFree } =
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
+const { enforceRateLimit } = require("./identity");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
@@ -87,6 +88,11 @@ async function getCommissionPercent() {
 async function resolvePromoDiscount(codeRaw, priceAfn) {
   const code = String(codeRaw || "").trim().toUpperCase();
   if (!code) return { discount: 0, promoId: null, code: "" };
+  // The code goes straight into a document path below. A value with a slash in
+  // it is a different path, not a missing promo code.
+  if (!isValidDocId(code)) {
+    throw new HttpsError("invalid-argument", "That promo code is not valid.");
+  }
 
   const snap = await db.doc(`promo_codes/${code}`).get();
   if (!snap.exists) {
@@ -479,6 +485,14 @@ exports.createPaymentSession = onCall(
     const rawDiscount = promo.discount + offerDiscount + lastMinuteDisc + packageDiscount;
     const totalDiscount = capDiscount(listPrice, rawDiscount, await getMaxDiscountFraction());
 
+    // The booking code is reserved BEFORE the referral/promo transaction, not
+    // after it. It was after, and outside the try/catch that unwinds — so a
+    // failure here left the customer's referral credit spent and the promo's
+    // usedCount incremented on a booking that was never created. Reserving
+    // first means the worst case is a booking code nobody uses, which costs
+    // nothing and is not somebody's money.
+    const bookingCodeReserved = await reserveBookingCode();
+
     // Reserve referral credit + the promo use ATOMICALLY at checkout, reading the
     // LIVE balance/usedCount inside the transaction — so two of the customer's
     // bookings in flight can't over-spend the same credit, and a limited code
@@ -545,7 +559,7 @@ exports.createPaymentSession = onCall(
     if (paymentMethod === "CASH") {
       const apptRef    = db.collection("appointments").doc();
       const paymentRef = db.collection("payments").doc();
-      const bookingCode = await reserveBookingCode();
+      const bookingCode = bookingCodeReserved;
       const batch = pendingWrites();
       batch.set(apptRef, {
         bookingCode,
@@ -684,7 +698,7 @@ exports.createPaymentSession = onCall(
     // never end up with one without the other if the function dies mid-write.
     const apptRef    = db.collection("appointments").doc();
     const paymentRef = db.collection("payments").doc();
-    const bookingCode = await reserveBookingCode();
+    const bookingCode = bookingCodeReserved;
     const createBatch = pendingWrites();
     createBatch.set(apptRef, {
       bookingCode,
@@ -859,6 +873,13 @@ exports.createGiftCardSession = onCall(
     }
 
     // Recipient must be a registered user (we credit their existing wallet).
+    //
+    // Throttled because the answer below IS the question "does this number
+    // have a SafeBeauty account?", and every other place that answers it is
+    // throttled. Authenticated, but one account is enough to walk a contact
+    // list — and on this product knowing that a particular woman is a user is
+    // the thing worth protecting.
+    await enforceRateLimit(`giftcard-lookup:${request.auth.uid}`, 20, 60 * 60 * 1000);
     const phone = normalizePhone(recipientPhone);
     // Matched the way a login matches — an account stored before normalization
     // existed could not be sent a gift card, and the buyer was told no such
