@@ -17,6 +17,8 @@ struct SalonDetailView: View {
     @State private var selectedDay = Date()
     @State private var selectedSlot: Int64?
     @State private var selectedStaff = ""
+    @State private var isParty = false
+    @State private var guests: [Party.Guest] = []
     /// Bumped to make the picker re-read what is taken.
     @State private var slotReload = 0
     @State private var showBooking = false
@@ -37,6 +39,12 @@ struct SalonDetailView: View {
     /// salon's own flag for someone who has left.
     private var activeStaff: [StaffMember] {
         salon.staff.filter { $0.active && !$0.id.isEmpty && !$0.name.isEmpty }
+    }
+
+    /// The guests the server will actually accept — same caps, same filtering,
+    /// so she is told before she pays rather than after.
+    private var bookableGuests: [Party.Guest] {
+        isParty ? Party.normalise(guests, offering: Set(salon.services)) : []
     }
 
     private var appliedPackage: ServicePackage? {
@@ -89,7 +97,10 @@ struct SalonDetailView: View {
                     .buttonStyle(.plain)
                 }
 
-                if !salon.services.isEmpty {
+                // Hidden during a party: a party is priced per guest, and a
+                // second set of service chips above the guest list is two
+                // answers to the same question.
+                if !salon.services.isEmpty && !isParty {
                     section(L.chooseServices) {
                         FlowLayout(spacing: 8) {
                             ForEach(salon.services, id: \.self) { service in
@@ -127,6 +138,27 @@ struct SalonDetailView: View {
                     }
                     .padding(12)
                     .background(Brand.gradient, in: RoundedRectangle(cornerRadius: 12))
+                }
+
+                // A wedding party, which iOS could not make at all. Offered
+                // above the services, because it changes what the services
+                // section even means: a party is priced per guest.
+                Toggle(L.groupBooking.t, isOn: $isParty)
+                    .font(Brand.font(15, .medium))
+                    .foregroundStyle(Brand.ink).tint(Brand.accent)
+                    .onChange(of: isParty) { _, on in
+                        selectedSlot = nil
+                        // One guest to start with rather than an empty list: an
+                        // "Add guest" button under nothing reads as broken.
+                        if on && guests.isEmpty {
+                            guests = [Party.Guest(name: L.guestNumber(1))]
+                        }
+                    }
+
+                if isParty {
+                    section(L.groupBooking) {
+                        PartyGuestsEditor(salon: salon, guests: $guests)
+                    }
                 }
 
                 // The salon's own work, which iOS showed one photo of — the
@@ -186,6 +218,7 @@ struct SalonDetailView: View {
                 SlotPicker(salon: salon,
                            serviceNames: Array(selectedServices),
                            staffId: selectedStaff,
+                           party: bookableGuests,
                            selectedDay: $selectedDay,
                            selectedSlot: $selectedSlot,
                            reloadToken: slotReload)
@@ -268,10 +301,12 @@ struct SalonDetailView: View {
         }) {
             if let slot = selectedSlot {
                 BookingSheet(salon: salon,
-                             serviceNames: Array(selectedServices),
+                             serviceNames: isParty ? Party.services(bookableGuests)
+                                                   : Array(selectedServices),
                              startMillis: slot,
                              packageId: appliedPackage?.id ?? "",
-                             staffId: selectedStaff)
+                             staffId: selectedStaff,
+                             party: bookableGuests)
                     .appDirection()
             }
         }

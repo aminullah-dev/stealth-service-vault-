@@ -520,6 +520,26 @@ extension L {
     }
     static let salonWork = L(fa: "نمونه کارها", ps: "د کار بېلګې", en: "Their work")
 
+    // MARK: Group bookings — Android's strings verbatim
+    static let groupBooking = L(fa: "رزرو گروهی / عروسی", ps: "ډله‌ییز / د واده بکینګ",
+                                en: "Group / event booking")
+    static let addGuest = L(fa: "افزودن مهمان", ps: "میلمه اضافه کړئ", en: "Add guest")
+    static let guestName = L(fa: "نام مهمان", ps: "د میلمه نوم", en: "Guest name")
+    static let partyPrepay = L(
+        fa: "رزرو گروهی از پیش پرداخت می‌شود. سالن تمام تیمش را برای شما کنار می‌گذارد، پس آن روز چوکی‌ای برای کس دیگری ندارد.",
+        ps: "ډله ییز بکنګ مخکې ورکړل کیږي. سالون ټوله ډله ستاسو لپاره ځانګړې کوي، نو هغه ورځ بل چا ته څوکۍ نه لري.",
+        en: "A group booking is paid in advance. The salon sets aside its whole team for you, so it is not a chair they can offer anyone else that day.")
+    static func guestNumber(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "مهمان \(n)"
+        case .pashto: "میلمه \(n)"
+        case .english: "Guest \(n)"
+        }
+    }
+    static let errPartyEmpty = L(fa: "برای هر مهمان حداقل یک خدمت انتخاب کنید.",
+                                 ps: "د هر میلمه لپاره لږ تر لږه یو خدمت وټاکئ.",
+                                 en: "Choose at least one service for each guest.")
+
     // MARK: Choosing a stylist
     static let chooseStaff = L(fa: "آرایشگر را انتخاب کنید", ps: "آرایشګر وټاکئ",
                                en: "Choose a stylist")

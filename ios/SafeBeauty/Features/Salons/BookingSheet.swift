@@ -15,6 +15,7 @@ struct BookingSheet: View {
     let startMillis: Int64
     var packageId: String = ""
     var staffId: String = ""
+    var party: [Party.Guest] = []
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -269,7 +270,8 @@ struct BookingSheet: View {
                 salonId: salon.id, serviceNames: serviceNames,
                 startMillis: startMillis, method: method,
                 staffId: staffId,
-                notes: notes, promoCode: promoCode, packageId: packageId)
+                notes: notes, promoCode: promoCode, packageId: packageId,
+                party: party)
         } catch let e as BookingService.BookingError {
             error = switch e {
             case .slotTaken: L.errSlotTaken.t

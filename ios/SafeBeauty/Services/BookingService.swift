@@ -65,7 +65,11 @@ final class BookingService {
         /// The bundle the basket qualifies for, "" for none. The server finds
         /// it on the salon by id and refuses one whose services are not all
         /// being booked, so sending it is safe even if the basket changed.
-        packageId: String = ""
+        packageId: String = "",
+        /// The guest list, empty for an ordinary booking. The server
+        /// re-normalises it against what the salon offers and prices the party
+        /// from it, so this is a request rather than an assertion.
+        party: [Party.Guest] = []
     ) async throws -> Quote {
         isWorking = true
         defer { isWorking = false }
@@ -83,6 +87,9 @@ final class BookingService {
                 "notes": .string(notes),
                 "promoCode": .string(promoCode.trimmingCharacters(in: .whitespaces).uppercased()),
                 "packageId": .string(packageId),
+                "party": .array(party.map {
+                    .object(["name": .string($0.name), "services": .strings($0.services)])
+                }),
             ])
         } catch let e as Callables.CallableError {
             switch e {

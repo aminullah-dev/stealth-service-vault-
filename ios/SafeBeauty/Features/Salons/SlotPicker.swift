@@ -19,6 +19,11 @@ struct SlotPicker: View {
     /// bookings count as a clash: the server skips one on a different staff id,
     /// so a grid computed for the wrong chair offers times it will refuse.
     var staffId: String = ""
+    /// The party being booked, empty for an ordinary appointment. A party
+    /// occupies the SALON — every chair — and its length is the total work
+    /// divided by the number of stylists, so both the span and the conflict
+    /// test change.
+    var party: [Party.Guest] = []
 
     @Binding var selectedDay: Date
     @Binding var selectedSlot: Int64?
@@ -51,6 +56,14 @@ struct SlotPicker: View {
         }
     }
 
+    private var isParty: Bool { !party.isEmpty }
+
+    /// How many stylists are actually working. A party's wall-clock divides by
+    /// this, and getting it wrong offers a start time the server refuses.
+    private var staffCount: Int {
+        max(1, salon.staff.filter { $0.active }.count)
+    }
+
     private var layout: Slots.Layout {
         // The salon's own timings, not empty maps: the client laid every service
         // out as one slot while the server built the span from the stored
@@ -65,17 +78,28 @@ struct SlotPicker: View {
 
     private var availableSlots: [Int64] {
         let layout = self.layout
+        // A party's span comes from the guest list, not from the service
+        // layout: everyone works at once, so the wall-clock is the total work
+        // over the number of stylists rather than one queue.
+        let span = isParty
+            ? Party.span(guests: party, durations: salon.durationPerService,
+                         slotMinutes: salon.slotDurationMinutes, staffCount: staffCount)
+            : layout.span
         return DayGrid.slots(for: selectedDay,
                              hours: salon.workingHours,
                              slotMinutes: salon.slotDurationMinutes,
-                             span: layout.span,
+                             span: span,
                              blockedDates: salon.blockedDates)
             .filter { start in
                 !Slots.hasConflict(
                     existing: booked.filter { $0.id != excluding || excluding.isEmpty },
                     requestedStart: start,
-                    requestedOffsets: layout.busyOffsets,
-                    staffId: staffId, slotMinutes: salon.slotDurationMinutes)
+                    // A party is busy throughout its span — there is no idle gap
+                    // in the middle of it the way a colour's development time is
+                    // idle for one stylist. The server says the same.
+                    requestedOffsets: isParty ? Array(0..<span) : layout.busyOffsets,
+                    staffId: staffId, slotMinutes: salon.slotDurationMinutes,
+                    requestIsParty: isParty)
             }
     }
 
@@ -210,6 +234,7 @@ struct SlotPicker: View {
         // and the span changes with them, so what fits changes too.
         .onChange(of: serviceNames) { _, _ in selectedSlot = nil }
         .onChange(of: staffId) { _, _ in selectedSlot = nil }
+        .onChange(of: party) { _, _ in selectedSlot = nil }
         .onChange(of: reloadToken) { _, _ in Task { await load() } }
     }
 
