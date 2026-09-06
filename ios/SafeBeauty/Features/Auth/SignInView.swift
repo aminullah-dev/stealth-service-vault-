@@ -80,8 +80,9 @@ struct SignInView: View {
             // registerAccount is not cancellable once it has reached the
             // server, and the Task outlives the view either way.
             .interactiveDismissDisabled(auth.isWorking)
+            .appDirection()
         }
-        .sheet(isPresented: $showForgot) { ForgotPasswordView(initialPhone: phone) }
+        .sheet(isPresented: $showForgot) { ForgotPasswordView(initialPhone: phone).appDirection() }
     }
 
     private func submit() async {

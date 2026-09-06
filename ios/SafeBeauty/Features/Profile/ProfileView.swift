@@ -89,12 +89,12 @@ struct ProfileView: View {
             }
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.profile.t)
-            .sheet(isPresented: $showKyc) { KycView() }
-            .sheet(isPresented: $showSupport) { SupportView() }
-            .sheet(isPresented: $showChangePassword) { ChangePasswordSheet() }
-            .sheet(isPresented: $showEditName) { EditNameSheet() }
+            .sheet(isPresented: $showKyc) { KycView().appDirection() }
+            .sheet(isPresented: $showSupport) { SupportView().appDirection() }
+            .sheet(isPresented: $showChangePassword) { ChangePasswordSheet().appDirection() }
+            .sheet(isPresented: $showEditName) { EditNameSheet().appDirection() }
             .sheet(isPresented: $showRedeem) {
-                RedeemPointsSheet(available: loyaltyPoints) { Task { await load() } }
+                RedeemPointsSheet(available: loyaltyPoints) { Task { await load() } }.appDirection()
             }
             .alert(L.signOut.t, isPresented: $confirmSignOut) {
                 Button(L.cancel.t, role: .cancel) {}

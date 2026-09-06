@@ -149,7 +149,7 @@ struct SuspendedView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Brand.cream.ignoresSafeArea())
-        .sheet(isPresented: $showSupport) { SupportView() }
+        .sheet(isPresented: $showSupport) { SupportView().appDirection() }
         .task {
             // Her own document, which the rules already allow her to read.
             guard let uid = auth.session?.uid, !uid.isEmpty,
@@ -191,7 +191,7 @@ struct ProviderElsewhereView: View {
         }
         .frame(maxWidth: .infinity)
         .background(Brand.cream.ignoresSafeArea())
-        .sheet(isPresented: $showSupport) { SupportView() }
+        .sheet(isPresented: $showSupport) { SupportView().appDirection() }
     }
 }
 

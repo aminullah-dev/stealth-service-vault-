@@ -96,3 +96,30 @@ final class LanguageStore {
 
     private init() { current = AppLanguage.current }
 }
+
+/// Re-applies the app's direction and locale.
+///
+/// RootView sets both on the view tree, and a `.sheet` does not inherit them:
+/// every modal in this app — register, KYC, booking, review, support, the chat
+/// with the salon, all fourteen of them — rendered LEFT-TO-RIGHT while the app
+/// behind it was in Dari or Pashto. It is not subtle once seen: the close
+/// button sits on the wrong side, and in the chat a woman's own messages
+/// appeared on the side reserved for the person she is talking to.
+///
+/// Applied at the root of each sheet's content rather than fixed globally with
+/// UIView.appearance, which would fight the deliberate left-to-right islands
+/// this app already uses for phone numbers, prices and booking codes.
+private struct AppDirection: ViewModifier {
+    @State private var lang = LanguageStore.shared
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.layoutDirection, lang.current.layoutDirection)
+            .environment(\.locale, lang.current.locale)
+    }
+}
+
+extension View {
+    /// Put this on the content of every `.sheet`.
+    func appDirection() -> some View { modifier(AppDirection()) }
+}

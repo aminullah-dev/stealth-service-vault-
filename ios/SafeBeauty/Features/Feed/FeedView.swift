@@ -4,6 +4,10 @@ import SafeBeautyCore
 
 /// What the salons are showing and offering.
 struct FeedView: View {
+    /// The salon catalogue, so a card can open the salon it belongs to.
+    /// Posts and offers carry only a salonId; without this the feed is a
+    /// gallery you cannot act on.
+    @State private var repo = SalonRepository()
     @State private var posts: [SalonPost] = []
     @State private var offers: [SalonOffer] = []
     @State private var loadFailed = false
@@ -37,7 +41,19 @@ struct FeedView: View {
                                     .font(Brand.font(16, .bold))
                                     .foregroundStyle(Brand.ink)
                                     .padding(.horizontal, 18)
-                                ForEach(offers) { OfferCard(offer: $0) }
+                                ForEach(offers) { offer in
+                                    if let salon = repo.salons.first(where: { $0.id == offer.salonId }) {
+                                        NavigationLink { SalonDetailView(salon: salon) } label: {
+                                            OfferCard(offer: offer)
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        // Its salon is gone or not yet loaded.
+                                        // Shown, but not offered as a route to
+                                        // a page that cannot be built.
+                                        OfferCard(offer: offer)
+                                    }
+                                }
                             }
                             if !posts.isEmpty {
                                 Text(L.latest.t)
@@ -45,7 +61,16 @@ struct FeedView: View {
                                     .foregroundStyle(Brand.ink)
                                     .padding(.horizontal, 18)
                                     .padding(.top, offers.isEmpty ? 0 : 6)
-                                ForEach(posts) { PostCard(post: $0) }
+                                ForEach(posts) { post in
+                                    if let salon = repo.salons.first(where: { $0.id == post.salonId }) {
+                                        NavigationLink { SalonDetailView(salon: salon) } label: {
+                                            PostCard(post: post)
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        PostCard(post: post)
+                                    }
+                                }
                             }
                         }
                         .padding(.vertical, 14)
@@ -56,7 +81,7 @@ struct FeedView: View {
             .navigationTitle(L.discover.t)
             .refreshable { await load() }
         }
-        .task { await load() }
+        .task { repo.start(); await load() }
     }
 
     private func load() async {

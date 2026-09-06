@@ -98,7 +98,7 @@ struct MyBookingsView: View {
             } message: {
                 Text(L.cancelWarning.t)
             }
-            .sheet(item: $reviewing) { ReviewSheet(booking: $0) }
+            .sheet(item: $reviewing) { ReviewSheet(booking: $0).appDirection() }
         }
         .task(id: auth.session?.uid) {
             if let uid = auth.session?.uid { repo.start(customerId: uid) }

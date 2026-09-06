@@ -121,7 +121,7 @@ struct SalonListView: View {
                     .accessibilityLabel(L.map.t)
                 }
             }
-            .sheet(isPresented: $showMap) { SalonMapView() }
+            .sheet(isPresented: $showMap) { SalonMapView().appDirection() }
         }
         .task { repo.start() }
     }

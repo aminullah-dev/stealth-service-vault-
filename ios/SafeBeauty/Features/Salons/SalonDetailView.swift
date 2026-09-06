@@ -265,7 +265,7 @@ struct SalonDetailView: View {
             }
         }
         .task { await loadSlots(); await loadReviews() }
-        .sheet(isPresented: $showChat) { SalonChatView(salon: salon) }
+        .sheet(isPresented: $showChat) { SalonChatView(salon: salon).appDirection() }
         .sheet(isPresented: $showBooking, onDismiss: {
             // The grid is redrawn on return, so a slot someone else took while
             // she was deciding stops being offered.
@@ -275,9 +275,10 @@ struct SalonDetailView: View {
                 BookingSheet(salon: salon,
                              serviceNames: Array(selectedServices),
                              startMillis: slot)
+                    .appDirection()
             }
         }
-        .sheet(isPresented: $showKyc) { KycView() }
+        .sheet(isPresented: $showKyc) { KycView().appDirection() }
     }
 
     /// The salon's reviews, newest first.
