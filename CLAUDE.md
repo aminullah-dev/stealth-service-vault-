@@ -97,8 +97,12 @@ silently hit "permission denied".
   Both apps DO build in this environment, so build them rather than reading
   carefully and hoping: `./gradlew :app:compileProdDebugKotlin
   :app:testProdDebugUnitTest` for Android, and for iOS `swift test` in
-  `ios/SafeBeautyCore` plus `xcodebuild -project ios/SafeBeauty.xcodeproj
-  -scheme SafeBeauty -destination 'generic/platform=iOS Simulator' build`.
+  `ios/SafeBeautyCore` plus `make test` in `ios/` — which regenerates the
+  project and runs `xcodebuild … test` on a simulator. Use `test`, not `build`:
+  `SafeBeautyTests` is a hosted bundle covering the app-target logic that
+  cannot move into SafeBeautyCore, and a `build` (or the
+  `generic/platform=iOS Simulator` destination, which cannot run a test action
+  at all) compiles it without ever running it.
 - **Marketing/social images** (Instagram posts, stories, banners): deliver
   exactly ONE image per language — Dari gets the LIGHT (cream) variant, Pashto
   gets the DARK (deep-rose) variant. Don't produce both color variants per

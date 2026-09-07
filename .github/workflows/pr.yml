@@ -124,7 +124,7 @@ jobs:
           path: app/build/reports/tests/testProdDebugUnitTest/
 
   ios:
-    name: iOS logic tests
+    name: iOS tests
     # macOS, because Swift Testing and Foundation's regex here are not the
     # Linux toolchain's. It is the most expensive runner on this workflow and
     # it earns it: SafeBeautyCore holds the slot maths, PinHasher and the area
@@ -161,13 +161,69 @@ jobs:
       - name: Generate the Xcode project
         run: brew install xcodegen && xcodegen generate --spec project.yml
         working-directory: ios
-      - name: iOS app builds
+
+      # `test`, not `build`. project.yml has declared a SafeBeautyTests bundle
+      # since 2026-09-04 and the scheme has listed it under `test:` for just as
+      # long; the directory behind it was empty and no CI step ever ran a test
+      # action, so the project advertised a test bundle that could not have
+      # failed. That is this repository's stated recurring defect wearing the
+      # exact costume it always wears — something that looks healthy and has
+      # never run — sitting inside the workflow written to stop it.
+      #
+      # What it costs is smaller than it looks. `test` compiles the app target
+      # on the way through, so this REPLACES the build step rather than adding
+      # to it: Firebase and the app are compiled once either way. The increment
+      # over what this job already paid for is a simulator boot and a test
+      # bundle of a few hundred lines — seconds against this job's several
+      # minutes. The macOS runner is still the most expensive one here, and
+      # that is an argument for not adding a second macOS job, which this does
+      # not do.
+      #
+      # A concrete simulator rather than `generic/platform=iOS Simulator`,
+      # because SafeBeautyTests is a hosted bundle and needs a device to run
+      # on — a generic destination can build and cannot test.
+      - name: Pick a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          picked = ""
+          for runtime in sorted(runtimes):
+              if "iOS" not in runtime:
+                  continue
+              for device in runtimes[runtime]:
+                  if "iPhone" in device["name"]:
+                      picked = device["udid"]
+          print(picked)')
+          # Resolved from what the runner actually has rather than named. A
+          # literal "iPhone 17 Pro" ties this job to a runner image that is
+          # replaced without notice, and when it changes the failure reads
+          # "Unable to find a destination" with nothing pointing at the cause.
+          if [ -z "$udid" ]; then
+            echo "::error::No iPhone simulator is installed on this runner."
+            exit 1
+          fi
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: iOS app builds and its tests pass
         run: |
           set -o pipefail
           xcodebuild -project SafeBeauty.xcodeproj -scheme SafeBeauty \
-            -destination 'generic/platform=iOS Simulator' \
-            -quiet CODE_SIGNING_ALLOWED=NO build
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -resultBundlePath TestResults.xcresult \
+            -quiet CODE_SIGNING_ALLOWED=NO test
         working-directory: ios
+
+      # Same reason the Android job uploads its report: a failure that can only
+      # be read by re-running it on a Mac is a failure most people will re-run
+      # rather than read.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-test-results
+          path: ios/TestResults.xcresult
 
   rules:
     name: Security rules compile
