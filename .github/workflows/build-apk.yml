@@ -30,9 +30,16 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # app/build/outputs/apk/debug/ stopped existing on 2026-08-25, when the
+      # prod/demo flavour dimension was added: assembleDebug now writes to
+      # apk/prod/debug/ and apk/demo/debug/ instead. The path here was never
+      # updated, so from that day this job built both APKs for ten minutes and
+      # then failed on the upload, having produced nothing — 12 days of a green
+      # build step followed by a red one nobody read. The glob covers both
+      # flavours, which is the point of assembleDebug building both.
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: stealth-app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
