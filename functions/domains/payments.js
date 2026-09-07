@@ -11,7 +11,7 @@ const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta, isCommissionFree } =
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
-const { enforceRateLimit } = require("./identity");
+const { enforceRateLimit } = require("../shared");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
@@ -869,6 +869,10 @@ exports.createGiftCardSession = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
     assertNotSuspended(buyer);
+    // Each call opens an outbound HesabPay session; unbounded, one account
+    // can open hundreds — a bill, a pile of AWAITING_PAYMENT rows, and a
+    // pattern a payment provider reads as card testing.
+    await enforceRateLimit(`gift:${buyer.uid}`, 10, 60 * 60 * 1000);
 
     const { recipientPhone, amount, message } = request.data || {};
     const gift = validateGiftAmount(amount);
@@ -976,6 +980,10 @@ exports.createWalletTopUp = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
     assertNotSuspended(buyer);
+    // Each call opens an outbound HesabPay session; unbounded, one account
+    // can open hundreds — a bill, a pile of AWAITING_PAYMENT rows, and a
+    // pattern a payment provider reads as card testing.
+    await enforceRateLimit(`topup:${buyer.uid}`, 10, 60 * 60 * 1000);
 
     const { amount } = request.data || {};
     const top = validateGiftAmount(amount);
@@ -1043,6 +1051,7 @@ exports.createTipSession = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const customer = await resolveAppUser(request);
     assertNotSuspended(customer);
+    await enforceRateLimit(`tip:${customer.uid}`, 10, 60 * 60 * 1000);
 
     const { appointmentId, amount } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");

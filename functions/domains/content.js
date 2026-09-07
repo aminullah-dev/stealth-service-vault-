@@ -5,6 +5,7 @@
 
 const { averageRating } = require("../lib/reviews");
 const { canReport, isReason, planFor, reportId, targetSpec } = require("../lib/moderation");
+const { enforceRateLimit } = require("../shared");
 const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, resolveAppUser } = require("../shared");
 const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
@@ -575,6 +576,10 @@ exports.reportContent = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   const appUser = await resolveAppUser(request);
   assertNotSuspended(appUser);
+  // The document id stops a second report of the SAME item, not one report per
+  // item across everything she can see — which is the whole feed. Twenty an
+  // hour is far above any honest use and far below flooding a human's queue.
+  await enforceRateLimit(`report:${appUser.uid}`, 20, 60 * 60 * 1000);
 
   const d = request.data || {};
   const targetType = String(d.targetType || "");

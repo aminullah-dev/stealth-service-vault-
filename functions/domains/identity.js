@@ -12,7 +12,7 @@ const { LEGACY_AUTH_MS, authIsRecent, isHash, isSalt, rotationProblem } = requir
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
-const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, enforceRateLimit, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -1374,31 +1374,6 @@ exports.adminBackfillReferralCodes = onCall(
   });
 
 
-async function enforceRateLimit(key, max, windowMs) {
-  const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
-  const now = Date.now();
-  try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const d = snap.exists ? snap.data() : null;
-      if (!d || now - (d.windowStart || 0) >= windowMs) {
-        tx.set(ref, { windowStart: now, count: 1, updatedAt: now });
-        return;
-      }
-      if ((d.count || 0) >= max) {
-        const retryInSec = Math.ceil((d.windowStart + windowMs - now) / 1000);
-        throw new HttpsError(
-          "resource-exhausted",
-          `Too many attempts. Please try again in ${retryInSec} second(s).`
-        );
-      }
-      tx.update(ref, { count: (d.count || 0) + 1, updatedAt: now });
-    });
-  } catch (e) {
-    if (e instanceof HttpsError) throw e;   // the limit itself — propagate
-    logger.warn("enforceRateLimit failed open", e);
-  }
-}
 
 /** Best-effort caller IP for a v2 callable. */
 
