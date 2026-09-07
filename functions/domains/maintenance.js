@@ -7,8 +7,16 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, alertable, db, logger } = require("../shared");
 
 const { hasBookableWeek } = require("../lib/hours");
+// An absolute time, not "every 24 hours".
+//
+// A relative interval is measured from the last deploy, so every
+// `firebase deploy --only functions` pushed this another day out. This project
+// deploys most days, and the scheduler agreed: last attempt 2026-09-04, next
+// run exactly 24h after a DEPLOYMENT_ROLLOUT. It had missed two days and would
+// have gone on missing them. Every other daily job here already uses a
+// wall-clock time, which is why they were all firing and these two were not.
 exports.cleanupRateLimits = onSchedule(
-  { schedule: "every 24 hours", region: "us-central1" },
+  { schedule: "every day 03:30", timeZone: "Asia/Kabul", region: "us-central1" },
   async () => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const snap = await db.collection("rate_limits")

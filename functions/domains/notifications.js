@@ -15,8 +15,15 @@ const REENGAGE_AFTER_MS    = 30 * 24 * 60 * 60 * 1000;
 
 const REENGAGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
+// An absolute time — see cleanupRateLimits for why "every 24 hours" was not
+// running at all. This one costs more than a stale counter: a customer who has
+// not booked in a while is precisely who this product needs to hear from, and
+// nobody had heard from it since 2026-09-04.
+//
+// 09:00 Kabul rather than the small hours: it sends a push, and the other jobs
+// in that window only move data around.
 exports.sendReengagementNudges = onSchedule(
-  { schedule: "every 24 hours", region: "us-central1" },
+  { schedule: "every day 09:00", timeZone: "Asia/Kabul", region: "us-central1" },
   async () => {
     const now = Date.now();
     const lapsed = await db.collection("users")
