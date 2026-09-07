@@ -228,6 +228,10 @@ extension L {
             fa: "این حساب رمز عبور ندارد. با پشتیبانی تماس بگیرید.",
             ps: "دا حساب پټنوم نه لري. له ملاتړ سره اړیکه ونیسئ.",
             en: "This account has no password. Please contact support.").t
+        case "IN_FLIGHT": return L(
+            fa: "این رزرو همین حالا در حال ثبت است. یک لحظه صبر کنید.",
+            ps: "دا بکینګ همدا اوس ثبتیږي. یوه شېبه صبر وکړئ.",
+            en: "This booking is being created. Please wait a moment.").t
         case "FREE_USE_CASH": return L(
             fa: "برای این رزرو رایگان، پرداخت نقدی را انتخاب کنید.",
             ps: "د دې وړیا بکینګ لپاره نغدي تادیه وټاکئ.",

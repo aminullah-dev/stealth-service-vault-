@@ -909,6 +909,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── booking_claims ───────────────────────────────────────────────────────────
+    // One document per booking request the app has made, keyed
+    // {customerUid}_{clientRequestId}. createPaymentSession creates it before
+    // it does anything and writes the result into it afterwards, so a retry
+    // after a timeout gets that booking back instead of making a second one.
+    //
+    // Server-only in both directions. A client that could read these could
+    // read another customer's booking result by guessing an id; one that could
+    // write them could pre-claim an id to block her, or plant a `result` and
+    // be handed a booking that was never made.
+    match /booking_claims/{claimId} {
+      allow read, write: if false;
+    }
+
     // ── moderation_archive ───────────────────────────────────────────────────────
     // A copy of every piece of content an admin removed, taken the moment
     // before it was deleted. Written only by resolveContentReport.

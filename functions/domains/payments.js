@@ -17,6 +17,7 @@ const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdm
 const crypto = require("crypto");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
+const { claimDecision, claimPath } = require("../lib/idempotency");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, alertable, db, logger } = require("../shared");
 
@@ -126,6 +127,22 @@ function hesabHeaders(apiKey) {
   };
 }
 
+/**
+ * Stores what a booking request produced, so the retry after a timeout gets
+ * that booking back instead of making a second one.
+ *
+ * Never throws. The booking already exists at this point — failing the call
+ * because the bookkeeping write failed would tell a customer her booking did
+ * not happen when it did, which is the one outcome worse than a duplicate.
+ * The cost of losing it is that one retry books twice, which is where this
+ * started; the cost of throwing here is guaranteed, every time.
+ */
+async function recordClaim(claimRef, result) {
+  if (!claimRef) return;
+  await claimRef.set({ result, finishedAt: Date.now() }, { merge: true })
+    .catch((e) => logger.warn("booking claim not recorded", e));
+}
+
 exports.createPaymentSession = onCall(
   { secrets: [HESAB_API_KEY], region: "us-central1" },
   async (request) => {
@@ -142,8 +159,51 @@ exports.createPaymentSession = onCall(
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party, clientRequestId } =
       request.data || {};
+
+    // ── Idempotency ─────────────────────────────────────────────────────────
+    //
+    // This creates an appointment, a payment row and a HesabPay checkout. It
+    // was not idempotent, so a call that timed out on a bad connection could
+    // not be retried — the client could not know whether the work had already
+    // happened, and a second call would have produced two bookings and two
+    // charges. So the app did not retry, and a customer on a Kabul connection
+    // simply lost the booking.
+    //
+    // The claim is taken with `.create()`, which fails if the document exists.
+    // That is what makes it safe against two simultaneous copies of the same
+    // request rather than a read-then-write that both sides win.
+    //
+    // Optional: an older build that sends no id behaves exactly as before.
+    const requestId = String(clientRequestId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+    let claimRef = null;
+    if (requestId) {
+      claimRef = db.doc(claimPath(uid, requestId));
+      const decision = claimDecision(
+        await claimRef.get().then((s) => (s.exists ? s.data() : null)).catch(() => null),
+        Date.now()
+      );
+      if (decision.action === "replay") return decision.result;
+      if (decision.action === "inFlight") {
+        throw new HttpsError("aborted", "That booking is already being created.",
+          { reason: "IN_FLIGHT" });
+      }
+      try {
+        // create() for a first attempt; set() to take over one that died.
+        await claimRef.create({ uid, createdAt: Date.now() });
+      } catch (e) {
+        // Lost the race to an identical request that started microseconds ago.
+        const prior = await claimRef.get().catch(() => null);
+        const again = claimDecision(prior && prior.exists ? prior.data() : null, Date.now());
+        if (again.action === "replay") return again.result;
+        if (again.action === "inFlight") {
+          throw new HttpsError("aborted", "That booking is already being created.",
+            { reason: "IN_FLIGHT" });
+        }
+        await claimRef.set({ uid, createdAt: Date.now() });
+      }
+    }
     // A wedding party is a booking for several people at once. It arrives as a
     // guest list rather than a flat service list, so the salon can see who is
     // having what — and so the slot maths can account for everyone working at
@@ -683,7 +743,7 @@ exports.createPaymentSession = onCall(
         throw new HttpsError("internal", "Could not create the booking. Please try again.");
       }
 
-      return {
+      const cashResult = {
         paymentId:     paymentRef.id,
         appointmentId: apptRef.id,
         checkoutUrl:   "",
@@ -694,6 +754,8 @@ exports.createPaymentSession = onCall(
         commissionAmount,
         providerNet,
       };
+      await recordClaim(claimRef, cashResult);
+      return cashResult;
     }
 
     // Create the appointment (AWAITING_PAYMENT, hidden from the provider until
@@ -844,7 +906,7 @@ exports.createPaymentSession = onCall(
 
     await paymentRef.update({ hesabSessionId: sessionId });
 
-    return {
+    const onlineResult = {
       paymentId:     paymentRef.id,
       appointmentId: apptRef.id,
       checkoutUrl:   sessionUrl,
@@ -854,6 +916,8 @@ exports.createPaymentSession = onCall(
       commissionAmount,
       providerNet,
     };
+    await recordClaim(claimRef, onlineResult);
+    return onlineResult;
   }
 );
 

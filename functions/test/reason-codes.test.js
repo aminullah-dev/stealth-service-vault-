@@ -73,7 +73,11 @@ test("no screen decides what went wrong by reading the English sentence", () => 
   // sent "too late to move this booking" down the "somebody took your slot"
   // branch and told her to pick another time for a booking that can no longer
   // be moved at all.
-  const features = path.join(ROOT, "ios/SafeBeauty/Features");
+  // Features AND Services. The first version walked only Features and missed
+  // BookingService, which decided whether to send a customer to identity
+  // verification by testing whether the server's sentence contained "verify".
+  const roots = [path.join(ROOT, "ios/SafeBeauty/Features"),
+                 path.join(ROOT, "ios/SafeBeauty/Services")];
   const offenders = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -90,6 +94,6 @@ test("no screen decides what went wrong by reading the English sentence", () => 
       }
     }
   };
-  walk(features);
+  roots.forEach(walk);
   assert.deepEqual(offenders, [], `matching on the server's English text: ${offenders}`);
 });

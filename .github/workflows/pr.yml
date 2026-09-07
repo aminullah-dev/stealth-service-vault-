@@ -91,6 +91,10 @@ jobs:
       # runs the production function, not a reimplementation, so what passes
       # here is what the webhook and the manual settle path both run.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:settlement:inner"
+      # Whether .create() really lets exactly one of ten simultaneous callers
+      # through is a property of Firestore, not of our code — and it is what
+      # stops a retried booking from being charged twice.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:idempotency:inner"
         working-directory: functions
 
   android:

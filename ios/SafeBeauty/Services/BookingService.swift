@@ -74,9 +74,15 @@ final class BookingService {
         isWorking = true
         defer { isWorking = false }
 
+        // One id for this attempt, reused by the retry below and by nothing
+        // else. The server keys its claim on it, so a call that times out
+        // after the booking was made comes back as that booking rather than
+        // as a second one.
+        let requestId = UUID().uuidString
+
         let response: JSON
         do {
-            response = try await Callables.call("createPaymentSession", [
+            response = try await callWithRetry(requestId: requestId, [
                 "salonId": .string(salonId),
                 "serviceNames": .strings(serviceNames),
                 // Milliseconds, matching what the grid produced and what the
@@ -93,15 +99,16 @@ final class BookingService {
             ])
         } catch let e as Callables.CallableError {
             switch e {
-            case .failedPrecondition(let message, let reason):
+            case .failedPrecondition(_, let reason):
                 // The server distinguishes these, and so should she. "Verify
                 // your identity" and "someone just took that time" lead to
                 // completely different next actions.
                 //
                 // Translated from the server's `reason` code, not from its
-                // message. Every refusal except the KYC one used to reach her
-                // as the English sentence the server wrote for a developer —
-                // in an app she is using in Dari or Pashto.
+                // message. The KYC branch was the last one still reading the
+                // English — `message.contains("verify")` — so rewording that
+                // sentence would have sent a customer who needs to verify her
+                // identity to "this cannot be booked" instead.
                 switch reason {
                 case "SLOT_TAKEN":         throw BookingError.slotTaken
                 case "SALON_CLOSED":       throw BookingError.notBookable(L.errSalonClosed.t)
@@ -110,10 +117,8 @@ final class BookingService {
                 case "STAFF_UNAVAILABLE":  throw BookingError.notBookable(L.errStaffUnavailable.t)
                 case "PROMO_LIMIT":        throw BookingError.notBookable(L.errPromoLimit.t)
                 case "FREE_USE_CASH":      throw BookingError.notBookable(L.errFreeUseCash.t)
+                case "KYC_REQUIRED":       throw BookingError.needsVerification
                 default:
-                    if message.lowercased().contains("verify") {
-                        throw BookingError.needsVerification
-                    }
                     // A reason this build has not heard of still says something
                     // she can act on, rather than a server sentence in English.
                     throw BookingError.notBookable(L.errNotBookable.t)
@@ -144,5 +149,34 @@ final class BookingService {
             listPrice: response["listPrice"]?.intValue ?? 0,
             discountAmount: response["discountAmount"]?.intValue ?? 0
         )
+    }
+
+    /// One retry, and only because the call is now idempotent.
+    ///
+    /// It was not, so the app could not retry at all: a timed-out booking might
+    /// or might not have been made, and calling again could have produced two
+    /// appointments and two charges. A customer on a Kabul connection simply
+    /// lost the booking and had to start again — on a screen where starting
+    /// again means the slot may be gone.
+    ///
+    /// `clientRequestId` is what makes the second call safe. The server claims
+    /// it before doing anything and returns the first attempt's result if the
+    /// work already happened, so the retry either completes the booking or
+    /// hands back the one that was already made.
+    ///
+    /// Only for transport failures. A refusal — the slot is taken, verify your
+    /// identity — is an answer, and asking again does not change it.
+    private func callWithRetry(requestId: String, _ payload: [String: JSON]) async throws -> JSON {
+        var body = payload
+        body["clientRequestId"] = .string(requestId)
+        do {
+            return try await Callables.call("createPaymentSession", body)
+        } catch let e as Callables.CallableError {
+            guard case .other = e else { throw e }
+            // A short pause: an instant retry on a connection that just failed
+            // usually fails the same way.
+            try? await Task.sleep(for: .seconds(2))
+            return try await Callables.call("createPaymentSession", body)
+        }
     }
 }
