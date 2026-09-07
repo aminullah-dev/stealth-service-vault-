@@ -142,6 +142,29 @@ jobs:
           git diff --exit-code ios/SafeBeautyCore/Sources/SafeBeautyCore/Areas.swift \
             || { echo "::error::Areas.kt changed without regenerating. Run: python3 scripts/gen-areas.py"; exit 1; }
 
+      # The app target itself, which nothing here compiled.
+      #
+      # `swift test` builds SafeBeautyCore and stops. Every screen, service and
+      # view model in ios/SafeBeauty — the large majority of the iOS code — was
+      # never compiled by CI at all, so a Swift error in any of them merged
+      # green and was found only by whoever next opened a Mac. That is the same
+      # class of hole as an unrun test, and on the platform this project is
+      # about to publish.
+      #
+      # The .xcodeproj is not in git (see project.yml), so it is generated
+      # first. Simulator destination rather than a device: no signing identity
+      # exists on a runner and none is needed to prove the code compiles.
+      - name: Generate the Xcode project
+        run: brew install xcodegen && xcodegen generate --spec project.yml
+        working-directory: ios
+      - name: iOS app builds
+        run: |
+          set -o pipefail
+          xcodebuild -project SafeBeauty.xcodeproj -scheme SafeBeauty \
+            -destination 'generic/platform=iOS Simulator' \
+            -quiet CODE_SIGNING_ALLOWED=NO build
+        working-directory: ios
+
   rules:
     name: Security rules compile
     runs-on: ubuntu-latest
