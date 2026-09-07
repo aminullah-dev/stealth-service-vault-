@@ -7,6 +7,16 @@ on:
       - main
   workflow_dispatch:
 
+# pr.yml has had this since it was written; this file never did, so every push
+# to a claude/** branch started its own ten-minute APK build and none of the
+# superseded ones were cancelled. Pushing three commits in a row billed thirty
+# minutes to produce one APK anybody wanted. It is the same group expression
+# pr.yml uses, with a different prefix so the two workflows do not cancel each
+# other.
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

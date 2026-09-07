@@ -13,11 +13,26 @@ name: Pull request
 # firebase` resolved locally because it was installed globally on one laptop,
 # and "could not determine executable to run" everywhere else.
 
+# Every push to a branch with an open PR fired this workflow TWICE — once as
+# `push` on claude/**, once as `pull_request` on the same commit — so all seven
+# jobs ran twice, macos-latest included, and GitHub bills macOS minutes at ten
+# times Linux. Verified on 40a76d6 and c1d5d29: three runs per commit, two of
+# them this workflow under two different events.
+#
+# The two cannot be merged with a shared concurrency group: cancelling one
+# leaves a cancelled check on the PR, and a cancelled required check blocks the
+# merge this workflow exists to gate. So the push trigger drops claude/**
+# instead. `pull_request` already covers exactly what the header below claims —
+# nothing merges without these having run — and main is still covered on push.
+#
+# What this gives up, deliberately: a claude/** branch with NO open PR gets no
+# run of this workflow until one is opened. build-apk.yml still runs on every
+# such push, so the branch is not silent.
 on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
