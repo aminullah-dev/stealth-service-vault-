@@ -909,6 +909,23 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── moderation_archive ───────────────────────────────────────────────────────
+    // A copy of every piece of content an admin removed, taken the moment
+    // before it was deleted. Written only by resolveContentReport.
+    //
+    // The content itself stays deleted — this restores no visibility. What it
+    // restores is the ability to answer three questions that used to have no
+    // answer: whether a removal was a mistake, what a salon disputing one was
+    // actually accused of, and whether an account has done it before.
+    //
+    // Admins only. Not the author: handing back a copy of what was removed,
+    // to the person it was removed from, is a way to hand them the reporter's
+    // grounds as well.
+    match /moderation_archive/{archiveId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
     // ── blocks ───────────────────────────────────────────────────────────────────
     // "I do not want to see this person." Client-written, because it is one
     // customer's own preference and affects nobody else's view — the apps filter

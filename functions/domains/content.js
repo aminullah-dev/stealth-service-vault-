@@ -684,10 +684,37 @@ exports.resolveContentReport = onCall({ region: "us-central1" }, async (request)
   }
 
   if (plan.deleteTarget && report.targetCollection && report.targetId) {
-    // Deleted, not hidden. A hidden row is one forgetful client away from being
-    // visible again, and this content is small and replaceable — cleanupDeletedPost
-    // already handles a post's comments and likes going with it.
-    await db.doc(`${report.targetCollection}/${report.targetId}`).delete().catch(() => {});
+    const targetRef = db.doc(`${report.targetCollection}/${report.targetId}`);
+
+    // Copied before it is destroyed.
+    //
+    // Still deleted rather than flagged hidden: a hidden row is one forgetful
+    // client away from being visible again, and this content is small and
+    // replaceable. But deleting it and keeping nothing meant an admin mis-click
+    // was unrecoverable, a salon disputing a removal had nothing to be shown,
+    // and a second offence by the same account looked like a first one. The
+    // archive is server-written and admin-read-only, so it restores none of the
+    // visibility and all of the evidence.
+    const snap = await targetRef.get().catch(() => null);
+    if (snap && snap.exists) {
+      await db.doc(`moderation_archive/${id}`).set({
+        reportId: id,
+        targetType: report.targetType || "",
+        targetCollection: report.targetCollection,
+        targetId: report.targetId,
+        authorId: report.authorId || "",
+        ownerUid: report.ownerUid || "",
+        reason: report.reason || "",
+        actionTaken: action,
+        removedBy: appUser.uid,
+        removedAt: Date.now(),
+        // The document as it stood. Firestore caps a document at 1 MiB and
+        // these carry text and URLs, never image bytes.
+        content: snap.data(),
+      }).catch((e) => logger.warn("moderation archive failed", e));
+    }
+
+    await targetRef.delete().catch(() => {});
   }
 
   const ownerUid = String(report.ownerUid || (report.authorKind === "USER" ? report.authorId : ""));
