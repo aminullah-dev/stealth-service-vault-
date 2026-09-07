@@ -449,6 +449,11 @@ const STR = {
   empty_noDemandYetThatNobodyCanServe: {en:'No demand yet that nobody can serve', fa:'هنوز تقاضای بی‌پاسخ وجود ندارد', ps:'تر اوسه بې‌ځوابه تقاضا نشته'},
   empty_noFlaggedReports: {en:'No flagged reports 🎉', fa:'گزارشی نیست 🎉', ps:'هیڅ راپور نشته 🎉'},
   empty_noContentReports: {en:'No reported content 🎉', fa:'محتوای گزارش‌شده‌ای نیست 🎉', ps:'راپور شوې محتوا نشته 🎉'},
+  lbl_photoRetention: {en:'Photo retention', fa:'نگهداری عکس‌ها', ps:'د عکسونو ساتنه'},
+  hint_photoRetention: {en:'Identity photos are deleted 30 days after review. Verification is kept; the picture is not. This runs nightly — these buttons are for checking it or running it now.', fa:'عکس‌های هویتی ۳۰ روز پس از بررسی حذف می‌شوند. تأیید هویت می‌ماند، عکس نه. این هر شب اجرا می‌شود — این دکمه‌ها برای بررسی یا اجرای فوری‌اند.', ps:'د پیژندنې عکسونه د کتنې ۳۰ ورځې وروسته ړنګیږي. تاییدي پاتې کیږي، عکس نه. دا هره شپه چلیږي — دا تڼۍ د کتلو یا سمدستي چلولو لپاره دي.'},
+  btn_purgePhotos: {en:'Delete expired photos', fa:'حذف عکس‌های منقضی', ps:'د پای ته رسېدلو عکسونو ړنګول'},
+  btn_purgeDry: {en:'Show me what would go', fa:'اول نشانم بده چه می‌رود', ps:'لومړی راوښیه څه به ولاړ شي'},
+  msg_purgeResult: {en:(a0,a1)=>`${a0} account(s), ${a1} photo(s)`, fa:(a0,a1)=>`${a0} حساب، ${a1} عکس`, ps:(a0,a1)=>`${a0} حساب، ${a1} عکسونه`},
   hint_contentReports: {en:(a0)=>`Reported content (${a0})`, fa:(a0)=>`محتوای گزارش‌شده (${a0})`, ps:(a0)=>`راپور شوې محتوا (${a0})`},
   hint_contentSla: {en:'Reports are answered within 24 hours.', fa:'گزارش‌ها در کمتر از ۲۴ ساعت بررسی می‌شوند.', ps:'راپورونه په ۲۴ ساعتونو کې کتل کیږي.'},
   th_content: {en:'Content', fa:'محتوا', ps:'محتوا'},
@@ -2644,6 +2649,12 @@ async function renderHealth(){
         <button class="btn-sm" id="h-kycrevoke" style="background:var(--red)">${t('btn_revokePhotoLinks')}</button>
         <button class="btn-sm" id="h-kycdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-kycflash" class="mflash" style="margin-top:8px"></div>
+
+        <div class="mlabel" style="margin-top:18px">${t('lbl_photoRetention')}</div>
+        <div class="mhint">${t('hint_photoRetention')}</div>
+        <button class="btn-sm" id="h-purge" style="background:var(--red)">${t('btn_purgePhotos')}</button>
+        <button class="btn-sm" id="h-purgedry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_purgeDry')}</button>
+        <div id="h-purgeflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
@@ -2823,6 +2834,28 @@ async function renderHealth(){
     };
     $('h-kycrevoke').onclick = (e) => runKycRevoke(e.target, false);
     $('h-kycdry').onclick    = (e) => runKycRevoke(e.target, true);
+
+    // The nightly job does this on its own. These exist because a callable
+    // nothing can reach is this project's recurring defect, and because the
+    // first run of an irreversible sweep should be readable before it is
+    // trusted — which is what the dry run is for.
+    const runPurge = async (btn, dryRun) => {
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const { data } = await httpsCallable(fns,'adminPurgeKycImages')({ dryRun });
+        const lines = (data.purged || []).map(p => `${p.uid.slice(0,8)}… ${p.ageDays}d`).join(', ');
+        $('h-purgeflash').textContent =
+          (dryRun ? '· ' : '✓ ') + t('msg_purgeResult', data.accountsPurged, data.objectsPurged) +
+          (lines ? ` — ${lines}` : '');
+      } catch (e) {
+        $('h-purgeflash').textContent = e.message || 'Failed';
+      } finally {
+        btn.disabled = false; btn.textContent = label;
+      }
+    };
+    $('h-purge').onclick    = (e) => { if (confirm(t('btn_purgePhotos') + '?')) runPurge(e.target, false); };
+    $('h-purgedry').onclick = (e) => runPurge(e.target, true);
 
 
     // Writes platform_config/force_update, which the app has read since it was

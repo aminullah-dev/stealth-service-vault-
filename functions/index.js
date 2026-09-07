@@ -162,6 +162,8 @@ exports.pushOfferToFavoriters = content.pushOfferToFavoriters;
 
 const maintenance = require("./domains/maintenance");
 exports.cleanupRateLimits        = maintenance.cleanupRateLimits;
+exports.purgeKycImages       = maintenance.purgeKycImages;
+exports.adminPurgeKycImages  = maintenance.adminPurgeKycImages;
 exports.scheduledFirestoreBackup = maintenance.scheduledFirestoreBackup;
 exports.verifyFirestoreBackup    = maintenance.verifyFirestoreBackup;
 exports.pruneOldBackups          = maintenance.pruneOldBackups;

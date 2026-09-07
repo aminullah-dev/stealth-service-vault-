@@ -445,6 +445,10 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
   await targetRef.update({
     kycStatus:          approve ? "APPROVED" : "REJECTED",
     kycRejectionReason: approve ? "" : reason,
+    // When a human decided. The photographs are kept for a window after this
+    // and then deleted — see purgeKycImages. Without this field there was no
+    // basis for a retention policy at all, which is why there was not one.
+    kycReviewedAt:      Date.now(),
   });
 
   await db.collection("notifications").doc().set({
