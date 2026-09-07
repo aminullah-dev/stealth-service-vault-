@@ -100,10 +100,10 @@ async function resolvePromoDiscount(codeRaw, priceAfn) {
   }
   const p = snap.data();
   if (p.active === false) {
-    throw new HttpsError("failed-precondition", "This promo code is no longer active.");
+    throw new HttpsError("failed-precondition", "This promo code is no longer active.", { reason: "PROMO_INACTIVE" });
   }
   if (p.expiresAt && Number(p.expiresAt) > 0 && Date.now() > Number(p.expiresAt)) {
-    throw new HttpsError("failed-precondition", "This promo code has expired.");
+    throw new HttpsError("failed-precondition", "This promo code has expired.", { reason: "PROMO_EXPIRED" });
   }
   const maxUses  = Number(p.maxUses || 0);
   const usedCount = Number(p.usedCount || 0);
@@ -138,7 +138,7 @@ exports.createPaymentSession = onCall(
     // Identity must be verified before booking. The client gates this too and
     // routes to the KYC screen; this is the non-bypassable server enforcement.
     if ((appUser.kycStatus || "NONE") !== "APPROVED") {
-      throw new HttpsError("failed-precondition", "Verify your identity before booking.");
+      throw new HttpsError("failed-precondition", "Verify your identity before booking.", { reason: "KYC_REQUIRED" });
     }
     const uid     = appUser.uid;
     const user    = appUser;
@@ -252,7 +252,7 @@ exports.createPaymentSession = onCall(
     //
     // createGiftCardSession already refuses the same shape of self-dealing.
     if (salon.providerId && salon.providerId === uid) {
-      throw new HttpsError("failed-precondition", "You can't book your own salon.");
+      throw new HttpsError("failed-precondition", "You can't book your own salon.", { reason: "OWN_SALON" });
     }
 
     // Reject bookings on a day the provider blocked off (time-off/holiday). The
@@ -274,7 +274,7 @@ exports.createPaymentSession = onCall(
     // a service into existence, and a guest having nothing done is not a guest.
     const partyGuests = isParty ? normalizeParty(party, salon.services) : [];
     if (isParty && partyGuests.length === 0) {
-      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.");
+      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.", { reason: "NO_BOOKABLE_SERVICE" });
     }
     const effectiveNames = isParty ? partyServices(partyGuests) : requestedServiceNames;
 
@@ -283,7 +283,7 @@ exports.createPaymentSession = onCall(
       throw new HttpsError("failed-precondition", `No valid price for: ${invalid.join(", ")}`);
     }
     if (services.length === 0 || total <= 0) {
-      throw new HttpsError("failed-precondition", "This service has no valid price.");
+      throw new HttpsError("failed-precondition", "This service has no valid price.", { reason: "NO_PRICE" });
     }
     const listPrice = total;
     // Combined display name so every downstream string (stored serviceName,
@@ -1924,7 +1924,7 @@ exports.previewPromo = onCall({ region: "us-central1" }, async (request) => {
   if (!salonSnap.exists) throw new HttpsError("not-found", "Salon not found.");
   const { total: listPrice, invalid } = resolveServicesTotal(salonSnap.data().pricePerService, requested);
   if (invalid.length > 0 || listPrice <= 0) {
-    throw new HttpsError("failed-precondition", "This service has no valid price.");
+    throw new HttpsError("failed-precondition", "This service has no valid price.", { reason: "NO_PRICE" });
   }
   const promo = await resolvePromoDiscount(code, listPrice);
   return {

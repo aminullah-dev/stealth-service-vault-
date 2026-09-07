@@ -121,10 +121,19 @@ struct RescheduleSheet: View {
             // through in English. SALON_CLOSED and the slot collision are both
             // things she can act on — pick another day, pick another time — and
             // "something went wrong" would tell her neither.
-            if case .failedPrecondition(let message, let reason) = e {
-                if reason == "SALON_CLOSED" { error = L.rescheduleClosed.t }
-                else if message.lowercased().contains("no longer") { error = L.rescheduleTooLate.t }
-                else { error = L.rescheduleTaken.t }
+            // Keyed on the code, not on the English sentence. This used to
+            // read `message.lowercased().contains("no longer")`, so rewording
+            // the server's text — which is a log line, not a contract — would
+            // have silently sent "too late to move this" down the "somebody
+            // took the slot" branch, telling her to pick another time for a
+            // booking that can no longer be moved at all.
+            if case .failedPrecondition(_, let reason) = e {
+                switch reason {
+                case "SALON_CLOSED": error = L.rescheduleClosed.t
+                case "RESCHEDULE_TOO_LATE": error = L.rescheduleTooLate.t
+                case "SLOT_TAKEN": error = L.rescheduleTaken.t
+                default: error = e.localized ?? L.rescheduleTaken.t
+                }
             } else {
                 error = L.errNetwork.t
             }

@@ -110,6 +110,29 @@ enum Callables {
         case failedPrecondition(message: String, reason: String?)
         case other(message: String)
 
+        /// What to show her.
+        ///
+        /// The server's `reason` code translated, or — for a code this build
+        /// does not know — the server's own sentence, which is English but is
+        /// at least specific. A newer server saying something in English beats
+        /// an older app saying "check your connection" about a slot that was
+        /// taken.
+        ///
+        /// nil only when there is nothing specific to say, and the caller uses
+        /// its own generic line.
+        var localized: String? {
+            switch self {
+            case .failedPrecondition(let message, let reason):
+                return L.reason(reason) ?? message
+            case .rateLimited(let message):
+                return L.reason(nil) ?? message
+            case .other(let message):
+                return message.isEmpty ? nil : message
+            default:
+                return nil
+            }
+        }
+
         var errorDescription: String? {
             switch self {
             case .alreadyExists(let f): "already-exists(\(f ?? "unknown"))"

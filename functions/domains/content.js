@@ -143,7 +143,7 @@ exports.submitReview = onCall(
       // A review only makes sense once the salon accepted/served the visit, and
       // exactly once per booking.
       if (appt.status !== "CONFIRMED" && appt.status !== "COMPLETED") {
-        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.", { reason: "REVIEW_TOO_EARLY" });
       }
       // CONFIRMED means the salon accepted the booking, not that it happened.
       // The message above already promised "after your visit"; without this the
@@ -151,10 +151,10 @@ exports.submitReview = onCall(
       // for next week, and it counted toward the salon's average.
       const startsAt = Number(appt.appointmentDate || 0);
       if (Number.isFinite(startsAt) && startsAt > Date.now()) {
-        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.", { reason: "REVIEW_TOO_EARLY" });
       }
       if (appt.reviewed === true) {
-        throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
+        throw new HttpsError("failed-precondition", "You've already reviewed this booking.", { reason: "ALREADY_REVIEWED" });
       }
       tx.update(apptRef, { reviewed: true });
       tx.set(reviewRef, {
@@ -616,7 +616,7 @@ exports.reportContent = onCall({ region: "us-central1" }, async (request) => {
   const verdict = canReport({ targetType, targetId, reason, reporterUid: appUser.uid, ownerUid });
   if (!verdict.ok) {
     if (verdict.why === "own-content") {
-      throw new HttpsError("failed-precondition", "You can delete your own content instead.");
+      throw new HttpsError("failed-precondition", "You can delete your own content instead.", { reason: "OWN_CONTENT" });
     }
     throw new HttpsError("invalid-argument", "This can't be reported.");
   }

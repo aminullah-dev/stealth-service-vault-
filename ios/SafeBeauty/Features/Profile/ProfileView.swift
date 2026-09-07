@@ -466,8 +466,7 @@ struct ProfileView: View {
             _ = try await Callables.call("requestAccountDeletion")
             auth.signOut()
         } catch let e as Callables.CallableError {
-            if case .failedPrecondition(let m, _) = e { deleteError = m }
-            else { deleteError = L.errNetwork.t }
+            deleteError = e.localized ?? L.errNetwork.t
         } catch {
             deleteError = L.errNetwork.t
         }

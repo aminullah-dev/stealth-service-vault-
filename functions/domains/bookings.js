@@ -53,7 +53,7 @@ async function cancelPaidAppointment(appointmentId, cancelledBy, authorize, acto
     if (!apptSnap.exists) throw new HttpsError("not-found", "Appointment not found.");
     const appt = apptSnap.data();
     if (appt.status !== "PENDING" && appt.status !== "CONFIRMED") {
-      throw new HttpsError("failed-precondition", "This booking can no longer be cancelled.");
+      throw new HttpsError("failed-precondition", "This booking can no longer be cancelled.", { reason: "CANCEL_TOO_LATE" });
     }
 
     // AppointmentDocument has no providerId field — it lives on the payment
@@ -350,7 +350,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
       throw new HttpsError("permission-denied", "Not authorized to reschedule this booking.");
     }
     if (appt.status !== "PENDING" && appt.status !== "CONFIRMED") {
-      throw new HttpsError("failed-precondition", "This booking can no longer be rescheduled.");
+      throw new HttpsError("failed-precondition", "This booking can no longer be rescheduled.", { reason: "RESCHEDULE_TOO_LATE" });
     }
 
     const salonSnap  = await tx.get(db.doc(`salons/${appt.salonId}`));
@@ -405,7 +405,7 @@ exports.rescheduleAppointment = onCall({ region: "us-central1" }, async (request
     // booking it did.
     if (hasSlotConflict(others, dateMs, busy, String(appt.staffId || ""), slotMinutes,
                         appointmentId, appt.isParty === true)) {
-      throw new HttpsError("failed-precondition", "That time is no longer available.");
+      throw new HttpsError("failed-precondition", "That time is no longer available.", { reason: "SLOT_TAKEN" });
     }
 
     // And on the grid the salon actually keeps. hasSlotConflict cannot see this:
@@ -493,7 +493,7 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
 
     if (appt.status === "CONFIRMED") return; // idempotent re-tap
     if (appt.status !== "PENDING") {
-      throw new HttpsError("failed-precondition", "Only a pending booking can be confirmed.");
+      throw new HttpsError("failed-precondition", "Only a pending booking can be confirmed.", { reason: "NOT_PENDING" });
     }
 
     const salonRef  = db.doc(`salons/${appt.salonId}`);
@@ -585,7 +585,7 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
       throw new HttpsError("permission-denied", "Not your booking to review.");
     }
     if (appt.customerReported === true) {
-      throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
+      throw new HttpsError("failed-precondition", "You've already reviewed this booking.", { reason: "ALREADY_REVIEWED" });
     }
     // Feedback only makes sense once a booking was actually accepted/served.
     // COMPLETED is included because completePastAppointments auto-flips
@@ -593,7 +593,7 @@ exports.reportCustomer = onCall({ region: "us-central1" }, async (request) => {
     // provider sits down to report a no-show, so excluding it would kill the
     // primary post-visit reporting window.
     if (appt.status !== "CONFIRMED" && appt.status !== "PENDING" && appt.status !== "COMPLETED") {
-      throw new HttpsError("failed-precondition", "This booking can't be reviewed.");
+      throw new HttpsError("failed-precondition", "This booking can't be reviewed.", { reason: "NOT_REVIEWABLE" });
     }
 
     // Read before any write — a transaction allows no read after one. Needed

@@ -251,13 +251,11 @@ struct BookingSheet: View {
                 promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
             }
         } catch let e as Callables.CallableError {
-            // The server says why — expired, used up, wrong salon — and its
-            // sentence is more use than a generic refusal.
-            if case .failedPrecondition(let m, _) = e {
-                promoNote = PromoNote(text: m, isGood: false)
-            } else {
-                promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
-            }
+            // The server says why — expired, used up, wrong salon — and that
+            // is more use than a generic refusal. It says it as a code now, so
+            // she reads it in her own language instead of in the English the
+            // sentence was written in.
+            promoNote = PromoNote(text: e.localized ?? L.promoInvalid.t, isGood: false)
         } catch {
             promoNote = PromoNote(text: L.errNetwork.t, isGood: false)
         }

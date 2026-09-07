@@ -274,7 +274,7 @@ exports.changePassword = onCall({ region: "us-central1" }, async (request) => {
   const oldPinHash = String(appUser.pinHash || "");
   const oldSalt    = String(appUser.salt || "");
   if (!oldPinHash || !oldSalt) {
-    throw new HttpsError("failed-precondition", "This account has no password set.");
+    throw new HttpsError("failed-precondition", "This account has no password set.", { reason: "NO_PASSWORD" });
   }
   // Defence in depth, NOT the security boundary — auth_time above is that.
   // This catches a client that derived the hash wrongly, or a stale salt,
@@ -378,14 +378,14 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
     bucket.file(selfiePhotoPath).exists().then((r) => r[0]).catch(() => false),
   ]);
   if (!tazkiraThere || !selfieThere) {
-    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.");
+    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.", { reason: "KYC_PHOTOS_MISSING" });
   }
   const current = appUser.kycStatus || "NONE";
   if (current === "PENDING") {
-    throw new HttpsError("failed-precondition", "Your verification is already under review.");
+    throw new HttpsError("failed-precondition", "Your verification is already under review.", { reason: "KYC_UNDER_REVIEW" });
   }
   if (current === "APPROVED") {
-    throw new HttpsError("failed-precondition", "You are already verified.");
+    throw new HttpsError("failed-precondition", "You are already verified.", { reason: "KYC_VERIFIED" });
   }
 
   await db.doc(`users/${appUser.uid}`).update({

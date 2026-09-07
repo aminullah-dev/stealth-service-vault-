@@ -131,6 +131,114 @@ extension L {
         }
     }
 
+    /// The server's machine code, said in her language.
+    ///
+    /// Eight screens used to render the raw `HttpsError` message, which is an
+    /// English sentence written for a log — so a customer whose slot had just
+    /// been taken read "That time is no longer available." in English, in an
+    /// app she had set to Dari. The sentence was accurate and unreadable.
+    ///
+    /// `details.reason` already existed and already carried SLOT_TAKEN,
+    /// SALON_CLOSED and a few others for the booking path; this is the same
+    /// mechanism extended to every refusal a customer or a salon owner can
+    /// actually cause.
+    ///
+    /// Returns nil for a code this build does not know, and the caller falls
+    /// back to the server's sentence. A newer server saying something in
+    /// English beats an older app saying nothing.
+    static func reason(_ code: String?) -> String? {
+        guard let code else { return nil }
+        switch code {
+        case "SLOT_TAKEN": return L(
+            fa: "این ساعت همین حالا رزرو شد. ساعت دیگری انتخاب کنید.",
+            ps: "دا وخت همدا اوس ونیول شو. بل وخت وټاکئ.",
+            en: "That time was just taken. Please pick another.").t
+        case "STAFF_UNAVAILABLE": return L(
+            fa: "این آرایشگر در آن ساعت آزاد نیست.",
+            ps: "دا آرایشګر په هغه وخت کې خالي نه دی.",
+            en: "That stylist is not free at that time.").t
+        case "SALON_CLOSED": return L(
+            fa: "سالن در آن روز بسته است.", ps: "سالون په هغه ورځ تړلی دی.",
+            en: "The salon is closed that day.").t
+        case "SALON_UNAVAILABLE": return L(
+            fa: "این سالن فعلاً رزرو نمی‌پذیرد.", ps: "دا سالون اوس مهال بکینګ نه اخلي.",
+            en: "This salon is not taking bookings right now.").t
+        case "CANCEL_TOO_LATE": return L(
+            fa: "برای لغو دیر شده. با سالن تماس بگیرید.",
+            ps: "د لغوه کولو لپاره ناوخته دی. له سالون سره اړیکه ونیسئ.",
+            en: "It is too late to cancel. Please contact the salon.").t
+        case "RESCHEDULE_TOO_LATE": return L(
+            fa: "برای تغییر زمان دیر شده. با سالن تماس بگیرید.",
+            ps: "د وخت بدلولو لپاره ناوخته دی. له سالون سره اړیکه ونیسئ.",
+            en: "It is too late to move this booking. Please contact the salon.").t
+        case "NOT_PENDING": return L(
+            fa: "این رزرو دیگر در انتظار تأیید نیست.",
+            ps: "دا بکینګ نور د تایید په تمه نه دی.",
+            en: "This booking is no longer waiting for a decision.").t
+        case "ALREADY_REVIEWED": return L(
+            fa: "برای این نوبت قبلاً نظر داده‌اید.",
+            ps: "تاسو د دې نوبت لپاره مخکې نظر ورکړی.",
+            en: "You have already reviewed this visit.").t
+        case "REVIEW_TOO_EARLY": return L(
+            fa: "بعد از نوبت‌تان می‌توانید نظر بدهید.",
+            ps: "د خپل نوبت وروسته کولی شئ نظر ورکړئ.",
+            en: "You can leave a review after your visit.").t
+        case "NOT_REVIEWABLE": return L(
+            fa: "این رزرو قابل نظر دادن نیست.", ps: "دې بکینګ ته نظر نه ورکول کیږي.",
+            en: "This booking cannot be reviewed.").t
+        case "PROMO_INACTIVE": return L(
+            fa: "این کد دیگر فعال نیست.", ps: "دا کوډ نور فعال نه دی.",
+            en: "This code is no longer active.").t
+        case "PROMO_EXPIRED": return L(
+            fa: "این کد منقضی شده است.", ps: "د دې کوډ نېټه تېره ده.",
+            en: "This code has expired.").t
+        case "PROMO_LIMIT": return L(
+            fa: "این کد به سقف استفاده رسیده است.",
+            ps: "دا کوډ خپلې پولې ته رسېدلی دی.",
+            en: "This code has reached its limit.").t
+        case "KYC_REQUIRED": return L(
+            fa: "پیش از رزرو، هویت‌تان را تأیید کنید.",
+            ps: "له بکینګ مخکې خپله پیژندنه تایید کړئ.",
+            en: "Verify your identity before booking.").t
+        case "KYC_PHOTOS_MISSING": return L(
+            fa: "هر دو عکس باید بارگذاری شوند.", ps: "دواړه عکسونه باید پورته شي.",
+            en: "Both photos must be uploaded first.").t
+        case "KYC_UNDER_REVIEW": return L(
+            fa: "درخواست شما در حال بررسی است.", ps: "ستاسو غوښتنه د کتنې لاندې ده.",
+            en: "Your verification is already under review.").t
+        case "KYC_VERIFIED": return L(
+            fa: "هویت شما قبلاً تأیید شده است.", ps: "ستاسو پیژندنه مخکې تایید شوې ده.",
+            en: "You are already verified.").t
+        case "OWN_SALON": return L(
+            fa: "نمی‌توانید در سالن خودتان رزرو کنید.",
+            ps: "په خپل سالون کې بکینګ نشئ کولی.",
+            en: "You cannot book your own salon.").t
+        case "OWN_CONTENT": return L(
+            fa: "می‌توانید نوشتهٔ خودتان را پاک کنید.",
+            ps: "خپله لیکنه پخپله لرې کولی شئ.",
+            en: "You can delete your own content instead.").t
+        case "NO_BOOKABLE_SERVICE": return L(
+            fa: "هیچ مهمانی خدمت قابل رزرو ندارد.",
+            ps: "هیڅ مېلمه د بکینګ وړ خدمت نه لري.",
+            en: "No guest has a bookable service.").t
+        case "NO_PRICE": return L(
+            fa: "این خدمت قیمت معتبر ندارد.", ps: "دا خدمت سمه بیه نه لري.",
+            en: "This service has no valid price.").t
+        case "NO_PASSWORD": return L(
+            fa: "این حساب رمز عبور ندارد. با پشتیبانی تماس بگیرید.",
+            ps: "دا حساب پټنوم نه لري. له ملاتړ سره اړیکه ونیسئ.",
+            en: "This account has no password. Please contact support.").t
+        case "FREE_USE_CASH": return L(
+            fa: "برای این رزرو رایگان، پرداخت نقدی را انتخاب کنید.",
+            ps: "د دې وړیا بکینګ لپاره نغدي تادیه وټاکئ.",
+            en: "Choose cash payment for this free booking.").t
+        case "HAS_HISTORY": return L(
+            fa: "این حساب سابقهٔ رزرو دارد.", ps: "دا حساب د بکینګ سابقه لري.",
+            en: "This account has booking history.").t
+        default: return nil
+        }
+    }
+
     static func resetSentTo(_ email: String) -> String {
         switch AppLanguage.current {
         case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
