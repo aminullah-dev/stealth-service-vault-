@@ -308,13 +308,17 @@ data class AppointmentDocument(
     val status: String = "PENDING",         // "AWAITING_PAYMENT" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
     val createdAt: Long = 0L,
     /**
-     * Set by reportVisit. Without it the "something went wrong?" control comes
-     * back on a visit already reported and the server refuses it.
-     *
-     * NOTE: this model still has no `reviewed` field, which submitReview sets
-     * for the same purpose — so the review button IS offered again on a booking
-     * already reviewed. iOS carries that field and Android does not. Left alone
-     * here rather than fixed in passing.
+     * Set by submitReview (content.js), which refuses a second review of the
+     * same booking. Android did not read it, so "leave a review" came back on a
+     * booking already reviewed and the server refused it — a button that lies
+     * teaches her not to trust the buttons. iOS has carried this field since
+     * its own version of the same bug was fixed.
+     */
+    @get:PropertyName("reviewed") @set:PropertyName("reviewed")
+    var reviewed: Boolean = false,
+    /**
+     * Set by reportVisit. Same job on the other control: without it the
+     * "something went wrong?" button comes back on a visit already reported.
      */
     @get:PropertyName("visitReported") @set:PropertyName("visitReported")
     var visitReported: Boolean = false,

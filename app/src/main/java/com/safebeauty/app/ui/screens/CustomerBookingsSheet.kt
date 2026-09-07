@@ -428,13 +428,19 @@ private fun BookingCard(
     // CONFIRMED means the salon accepted it, not that the visit happened. Without
     // the date check a customer could rate a haircut she is booked in for next
     // week, and the rating would count toward the salon's average.
-    val canReview     = (appt.status == "CONFIRMED" || appt.status == "COMPLETED") &&
+    // The visit has to have happened: CONFIRMED means the salon accepted it,
+    // not that she has been. Without the date check she could rate a haircut
+    // she is booked in for next week, and it would count toward the average.
+    val visitHappened = (appt.status == "CONFIRMED" || appt.status == "COMPLETED") &&
                         appt.appointmentDate <= System.currentTimeMillis()
+    // And not twice. submitReview stamps the booking and refuses a second one,
+    // so without this the button came back and the server said no.
+    val canReview     = visitHappened && !appt.reviewed
     // Mirrors canReportVisit in functions/lib/visitreport.js: the salon
     // accepted it, the hour has passed, it is within fourteen days, and she has
     // not already reported it. A button the server refuses teaches her not to
     // trust the buttons.
-    val canReportVisit = canReview && !appt.visitReported &&
+    val canReportVisit = visitHappened && !appt.visitReported &&
                         System.currentTimeMillis() - appt.appointmentDate <=
                             14L * 24 * 60 * 60 * 1000
     // "Book again" makes sense once a visit is done or was cancelled — not while a
@@ -566,7 +572,12 @@ private fun BookingCard(
                             Text(strings.leaveReview, fontSize = 12.sp)
                         }
                     }
-                    if (canReview) {
+                    // Its own condition, not the review one it used to share.
+                    // createTipSession gates on ownership rather than status,
+                    // so a reviewed visit is still tippable — and it would have
+                    // stopped being offered the moment the review flag was
+                    // honoured above.
+                    if (visitHappened) {
                         OutlinedButton(
                             onClick        = { onTipClick(appt) },
                             shape          = RoundedCornerShape(8.dp),
