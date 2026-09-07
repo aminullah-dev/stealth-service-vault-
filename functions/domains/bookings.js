@@ -10,9 +10,10 @@ const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, assertDocId, assertNotSuspended, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, enforceRateLimit, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { averageRating } = require("../lib/reviews");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
+const { canReportVisit, isVisitReason, visitPlan } = require("../lib/visitreport");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { countsAsConfirmed, statsDelta, isNoOp } = require("../lib/salonstats");
@@ -1330,3 +1331,160 @@ exports.adminCancelAppointment = onCall({ region: "us-central1" }, async (reques
 // a bare status write and therefore never flagging the money. Not a callable —
 // index.js does not re-export it, and deploy.sh now skips helper names.
 exports.cancelPaidAppointment = cancelPaidAppointment;
+
+// ── reportVisit ───────────────────────────────────────────────────────────────
+//
+// The other half of reportCustomer.
+//
+// A salon has been able to rate its customer, mark her a no-show and flag her
+// for misconduct since this shipped, and an admin can suspend her over it.
+// She had no way to say the visit did not happen. Meanwhile
+// completePastAppointments flips a CONFIRMED booking to COMPLETED two hours
+// after its start time — so "completed" means the clock passed, not that
+// anyone served her, and the platform's commission is booked on that. A salon
+// that took an online payment and served nobody kept the money and she was
+// left with the support chat.
+exports.reportVisit = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
+  await enforceRateLimit(`visitreport:${appUser.uid}`, 10, 60 * 60 * 1000);
+
+  const d = request.data || {};
+  const appointmentId = String(d.appointmentId || "");
+  const reason = String(d.reason || "");
+  const note = String(d.note || "").trim().slice(0, 500);
+  assertDocId(appointmentId, "appointmentId");
+  if (!isVisitReason(reason)) throw new HttpsError("invalid-argument", "Unknown reason.");
+
+  const apptRef = db.doc(`appointments/${appointmentId}`);
+
+  const reportId = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(apptRef);
+    const appt = snap.exists ? snap.data() : null;
+
+    // Every refusal carries its own code. "You cannot report this" with no
+    // reason is how a person concludes the app is on the salon's side.
+    const verdict = canReportVisit({ appointment: appt, callerUid: appUser.uid, now: Date.now() });
+    if (!verdict.ok) {
+      if (verdict.why === "NOT_FOUND") throw new HttpsError("not-found", "Booking not found.");
+      if (verdict.why === "NOT_YOURS") {
+        throw new HttpsError("permission-denied", "That isn't your booking.");
+      }
+      throw new HttpsError("failed-precondition", "This visit can't be reported.",
+        { reason: `VISIT_${verdict.why}` });
+    }
+
+    const ref = db.collection("visit_reports").doc();
+    tx.set(ref, {
+      appointmentId,
+      customerId:    appUser.uid,
+      customerName:  appUser.name || "",
+      salonId:       appt.salonId || "",
+      salonName:     appt.salonName || "",
+      providerId:    appt.providerId || "",
+      serviceName:   appt.serviceName || "",
+      bookingCode:   appt.bookingCode || "",
+      appointmentDate: Number(appt.appointmentDate || 0),
+      amount:        Number(appt.price || appt.amount || 0),
+      reason,
+      note,
+      status:        "OPEN",
+      createdAt:     Date.now(),
+    });
+    // The same one-per-booking flag reportCustomer uses from the other side.
+    tx.update(apptRef, { visitReported: true });
+    return ref.id;
+  });
+
+  await logAppointmentEvent(
+    { customerId: appUser.uid }, appointmentId, "VISIT_REPORTED",
+    { uid: appUser.uid, role: "CUSTOMER", name: appUser.name },
+    `Customer reported the visit (${reason})`
+  ).catch(() => {});
+
+  return { ok: true, reportId };
+});
+
+// ── resolveVisitReport (admin) ────────────────────────────────────────────────
+//
+// A queue that cannot do anything is a complaints box. Refunding goes through
+// the refund_requests row the rest of this file already uses, so a refund
+// decided here is the same refund the finance tab pays out.
+exports.resolveVisitReport = onCall({ region: "us-central1" }, async (request) => {
+  const appUser = await assertAdmin(request);
+  const d = request.data || {};
+  const reportId = String(d.reportId || "");
+  const action = String(d.action || "");
+  if (!reportId) throw new HttpsError("invalid-argument", "reportId is required.");
+  const plan = visitPlan(action);
+  if (!plan) throw new HttpsError("invalid-argument", "Unknown action.");
+
+  const reportRef = db.doc(`visit_reports/${reportId}`);
+  const snap = await reportRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Report not found.");
+  const report = snap.data();
+  // The same guard resolveContentReport carries: a report already dealt with
+  // must not be re-applied by a stale console tab or a retried call.
+  if (report.status !== "OPEN") {
+    throw new HttpsError("failed-precondition", "This report was already resolved.");
+  }
+
+  let refundRequestId = "";
+  if (plan.refund && report.appointmentId) {
+    // Only against a payment that was actually taken. A cash booking she was
+    // never served has no platform money to return — the admin sees the row
+    // and settles the commission separately.
+    const pays = await db.collection("payments")
+      .where("appointmentId", "==", report.appointmentId).limit(1).get();
+    const payDoc = pays.empty ? null : pays.docs[0];
+    if (payDoc && payDoc.data().status === "PAID") {
+      await payDoc.ref.update({ status: "REFUND_PENDING" });
+      const refundRef = db.collection("refund_requests").doc();
+      await refundRef.set({
+        appointmentId: report.appointmentId,
+        paymentId:     payDoc.id,
+        customerId:    report.customerId || "",
+        providerId:    report.providerId || "",
+        salonId:       report.salonId || "",
+        amount:        Number(payDoc.data().amount || 0),
+        reason:        "VISIT_REPORT",
+        status:        "PENDING",
+        createdAt:     Date.now(),
+      });
+      refundRequestId = refundRef.id;
+    }
+  }
+
+  if (plan.suspendSalon && report.providerId) {
+    // The shape every other suspension in this codebase writes, so the Manage
+    // modal can see it and lift it.
+    await db.doc(`users/${report.providerId}`).set({
+      status:          "SUSPENDED",
+      suspended:       true,
+      suspendedReason: `Visit report ${reportId}: ${String(report.reason || "")}`.slice(0, 300),
+      suspendedAt:     Date.now(),
+      suspendedBy:     appUser.uid,
+    }, { merge: true });
+    // And the salon comes off the listings, or it keeps taking bookings its
+    // owner cannot accept.
+    if (report.salonId) {
+      await db.doc(`salons/${report.salonId}`)
+        .set({ isAvailable: false }, { merge: true }).catch(() => {});
+    }
+    await logAdminAction(appUser, "SUSPEND_USER", {
+      targetUid: report.providerId, reason: `visit report ${reportId}`,
+    });
+  }
+
+  await reportRef.set({
+    status: "REVIEWED",
+    actionTaken: action,
+    refundRequestId,
+    resolvedBy: appUser.uid,
+    resolvedAt: Date.now(),
+  }, { merge: true });
+
+  await logAdminAction(appUser, "RESOLVE_VISIT_REPORT", { reportId, action, refundRequestId });
+  return { ok: true, refundRequestId };
+});

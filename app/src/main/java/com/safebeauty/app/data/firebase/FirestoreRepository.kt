@@ -1043,6 +1043,16 @@ class FirestoreRepository @Inject constructor(
     // with nothing to do about it.
 
     /**
+     * A customer saying what happened at a visit — the mirror of
+     * reportCustomer, which has pointed the other way since this shipped.
+     */
+    suspend fun reportVisit(appointmentId: String, reason: String, note: String) {
+        functions.getHttpsCallable("reportVisit").call(
+            hashMapOf("appointmentId" to appointmentId, "reason" to reason, "note" to note)
+        ).await()
+    }
+
+    /**
      * Files a report. Server-side because the report has to name the content's
      * author, and that is a fact a client must not be able to invent.
      */

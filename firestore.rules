@@ -892,6 +892,22 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── visit_reports ────────────────────────────────────────────────────────────
+    // A customer saying what happened at a visit — the mirror of
+    // customer_reports, which has existed since this shipped and points the
+    // other way. Written exclusively by reportVisit.
+    //
+    // She may read her own, so the app can show her that she already reported
+    // this booking and what came of it. Admins read all, because the queue is
+    // the point. The salon reads none: it can already see the booking, and
+    // handing it the complaint before an admin has looked would put her in
+    // front of the person she is complaining about.
+    match /visit_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.customerId == me() || isAdmin());
+      allow write: if false;
+    }
+
     // ── content_reports ──────────────────────────────────────────────────────────
     // Somebody flagging a post, story, comment or review. Written exclusively by
     // the reportContent callable, which is where the author of the reported

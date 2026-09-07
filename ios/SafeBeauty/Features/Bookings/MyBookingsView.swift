@@ -10,6 +10,7 @@ struct MyBookingsView: View {
     @State private var tipping: Appointment?
     @State private var waitlist = WaitlistStore.shared
     @State private var error: String?
+    @State private var reportingVisit: Appointment?
 
     var body: some View {
         NavigationStack {
@@ -90,7 +91,12 @@ struct MyBookingsView: View {
                                         // anything else, and the whole tip goes
                                         // to the salon — no commission.
                                         canTip: booking.status == .completed,
-                                        onTip: { tipping = booking })
+                                        onTip: { tipping = booking },
+                                        // The same window the server enforces,
+                                        // so a button she can press is one the
+                                        // server will accept.
+                                        canReportVisit: VisitReportEligibility.canReport(booking),
+                                        onReportVisit: { reportingVisit = booking })
                                 }
                             }
                         }
@@ -127,6 +133,7 @@ struct MyBookingsView: View {
             }
             .sheet(item: $reviewing) { ReviewSheet(booking: $0).appDirection() }
             .sheet(item: $tipping) { TipSheet(booking: $0).appDirection() }
+            .sheet(item: $reportingVisit) { ReportVisitSheet(appointment: $0).appDirection() }
             .sheet(item: $rescheduling) { booking in
                 // The list is a live snapshot, so the moved booking redraws on
                 // its own; onMoved only has to close the sheet's own state.
@@ -155,6 +162,8 @@ struct BookingRow: View {
     var onReview: () -> Void = {}
     var canTip = false
     var onTip: () -> Void = {}
+    var canReportVisit = false
+    var onReportVisit: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -226,7 +235,7 @@ struct BookingRow: View {
                 }
                 .padding(.top, 2)
             }
-            if canReview || canTip {
+            if canReview || canTip || canReportVisit {
                 HStack(spacing: 16) {
                     if canReview {
                         Button(L.writeReview.t, action: onReview)
@@ -238,6 +247,16 @@ struct BookingRow: View {
                         Button(L.tip.t, action: onTip)
                             .font(Brand.font(13, .medium))
                             .foregroundStyle(Brand.deep)
+                            .buttonStyle(.borderless)
+                    }
+                    // Quiet and last. Most visits are fine, and a complaint
+                    // button competing with "leave a review" invites the wrong
+                    // one. But it is on the row, not buried in support, because
+                    // the salon's own button to report HER is on its row.
+                    if canReportVisit {
+                        Button(L.reportVisitAction.t, action: onReportVisit)
+                            .font(Brand.font(12.5))
+                            .foregroundStyle(Brand.textMuted)
                             .buttonStyle(.borderless)
                     }
                 }

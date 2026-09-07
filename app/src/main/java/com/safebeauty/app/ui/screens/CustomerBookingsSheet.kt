@@ -202,6 +202,7 @@ internal fun BookingsSheetContent(
     onSupportClick: (AppointmentDocument) -> Unit = {},
     onRebookClick: (AppointmentDocument) -> Unit = {},
     onTipClick: (AppointmentDocument) -> Unit = {},
+    onReportVisitClick: (AppointmentDocument) -> Unit = {},
     onLeaveWaitlist: (String) -> Unit = {},
     onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
@@ -267,7 +268,7 @@ internal fun BookingsSheetContent(
                 }
                 upcoming.forEach { appt ->
                     SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
-                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id])
+                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
                     }
                 }
             }
@@ -286,7 +287,7 @@ internal fun BookingsSheetContent(
                 // there and doing nothing.
                 past.forEach { appt ->
                     SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
-                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, refundStatusByAppointment[appt.id])
+                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
                     }
                 }
             }
@@ -419,6 +420,7 @@ private fun BookingCard(
     onSupportClick: (AppointmentDocument) -> Unit,
     onRebookClick: (AppointmentDocument) -> Unit = {},
     onTipClick: (AppointmentDocument) -> Unit = {},
+    onReportVisitClick: (AppointmentDocument) -> Unit = {},
     refundStatus: String? = null
 ) {
     val strings       = LocalStrings.current
@@ -428,6 +430,13 @@ private fun BookingCard(
     // week, and the rating would count toward the salon's average.
     val canReview     = (appt.status == "CONFIRMED" || appt.status == "COMPLETED") &&
                         appt.appointmentDate <= System.currentTimeMillis()
+    // Mirrors canReportVisit in functions/lib/visitreport.js: the salon
+    // accepted it, the hour has passed, it is within fourteen days, and she has
+    // not already reported it. A button the server refuses teaches her not to
+    // trust the buttons.
+    val canReportVisit = canReview && !appt.visitReported &&
+                        System.currentTimeMillis() - appt.appointmentDate <=
+                            14L * 24 * 60 * 60 * 1000
     // "Book again" makes sense once a visit is done or was cancelled — not while a
     // payment is still pending.
     val canRebook     = appt.status == "CONFIRMED" || appt.status == "COMPLETED" ||
@@ -568,6 +577,18 @@ private fun BookingCard(
                             Icon(Icons.Default.Favorite, null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(strings.tipTitle, fontSize = 12.sp)
+                        }
+                    }
+                    // Quiet and last. Most visits are fine, and a complaint
+                    // button competing with "leave a review" invites the wrong
+                    // one — but it is on the row, because the salon's own
+                    // button to report HER is on its row.
+                    if (canReportVisit) {
+                        TextButton(
+                            onClick        = { onReportVisitClick(appt) },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(strings.reportVisitAction, fontSize = 11.5.sp, color = TextMuted)
                         }
                     }
                     if (canRebook) {

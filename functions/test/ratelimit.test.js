@@ -25,6 +25,7 @@ const MUST_THROTTLE = {
   createWalletTopUp:        "opens an outbound HesabPay session",
   createTipSession:         "opens an outbound HesabPay session",
   reportContent:            "fills a queue a human has to read, one item at a time",
+  reportVisit:              "same queue, same human, and this one can suspend a salon",
 };
 
 /** The body of each onCall, from its export to the next one. */

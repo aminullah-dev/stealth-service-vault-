@@ -436,6 +436,49 @@ class DashboardViewModel @Inject constructor(
     // "has she blocked him", and she would be told the second one is a bug.
     val moderation = ModerationState(firestoreRepository, customerId, viewModelScope)
 
+    // ── Reporting a visit ────────────────────────────────────────────────────
+    // The mirror of what a salon can already say about her. Kept here rather
+    // than in ModerationState: that one is about content, this is about what
+    // happened at an appointment, and they resolve through different queues.
+    private val _visitReport = MutableStateFlow<AppointmentDocument?>(null)
+    val visitReport: StateFlow<AppointmentDocument?> = _visitReport
+
+    private val _visitSending = MutableStateFlow(false)
+    val visitSending: StateFlow<Boolean> = _visitSending
+
+    private val _visitSent = MutableStateFlow(false)
+    val visitSent: StateFlow<Boolean> = _visitSent
+
+    private val _visitFailed = MutableStateFlow(false)
+    val visitFailed: StateFlow<Boolean> = _visitFailed
+
+    fun startVisitReport(appt: AppointmentDocument) {
+        _visitSent.value = false
+        _visitFailed.value = false
+        _visitReport.value = appt
+    }
+
+    fun cancelVisitReport() {
+        _visitReport.value = null
+        _visitSent.value = false
+        _visitFailed.value = false
+    }
+
+    fun submitVisitReport(reason: String, note: String) {
+        val appt = _visitReport.value ?: return
+        if (_visitSending.value) return
+        _visitSending.value = true
+        _visitFailed.value = false
+        viewModelScope.launch {
+            val ok = runCatching {
+                firestoreRepository.reportVisit(appt.id, reason, note)
+            }.isSuccess
+            _visitSending.value = false
+            _visitSent.value = ok
+            _visitFailed.value = !ok
+        }
+    }
+
     /** The cheapest priced service at a salon (null if none priced). */
     private fun salonMinPrice(s: SalonDocument): Int? =
         s.pricePerService.values.filter { it > 0 }.minOrNull()

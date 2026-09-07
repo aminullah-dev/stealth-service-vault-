@@ -307,6 +307,17 @@ data class AppointmentDocument(
     val appointmentDate: Long = 0L,         // epoch millis (date + time)
     val status: String = "PENDING",         // "AWAITING_PAYMENT" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
     val createdAt: Long = 0L,
+    /**
+     * Set by reportVisit. Without it the "something went wrong?" control comes
+     * back on a visit already reported and the server refuses it.
+     *
+     * NOTE: this model still has no `reviewed` field, which submitReview sets
+     * for the same purpose — so the review button IS offered again on a booking
+     * already reviewed. iOS carries that field and Android does not. Left alone
+     * here rather than fixed in passing.
+     */
+    @get:PropertyName("visitReported") @set:PropertyName("visitReported")
+    var visitReported: Boolean = false,
     val notes: String = "",              // optional customer request/note
     // Denormalized from the payment doc at booking time so the provider's
     // requests list can show a "Cash" badge without an extra read per row.

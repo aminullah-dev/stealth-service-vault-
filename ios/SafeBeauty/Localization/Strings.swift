@@ -228,6 +228,21 @@ extension L {
             fa: "این حساب رمز عبور ندارد. با پشتیبانی تماس بگیرید.",
             ps: "دا حساب پټنوم نه لري. له ملاتړ سره اړیکه ونیسئ.",
             en: "This account has no password. Please contact support.").t
+        case "VISIT_TOO_EARLY": return L(
+            fa: "بعد از وقت نوبت می‌توانید گزارش بدهید.",
+            ps: "د نوبت له وخته وروسته راپور ورکولی شئ.",
+            en: "You can report this after the appointment time.").t
+        case "VISIT_TOO_LATE": return L(
+            fa: "مهلت گزارش این نوبت گذشته است. با پشتیبانی تماس بگیرید.",
+            ps: "د دې نوبت د راپور موده تېره ده. له ملاتړ سره اړیکه ونیسئ.",
+            en: "It is too late to report this visit. Please contact support.").t
+        case "VISIT_ALREADY_REPORTED": return L(
+            fa: "این نوبت را قبلاً گزارش کرده‌اید.",
+            ps: "تاسو دا نوبت مخکې راپور کړی دی.",
+            en: "You have already reported this visit.").t
+        case "VISIT_NOT_REPORTABLE": return L(
+            fa: "این رزرو قابل گزارش نیست.", ps: "دې بکینګ ته راپور نه ورکول کیږي.",
+            en: "This booking cannot be reported.").t
         case "IN_FLIGHT": return L(
             fa: "این رزرو همین حالا در حال ثبت است. یک لحظه صبر کنید.",
             ps: "دا بکینګ همدا اوس ثبتیږي. یوه شېبه صبر وکړئ.",
@@ -1190,6 +1205,36 @@ extension L {
     // The Android values verbatim (AppStrings.kt exportTitle).
     static let exportTitle = L(fa: "خروجی داده‌های من", ps: "زما معلومات صادرول",
                                en: "Export My Data")
+
+    // MARK: Reporting a visit
+    // The mirror of what a salon can already say about a customer. No Android
+    // counterpart to copy — Android has none of this either, and gets the same
+    // values in AppStrings.kt.
+    static let reportVisitTitle = L(fa: "گزارش این نوبت", ps: "د دې نوبت راپور",
+                                    en: "Report this visit")
+    static let reportVisitAction = L(fa: "مشکلی پیش آمد؟", ps: "کومه ستونزه وشوه؟",
+                                     en: "Something went wrong?")
+    static let reportVisitWhy = L(fa: "چه اتفاقی افتاد؟", ps: "څه پېښ شول؟",
+                                  en: "What happened?")
+    static let visitNotServed = L(fa: "رفتم ولی خدمتی نگرفتم",
+                                  ps: "ورغلم خو خدمت رانه نکړ",
+                                  en: "I went and was not served")
+    static let visitTurnedAway = L(fa: "مرا نپذیرفتند", ps: "ما یې ونه منله",
+                                   en: "They turned me away")
+    static let visitDifferentService = L(fa: "خدمت دیگری به من دادند",
+                                         ps: "بل خدمت یې راکړ",
+                                         en: "I was given a different service")
+    static let visitOvercharged = L(fa: "بیشتر از قیمت توافق‌شده خواستند",
+                                    ps: "له هوکړه شوې بیې زیات یې وغوښتل",
+                                    en: "I was asked to pay more than agreed")
+    static let visitSafety = L(fa: "با من بد رفتار شد", ps: "زما سره بد چلند وشو",
+                               en: "I was treated badly")
+    static let reportVisitSentTitle = L(fa: "گزارش شما رسید", ps: "ستاسو راپور ورسېد",
+                                        en: "Report received")
+    static let reportVisitSentBody = L(
+        fa: "تیم SafeBeauty آن را بررسی می‌کند و اگر پولی برگشتنی باشد، برمی‌گردانیم. سالن نام شما را از ما نمی‌شنود.",
+        ps: "د SafeBeauty ټیم به یې وګوري او که پیسې بیرته کېدونکې وي، بیرته به یې درکړو. سالون به ستاسو نوم زموږ له خوا وا نه وري.",
+        en: "The SafeBeauty team will look into it, and refund you if money is owed back. The salon does not hear your name from us.")
 
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",

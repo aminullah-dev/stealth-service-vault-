@@ -351,6 +351,10 @@ fun CustomerDashboardScreen(
     val reportSending             by viewModel.moderation.sending.collectAsStateWithLifecycle()
     val reportSent                by viewModel.moderation.sent.collectAsStateWithLifecycle()
     val reportFailed              by viewModel.moderation.failed.collectAsStateWithLifecycle()
+    val visitReport               by viewModel.visitReport.collectAsStateWithLifecycle()
+    val visitSending              by viewModel.visitSending.collectAsStateWithLifecycle()
+    val visitSent                 by viewModel.visitSent.collectAsStateWithLifecycle()
+    val visitFailed               by viewModel.visitFailed.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
     // Blocked salons' deals leave the strip too. The post and the story go and
@@ -2238,6 +2242,24 @@ fun CustomerDashboardScreen(
         // ── Admin announcement popup (one-time per broadcast) ─────────────────
         com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
 
+        // ── Report a visit ────────────────────────────────────────────────────
+        visitReport?.let { appt ->
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.cancelVisitReport() },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.ReportVisitSheetContent(
+                    salonName = appt.salonName,
+                    whenLabel = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
+                        .format(Date(appt.appointmentDate)),
+                    sending   = visitSending,
+                    sent      = visitSent,
+                    error     = if (visitFailed) strings.actionFailedTitle else "",
+                    onSubmit  = { reason, note -> viewModel.submitVisitReport(reason, note) }
+                )
+            }
+        }
+
         // ── Report sheet ──────────────────────────────────────────────────────
         // Hosted here rather than inside the salon sheet: a ModalBottomSheet
         // opened from inside another one is a sheet on top of a sheet, and
@@ -2373,6 +2395,7 @@ fun CustomerDashboardScreen(
                             showServiceDialog = true
                         }
                     },
+                    onReportVisitClick = { appt -> viewModel.startVisitReport(appt) },
                     onTipClick        = { appt ->
                         showBookingsSheet = false
                         tipTarget         = appt
