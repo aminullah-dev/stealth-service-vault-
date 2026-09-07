@@ -48,6 +48,13 @@ final class AuthService {
         /// would come back as `.phoneTaken` and read as a contradiction — she
         /// signs in with the credentials she just chose.
         case registeredButNotSignedIn
+        /// The server accepted the password and the device-side sign-in
+        /// refused it. That is not a wrong password — pinHash already matched
+        /// — it is the Firestore hash and the Firebase Auth password having
+        /// drifted apart, which only an admin reset repairs. Telling her to
+        /// check her internet, which is what happened before, sends her to
+        /// look at the one thing that is definitely fine.
+        case credentialsOutOfSync
 
         var errorDescription: String? {
             switch self {
@@ -55,6 +62,7 @@ final class AuthService {
             case .phoneTaken: "phoneTaken"
             case .emailTaken: "emailTaken"
             case .registeredButNotSignedIn: "registeredButNotSignedIn"
+            case .credentialsOutOfSync: "credentialsOutOfSync"
             case .rateLimited(let m), .server(let m): m
             }
         }
@@ -145,8 +153,42 @@ final class AuthService {
         // server permits the sign-in for exactly this reason and Android has
         // never blocked it; the callables refuse what she may DO.
 
-        let authPassword = try PinHasher.deriveAuthPassword(password, saltBase64: salt)
-        try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        // Also outside the catch below until now, so a salt that will not decode
+        // — the other way these two stores can disagree — arrived as "check
+        // your internet" as well.
+        let authPassword: String
+        do {
+            authPassword = try PinHasher.deriveAuthPassword(password, saltBase64: salt)
+        } catch {
+            throw AuthError.credentialsOutOfSync
+        }
+        do {
+            try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        } catch {
+            // Every failure here used to leave this function as a raw error and
+            // land in the caller's generic catch, which says "check your
+            // internet". So an account whose Firestore hash and Firebase Auth
+            // password have drifted apart — the split state updatePinHash's own
+            // comment warns about — told a woman with perfect signal to check
+            // her connection, and she would have gone on checking it forever.
+            //
+            // The server has already said the password is right by this point;
+            // it matched pinHash. So a rejection HERE is not a wrong password,
+            // it is the two stores disagreeing, and only an admin reset fixes
+            // it. Saying so is the difference between a support ticket and a
+            // woman who thinks the app is broken.
+            let code = AuthErrorCode(rawValue: (error as NSError).code)
+            switch code {
+            case .networkError:
+                throw AuthError.server("")
+            case .wrongPassword, .invalidCredential, .userNotFound, .invalidEmail:
+                throw AuthError.credentialsOutOfSync
+            case .userDisabled:
+                throw AuthError.wrongPhoneOrPassword
+            default:
+                throw AuthError.credentialsOutOfSync
+            }
+        }
 
         let uid = result["uid"]?.stringValue ?? ""
         // The bridge between the Firebase Auth uid and the app-level uid. The

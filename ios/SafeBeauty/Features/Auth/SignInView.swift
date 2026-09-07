@@ -186,6 +186,7 @@ struct SignInView: View {
         case .emailTaken: L.errEmailTaken.t
         case .registeredButNotSignedIn: L.errRegisteredNowSignIn.t
         case .rateLimited: L.errTooMany.t
+        case .credentialsOutOfSync: L.errCredentialsOutOfSync.t
         case .server: L.errNetwork.t
         }
     }

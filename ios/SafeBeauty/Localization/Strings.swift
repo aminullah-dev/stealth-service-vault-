@@ -466,6 +466,13 @@ extension L {
         fa: "این نوبت گرفته نشد. ساعت یا روز دیگری را امتحان کنید.",
         ps: "دا نوبت ونه نیول شو. بل وخت یا بله ورځ وآزمویئ.",
         en: "That booking could not be made. Please try another time or day.")
+    // Not "check your internet". The server has already confirmed the password
+    // by this point; what failed is the second store, and she cannot fix that
+    // by moving nearer the window.
+    static let errCredentialsOutOfSync = L(
+        fa: "رمز شما درست است ولی ورود ممکن نشد. لطفاً با پشتیبانی تماس بگیرید تا رمزتان را بازنشانی کنند.",
+        ps: "ستاسو پټنوم سم دی خو ننوتل ونشول. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ چې پټنوم مو بیا تنظیم کړي.",
+        en: "Your password is correct but sign-in failed. Please contact support to have it reset.")
     static let errNetwork = L(
         fa: "اتصال برقرار نشد. اینترنت خود را بررسی کنید.",
         ps: "اړیکه ونه نیول شوه. خپل انټرنټ وګورئ.",
