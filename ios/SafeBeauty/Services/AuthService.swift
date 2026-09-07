@@ -55,6 +55,18 @@ final class AuthService {
         /// check her internet, which is what happened before, sends her to
         /// look at the one thing that is definitely fine.
         case credentialsOutOfSync
+        /// Firebase Auth could not write its session to the iOS Keychain
+        /// (FIRAuthErrorDomain 17995, preceded in the log by SecItemAdd_ios).
+        /// Nothing about the password is wrong — the server already verified
+        /// it and the sign-in request itself succeeded; what failed is the
+        /// device storing the result. Telling her to phone support for a
+        /// password reset, which is what this used to do, sends her to have
+        /// the one thing that is definitely correct replaced.
+        case deviceKeychainUnavailable
+        /// A Firebase Auth failure this code has never seen. It carries the
+        /// numeric code so the message names something support can look up,
+        /// instead of asserting a cause nobody has established.
+        case unexpected(Int)
 
         var errorDescription: String? {
             switch self {
@@ -63,6 +75,8 @@ final class AuthService {
             case .emailTaken: "emailTaken"
             case .registeredButNotSignedIn: "registeredButNotSignedIn"
             case .credentialsOutOfSync: "credentialsOutOfSync"
+            case .deviceKeychainUnavailable: "deviceKeychainUnavailable"
+            case .unexpected(let c): "unexpected(\(c))"
             case .rateLimited(let m), .server(let m): m
             }
         }
@@ -177,7 +191,18 @@ final class AuthService {
             // it is the two stores disagreeing, and only an admin reset fixes
             // it. Saying so is the difference between a support ticket and a
             // woman who thinks the app is broken.
-            let code = AuthErrorCode(rawValue: (error as NSError).code)
+            // Named in the log before it is classified. The first version of
+            // this classified everything unrecognised as "credentials out of
+            // sync", which was a guess dressed as a diagnosis — and it was
+            // wrong: Firebase Auth had recorded a SUCCESSFUL sign-in at the
+            // same second the app reported failure. A wrong label on an error
+            // is worse than a vague one, because it sends the next person
+            // looking in the wrong place.
+            let ns = error as NSError
+            let detail = "SB-AUTH domain=\(ns.domain) code=\(ns.code) \(ns.localizedDescription)"
+            NSLog("%@", detail)
+            Crashlytics.crashlytics().log(detail)
+            let code = AuthErrorCode(rawValue: ns.code)
             switch code {
             case .networkError:
                 throw AuthError.server("")
@@ -185,8 +210,21 @@ final class AuthService {
                 throw AuthError.credentialsOutOfSync
             case .userDisabled:
                 throw AuthError.wrongPhoneOrPassword
+            case .keychainError:
+                // Seen for real on 2026-09-06: the sign-in request itself
+                // succeeded — Firebase Auth recorded lastSignInTime at the same
+                // second the app showed an error — and then SecItemAdd failed,
+                // so the session could not be stored and the call threw. The
+                // build had no entitlements at all, which on iOS means no
+                // keychain access group to file the item under.
+                throw AuthError.deviceKeychainUnavailable
             default:
-                throw AuthError.credentialsOutOfSync
+                // Deliberately NOT credentialsOutOfSync. That is a specific
+                // claim — Firestore's hash and the Firebase Auth password have
+                // drifted — and asserting it about an error nobody has looked
+                // at is how a keychain failure spent an evening being
+                // investigated as a password problem.
+                throw AuthError.unexpected(ns.code)
             }
         }
 

@@ -145,3 +145,17 @@ silently hit "permission denied".
   declaration error.
 - Keystore files (`*.jks`, `keystore.properties`) are gitignored — never commit
   them.
+- **iOS sign-in fails on a simulator built by a Mac with no signing identity.**
+  `security find-identity -v -p codesigning` returning "0 valid identities"
+  means Xcode ad-hoc-signs with an EMPTY entitlements dict, and iOS then
+  refuses the keychain: `securityd` logs `-34018 "Client has neither
+  application-identifier nor keychain-access-groups entitlements"`, Firebase
+  Auth surfaces it as `FIRAuthErrorDomain 17995`, and the app shows a sign-in
+  failure. The password is not the problem — the server has already verified
+  it and Firebase Auth records a successful `lastSignInTime` at the same
+  second; only storing the session fails. Fix it by adding an Apple ID in
+  Xcode → Settings → Accounts (a free personal team is enough): the profile
+  supplies `application-identifier` and the keychain works. Re-signing the
+  built `.app` by hand does add the entitlement, and the simulator then
+  refuses to launch it — don't spend the evening there. A real device or
+  TestFlight build is always profile-signed, so it cannot hit this.

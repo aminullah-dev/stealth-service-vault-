@@ -187,6 +187,8 @@ struct SignInView: View {
         case .registeredButNotSignedIn: L.errRegisteredNowSignIn.t
         case .rateLimited: L.errTooMany.t
         case .credentialsOutOfSync: L.errCredentialsOutOfSync.t
+        case .deviceKeychainUnavailable: L.errDeviceKeychain.t
+        case .unexpected(let code): L.errUnexpectedAuth(code)
         case .server: L.errNetwork.t
         }
     }

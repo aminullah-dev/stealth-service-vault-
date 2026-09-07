@@ -54,6 +54,18 @@ extension L {
         }
     }
 
+    /// An authentication failure this app has no specific handling for. The
+    /// number is shown on purpose: it is the only part support can act on, and
+    /// a sentence that names nothing is indistinguishable from the app being
+    /// broken. Latin digits, matching every other number in the UI.
+    static func errUnexpectedAuth(_ code: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "ورود انجام نشد. دوباره تلاش کنید؛ اگر باز هم نشد این شماره را به پشتیبانی بگویید: \(code)"
+        case .pashto: "ننوتل ونشول. بیا هڅه وکړئ؛ که بیا هم ونشول، دا شمېره ملاتړ ته ووایاست: \(code)"
+        case .english: "Sign-in did not complete. Please try again; if it keeps failing, give support this number: \(code)"
+        }
+    }
+
     /// The max-price chips.
     ///
     /// Grouped like Android's `"%,d".format(p)`, but pinned to en_US rather
@@ -477,6 +489,16 @@ extension L {
         fa: "اتصال برقرار نشد. اینترنت خود را بررسی کنید.",
         ps: "اړیکه ونه نیول شوه. خپل انټرنټ وګورئ.",
         en: "Could not connect. Please check your internet.")
+    // FIRAuthErrorDomain 17995. The password is right, the network is fine,
+    // and the sign-in request itself succeeded — the phone simply could not
+    // store the session. Restarting is the fix that works often enough to be
+    // worth naming; support cannot repair a keychain from their side, so
+    // sending her there would waste both their time.
+    static let errDeviceKeychain = L(
+        fa: "این دستگاه نتوانست ورود شما را ذخیره کند. یک بار گوشی را خاموش و روشن کنید و دوباره تلاش کنید.",
+        ps: "دې وسیلې ستاسو ننوتل ونه ساتل شول. یو ځل موبایل بند او بیا چالان کړئ او بیا هڅه وکړئ.",
+        en: "This device could not save your sign-in. Please restart the phone and try again.")
+
 
     // MARK: Validation
     static let errNameRequired = L(fa: "نام لازم است.", ps: "نوم اړین دی.", en: "Name is required.")
