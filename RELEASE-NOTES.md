@@ -1,5 +1,25 @@
 # Release notes
 
+## v2.1.2 — versionCode 19
+
+The Play Console "What's new" text. Covers versionCode 16 through 19 — no
+note was published for 16, 17 or 18, so this is everything since v2.0 (15).
+Full breakdown with the reliability/security work that has no store text:
+`play-store/release-notes-v19.md`.
+
+### en-US
+
+```
+• Salon profiles now show their own photos instead of a plain tile.
+• Sending a message to a salon now actually reaches them — it never did before.
+• Fixed a bug where changing your password could lock you out of your account.
+• Dates now display correctly in Dari and Pashto.
+• Registration is more reliable, especially on a weak connection.
+• Neighbourhood and district lists are now accurate for Kabul, Herat, Mazar and Jalalabad.
+• You can now screenshot your bookings to share with a friend.
+```
+
+
 ## v2.0 — versionCode 15
 
 The Play Console "What's new" text, in the three languages the listing carries.
