@@ -77,6 +77,34 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"          # iPhone. The salon and admin consoles are web.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
+        # Team ID 27RXPRW77S, Apple Developer Program, individual enrollment,
+        # enrolled 2026-09-07 (renews 2027-09-08). Pinned rather than left to
+        # whichever team Xcode's Automatic signing happens to pick — this Mac
+        # had zero signing identities before that, and a second Mac or a CI
+        # runner with more than one team configured would resolve differently
+        # without this.
+        #
+        # Does NOT fix the simulator keychain failure from 2026-09-06/07
+        # (SB-AUTH FIRAuthErrorDomain 17995, securityd -34018) — checked this
+        # directly rather than assume it, on 2026-09-08: even with this team
+        # pinned, `xcodebuild ... -destination 'id=<simulator>'` still signs
+        # the app ad-hoc (`codesign --sign -`) with an EMPTY entitlements
+        # dict, confirmed by reading the actual .xcent Xcode generates.
+        # Forcing CODE_SIGN_IDENTITY[sdk=iphonesimulator*] and disabling
+        # AD_HOC_CODE_SIGNING_ALLOWED were both tried and neither changed
+        # this — the latter makes the build fail outright ("Ad Hoc code
+        # signing is not allowed with SDK 'Simulator...'"), meaning Xcode's
+        # simulator SDK requires ad-hoc signing and there is no supported way
+        # around it. This is a platform limitation of the iOS Simulator, not
+        # a project misconfiguration — see CLAUDE.md's Gotchas for what this
+        # means for testing sign-in.
+        #
+        # What this team DOES fix: a real DEVICE build (and any TestFlight /
+        # App Store build) gets application-identifier and
+        # keychain-access-groups merged in from the real provisioning profile
+        # regardless of the simulator limitation above, so sign-in should be
+        # tested on a physical iPhone or via TestFlight, not the simulator.
+        DEVELOPMENT_TEAM: 27RXPRW77S
         CODE_SIGN_ENTITLEMENTS: SafeBeauty/SafeBeauty.entitlements
     info:
       path: SafeBeauty/Resources/Info.plist

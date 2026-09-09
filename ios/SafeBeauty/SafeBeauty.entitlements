@@ -7,5 +7,25 @@
        Xcode switches it to "production" for a release build automatically. -->
   <key>aps-environment</key>
   <string>development</string>
+
+  <!-- Explicit on purpose. On a DEVICE build Xcode merges application-identifier
+       and keychain-access-groups in from the provisioning profile even when
+       they are absent here, so this file working alone was never proven — only
+       assumed. On the SIMULATOR there is no profile to merge from: Xcode signs
+       simulator builds ad-hoc regardless of DEVELOPMENT_TEAM (confirmed
+       2026-09-08 by reading the actual codesign invocation Xcode ran — it uses
+       `--sign -` and an empty entitlements plist even with a paid team
+       configured), so whatever this file does NOT ask for, the build does not
+       get. Firebase Auth's SecItemAdd needs an access group to write the
+       session, and an app with truly empty entitlements has none — that is the
+       exact failure from 2026-09-06/07 (FIRAuthErrorDomain 17995, securityd
+       -34018 "neither application-identifier nor keychain-access-groups
+       entitlements"). $(AppIdentifierPrefix) is populated by Xcode's variable
+       substitution on every platform, so this line makes device and simulator
+       behave the same instead of device working by accident. -->
+  <key>keychain-access-groups</key>
+  <array>
+    <string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>
+  </array>
 </dict>
 </plist>

@@ -145,17 +145,30 @@ silently hit "permission denied".
   declaration error.
 - Keystore files (`*.jks`, `keystore.properties`) are gitignored — never commit
   them.
-- **iOS sign-in fails on a simulator built by a Mac with no signing identity.**
-  `security find-identity -v -p codesigning` returning "0 valid identities"
-  means Xcode ad-hoc-signs with an EMPTY entitlements dict, and iOS then
-  refuses the keychain: `securityd` logs `-34018 "Client has neither
-  application-identifier nor keychain-access-groups entitlements"`, Firebase
-  Auth surfaces it as `FIRAuthErrorDomain 17995`, and the app shows a sign-in
-  failure. The password is not the problem — the server has already verified
-  it and Firebase Auth records a successful `lastSignInTime` at the same
-  second; only storing the session fails. Fix it by adding an Apple ID in
-  Xcode → Settings → Accounts (a free personal team is enough): the profile
-  supplies `application-identifier` and the keychain works. Re-signing the
-  built `.app` by hand does add the entitlement, and the simulator then
-  refuses to launch it — don't spend the evening there. A real device or
-  TestFlight build is always profile-signed, so it cannot hit this.
+- **iOS sign-in can fail in the SIMULATOR with `securityd -34018 "Client has
+  neither application-identifier nor keychain-access-groups entitlements"`**,
+  surfaced by Firebase Auth as `FIRAuthErrorDomain 17995`. The password is not
+  the problem — the server has already verified it and Firebase Auth records a
+  successful `lastSignInTime` at the same second; only storing the session
+  fails. First seen 2026-09-06 on a Mac with zero signing identities, and the
+  original theory here was "add a real Apple ID team and it's fixed" — tested
+  that on 2026-09-08 after the project got one (`DEVELOPMENT_TEAM: 27RXPRW77S`
+  in `project.yml`) and it did **not** fix it: `xcodebuild ... -destination
+  'id=<simulator>'` still signs ad-hoc (`codesign --sign -`) with an EMPTY
+  entitlements dict regardless of the team. Forcing
+  `CODE_SIGN_IDENTITY[sdk=iphonesimulator*]` and setting
+  `AD_HOC_CODE_SIGNING_ALLOWED: NO` were both tried; the second makes the build
+  fail outright ("Ad Hoc code signing is not allowed with SDK
+  'Simulator...'"). Conclusion: Xcode's Simulator SDK requires ad-hoc signing
+  and there is no supported way around it — this is a platform limitation, not
+  a project misconfiguration, and a real team does not change it.
+  **What a real team DOES fix**: a DEVICE build or a TestFlight/App Store
+  build always merges `application-identifier` and `keychain-access-groups`
+  in from the real provisioning profile, so it cannot hit this. Test sign-in
+  on a physical iPhone or via TestFlight, not the simulator — that is the
+  correct next step now that the project has a paid Apple Developer account
+  (Team ID `27RXPRW77S`, enrolled 2026-09-07), not further simulator
+  debugging. `ios/SafeBeauty/SafeBeauty.entitlements` also explicitly declares
+  `keychain-access-groups: $(AppIdentifierPrefix)$(CFBundleIdentifier)` now,
+  which the simulator still ignores but a device build genuinely needs rather
+  than relying on profile-merge alone.
