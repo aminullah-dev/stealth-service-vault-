@@ -82,7 +82,7 @@ struct SupportView: View {
                 .font(Brand.font(15))
                 .lineLimit(1...4)
                 .padding(.horizontal, 13).padding(.vertical, 10)
-                .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 20))
 
             Button {
                 Task { await send() }

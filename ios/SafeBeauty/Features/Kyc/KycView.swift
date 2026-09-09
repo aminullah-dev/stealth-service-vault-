@@ -173,7 +173,7 @@ struct PhotoSlot: View {
             PhotosPicker(selection: $selection, matching: .images) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13)
-                        .fill(.white)
+                        .fill(Brand.surface)
                         .overlay(RoundedRectangle(cornerRadius: 13)
                             .strokeBorder(Brand.petal.opacity(0.6), lineWidth: 1))
 

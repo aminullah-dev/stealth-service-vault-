@@ -161,7 +161,7 @@ struct SlotPicker: View {
                     // booked", and it is certainly not a free day.
                     Text(L.couldNotLoad.t)
                         .font(Brand.font(14))
-                        .foregroundStyle(Color(hex: 0xC0392B))
+                        .foregroundStyle(Brand.danger)
                 } else if availableSlots.isEmpty {
                     // A salon that is shut that day is not a salon that is fully
                     // booked, and telling her the wrong one wastes her time on

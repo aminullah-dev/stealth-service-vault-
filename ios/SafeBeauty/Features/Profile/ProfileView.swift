@@ -63,7 +63,7 @@ struct ProfileView: View {
                     }
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                     // The account actions, which the profile showed the results
                     // of and gave no way to change: her name was displayed and
@@ -99,7 +99,7 @@ struct ProfileView: View {
                                 .foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
 
@@ -120,7 +120,7 @@ struct ProfileView: View {
                                     .foregroundStyle(Brand.accent)
                             }
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                     }
@@ -140,7 +140,7 @@ struct ProfileView: View {
                                 Spacer()
                             }
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                     }
@@ -150,7 +150,7 @@ struct ProfileView: View {
                             .font(Brand.font(15, .medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
                     .padding(.top, 6)
 
@@ -170,7 +170,7 @@ struct ProfileView: View {
                                 Spacer()
                             }
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                         }
                     }
 
@@ -187,7 +187,7 @@ struct ProfileView: View {
                         Divider().frame(height: 22).background(Brand.petal)
                         legalLink(L.legalPrivacyLabel.t, "https://safebeauty.web.app/privacy")
                     }
-                    .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
                     .padding(.top, 4)
 
                     ErrorBanner(message: deleteError)
@@ -203,7 +203,7 @@ struct ProfileView: View {
                             Text(L.deleteAccount.t)
                                 .font(Brand.font(13.5, .medium))
                         }
-                        .foregroundStyle(Color(hex: 0xC0392B))
+                        .foregroundStyle(Brand.danger)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                     }
@@ -312,7 +312,7 @@ struct ProfileView: View {
             }
             if let photoNote {
                 Text(photoNote)
-                    .font(Brand.font(12.5)).foregroundStyle(Color(hex: 0x1F7A5C))
+                    .font(Brand.font(12.5)).foregroundStyle(Brand.success)
                     .multilineTextAlignment(.center)
             }
             ErrorBanner(message: photoError)
@@ -320,7 +320,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
         .padding(.horizontal, 14)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         .onChange(of: photoItem) { _, item in
             Task { await uploadPhoto(item) }
         }
@@ -388,7 +388,7 @@ struct ProfileView: View {
             }
         }
         .padding(.vertical, 15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// One row shape for every account action, so they read as a set rather
@@ -481,7 +481,7 @@ struct ProfileView: View {
                 .foregroundStyle(Brand.accent)
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func statTile(_ label: String, _ value: String, suffix: String?) -> some View {
@@ -524,7 +524,7 @@ struct ProfileView: View {
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
@@ -549,7 +549,7 @@ struct ProfileView: View {
                 }
             }
             .padding(15)
-            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
     }

@@ -72,7 +72,7 @@ struct ReportVisitSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(13)
-                .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
 
                 Text(L.reportVisitWhy.t)
                     .font(Brand.font(12, .semibold)).foregroundStyle(Brand.accent)

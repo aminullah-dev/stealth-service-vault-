@@ -94,7 +94,7 @@ struct BookingSheet: View {
             if let promoNote {
                 Text(promoNote.text)
                     .font(Brand.font(12.5))
-                    .foregroundStyle(promoNote.isGood ? Color(hex: 0x1F7A5C) : Color(hex: 0xC0392B))
+                    .foregroundStyle(promoNote.isGood ? Brand.success : Brand.danger)
             }
         }
         BrandField(label: .notesOptional, text: $notes)
@@ -126,7 +126,7 @@ struct BookingSheet: View {
                 .foregroundStyle(Brand.accent)
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: After
@@ -161,7 +161,7 @@ struct BookingSheet: View {
                 row(L.total.t, "\(quote.amount)", isNumeric: true, isBold: true)
             }
             .padding(15)
-            .background(.white, in: RoundedRectangle(cornerRadius: 14))
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
 
             if !quote.checkoutUrl.isEmpty, let url = URL(string: quote.checkoutUrl) {
                 // The booking is AWAITING_PAYMENT until the webhook flips it,

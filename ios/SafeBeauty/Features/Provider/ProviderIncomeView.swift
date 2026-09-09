@@ -57,7 +57,7 @@ struct ProviderIncomeView: View {
                                 stat(L.earnedTotal.t, "\(taken)", suffix: L.afn.t)
                             }
                             .padding(.vertical, 16)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                             if unpriced > 0 {
                                 Text(L.earnedExcludes(unpriced))
@@ -86,8 +86,8 @@ struct ProviderIncomeView: View {
                                     Text(verbatim: "\(abs(repo.owed))")
                                         .font(Brand.font(26, .bold))
                                         .environment(\.layoutDirection, .leftToRight)
-                                        .foregroundStyle(repo.owed >= 0 ? Color(hex: 0x1F7A5C)
-                                                                        : Color(hex: 0xC0392B))
+                                        .foregroundStyle(repo.owed >= 0 ? Brand.success
+                                                                        : Brand.danger)
                                     Text(L.afn.t)
                                         .font(Brand.font(14, .medium)).foregroundStyle(Brand.accent)
                                 }
@@ -96,7 +96,7 @@ struct ProviderIncomeView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                             // Volume, under the money it explains. Android
                             // gives this its own tab; on four tabs it belongs
@@ -158,7 +158,7 @@ struct ProviderIncomeView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(15)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                             }
 
                             if !completed.isEmpty {
@@ -199,7 +199,7 @@ struct ProviderIncomeView: View {
                                     }
                                 }
                                 .padding(.horizontal, 15)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                             }
                             Spacer(minLength: 20)
                         }

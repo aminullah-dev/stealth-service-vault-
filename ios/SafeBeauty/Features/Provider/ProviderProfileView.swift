@@ -42,7 +42,7 @@ struct ProviderProfileView: View {
                     }
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                     // Above support, because it is the thing she came here to
                     // do. Only offered once the salon exists.
@@ -58,7 +58,7 @@ struct ProviderProfileView: View {
                                     .font(.system(size: 12)).foregroundStyle(Brand.accent)
                             }
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                     }
@@ -81,7 +81,7 @@ struct ProviderProfileView: View {
                                 .font(.system(size: 12)).foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
 
@@ -99,7 +99,7 @@ struct ProviderProfileView: View {
                                 .font(.system(size: 12)).foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
 
@@ -113,7 +113,7 @@ struct ProviderProfileView: View {
                                 .font(.system(size: 12)).foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
 
@@ -130,7 +130,7 @@ struct ProviderProfileView: View {
                             .font(Brand.font(15, .medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
                     .padding(.bottom, 30)
                 }
@@ -193,12 +193,12 @@ struct ProviderProfileView: View {
                 // is not will wonder why nobody books.
                 Text(salon.isAvailable ? L.salonListed.t : L.salonHidden.t)
                     .font(Brand.font(11.5, .medium))
-                    .foregroundStyle(salon.isAvailable ? Color(hex: 0x1F7A5C) : Color(hex: 0xC0392B))
+                    .foregroundStyle(salon.isAvailable ? Brand.success : Brand.danger)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(14)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func servicesCard(_ salon: Salon) -> some View {
@@ -224,7 +224,7 @@ struct ProviderProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func hoursCard(_ salon: Salon) -> some View {
@@ -249,7 +249,7 @@ struct ProviderProfileView: View {
             }
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// The salon's own week, named. dayOfWeek follows Firestore's stored
@@ -325,6 +325,6 @@ struct ProviderProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 }

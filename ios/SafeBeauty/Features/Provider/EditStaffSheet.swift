@@ -57,18 +57,18 @@ struct EditStaffSheet: View {
                         TextField(L.staffNameLabel.t, text: $newName)
                             .font(Brand.font(15)).foregroundStyle(Brand.ink)
                             .padding(13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                         TextField(L.staffSpecialtyLabel.t, text: $newSpecialty)
                             .font(Brand.font(15)).foregroundStyle(Brand.ink)
                             .padding(13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                         Button(L.staffAdd.t) { add() }
                             .font(Brand.font(14.5, .medium))
                             .foregroundStyle(trimmedName.isEmpty ? Brand.textFaint : Brand.accent)
                             .disabled(trimmedName.isEmpty)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 11)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
 
                     ErrorBanner(message: error)
@@ -121,7 +121,7 @@ struct EditStaffSheet: View {
             .accessibilityLabel(L.staffRemove.t)
         }
         .padding(13)
-        .background(.white, in: RoundedRectangle(cornerRadius: 13))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
     }
 
     private func add() {

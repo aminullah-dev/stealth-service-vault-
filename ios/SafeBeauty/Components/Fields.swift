@@ -50,7 +50,7 @@ struct BrandField: View {
             .padding(.vertical, 13)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.white)
+                    .fill(Brand.surface)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .strokeBorder(focused ? Brand.accent : Brand.petal.opacity(0.55),
@@ -103,7 +103,7 @@ struct BrandPicker: View {
                 .padding(.vertical, 13)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(.white)
+                        .fill(Brand.surface)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .strokeBorder(Brand.petal.opacity(0.55), lineWidth: 1)
@@ -165,10 +165,10 @@ struct ErrorBanner: View {
         /// (within ten of the error). Any hue in this palette collapses at that
         /// opacity, so the notice gets a green from outside it, and the tint is
         /// carried at full strength on a bar rather than washed across the box.
-        var ink: Color {
+        @MainActor var ink: Color {
             switch self {
-            case .error: Color(hex: 0xC0392B)
-            case .notice: Color(hex: 0x1F7A5C)
+            case .error: Brand.danger
+            case .notice: Brand.success
             }
         }
         var icon: String {

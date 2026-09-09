@@ -25,10 +25,10 @@ struct MyBookingsView: View {
                         Label {
                             Text(repo.error == nil ? L.noBookingsYet.t : L.couldNotLoad.t)
                                 .font(Brand.font(17, .medium))
-                                .foregroundStyle(repo.error == nil ? Brand.ink : Color(hex: 0xC0392B))
+                                .foregroundStyle(repo.error == nil ? Brand.ink : Brand.danger)
                         } icon: {
                             Image(systemName: repo.error == nil ? "calendar" : "exclamationmark.triangle")
-                                .foregroundStyle(repo.error == nil ? Brand.accent : Color(hex: 0xC0392B))
+                                .foregroundStyle(repo.error == nil ? Brand.accent : Brand.danger)
                         }
                     } description: {
                         // Only on the genuinely-empty branch: telling someone
@@ -113,7 +113,7 @@ struct MyBookingsView: View {
                             Section {
                                 Text(L.someBookingsUnreadable.t)
                                     .font(Brand.font(12.5))
-                                    .foregroundStyle(Color(hex: 0xC0392B))
+                                    .foregroundStyle(Brand.danger)
                             }
                         }
                     }
@@ -264,7 +264,7 @@ struct BookingRow: View {
             }
         }
         .padding(.vertical, 5)
-        .listRowBackground(Color.white)
+        .listRowBackground(Brand.surface)
     }
 
     private static func when(_ date: Date) -> String {
@@ -305,7 +305,7 @@ struct StatusPill: View {
         switch status {
         case .confirmed, .completed: Brand.deep
         case .awaitingPayment, .pending: Brand.gold
-        case .cancelled, .unknown: Color(hex: 0xC0392B)
+        case .cancelled, .unknown: Brand.danger
         }
     }
 }
@@ -357,6 +357,6 @@ struct WaitlistRow: View {
             .padding(.top, 2)
         }
         .padding(.vertical, 5)
-        .listRowBackground(Color.white)
+        .listRowBackground(Brand.surface)
     }
 }

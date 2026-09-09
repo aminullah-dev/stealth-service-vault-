@@ -157,7 +157,7 @@ struct SuspendedView: View {
             Spacer()
             Image(systemName: "exclamationmark.shield")
                 .font(.system(size: 42))
-                .foregroundStyle(Color(hex: 0xC0392B))
+                .foregroundStyle(Brand.danger)
             Text(auth.session?.name ?? "")
                 .font(Brand.font(22, .bold))
                 .foregroundStyle(Brand.ink)

@@ -57,7 +57,7 @@ struct SignInView: View {
                         .foregroundStyle(Brand.accent)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
                         .overlay(RoundedRectangle(cornerRadius: 14)
                             .strokeBorder(Brand.petal.opacity(0.7), lineWidth: 1))
                     }

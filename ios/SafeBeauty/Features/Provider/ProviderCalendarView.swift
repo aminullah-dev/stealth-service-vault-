@@ -45,7 +45,7 @@ struct ProviderCalendarView: View {
                                                 .padding(.top, 2)
                                         }
                                     }
-                                    .listRowBackground(Color.white)
+                                    .listRowBackground(Brand.surface)
                                 }
                             }
                         }

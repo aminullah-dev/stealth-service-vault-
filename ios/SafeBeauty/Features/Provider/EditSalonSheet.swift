@@ -124,13 +124,13 @@ struct EditSalonSheet: View {
                         .multilineTextAlignment(.leading)
                         .frame(width: 90)
                         .padding(.horizontal, 10).padding(.vertical, 8)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 10))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 10))
                     Button {
                         services.removeAll { $0 == service }
                         prices[service] = nil
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 13)).foregroundStyle(Color(hex: 0xC0392B))
+                            .font(.system(size: 13)).foregroundStyle(Brand.danger)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(L.removeService.t)
@@ -194,7 +194,7 @@ struct EditSalonSheet: View {
                         blockedDates.removeAll { $0 == day }
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 13)).foregroundStyle(Color(hex: 0xC0392B))
+                            .font(.system(size: 13)).foregroundStyle(Brand.danger)
                     }
                     .buttonStyle(.plain)
                 }

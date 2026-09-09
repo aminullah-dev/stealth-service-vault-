@@ -88,7 +88,7 @@ struct PostCommentsSheet: View {
                 .foregroundStyle(Brand.ink)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 20))
 
             Button { Task { await send() } } label: {
                 Image(systemName: "arrow.up.circle.fill")
@@ -195,7 +195,7 @@ private struct CommentRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.white, in: RoundedRectangle(cornerRadius: 12))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 12))
         .confirmationDialog(L.deleteComment.t, isPresented: $confirming, titleVisibility: .visible) {
             Button(L.deleteComment.t, role: .destructive, action: onDelete)
             Button(L.cancel.t, role: .cancel) {}

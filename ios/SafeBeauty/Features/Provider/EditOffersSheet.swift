@@ -48,17 +48,17 @@ struct EditOffersSheet: View {
                             .font(Brand.font(15)).foregroundStyle(Brand.ink)
                             .lineLimit(1...3)
                             .padding(13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                         TextField(L.offerDescHint.t, text: $details, axis: .vertical)
                             .font(Brand.font(15)).foregroundStyle(Brand.ink)
                             .lineLimit(1...3)
                             .padding(13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                         TextField(L.offerPercentHint.t, text: $percent)
                             .font(Brand.font(15)).foregroundStyle(Brand.ink)
                             .keyboardType(.numberPad)
                             .padding(13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
 
                     ErrorBanner(message: error)
@@ -119,7 +119,7 @@ struct EditOffersSheet: View {
             .accessibilityLabel(L.offerRemove.t)
         }
         .padding(13)
-        .background(.white, in: RoundedRectangle(cornerRadius: 13))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
     }
 
     private func add() async {

@@ -36,14 +36,14 @@ struct ReplyToReviewSheet: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(13)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
 
                     TextField(L.replyPlaceholder.t, text: $text, axis: .vertical)
                         .font(Brand.font(15))
                         .foregroundStyle(Brand.ink)
                         .lineLimit(3...8)
                         .padding(13)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
 
                     ErrorBanner(message: error)
 

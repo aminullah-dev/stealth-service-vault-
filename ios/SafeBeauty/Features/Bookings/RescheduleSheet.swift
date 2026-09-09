@@ -61,7 +61,7 @@ struct RescheduleSheet: View {
                                    selectedSlot: $selectedSlot)
                     } else {
                         Text(L.couldNotLoad.t)
-                            .font(Brand.font(14)).foregroundStyle(Color(hex: 0xC0392B))
+                            .font(Brand.font(14)).foregroundStyle(Brand.danger)
                     }
 
                     ErrorBanner(message: error)

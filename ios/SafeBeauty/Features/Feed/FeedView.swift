@@ -55,7 +55,7 @@ struct FeedView: View {
                     ContentUnavailableView {
                         Text(L.couldNotLoad.t)
                             .font(Brand.font(17, .medium))
-                            .foregroundStyle(Color(hex: 0xC0392B))
+                            .foregroundStyle(Brand.danger)
                     }
                 } else if visiblePosts.isEmpty && visibleOffers.isEmpty && visibleStories.isEmpty {
                     ContentUnavailableView {
@@ -340,7 +340,7 @@ struct PostCard: View {
             }
             .padding(13)
         }
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
         .sheet(isPresented: $showComments) {
@@ -389,7 +389,7 @@ struct OfferCard: View {
             }
         }
         .padding(13)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         .padding(.horizontal, 16)
     }
 }
