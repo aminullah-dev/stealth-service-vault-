@@ -32,6 +32,10 @@ struct SafeBeautyApp: App {
     init() {
         FirebaseApp.configure()
         PushService.shared.start()
+        // Touched before any view exists so the UIKit layout direction is set
+        // first: UIView.appearance is read at view creation, and a menu built
+        // before it would open the wrong way round. See LanguageStore.
+        _ = LanguageStore.shared
     }
 
     var body: some Scene {
