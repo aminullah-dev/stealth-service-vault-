@@ -914,6 +914,22 @@ fun CustomerDashboardScreen(
                         onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                     )
                 } else {
+                    // Every recommended salon also satisfies filteredSalons — it is
+                    // scored FROM the same paged set, not filtered out of it — so it
+                    // rendered again below with nothing to tell the two rows apart.
+                    // A customer with two salons total and both recommended saw four
+                    // rows. Guarded the same way the "recommended" item() above is
+                    // (searchQuery blank): once she is searching, the recommended
+                    // section itself is hidden and nothing needs excluding.
+                    // matchingCount / filteredSalons.size in the sticky header stays
+                    // the true count on purpose — only the row list should not
+                    // repeat a salon already shown above.
+                    val recommendedIdsAll = remember(recommendedSalons) {
+                        recommendedSalons.map { it.id }.toSet()
+                    }
+                    val recommendedIds = if (searchQuery.isBlank()) recommendedIdsAll else emptySet()
+                    val remainingSalons = if (recommendedIds.isEmpty()) filteredSalons
+                        else filteredSalons.filter { it.id !in recommendedIds }
                     val listState = rememberLazyListState()
                     val feedScope = rememberCoroutineScope()
                     // Show a jump-to-top pill once the user has scrolled a few
@@ -976,7 +992,13 @@ fun CustomerDashboardScreen(
                                     onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                                 )
                             }
-                        } else {
+                        } else if (remainingSalons.isNotEmpty()) {
+                            // Distinct from filteredSalons.isEmpty(): there ARE
+                            // matches, they are just all already shown in the
+                            // Recommended section above. Skipping straight past
+                            // this branch avoids an "All salons" header sitting
+                            // over nothing — the exact shape two salons, both
+                            // recommended, produces.
                             // Sticky section bar: the count + "All salons" label stay
                             // pinned at the top of the list while the cards scroll, so
                             // the user always knows how many salons there are.
@@ -1010,13 +1032,13 @@ fun CustomerDashboardScreen(
                                     }
                                 }
                             }
-                            itemsIndexed(filteredSalons, key = { _, s -> s.id }) { index, salon ->
+                            itemsIndexed(remainingSalons, key = { _, s -> s.id }) { index, salon ->
                                 // Fetch the next page a few cards before the end,
                                 // so scrolling does not stop to wait. loadMore
                                 // ignores the call while one is in flight or the
                                 // end is reached, so this cannot stampede.
-                                if (index >= filteredSalons.size - 4) {
-                                    LaunchedEffect(filteredSalons.size, index) {
+                                if (index >= remainingSalons.size - 4) {
+                                    LaunchedEffect(remainingSalons.size, index) {
                                         viewModel.loadMoreSalons()
                                     }
                                 }

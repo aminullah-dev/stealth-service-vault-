@@ -270,6 +270,17 @@ struct SalonListView: View {
         return Recommendations.rank(salons: repo.salons, history: bookings.past)
     }
 
+    /// Every recommended salon also satisfies `visible` — it is scored FROM
+    /// `repo.salons`, not filtered out of it — so it rendered a second time in
+    /// the plain list below with nothing to tell the two rows apart. A
+    /// customer with two salons total and both recommended saw four rows.
+    /// `visible.count` in "N providers found" stays the true count on
+    /// purpose; only the row list should not repeat a salon already shown
+    /// above.
+    private var recommendedIds: Set<String> {
+        Set(recommended.map(\.id))
+    }
+
     /// The chosen city, but only while its chip is on screen — the same clamp
     /// the area has. The row hides itself once one city is left, and her old
     /// choice then filtered on with nothing to deselect. Recoverable, because an
@@ -416,7 +427,7 @@ struct SalonListView: View {
                                 .textCase(nil)
                             }
                         }
-                        ForEach(visible) { salon in
+                        ForEach(visible.filter { !recommendedIds.contains($0.id) }) { salon in
                             NavigationLink {
                                 SalonDetailView(salon: salon)
                             } label: {
@@ -525,8 +536,11 @@ struct SalonListView: View {
                                     Text(L.filtersButton.t).font(Brand.font(13, .medium))
                                 }
                                 .padding(.horizontal, 13).padding(.vertical, 7)
+                                // Brand.chipInactive, not Color.white — see FilterChip
+                                // below and Chips.swift's ChipBackground for the
+                                // same fix and why.
                                 .background(filters.isActive ? AnyShapeStyle(Brand.gradient)
-                                                             : AnyShapeStyle(Color.white))
+                                                             : AnyShapeStyle(Brand.chipInactive))
                                 .foregroundStyle(filters.isActive ? Color.white : Brand.ink)
                                 .clipShape(Capsule())
                                 .overlay(Capsule().strokeBorder(
@@ -727,8 +741,10 @@ struct FilterChip: View {
             Text(label)
                 .font(Brand.font(13.5, .medium))
                 .padding(.horizontal, 14).padding(.vertical, 7)
+                // Brand.chipInactive, not Color.white — same fix as ChipBackground
+                // in Chips.swift.
                 .background(isSelected ? AnyShapeStyle(Brand.gradient)
-                                       : AnyShapeStyle(Color.white))
+                                       : AnyShapeStyle(Brand.chipInactive))
                 .foregroundStyle(isSelected ? Color.white : Brand.ink)
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(
