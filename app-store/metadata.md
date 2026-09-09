@@ -11,6 +11,44 @@ confirmed working via TestFlight on a real device 2026-09-09.
 
 ---
 
+## Quick fill — "iOS App Version 1.0 / Prepare for Submission" page
+
+Field-by-field, in the order the page shows them, 2026-09-09:
+
+- **Previews and Screenshots** — blank, cannot be filled from this repo. See
+  SCREENSHOTS below.
+- **Promotional Text** — the English block above (or fa/ps under the
+  language switcher next to "English (U.S.)" at the top of that page).
+- **Description** — `play-store/store_listing.md`'s FULL DESCRIPTION,
+  opening sentence swapped for the four-city one noted above.
+- **Keywords** — the English block above.
+- **Support URL** — `https://safebeauty.web.app/support`
+- **Marketing URL** — leave blank, or `https://safebeauty.web.app/`
+- **Version** — already `1.0`, matches `MARKETING_VERSION` in
+  `ios/project.yml`. Leave it.
+- **Copyright** — `2026 SafeBeauty`
+- **Routing App Coverage File** — leave blank (only for apps with a
+  universal-link-routed App Clip; not this app)
+- **App Clip** / **iMessage App** sections — leave collapsed, not applicable
+- **Build** — click **Add Build**, select build **1.0 (1)**, the one already
+  confirmed working over TestFlight
+- **In-App Purchases and Subscriptions** / **Game Center** — not applicable,
+  skip
+- **App Review Information**
+  - Sign-In required: leave checked
+  - User name / Password: the demo account's phone + password (see APP
+    REVIEW INFORMATION below — needs a real account you fill in)
+  - Contact Information: your own name/phone/email as the developer —
+    `aminhashemi979@gmail.com` is the account on file; phone is yours to add
+  - Notes: the paragraph under APP REVIEW INFORMATION below
+- **App Store Version Release** — recommend **Manually release this
+  version**, not Automatically: it lets you confirm Apple's approval before
+  the app goes live, rather than it publishing itself the moment review
+  passes. The date field under the third option is inert unless that radio
+  is selected — ignore it.
+
+---
+
 ## APP NAME  (30 chars max)
 SafeBeauty
 
@@ -82,13 +120,20 @@ beauty,salon,booking,women,private,kabul,afghanistan,nails,hair,makeup
 ---
 
 ## SUPPORT URL  (required)
-https://safebeauty.web.app/
+https://safebeauty.web.app/support
 
-(Or a dedicated support page if one gets built — this is the app's own
-Hosting root, which is live today and reachable.)
+Written and deployed 2026-09-09 specifically for this field — the Hosting
+root (`/`) is NOT a support page, it 302-redirects to `/get`, the Android
+download landing page ("Get it on Google Play" / "I have an iPhone"), which
+would have confused an App Store reviewer looking for how a user gets help.
+`/support` is real: in-app Support tab pointer, the support email, an FAQ
+(password reset, account deletion, cancelling a booking, salon
+registration), and links to `/privacy` and `/terms`. Trilingual, same design
+as `/terms` and `/privacy`.
 
 ## MARKETING URL  (optional)
-Leave blank, or https://safebeauty.web.app/ — same reasoning as Support URL.
+Leave blank, or https://safebeauty.web.app/ — the download landing page is
+the right one for THIS field, unlike Support above.
 
 ## PRIVACY POLICY URL  (required)
 https://linumic.com/safebeauty-privacy-policy/
