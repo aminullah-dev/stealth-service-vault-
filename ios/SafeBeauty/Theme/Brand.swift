@@ -39,6 +39,15 @@ enum Brand {
     /// The surface a card sits on. White is only correct in light mode.
     static var surface: Color { p.dashboardSurface }
 
+    /// An unselected chip/pill's own background — Android's `ChipInactive`,
+    /// generated onto `Palette.chipInactive` for exactly this and, until
+    /// 2026-09-09, never exposed here. Every unselected filter chip and the
+    /// support chat's "their message" bubble used a bare `Color.white`
+    /// instead, which is correct on Rose light and wrong on all twelve other
+    /// theme/mode combinations — a stark white pill on a dark screen, reported
+    /// from a real TestFlight build on a dark theme.
+    static var chipInactive: Color { p.chipInactive }
+
     static var isDark: Bool { p.isDark }
 
     /// The signature gradient, from the palette's own stops.

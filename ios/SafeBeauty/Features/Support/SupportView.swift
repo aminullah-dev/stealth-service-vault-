@@ -172,7 +172,10 @@ struct MessageBubble: View {
                     .foregroundStyle(isMine ? .white.opacity(0.75) : Brand.accent)
             }
             .padding(.horizontal, 13).padding(.vertical, 9)
-            .background(isMine ? AnyShapeStyle(Brand.gradient) : AnyShapeStyle(Color.white),
+            // Brand.chipInactive, not Color.white — the other party's bubble was a
+            // stark white rectangle on a dark screen. Same fix as the salon
+            // list's filter chips.
+            .background(isMine ? AnyShapeStyle(Brand.gradient) : AnyShapeStyle(Brand.chipInactive),
                         in: RoundedRectangle(cornerRadius: 15))
             if !isMine { Spacer(minLength: 40) }
         }
