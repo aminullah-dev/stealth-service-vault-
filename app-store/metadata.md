@@ -19,8 +19,10 @@ Field-by-field, in the order the page shows them, 2026-09-09:
   SCREENSHOTS below.
 - **Promotional Text** — the English block above (or fa/ps under the
   language switcher next to "English (U.S.)" at the top of that page).
-- **Description** — `play-store/store_listing.md`'s FULL DESCRIPTION,
-  opening sentence swapped for the four-city one noted above.
+- **Description** — the DESCRIPTION section below, not
+  `play-store/store_listing.md` directly — that file's emoji headers are
+  what triggered "This field contains one or more invalid characters." on
+  2026-09-09. The block below is the same copy with plain headers instead.
 - **Keywords** — the English block above.
 - **Support URL** — `https://safebeauty.web.app/support`
 - **Marketing URL** — leave blank, or `https://safebeauty.web.app/`
@@ -85,22 +87,140 @@ Book trusted, women-only beauty salons across Kabul, Herat, Mazar-e-Sharif and J
 
 ## DESCRIPTION  (4000 chars max)
 
-Same text as `play-store/store_listing.md`'s FULL DESCRIPTION, all three
-languages — App Store's limit is the same 4000 characters and nothing about
-the product differs by platform. Copy directly from there rather than
-duplicating it here and letting the two drift apart. One line changes: that
-file's opening sentence says "designed for women in Kabul" — this app now
-also serves Herat, Mazar-e-Sharif and Jalalabad (confirmed live, see
-`ios/SafeBeautyCore/Sources/SafeBeautyCore/Areas.swift`), so open with:
+Embedded here in full, rather than "copy from play-store/store_listing.md" —
+that instruction is what caused a real submission error on 2026-09-09:
+`play-store/store_listing.md`'s emoji section headers (🌸📅💳⭐💬🔔🌍) tripped
+App Store Connect's Description field validator ("This field contains one or
+more invalid characters."), pasted live, on the real Prepare-for-Submission
+page. Not reproduced with certainty which exact character it was — App Store
+Connect gives no character position — so rather than guess at ONE emoji to
+drop and risk a second round-trip, every emoji header is replaced with a
+plain capitalized line, which is unambiguously safe and is itself a normal
+App Store description style. Text otherwise unchanged from
+`play-store/store_listing.md`, plus the four-city opening sentence.
 
-> SafeBeauty is a private booking platform designed for women in Afghanistan
-> — Kabul, Herat, Mazar-e-Sharif and Jalalabad. It connects women with
-> trusted, female-only beauty salons — quickly, safely, and respectfully.
+If this version ALSO gets rejected, the next suspects, in order, are the em
+dashes (—, U+2014, three per language) and the Persian/Pashto script letters
+appearing inline inside the English paragraph ("دری", "پښتو") — replace an
+em dash with a plain hyphen, or spell the language names in Latin script
+only ("Dari", "Pashto") if that happens.
 
-in place of that file's first sentence, in all three languages, everywhere
-it's pasted (App Store here, and Play Store the next time
-`play-store/store_listing.md` is touched — not changed there now, surgically
-out of scope for this file).
+### English
+
+```
+SafeBeauty is a private booking platform designed for women in Afghanistan —
+Kabul, Herat, Mazar-e-Sharif and Jalalabad. It connects women with trusted,
+female-only beauty salons — quickly, safely, and respectfully.
+
+PRIVATE & SECURE
+Sign in with your own password or fingerprint. Your account and activity are
+protected, all data is encrypted in transit (TLS), and on-device data is
+encrypted with SQLCipher (AES-256).
+
+BOOK IN SECONDS
+Browse salons across every neighborhood, filter by service (Hair, Makeup,
+Nails, Skincare, Eyebrows), pick a specific stylist, and book a real-time
+slot — no calls, no waiting.
+
+EASY PAYMENT
+Pay securely online with HesabPay, or choose cash at the salon.
+
+LOYALTY & OFFERS
+Earn loyalty points on every confirmed booking, and enjoy last-minute deals,
+promo codes, and salon offers.
+
+TRANSPARENT REVIEWS
+Read real reviews from verified customers and see how salons respond before
+you book.
+
+SMART WAITLIST & NOTIFICATIONS
+Fully booked? Join the waitlist and get notified the moment a slot opens.
+
+THREE LANGUAGES + DARK MODE
+Full support for English, Dari, and Pashto, including right-to-left layout,
+plus a comfortable dark mode.
+
+FOR SALON OWNERS
+Manage bookings, availability and working hours, service prices, staff,
+gallery photos, offers, and income analytics — all from a dedicated
+dashboard, in the app or on the web.
+```
+
+### دری (Dari)
+
+```
+سیف‌بیوتی یک پلتفرم رزرو خصوصی است که برای خانم‌های افغانستان طراحی شده —
+کابل، هرات، مزار شریف و جلال‌آباد. این اپ خانم‌ها را با سالن‌های زیبایی زنانه
+و مورد اعتماد به‌سرعت، ایمن و محترمانه مرتبط می‌کند.
+
+خصوصی و امن
+با رمز یا اثر انگشت خود وارد شوید. حساب و فعالیت شما محافظت می‌شود، همه
+داده‌ها هنگام انتقال (TLS) رمزگذاری می‌شوند و داده‌های روی دستگاه با
+SQLCipher (AES-256) رمزگذاری شده‌اند.
+
+رزرو در چند ثانیه
+سالن‌ها را در همه محله‌ها جستجو کنید، بر اساس خدمت (مو، آرایش، ناخن، مراقبت
+پوست، ابرو) فیلتر کنید، آرایشگر مشخص انتخاب کنید و وقت آنی بگیرید — بدون
+تماس، بدون انتظار.
+
+پرداخت آسان
+به‌صورت آنلاین با HesabPay پرداخت کنید، یا نقدی در سالن.
+
+وفاداری و آفرها
+به ازای هر رزرو تایید شده امتیاز بگیرید و از تخفیف‌های لحظه‌آخری، کد تخفیف و
+آفرهای سالن بهره‌مند شوید.
+
+نظرات شفاف
+نظرات واقعی مشتریان تایید‌شده را بخوانید و پاسخ سالن‌ها را ببینید.
+
+لیست انتظار هوشمند و اعلان‌ها
+وقت کامل است؟ در لیست انتظار ثبت‌نام کنید تا به‌محض خالی شدن وقت خبر شوید.
+
+سه زبان و حالت تاریک
+پشتیبانی کامل از English، دری و پښتو، شامل چیدمان راست‌به‌چپ و حالت تاریک.
+
+برای صاحبان سالن
+رزروها، ساعات کاری، قیمت خدمات، کارکنان، گالری عکس، آفرها و درآمد را از یک
+داشبورد اختصاصی (در اپ یا وب) مدیریت کنید.
+```
+
+### پښتو (Pashto)
+
+```
+سیف‌بیوتي یو شخصي د بکینګ پلیټفارم دی چې د افغانستان ښځو لپاره جوړ شوی —
+کابل، هرات، مزار شریف او جلال‌آباد. دا اپ ښځې د باوروړو، یوازې د ښځو
+سالونونو سره په چټکه، خوندي او درناوي سره نښلوي.
+
+شخصي او خوندي
+د خپل پټ نوم یا ګوته‌نښې سره ننوځئ. ستاسو حساب او فعالیت خوندي دی، ټول ډیټا
+د لیږد پرمهال (TLS) کوډ کیږي، او په وسیله کې ډیټا د SQLCipher (AES-256) سره
+کوډ شوی دی.
+
+په څو ثانیو کې بک کول
+سالونونه په ټولو ګاونډونو کې ولټوئ، د خدمت له مخې فلټر کړئ (ویښتان، سینګار،
+نوکان، پوستکي پاملرنه، وروځې)، ځانګړی سټایلست وټاکئ او سمدلاسه وخت واخلئ.
+
+اسانه تادیه
+په آنلاین ډول د HesabPay سره تادیه وکړئ، یا په سالون کې نغدي.
+
+وفاداري او وړاندیزونه
+د هر تایید شوي بک لپاره ټکي ترلاسه کړئ او د وروستۍ شیبې تخفیفونو، کوډونو او
+د سالون وړاندیزونو څخه ګټه واخلئ.
+
+شفاف نظرونه
+د تایید شوو پیرودونکو ریښتیني نظرونه ولولئ او د سالونونو ځوابونه وګورئ.
+
+هوښیار د انتظار لیست او خبرتیاوې
+وخت نشته؟ د انتظار لیست ته ورننوځئ چې د وخت خالي کیدو سره سم خبر شئ.
+
+درې ژبې او تیاره حالت
+د English، دری او پښتو بشپړه ملاتړ، د ښي‌خوا اویچپه لوري جوړښت او تیاره حالت
+سره.
+
+د سالون خاوندانو لپاره
+بکینګونه، د کار ساعتونه، د خدماتو بیې، کارمندان، ګالري، وړاندیزونه او عاید له
+یوه ځانګړي ډشبورډ (په اپ یا وب کې) اداره کړئ.
+```
 
 
 ---
