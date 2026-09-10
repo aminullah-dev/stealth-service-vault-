@@ -106,6 +106,12 @@ jobs:
       # runs the production function, not a reimplementation, so what passes
       # here is what the webhook and the manual settle path both run.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:settlement:inner"
+        # The other two steps have this and this one did not, so it ran from
+        # the repo root where firebase-tools is not installed and died with
+        # "npm error could not determine executable to run" — the exact
+        # failure this file's own header describes. Invisible until CI was
+        # unblocked on 2026-09-10, because no job had started since 09-06.
+        working-directory: functions
       # Whether .create() really lets exactly one of ten simultaneous callers
       # through is a property of Firestore, not of our code — and it is what
       # stops a retried booking from being charged twice.

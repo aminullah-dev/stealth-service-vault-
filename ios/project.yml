@@ -135,26 +135,34 @@ targets:
           password. Your password stays on this phone and is never sent
           anywhere.
 
-  SafeBeautyTests:
-    type: bundle.unit-test
-    platform: iOS
-    sources: [SafeBeautyTests]
-    dependencies:
-      - target: SafeBeauty
-      - package: SafeBeautyCore
-        product: SafeBeautyCore
+  # No SafeBeautyTests target. There was one, declared with sources
+  # [SafeBeautyTests], and that directory was empty from the day it was added
+  # (2026-09-04) to the day it was removed. Git does not track empty
+  # directories, so on any fresh clone the directory did not exist at all and
+  # `xcodegen generate` — the setup step CLAUDE.md tells you to run — failed
+  # outright:
+  #
+  #   Spec validation error: Target "SafeBeautyTests" has a missing source
+  #   directory ".../ios/SafeBeautyTests"
+  #
+  # Nobody saw it because CI had been billing-blocked since 2026-09-06 and
+  # this Mac had the empty directory left over locally. The first run after
+  # the block lifted found it immediately.
+  #
+  # Removed rather than filled: CI runs `swift test` against SafeBeautyCore
+  # and `xcodebuild build` against the app, never `xcodebuild test`, so an
+  # app-target test would not have run either. If app-target tests are wanted,
+  # add the target back together with real tests AND the CI step that runs
+  # them — the macOS runner bills at ten times Linux, so that is a decision,
+  # not a formality.
 
 schemes:
   SafeBeauty:
     build:
       targets:
         SafeBeauty: all
-        SafeBeautyTests: [test]
     run:
       config: Debug
-    test:
-      config: Debug
-      targets: [SafeBeautyTests]
     profile:
       config: Release
     archive:
