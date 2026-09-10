@@ -35,9 +35,20 @@ All of this was written to App Store Connect through the API
 
 Still open, and deliberately not filed from here:
 
-- **Dari and Pashto localizations.** Only en-US exists on the listing. The
-  fa/ps blocks below are ready; adding a locale is a decision about which
-  storefronts the listing appears translated in, not a transcription job.
+- **Dari and Pashto listing localizations are impossible, not pending.**
+  Apple does not offer them. Asked the API directly on 2026-09-09 by trying
+  to create each one: `fa`, `ps` and `ur` all come back "The language
+  specified is not listed for localization", while `ar-SA, en-GB, en-AU, tr,
+  hi, fr-FR, de-DE, ru, id, ms, th, vi` are accepted. So the product page in
+  Afghanistan shows the en-US listing, and nothing can change that.
+
+  What was done instead: the fa and ps blocks below are NOT wasted — a short
+  Dari and Pashto passage now sits at the end of the English description
+  saying the app itself is in all three languages and where to switch. Apple
+  puts no language restriction on the body of a description, so this is the
+  only way an Afghan customer sees her own script on the product page.
+  `ar-SA` was deliberately not used: Dari in an Arabic slot is the wrong
+  language, not a translation.
 - **Screenshots for the other size classes.** The 6.7" set covers the rest by
   scaling, which Apple permits.
 - The two screenshots showing an open city/neighbourhood menu were left out
