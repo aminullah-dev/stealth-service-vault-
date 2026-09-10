@@ -181,6 +181,65 @@ own frames symbolicate normally.
 Apple then takes 15–60 minutes to process the build before it appears in
 TestFlight and in App Store Connect's build picker.
 
+## iOS push notifications (APNs) — set up 2026-09-09, verified working
+
+Without this the iOS app asks for notification permission and then never
+delivers anything: no booking confirmation, no cancellation, no waitlist
+opening. It was the last dead feature in the iOS build.
+
+Three pieces, and only the middle one is obvious:
+
+1. **Push capability on the App ID.** Already on — `xcodebuild ...
+   -allowProvisioningUpdates` enabled it during the first archive, after
+   failing with "Provisioning profile ... doesn't include the Push
+   Notifications capability". Verify with:
+   `GET /v1/bundleIds?filter[identifier]=com.safebeauty.app&include=bundleIdCapabilities`
+   → must list `PUSH_NOTIFICATIONS`.
+
+2. **An APNs auth key (.p8)** from developer.apple.com → Certificates,
+   Identifiers & Profiles → **Keys** → + → tick *Apple Push Notifications
+   service (APNs)*. There is no API for this; `/v1/apnsKeys`, `/v1/keys`,
+   `/v1/pushKeys` and `/v1/authKeys` are all 404. It is a portal-only step.
+
+   🔴 **The trap: the Environment dropdown defaults to `Sandbox`, and Apple
+   says on that same screen that it "can't be changed once saved".** A
+   sandbox-only key works for Xcode debug builds and silently delivers
+   nothing to TestFlight or the App Store, which are the production
+   environment — and there is no way back, only a new key. Choose
+   **Sandbox & Production**. Key Restriction `Team Scoped (All Topics)` is
+   correct and lets the same key serve the other apps on this team.
+
+   The `.p8` downloads **once**. Ours lives beside the App Store Connect keys
+   in `~/.appstoreconnect/private_keys/` (all `*.p8` are gitignored).
+
+3. **Upload it to Firebase**: console → Project settings → **Cloud
+   Messaging** → Apple app configuration → SafeBeauty (iOS) → APNs
+   Authentication Key. Needs the file, the **Key ID** (the ten characters in
+   the filename) and the **Team ID** `27RXPRW77S`.
+
+   Second trap: Firebase shows two rows, *development* and *production*, and
+   uploading once fills only **development**. Upload the same file again into
+   the production row — one auth key is valid for both environments, unlike
+   the old certificates, which is what those two rows are a holdover from. If
+   only development is filled, a TestFlight build gets nothing.
+
+**Prove it rather than assume it.** From `functions/` (so `firebase-admin`
+resolves), read the token off the user's own document and send one real push:
+
+```js
+const snap = await db.collection("users").where("phone","==","+93XXXXXXXXX").limit(1).get();
+await admin.messaging().send({ token: snap.docs[0].data().fcmToken,
+  notification: { title: "SafeBeauty", body: "test" } });
+```
+
+A returned message id means Firebase accepted it, NOT that Apple delivered
+it — the only proof is the banner appearing on the phone. Ours did, on
+2026-09-09, on the TestFlight build.
+
+If it does not arrive: the app may be in the foreground (iOS shows no banner
+then), notification permission may be off in Settings, or the stored token
+may belong to an older install — reopening the app rewrites it.
+
 ## Demo APK for the website
 `./gradlew assembleDemoRelease` → `app/build/outputs/apk/demo/release/app-demo-release.apk`.
 Signed with the same key, so it installs cleanly; points only at
