@@ -231,7 +231,7 @@ jobs:
 
           # Signing material and server credentials. These are the things that
           # cannot be un-published once committed — invariant I-13.
-          if git ls-files | grep -iE '\.(jks|keystore|p12|pfx)$|keystore\.properties$|service-account.*\.json$'; then
+          if git ls-files | grep -iE '\.(jks|keystore|p12|pfx|p8)$|keystore\.properties$|service-account.*\.json$'; then
             echo "::error::A signing key or service-account credential is tracked by git."
             fail=1
           fi

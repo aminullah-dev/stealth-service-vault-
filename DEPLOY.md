@@ -110,6 +110,77 @@ and the demo link is public. Each flavour picks up its own
 2. `./gradlew bundleProdRelease` (signs with the keystore in `keystore.properties`).
 3. Upload `app/build/outputs/bundle/prodRelease/app-prod-release.aab` to the Play Console.
 
+## TestFlight / App Store build for iOS
+
+Nothing here existed until 2026-09-09, and rediscovering it cost most of a
+day. The whole path, in one command:
+
+1. Bump `CURRENT_PROJECT_VERSION` in `ios/project.yml` (build number — must be
+   higher than anything already uploaded; `MARKETING_VERSION` only changes for
+   a real release).
+2. `cd ios && xcodegen generate --spec project.yml`
+3. Archive, then export-and-upload in one step:
+
+```bash
+cd ios
+xcodebuild -project SafeBeauty.xcodeproj -scheme SafeBeauty \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath build/archive/SafeBeauty.xcarchive \
+  -allowProvisioningUpdates archive
+
+xcodebuild -exportArchive \
+  -archivePath build/archive/SafeBeauty.xcarchive \
+  -exportPath build/upload \
+  -exportOptionsPlist build/exportOptionsUpload.plist \
+  -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8" \
+  -authenticationKeyID <KEYID> \
+  -authenticationKeyIssuerID 0e948a64-b5af-4815-bc6c-f7943bb4f637 \
+  -allowProvisioningUpdates
+```
+
+`build/exportOptionsUpload.plist` is `method: app-store-connect`,
+`teamID: 27RXPRW77S`, `signingStyle: automatic`, `uploadSymbols: true`,
+`destination: upload`. Drop the `destination` key to get an `.ipa` on disk
+instead (for Transporter).
+
+**The API key must have the Admin role, not App Manager.** This is the whole
+trap. An App Manager key authenticates fine and then fails at signing:
+
+```
+error: exportArchive Cloud signing permission error
+error: exportArchive No signing certificate "iOS Distribution" found
+```
+
+because exporting needs a *distribution certificate*, Xcode's cloud signing
+mints one on demand, and minting one is certificate management — which App
+Manager does not have. Apple will not let you raise an existing key's access
+("can't be modified to access more services once created"), so make a new one:
+App Store Connect → Users and Access → Integrations → App Store Connect API →
+**+** → Access **Admin** → download the `.p8` (once only) into
+`~/.appstoreconnect/private_keys/`.
+
+Do NOT rely on the Apple ID signed into Xcode instead. It works until it
+doesn't: on 2026-09-09 the account silently emptied out of
+`com.apple.dt.Xcode.plist` mid-afternoon, three uploads into the day, and
+`xcodebuild` started answering `error: exportArchive No Accounts` while the
+Xcode GUI still showed the account present with Admin role. Signing back in
+did not restore it for the command line. The API key has no session to lose.
+
+Also worth knowing: there is no distribution certificate in the login
+keychain and there does not need to be — cloud signing fetches an ephemeral
+one per export (`Cloud Managed Apple Distribution` in
+`build/upload/DistributionSummary.plist`). An App Store provisioning profile
+for `com.safebeauty.app` does sit in `~/Library/Developer/Xcode/UserData/
+Provisioning Profiles/`; a profile alone cannot sign anything.
+
+The five `Upload Symbols Failed ... dSYM for FirebaseFirestoreInternal /
+absl / grpc / grpcpp / openssl_grpc` warnings are expected and harmless —
+those are Firebase's own binaries, with no source to symbolicate. SafeBeauty's
+own frames symbolicate normally.
+
+Apple then takes 15–60 minutes to process the build before it appears in
+TestFlight and in App Store Connect's build picker.
+
 ## Demo APK for the website
 `./gradlew assembleDemoRelease` → `app/build/outputs/apk/demo/release/app-demo-release.apk`.
 Signed with the same key, so it installs cleanly; points only at
