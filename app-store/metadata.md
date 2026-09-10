@@ -11,43 +11,40 @@ confirmed working via TestFlight on a real device 2026-09-09.
 
 ---
 
-## Quick fill — "iOS App Version 1.0 / Prepare for Submission" page
+## What is already filed — 2026-09-09
 
-Field-by-field, in the order the page shows them, 2026-09-09:
+All of this was written to App Store Connect through the API
+(`scripts/asc.py`), not by hand, and read back to confirm:
 
-- **Previews and Screenshots** — blank, cannot be filled from this repo. See
-  SCREENSHOTS below.
-- **Promotional Text** — the English block above (or fa/ps under the
-  language switcher next to "English (U.S.)" at the top of that page).
-- **Description** — the DESCRIPTION section below, not
-  `play-store/store_listing.md` directly — that file's emoji headers are
-  what triggered "This field contains one or more invalid characters." on
-  2026-09-09. The block below is the same copy with plain headers instead.
-- **Keywords** — the English block above.
-- **Support URL** — `https://safebeauty.web.app/support`
-- **Marketing URL** — leave blank, or `https://safebeauty.web.app/`
-- **Version** — already `1.0`, matches `MARKETING_VERSION` in
-  `ios/project.yml`. Leave it.
-- **Copyright** — `2026 SafeBeauty`
-- **Routing App Coverage File** — leave blank (only for apps with a
-  universal-link-routed App Clip; not this app)
-- **App Clip** / **iMessage App** sections — leave collapsed, not applicable
-- **Build** — click **Add Build**, select build **1.0 (1)**, the one already
-  confirmed working over TestFlight
-- **In-App Purchases and Subscriptions** / **Game Center** — not applicable,
-  skip
-- **App Review Information**
-  - Sign-In required: leave checked
-  - User name / Password: the demo account's phone + password (see APP
-    REVIEW INFORMATION below — needs a real account you fill in)
-  - Contact Information: your own name/phone/email as the developer —
-    `aminhashemi979@gmail.com` is the account on file; phone is yours to add
-  - Notes: the paragraph under APP REVIEW INFORMATION below
-- **App Store Version Release** — recommend **Manually release this
-  version**, not Automatically: it lets you confirm Apple's approval before
-  the app goes live, rather than it publishing itself the moment review
-  passes. The date field under the third option is inert unless that radio
-  is selected — ignore it.
+| Field | Value |
+|---|---|
+| Name | SafeBeauty |
+| Subtitle | Private Salon Booking |
+| Description | the English block below, 1360 chars |
+| Keywords | the English block below, 70 chars |
+| Promotional Text | the English block below, 133 chars |
+| Support URL | https://safebeauty.web.app/support |
+| Marketing URL | https://safebeauty.web.app/ |
+| Privacy Policy URL | https://linumic.com/safebeauty-privacy-policy/ |
+| Copyright | 2026 SafeBeauty |
+| Release | **Manually release this version** |
+| Screenshots | 3, APP_IPHONE_67 (1290×2796) |
+| Build | 1.0.0 (4) |
+| Age rating | filed — see AGE RATING below |
+| App Review Information | contact + demo account + notes |
+
+Still open, and deliberately not filed from here:
+
+- **Dari and Pashto localizations.** Only en-US exists on the listing. The
+  fa/ps blocks below are ready; adding a locale is a decision about which
+  storefronts the listing appears translated in, not a transcription job.
+- **Screenshots for the other size classes.** The 6.7" set covers the rest by
+  scaling, which Apple permits.
+- The two screenshots showing an open city/neighbourhood menu were left out
+  on purpose: that menu still renders its items left-to-right in Dari and
+  Pashto (the tick moved to the right side, the labels did not), and a store
+  screenshot of a control we know is wrong is worse than one screenshot
+  fewer. Replace them once that is fixed.
 
 ---
 
@@ -306,21 +303,40 @@ UI.)
 
 ---
 
-## AGE RATING  (App Store's questionnaire — same underlying facts as Play's Content rating in `store_listing.md`)
+## AGE RATING  — filed 2026-09-09, these are the answers actually on record
 
-- No objectionable content in any Apple category (violence, sexual content,
-  profanity, horror, gambling, alcohol/tobacco/drugs, etc.) — answer "None"
-  throughout.
-- Unrestricted Web Access: No.
-- Contains User Generated Content (reviews): Yes — this alone does not
-  force a high rating, but declare it; Apple asks a follow-up about
-  moderation — this app has one (`resolveContentReport` / `moderation_archive`
-  in `functions/domains/content.js`), so answer that content is moderated.
-- Expected result: **4+**, same practical floor as Play's rating, though the
-  Age Rating screen also asks about account creation and in-app purchase —
-  answer Yes to account creation, and declare HesabPay booking payments under
-  the purchase question the same way `store_listing.md` frames them for Play.
+Set through the API (`scripts/asc.py`, PATCH /v1/ageRatingDeclarations). Apple
+names the valid values in its own validation errors: the frequency fields take
+NONE / INFREQUENT_OR_MILD / FREQUENT_OR_INTENSE / INFREQUENT / FREQUENT, and
+the rest are plain booleans.
 
+| Declared | Value |
+|---|---|
+| violence (cartoon, realistic, prolonged/graphic) | NONE |
+| profanity or crude humour | NONE |
+| mature or suggestive themes | NONE |
+| horror or fear themes | NONE |
+| alcohol, tobacco, drug use or references | NONE |
+| sexual content or nudity (both fields) | NONE |
+| simulated gambling · contests | NONE |
+| medical or treatment information | NONE |
+| guns or other weapons | NONE |
+| gambling · loot box · unrestricted web access | false |
+| advertising | false — no ad network; Android strips AD_ID too |
+| parental controls | false |
+| **messaging and chat** | **true** — customer↔salon, and Support |
+| **user-generated content** | **true** — reviews, feed posts, comments |
+| **social media** | **true** — Discover carries posts, likes and comments |
+| health or wellness topics | false — booking a salon is not health information |
+| age assurance · social-media age restricted | false |
+| kidsAgeBand | left null — not a Kids Category app |
+| developerAgeRatingInfoUrl | left null — optional |
+
+The three trues are declared rather than argued away. An app with UGC and chat
+that says it has neither is the kind of thing that gets found in review, and
+this one does moderate: `reportContent` / `resolveContentReport` /
+`moderation_archive` in `functions/domains/content.js`, plus per-user blocking,
+all shipped and verified in production.
 
 ---
 
