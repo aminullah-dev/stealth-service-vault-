@@ -108,7 +108,43 @@ and the demo link is public. Each flavour picks up its own
 ## Release AAB for Google Play
 1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
 2. `./gradlew bundleProdRelease` (signs with the keystore in `keystore.properties`).
-3. Upload `app/build/outputs/bundle/prodRelease/app-prod-release.aab` to the Play Console.
+   Watch for `✅ Release signing key verified` — the guardrail refuses a wrong key.
+3. Upload. Either drag the AAB into Play Console, or use the API (below).
+
+**Check the AAB's age before uploading one that is already on disk.** On
+2026-09-09 the bundle sitting in `app/build/outputs` had been built three days
+earlier and predated the fix for salons appearing twice; uploading it would
+have shipped a bug that was already fixed in the tree. Compare its mtime
+against `git log -1 --format=%ad -- app/src/main`.
+
+### Uploading from the command line
+
+Set up 2026-09-10. The service account key is at
+`~/.config/safebeauty/play-publisher.json` (gitignored, outside the tree).
+
+    androidpublisher.googleapis.com   enabled on project safebeauty
+    service account                   play-publisher@safebeauty.iam.gserviceaccount.com
+
+The part that is NOT gcloud and cannot be scripted: that service account has
+to be invited inside **Play Console → Users and permissions**, with *Release
+to production…* and *Release apps to testing tracks*. IAM roles do not grant
+Play access — Play keeps its own permission list. Nothing else is needed;
+deliberately no financial or user-data access.
+
+The flow is: open an edit → POST the bundle to the `/upload/` host → PUT the
+track → `:commit`. An edit changes nothing until committed, so opening one and
+deleting it is a safe way to read state (tracks, uploaded versionCodes)
+without touching anything.
+
+**Stage the release as `draft`, not `completed`.** Uploading is a mechanical
+step; deciding that every user in Afghanistan gets a new build today is not.
+A draft appears in Play Console ready for a human to press *Start rollout*,
+and a staged percentage rollout is the safer first move.
+
+Release notes go in the same call — `releaseNotes: [{language, text}]` with
+`en-US`, `fa-AF`, `ps-AF`, each under Play's 500 characters. They live in
+`play-store/release-notes-vNN.md`.
+
 
 ## TestFlight / App Store build for iOS
 

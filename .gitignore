@@ -87,3 +87,10 @@ ios/SafeBeauty/Resources/Info.plist
 # have no reason to be here — this is the same invariant as the Android
 # keystore (I-13): signing material cannot be un-published once committed.
 *.p8
+
+# Google Play publishing service account. Lives in ~/.config/safebeauty/ and
+# has no reason to be in the tree — same invariant as the keystore and the
+# .p8 keys. Unlike those, this one CAN be regenerated from Google Cloud, so
+# losing it is an inconvenience rather than a catastrophe.
+play-publisher.json
+*-service-account.json
