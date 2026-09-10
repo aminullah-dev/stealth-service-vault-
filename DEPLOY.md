@@ -128,8 +128,22 @@ Set up 2026-09-10. The service account key is at
 The part that is NOT gcloud and cannot be scripted: that service account has
 to be invited inside **Play Console → Users and permissions**, with *Release
 to production…* and *Release apps to testing tracks*. IAM roles do not grant
-Play access — Play keeps its own permission list. Nothing else is needed;
-deliberately no financial or user-data access.
+Play access — Play keeps its own permission list. Deliberately no financial
+or user-data access.
+
+**Those two permissions cover releases only.** Editing the store listing —
+screenshots, description, graphics — needs *Manage store presence* as well,
+under **App permissions → Store presence**, and it was not granted until
+2026-09-10. Without it the API lets you open an edit, delete images and
+upload replacements without complaint, and then fails the very last call:
+
+    POST .../edits/{id}:commit
+    403 PERMISSION_DENIED — The caller does not have permission
+
+That failure mode is survivable rather than dangerous, because an uncommitted
+edit changes nothing — the live listing still had its old screenshots
+afterwards, verified by reading them back. But every byte is uploaded before
+you find out, so grant the permission first.
 
 The flow is: open an edit → POST the bundle to the `/upload/` host → PUT the
 track → `:commit`. An edit changes nothing until committed, so opening one and
@@ -144,6 +158,33 @@ and a staged percentage rollout is the safer first move.
 Release notes go in the same call — `releaseNotes: [{language, text}]` with
 `en-US`, `fa-AF`, `ps-AF`, each under Play's 500 characters. They live in
 `play-store/release-notes-vNN.md`.
+
+### Replacing the store screenshots
+
+`scripts/play.py` is the whole client: it signs the service-account JWT by
+shelling out to `openssl` (this Mac has neither `google-auth` nor
+`cryptography`) and exposes `call(method, path, ...)`.
+
+    cd scripts && python3 -c "
+    import play, os
+    P = f'/androidpublisher/v3/applications/{play.PKG}/edits'
+    eid = play.call('POST', P)['id']
+    base = f'{P}/{eid}/listings/fa-AF/phoneScreenshots'
+    play.call('DELETE', base)                       # clears the whole set
+    for n in ['1-salon-list.png', '2-salon-detail.png']:
+        blob = open('../play-store/screenshots/' + n, 'rb').read()
+        play.call('POST', f'/upload{base}?uploadType=media',
+                  raw=blob, content_type='image/png')
+    play.call('POST', f'{P}/{eid}:commit')
+    "
+
+Note the `/upload` prefix on the image POST and the absence of one on
+everything else. `fa-AF` is the only locale this listing has.
+
+Then **read it back and compare hashes** rather than trusting the commit —
+the API returns a `sha1` per image, so `hashlib.sha1(open(f,'rb').read())`
+proves the bytes on the store are the bytes on disk. `play-store/screenshots/`
+holds the live set and its README explains what each one is for.
 
 
 ## TestFlight / App Store build for iOS
