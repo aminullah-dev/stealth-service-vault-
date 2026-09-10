@@ -1,5 +1,23 @@
 # Release notes
 
+## v2.1.3 — versionCode 20
+
+Supersedes versionCode 19, which was built on 2026-09-06 and never uploaded —
+its AAB predated the duplicate-salon fix by three days. All three languages
+and the full change table: `play-store/release-notes-v20.md`.
+
+### en-US
+
+```
+• Report anything that shouldn't be there — a review, a photo, a post — and block anyone you don't want to see.
+• Say what really happened after a visit, even if the salon says otherwise.
+• Salons no longer appear twice in the list.
+• Blocking a salon now hides its offers too, not just its posts.
+• The neighbourhood filter picks the right area in Herat and Mazar-e-Sharif.
+• "Leave a review" no longer appears on bookings you have already reviewed.
+```
+
+
 ## v2.1.2 — versionCode 19
 
 The Play Console "What's new" text. Covers versionCode 16 through 19 — no
