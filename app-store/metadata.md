@@ -32,6 +32,9 @@ All of this was written to App Store Connect through the API
 | Build | 1.0.0 (4) |
 | Age rating | filed — see AGE RATING below |
 | App Review Information | contact + demo account + notes |
+| Primary category | Lifestyle |
+| Content rights | Does not use third-party content |
+| Price | Free (base territory USA, all territories) |
 
 Still open, and deliberately not filed from here:
 
@@ -278,7 +281,21 @@ drift apart.
 
 ---
 
-## APP PRIVACY  (the "App Privacy" questionnaire — App Store's shape, not Play's Data Safety table, same underlying facts)
+## APP PRIVACY — the ONE thing that cannot be done from here
+
+App Store Connect refuses submission until this is filled AND published, and
+it is the only required field with no API behind it: `appDataUsages` is not a
+relationship on the `apps` resource at all (checked 2026-09-09 — the app
+exposes 40 relationships and not one of them is privacy-related). It is a
+web-form-only questionnaire.
+
+**App Store Connect → your app → App Privacy → Get Started**, then answer with
+the table below and press **Publish**. Nothing else is outstanding; the moment
+this is published the app can be submitted.
+
+Answer "No" to the opening question, "Do you or your third-party partners use
+data for tracking purposes?" — there is no ad network and no cross-app
+identifier use anywhere in this app.
 
 For each data type, App Store Connect asks three questions: collected? →
 linked to identity? → used for tracking? **Nothing here is used for
