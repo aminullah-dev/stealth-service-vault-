@@ -199,6 +199,10 @@
   .chat{background:var(--card);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;
     min-height:452px;box-shadow:var(--shadow);overflow:hidden}
   .chat .msgs{flex:1;padding:18px;overflow-y:auto;max-height:472px;display:flex;flex-direction:column;gap:10px}
+  .conv-divider{align-self:stretch;text-align:center;font-size:11.5px;font-weight:700;color:var(--muted);
+    border-top:1px dashed var(--line);padding-top:7px;margin:4px 0 2px}
+  .conv-divider .stars{color:#c9a24a;letter-spacing:1px;font-size:13px}
+  .conv-divider .rc{display:block;font-weight:600;font-style:italic;margin-top:2px}
   .bubble{max-width:74%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
   .bubble.them{align-self:flex-start;background:var(--surface);color:var(--ink);border-bottom-left-radius:5px}
   .bubble.me{align-self:flex-end;background:var(--grad);color:#fff;border-bottom-right-radius:5px;box-shadow:0 4px 12px rgba(183,110,121,.28)}
@@ -886,6 +890,17 @@ const STR = {
   lbl_selfie: {en:'Selfie', fa:'سلفی', ps:'سلفي'},
   lbl_tazkira: {en:'Tazkira', fa:'تذکره', ps:'تذکره'},
   lbl_templatesLoading: {en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  // A line through the thread where a ticket was closed. The server archives
+  // each closed conversation (support_tickets/{uid}/history) and the apps show
+  // the user only what came after the newest one; the admin keeps seeing the
+  // whole thread, because context from last month is exactly what a reply needs.
+  lbl_convClosed: {
+    en: (d, n) => `Conversation closed · ${d} · ${n} messages`,
+    fa: (d, n) => `گفتگو بسته شد · ${d} · ${n} پیام`,
+    ps: (d, n) => `خبرې اترې وتړل شوې · ${d} · ${n} پیغامونه`,
+  },
+  lbl_notRated: {en:'Not rated', fa:'امتیاز داده نشده', ps:'ستوري نه دي ورکړل شوي'},
+  lbl_rating: {en:'Rating', fa:'امتیاز', ps:'درجه'},
 };
 
 function t(key, ...args){
@@ -1460,18 +1475,41 @@ function openChat(userId, name){
 
   const convId = 'support_'+userId;
   if(chatUnsub){ try{chatUnsub();}catch(_){} }
-  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
-  chatUnsub = onSnapshot(q, snap => {
-    const msgs = [];
-    snap.forEach(d => msgs.push(d.data()));
-    msgs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  let msgs = [], closes = [];
+  const draw = () => {
     const box = $('msgs'); if(!box) return;
-    box.innerHTML = msgs.map(m => {
-      const mine = m.senderId === admin.uid;
-      return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+    // Messages and closes on one timeline. A close sorts after every message
+    // at or before its closedAt, which is exactly the set it archived.
+    const items = msgs.map(m => ({ at: Number(m.timestamp)||0, rank: 0, m }))
+      .concat(closes.map(h => ({ at: Number(h.closedAt)||0, rank: 1, h })))
+      .sort((a,b) => (a.at - b.at) || (a.rank - b.rank));
+    box.innerHTML = items.map(it => {
+      if(it.m){
+        const m = it.m, mine = m.senderId === admin.uid;
+        return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+      }
+      const h = it.h, r = Number(h.rating)||0;
+      const stars = r > 0
+        ? `<span class="stars" title="${esc(t('lbl_rating'))}: ${r}/5">${'★'.repeat(r)}${'☆'.repeat(5-r)}</span>`
+        : `<span>${esc(t('lbl_notRated'))}</span>`;
+      const comment = (r > 0 && h.ratingComment) ? `<span class="rc">“${esc(h.ratingComment)}”</span>` : '';
+      return `<div class="conv-divider">${esc(t('lbl_convClosed', fmtDate(h.closedAt), Number(h.messageCount)||0))} · ${stars}${comment}</div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
+  };
+  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
+  const unMsgs = onSnapshot(q, snap => {
+    msgs = [];
+    snap.forEach(d => msgs.push(d.data()));
+    draw();
   });
+  const hq = query(collection(db,'support_tickets',userId,'history'), orderBy('closedAt','desc'), limit(50));
+  const unCloses = onSnapshot(hq, snap => {
+    closes = [];
+    snap.forEach(d => closes.push(d.data()));
+    draw();
+  }, () => { closes = []; draw(); });
+  chatUnsub = () => { unMsgs(); unCloses(); };
   const send = async () => {
     const inp = $('cin'); const text = inp.value.trim(); if(!text) return;
     inp.value='';
