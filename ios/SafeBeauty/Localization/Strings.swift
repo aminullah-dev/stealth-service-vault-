@@ -313,6 +313,15 @@ extension L {
         }
     }
 
+    /// The size of a past support conversation, on its history row.
+    static func supportMessagesCount(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(n) پیام"
+        case .pashto: n == 1 ? "1 پیغام" : "\(n) پیغامونه"
+        case .english: n == 1 ? "1 message" : "\(n) messages"
+        }
+    }
+
     // MARK: Sign in
     static let signIn = L(fa: "ورود", ps: "ننوتل", en: "Sign in")
     static let phone = L(fa: "شماره تلفن", ps: "د تلیفون شمېره", en: "Phone number")
@@ -1287,6 +1296,33 @@ extension L {
         fa: "هر سؤال یا مشکلی داشتید بنویسید. تیم SafeBeauty جواب می‌دهد.",
         ps: "هره پوښتنه یا ستونزه مو وه ولیکئ. د SafeBeauty ټیم ځواب درکوي.",
         en: "Write any question or problem. The SafeBeauty team will reply.")
+    // Support history: a closed ticket becomes a past conversation she can
+    // reopen read-only and rate once.
+    static let supportHistory = L(fa: "گفتگوهای قبلی", ps: "پخوانۍ خبرې اترې",
+                                  en: "Past conversations")
+    static let supportHistoryEmpty = L(
+        fa: "هنوز گفتگوی بسته‌شده‌ای ندارید.", ps: "تر اوسه تړل شوې خبرې اترې نه لرئ.",
+        en: "You have no closed conversations yet.")
+    static let supportConversation = L(fa: "گفتگو", ps: "خبرې اترې", en: "Conversation")
+    static let rateConversationTitle = L(
+        fa: "گفتگوی آخرتان با پشتیبانی چطور بود؟",
+        ps: "له ملاتړ سره مو وروستۍ خبرې اترې څنګه وې؟",
+        en: "How was your last conversation with support?")
+    static let rateThisConversation = L(
+        fa: "به این گفتگو امتیاز بدهید", ps: "دې خبرو اترو ته امتیاز ورکړئ",
+        en: "Rate this conversation")
+    static let rateConversationCommentPlaceholder = L(
+        fa: "چیزی بنویسید (اختیاری)", ps: "څه ولیکئ (اختیاري)",
+        en: "Add a comment (optional)")
+    static let submitRating = L(fa: "ثبت امتیاز", ps: "امتیاز لېږل", en: "Submit rating")
+    static let notNow = L(fa: "حالا نه", ps: "اوس نه", en: "Not now")
+    static let ratingThanks = L(fa: "ممنون از نظرتان!", ps: "د نظر لپاره مو مننه!",
+                                en: "Thank you for your feedback!")
+    static let ratingNotSaved = L(
+        fa: "امتیاز ثبت نشد. دوباره تلاش کنید.", ps: "امتیاز ثبت نه شو. بیا هڅه وکړئ.",
+        en: "Your rating was not saved. Please try again.")
+    static let notRated = L(fa: "امتیاز داده نشده", ps: "امتیاز نه دی ورکړل شوی",
+                            en: "Not rated")
 
     // MARK: Discover & map
     static let discover = L(fa: "کشف", ps: "کشف", en: "Discover")
