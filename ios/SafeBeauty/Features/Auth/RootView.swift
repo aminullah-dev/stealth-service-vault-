@@ -52,6 +52,19 @@ struct RootView: View {
                 // and that is untouched: signing out still clears `session`
                 // and lands back here, at a screen with no one's data on it.
                 BrowsingRootView()
+                    // Rebuilt on a language change, exactly as SignedInView's
+                    // tab bar is. Build 5 shipped without this and a TestFlight
+                    // user switched to English on 2026-09-17: the chips stayed
+                    // Dari and every salon row rendered MIRRORED — glyphs
+                    // reversed. The List's cells are UIKit, created while
+                    // UIView.appearance() said forceRightToLeft; appearance
+                    // only reaches views created after it changes, so those
+                    // cells kept RTL while the SwiftUI environment went LTR,
+                    // and SwiftUI flipped their contents to reconcile the two.
+                    // A fresh tree gets fresh cells under the new direction.
+                    // Applied before the picker's inset so the picker itself
+                    // is not torn down mid-tap.
+                    .id(lang.current)
                     .safeAreaInset(edge: .bottom) {
                         @Bindable var lang = lang
                         Picker("", selection: $lang.current) {
