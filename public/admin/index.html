@@ -210,6 +210,13 @@
   /* ── Modal (admin actions) ─────────────────────────────────────── */
   .modal-overlay{position:fixed;inset:0;background:rgba(20,10,15,.5);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;padding:22px;z-index:50;animation:fade .18s ease}
+  /* Mirrors the entrance path (fade + 6px rise) instead of the modal just
+     vanishing — a modal that appears gently and disappears instantly reads as
+     two different objects, not one. prefers-reduced-motion already collapses
+     every animation-duration to .01ms above, so this degrades to an instant
+     cross-fade there for free. */
+  .modal-overlay.closing{animation:fadeOut .16s ease forwards}
+  @keyframes fadeOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px)}}
   .modal{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);
     width:100%;max-width:440px;max-height:88vh;overflow-y:auto;padding:24px 24px 22px}
   .modal h2{margin:0 0 3px;font-size:18px;color:var(--deep);font-weight:800}
@@ -964,17 +971,33 @@ const kycPill = (k) => {
 // blob URLs, today. The backdrop click and Escape call hideModal directly, so
 // per-modal close buttons are not the only exit and cannot be the only cleanup.
 let modalCleanups = [];
+// Bumped on every open/close so a close animation still in flight from a
+// modal that got reopened mid-fade can't hide the new one out from under it.
+let modalCloseToken = 0;
 function onModalClose(fn){ modalCleanups.push(fn); }
 function showModal(html){
   modalCleanups = [];
+  modalCloseToken++;
   const m = $('modal');
+  m.classList.remove('closing');
   m.innerHTML = `<div class="modal">${html}</div>`;
   m.classList.remove('hidden');
 }
 function hideModal(){
   modalCleanups.forEach((fn) => { try { fn(); } catch (_) {} });
   modalCleanups = [];
-  const m=$('modal'); m.classList.add('hidden'); m.innerHTML='';
+  const m = $('modal');
+  if (m.classList.contains('hidden')) return;
+  const token = ++modalCloseToken;
+  m.classList.add('closing');
+  const finish = () => {
+    if (token !== modalCloseToken) return; // superseded by a reopen
+    m.classList.add('hidden');
+    m.classList.remove('closing');
+    m.innerHTML = '';
+  };
+  m.addEventListener('animationend', finish, { once: true });
+  setTimeout(finish, 220); // in case the overlay's gone and no event fires
 }
 // Close when clicking the dark backdrop (but not the card).
 $('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
