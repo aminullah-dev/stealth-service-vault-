@@ -4,6 +4,7 @@ import SafeBeautyCore
 
 struct SalonListView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(SignInPrompt.self) private var signInPrompt
     @State private var repo = SalonRepository()
     @State private var search = ""
     @State private var category: String?
@@ -561,6 +562,17 @@ struct SalonListView: View {
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $search, prompt: L.searchSalons.t)
             .toolbar {
+                // Browsing without an account, the one thing 5.1.1(v) requires,
+                // still needs a visible way back to signing in — otherwise the
+                // only doors are the ones gated behind an account-based action,
+                // which is not the same as being findable.
+                if auth.session == nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(L.signIn.t) { signInPrompt.request() }
+                            .font(Brand.font(14, .medium))
+                            .foregroundStyle(Brand.accent)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     // In the toolbar rather than as a sixth tab: iOS collapses
                     // anything past five into a "More" list, which buries both
@@ -577,7 +589,14 @@ struct SalonListView: View {
                     // tab to favourites. Five slots is the whole budget, and a
                     // list she opens once a week should not hold one while the
                     // salons she saved have nowhere to live.
-                    Button { showNotifications = true } label: {
+                    //
+                    // Notifications are per-account, so a browsing visitor with
+                    // no account gets the sign-in sheet instead of an empty
+                    // list that never explains why it is empty.
+                    Button {
+                        if auth.session == nil { signInPrompt.request() }
+                        else { showNotifications = true }
+                    } label: {
                         Image(systemName: "bell").foregroundStyle(Brand.accent)
                             .accessibilityLabel(L.notifications.t)
                     }

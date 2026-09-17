@@ -132,6 +132,34 @@ final class AuthService {
         let firebaseEmail: String
     }
 
+    // MARK: - Browsing without an account
+
+    /// Firestore's rules gate every read on `isSignedIn()`, which used to mean
+    /// nothing was visible — not even the salon list — until she registered.
+    /// Apple rejected the app for exactly this under 5.1.1(v): browsing is not
+    /// an account-based feature, and requiring one to see it is what the
+    /// guideline forbids. This satisfies `isSignedIn()` anonymously, silently,
+    /// before she has typed anything, so nothing in the rules has to weaken —
+    /// `salons`/`reviews`/`salon_gallery` stay exactly as readable as they were
+    /// to a real account, just now also to this one.
+    ///
+    /// Never touches `session` — that stays nil until she actually signs in or
+    /// registers, and `restore()` already ignores an anonymous currentUser (it
+    /// requires an `email`, which an anonymous credential has none of). A real
+    /// sign-in replaces this outright: `Auth.auth().signIn(withEmail:password:)`
+    /// switches `currentUser` directly and needs no sign-out first.
+    func ensureBrowsingSession() async {
+        guard Auth.auth().currentUser == nil else { return }
+        do {
+            _ = try await Auth.auth().signInAnonymously()
+        } catch {
+            // Browsing degrades to the old behaviour (an empty, permission-denied
+            // list) rather than crashing. Not recorded to Crashlytics as a hard
+            // failure — a phone with no network at launch hits this every time,
+            // and that is not a bug report, it is Tuesday.
+        }
+    }
+
     // MARK: - Sign in
 
     func signIn(phone rawPhone: String, password: String) async throws {
@@ -505,6 +533,11 @@ final class AuthService {
         // cannot leave a session on disk that outlives the credential.
         UserDefaults.standard.removeObject(forKey: Self.storeKey)
         session = nil
+        // Firebase Auth's signOut() leaves currentUser nil, which would fail
+        // every salon read the moment she lands back on the browse screen —
+        // re-arm the anonymous credential immediately rather than wait for
+        // some later screen to notice it is missing.
+        Task { await ensureBrowsingSession() }
     }
 
     /// Re-read her own profile after something the server changed.

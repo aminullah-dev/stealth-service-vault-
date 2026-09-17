@@ -12,6 +12,7 @@ struct SalonDetailView: View {
     let salon: Salon
 
     @Environment(AuthService.self) private var auth
+    @Environment(SignInPrompt.self) private var signInPrompt
 
     @State private var selectedServices: Set<String> = []
     @State private var selectedDay = Date()
@@ -78,22 +79,17 @@ struct SalonDetailView: View {
                 // there sent her to a form that re-uploaded over the files
                 // under review and was then refused. PENDING states itself
                 // instead of inviting the same loop again.
-                let kyc = auth.session?.kycStatus ?? "NONE"
-                if kyc == "PENDING" {
-                    HStack(spacing: 9) {
-                        Image(systemName: "clock.fill")
-                        Text(L.kycPending.t).font(Brand.font(13.5, .medium))
-                        Spacer(minLength: 0)
-                    }
-                    .foregroundStyle(Brand.deep)
-                    .padding(13)
-                    .background(Brand.gold.opacity(0.16),
-                                in: RoundedRectangle(cornerRadius: 12))
-                } else if kyc != "APPROVED" {
-                    Button { showKyc = true } label: {
+                // She may be here with no account at all now that browsing
+                // doesn't force sign-in — checked before KYC, and routed to
+                // sign-in/registration rather than the KYC form. KycView needs
+                // a real account to submit to; opening it for a browsing
+                // visitor would fail in ways that read as the app being
+                // broken rather than as "you need to sign in".
+                if auth.session == nil {
+                    Button { signInPrompt.request() } label: {
                         HStack(spacing: 9) {
-                            Image(systemName: "person.badge.shield.checkmark")
-                            Text(L.verifyToBook.t)
+                            Image(systemName: "person.crop.circle.badge.checkmark")
+                            Text(L.signInToBook.t)
                                 .font(Brand.font(13.5, .medium))
                                 .multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
@@ -105,6 +101,35 @@ struct SalonDetailView: View {
                                     in: RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
+                } else {
+                    let kyc = auth.session?.kycStatus ?? "NONE"
+                    if kyc == "PENDING" {
+                        HStack(spacing: 9) {
+                            Image(systemName: "clock.fill")
+                            Text(L.kycPending.t).font(Brand.font(13.5, .medium))
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(Brand.deep)
+                        .padding(13)
+                        .background(Brand.gold.opacity(0.16),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    } else if kyc != "APPROVED" {
+                        Button { showKyc = true } label: {
+                            HStack(spacing: 9) {
+                                Image(systemName: "person.badge.shield.checkmark")
+                                Text(L.verifyToBook.t)
+                                    .font(Brand.font(13.5, .medium))
+                                    .multilineTextAlignment(.leading)
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.forward").font(.system(size: 12))
+                            }
+                            .foregroundStyle(Brand.deep)
+                            .padding(13)
+                            .background(Brand.gold.opacity(0.16),
+                                        in: RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
 
                 // Hidden during a party: a party is priced per guest, and a
@@ -296,7 +321,13 @@ struct SalonDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { showChat = true } label: {
+                // Messaging a salon needs a real account on the other end of
+                // the conversation, so a browsing visitor is sent to sign in
+                // rather than into a chat thread with no uid to belong to.
+                Button {
+                    if auth.session == nil { signInPrompt.request() }
+                    else { showChat = true }
+                } label: {
                     Image(systemName: "bubble.left.and.bubble.right")
                 }
                 .accessibilityLabel(L.messageSalon.t)

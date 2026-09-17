@@ -659,6 +659,21 @@ extension L {
         fa: "برای رزرو، اول هویت خود را تأیید کنید.",
         ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
         en: "Verify your identity before booking.")
+    /// Shown in place of `verifyToBook` when she has no account at all yet —
+    /// tapping this opens sign-in/registration, not the KYC form, which needs
+    /// a real account to submit to and would otherwise fail silently for a
+    /// browsing visitor.
+    static let signInToBook = L(
+        fa: "برای رزرو، اول وارد شوید.",
+        ps: "د بکینګ لپاره لومړی ننوځئ.",
+        en: "Sign in before booking.")
+    /// The generic version, for anything else that needs a real account while
+    /// she is browsing without one — favouriting a salon, messaging one, or
+    /// opening notifications.
+    static let signInToContinue = L(
+        fa: "برای این کار ابتدا وارد شوید.",
+        ps: "د دې کار لپاره لومړی ننوځئ.",
+        en: "Sign in to continue.")
 
     // MARK: Notifications & profile
     static let notifications = L(fa: "اعلان‌ها", ps: "خبرتیاوې", en: "Notifications")

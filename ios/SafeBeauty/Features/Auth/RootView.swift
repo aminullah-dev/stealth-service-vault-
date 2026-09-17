@@ -17,6 +17,12 @@ struct RootView: View {
     /// and a salon's reviews — three screens that must agree about who she has
     /// blocked, and would each hold a different answer if each read its own.
     @State private var moderation = Moderation()
+    /// Owned here for the same reason: booking, favouriting, messaging a
+    /// salon and the notifications bell all live under `BrowsingRootView`,
+    /// several screens deep in different tabs, and each needs to raise the
+    /// same sheet rather than four independent ones with four independent
+    /// dismiss states.
+    @State private var signInPrompt = SignInPrompt()
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
 
@@ -31,12 +37,21 @@ struct RootView: View {
                     showOnboarding = false
                 }
             } else if auth.session == nil {
-                // The picker lives here and only here. Someone who cannot read
-                // the interface cannot navigate into it to change the language,
-                // so it has to be on the first screen — and once she is signed
-                // in it moves to her account, because pinned to the bottom of a
-                // TabView it sat on top of the tab bar and hid it.
-                SignInView()
+                // Apple rejected 1.0 build 4 under 5.1.1(v): the app forced
+                // registration before showing anything, including the salon
+                // list, which is not an account-based feature. She now lands
+                // on the same browsing a signed-in customer gets — the salons
+                // tab, search, filters, a salon's page — and is asked to sign
+                // in only where an account is actually needed: booking,
+                // favouriting, messaging a salon, or notifications. Those all
+                // route through `signInPrompt` rather than each gating itself.
+                //
+                // Still not a navigation stack she could push past a signed-in
+                // state to reach — the concern the old comment here named is
+                // about a shared phone leaking a PREVIOUS person's account,
+                // and that is untouched: signing out still clears `session`
+                // and lands back here, at a screen with no one's data on it.
+                BrowsingRootView()
                     .safeAreaInset(edge: .bottom) {
                         @Bindable var lang = lang
                         Picker("", selection: $lang.current) {
@@ -53,6 +68,11 @@ struct RootView: View {
         }
         .environment(auth)
         .environment(moderation)
+        .environment(signInPrompt)
+        // Fires once, independent of the branches above — a browsing visitor
+        // needs `isSignedIn()` satisfied before her very first salon-list
+        // read, not only after she opens the sign-in sheet.
+        .task { await auth.ensureBrowsingSession() }
         .task(id: auth.session?.uid) {
             if let uid = auth.session?.uid { moderation.start(uid: uid) }
             else { moderation.stop() }
@@ -76,6 +96,28 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await auth.refresh() } }
         }
+    }
+}
+
+/// What a customer with no account sees: the same salon list a signed-in one
+/// gets, plus a way to sign in, either from the toolbar or from wherever she
+/// hits something that needs an account.
+///
+/// Deliberately just the one screen rather than the five-tab bar
+/// `SignedInView` shows. Favourites, My bookings and Profile have nothing to
+/// display for her yet, and a tab bar with three tabs that open a sign-in
+/// prompt on tap is worse than not offering them until she has a reason to —
+/// browsing salons is the one thing Apple's 5.1.1(v) requires working without
+/// an account, not the whole app's navigation shape.
+struct BrowsingRootView: View {
+    @Environment(SignInPrompt.self) private var signInPrompt
+
+    var body: some View {
+        @Bindable var signInPrompt = signInPrompt
+        SalonListView()
+            .sheet(isPresented: $signInPrompt.isPresented) {
+                SignInView().appDirection()
+            }
     }
 }
 
