@@ -396,6 +396,29 @@ service cloud.firestore {
                  && ((ticketId == me() && request.resource.data.userId == me())
                      || isAdmin());
       allow delete: if isAdmin();
+
+      // One closed conversation each, written only by the
+      // archiveSupportConversation trigger when the ticket is closed. The user
+      // may do exactly one thing to it: rate it, once, 1–5, with an optional
+      // short comment. Not re-rateable — a rating she could keep rewriting is a
+      // rating an admin cannot act on — and nothing else on the row is hers to
+      // change, since openedAt/closedAt decide which messages the apps show as
+      // that conversation.
+      match /history/{historyId} {
+        allow read: if isSignedIn() && (ticketId == me() || isAdmin());
+        allow create, delete: if false;
+        allow update: if isSignedIn()
+                   && ticketId == me()
+                   && resource.data.get('rating', 0) == 0
+                   && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['rating', 'ratingComment', 'ratedAt'])
+                   && request.resource.data.rating is int
+                   && request.resource.data.rating >= 1
+                   && request.resource.data.rating <= 5
+                   && request.resource.data.get('ratingComment', '') is string
+                   && request.resource.data.get('ratingComment', '').size() <= 500
+                   && request.resource.data.ratedAt is int;
+      }
     }
 
     // ── reviews ────────────────────────────────────────────────────────────────

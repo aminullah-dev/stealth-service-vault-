@@ -75,6 +75,9 @@ exports.pushOnBroadcastCreated    = notifications.pushOnBroadcastCreated;
 exports.resumeBroadcasts          = notifications.resumeBroadcasts;
 exports.sendReengagementNudges    = notifications.sendReengagementNudges;
 
+const support = require("./domains/support");
+exports.archiveSupportConversation = support.archiveSupportConversation;
+
 const admin_ = require("./domains/admin");
 exports.grantAdmin                 = admin_.grantAdmin;
 exports.revokeAdmin                = admin_.revokeAdmin;
