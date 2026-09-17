@@ -220,7 +220,10 @@ xcodebuild -exportArchive \
 `destination: upload`. Drop the `destination` key to get an `.ipa` on disk
 instead (for Transporter).
 
-**The API key must have the Admin role, not App Manager.** This is the whole
+**The API key must have the Admin role, not App Manager.** On this Mac that is
+`AuthKey_489AT7M94B.p8` (verified 2026-09-17 by uploading build 5 with it).
+`DL35J6V9B7` fails with `No Accounts with App Store Connect Access`, and
+`4SKX647AH5` is the key `scripts/asc.py` uses for metadata, not signing. This is the whole
 trap. An App Manager key authenticates fine and then fails at signing:
 
 ```
