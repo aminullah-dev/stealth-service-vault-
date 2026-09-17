@@ -187,6 +187,23 @@ proves the bytes on the store are the bytes on disk. `play-store/screenshots/`
 holds the live set and its README explains what each one is for.
 
 
+### Resubmitting after a rejection
+
+Attach the new build to the same appStoreVersion, then on the SAME review
+submission (it sits in `UNRESOLVED_ISSUES`) mark its rejected item resolved
+before submitting — otherwise the submit is refused with the misleading
+`STATE_ERROR … Version is not ready to be submitted yet, please try again
+later`, and retrying does not help (six tries over three minutes on
+2026-09-17):
+
+    PATCH /v1/reviewSubmissionItems/{itemId}   {"attributes": {"resolved": true}}
+    PATCH /v1/reviewSubmissions/{id}           {"attributes": {"submitted": true}}
+
+The item goes REJECTED → READY_FOR_REVIEW, the submission to
+WAITING_FOR_REVIEW. This is what the "Resubmit to App Review" button does.
+Explain the fix in App Review notes (`appStoreReviewDetails.notes`) — the
+Resolution Center reply thread has no public API.
+
 ## TestFlight / App Store build for iOS
 
 Nothing here existed until 2026-09-09, and rediscovering it cost most of a
