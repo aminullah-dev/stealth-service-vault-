@@ -1606,6 +1606,66 @@ class FirestoreRepository @Inject constructor(
         ).await()
     }
 
+    /** How many closed conversations a support thread's history listener holds. */
+    private val SUPPORT_HISTORY = 50L
+    /** A closed conversation's transcript is read in one bounded page. */
+    private val SUPPORT_TRANSCRIPT = 300L
+
+    /**
+     * The user's own closed support conversations, newest first.
+     *
+     * Like every listener here, an error emits an empty list: the thread then
+     * shows in full (as it did before history existed) rather than not at all.
+     */
+    fun observeSupportHistory(userId: String): Flow<List<SupportHistoryDocument>> = callbackFlow {
+        if (userId.isBlank()) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
+        val listener = supportTicketsCol.document(userId).collection("history")
+            .orderBy("closedAt", Query.Direction.DESCENDING)
+            .limit(SUPPORT_HISTORY)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(SupportHistoryDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * The messages of one closed support conversation, oldest-first.
+     *
+     * Range on timestamp + orderBy timestamp DESC uses the existing
+     * (conversationId ASC, timestamp DESC) chat index — no new index needed.
+     */
+    suspend fun supportTranscript(userId: String, openedAt: Long, closedAt: Long): List<ChatMessage> =
+        chatCol
+            .whereEqualTo("conversationId", "support_$userId")
+            .whereGreaterThanOrEqualTo("timestamp", openedAt)
+            .whereLessThanOrEqualTo("timestamp", closedAt)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(SUPPORT_TRANSCRIPT)
+            .get().await()
+            .documents
+            .mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
+            .reversed()
+
+    /**
+     * Rates a closed support conversation. The rules allow this once, while the
+     * rating is still 0, touching only rating / ratingComment / ratedAt — all
+     * written as integers/strings, never doubles. Throws on failure.
+     */
+    suspend fun rateSupportConversation(userId: String, historyId: String, rating: Int, comment: String) {
+        supportTicketsCol.document(userId).collection("history").document(historyId)
+            .update(
+                mapOf(
+                    "rating"        to rating.coerceIn(1, 5).toLong(),
+                    "ratingComment" to comment.trim().take(500),
+                    "ratedAt"       to System.currentTimeMillis()
+                )
+            ).await()
+    }
+
     /** Admin-only: live list of open support tickets, newest first. */
     fun observeOpenSupportTickets(): Flow<List<SupportTicket>> = callbackFlow {
         // Ordered by updatedAt, not createdAt: support_tickets has never had a

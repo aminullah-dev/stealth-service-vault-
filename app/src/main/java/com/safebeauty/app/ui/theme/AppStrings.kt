@@ -787,6 +787,18 @@ class AppStrings {
     var notificationFilterBookings: String = ""
     var notificationFilterWaitlist: String = ""
     var notificationFilterSystem: String = ""
+    // Support conversations: history of closed conversations + rating
+    var supportHistory: String = ""
+    var supportHistoryEmpty: String = ""
+    var rateConversationTitle: String = ""
+    var rateConversationCommentHint: String = ""
+    var submitRating: String = ""
+    var notNow: String = ""
+    var ratingThanks: String = ""
+    var ratingSubmitFailed: String = ""
+    var notRated: String = ""
+    var supportMessagesCount: (Int) -> String = { "" }
+    var ratingStars: (Int) -> String = { "" }
 }
 
 object StringResources {
@@ -1476,6 +1488,17 @@ object StringResources {
         notificationFilterBookings = "Bookings"
         notificationFilterWaitlist = "Waitlist"
         notificationFilterSystem   = "System"
+        supportHistory             = "Past conversations"
+        supportHistoryEmpty        = "No closed conversations yet."
+        rateConversationTitle      = "How was your support conversation?"
+        rateConversationCommentHint = "Tell us more (optional)"
+        submitRating               = "Submit"
+        notNow                     = "Not now"
+        ratingThanks               = "Thank you for your feedback!"
+        ratingSubmitFailed         = "Couldn't save your rating. Please try again."
+        notRated                   = "Not rated"
+        supportMessagesCount       = { n -> if (n == 1) "1 message" else "$n messages" }
+        ratingStars                = { n -> if (n == 1) "1 star" else "$n stars" }
     }
 
     val DARI = AppStrings().apply {
@@ -2163,6 +2186,17 @@ object StringResources {
         notificationFilterBookings = "رزروها"
         notificationFilterWaitlist = "لیست انتظار"
         notificationFilterSystem   = "سیستم"
+        supportHistory             = "گفتگوهای پیشین"
+        supportHistoryEmpty        = "هنوز هیچ گفتگوی بسته‌شده‌ای ندارید."
+        rateConversationTitle      = "گفتگوی پشتیبانی شما چطور بود؟"
+        rateConversationCommentHint = "بیشتر بگویید (اختیاری)"
+        submitRating               = "ثبت امتیاز"
+        notNow                     = "حالا نه"
+        ratingThanks               = "از نظر شما سپاسگزاریم!"
+        ratingSubmitFailed         = "امتیاز شما ثبت نشد. لطفاً دوباره تلاش کنید."
+        notRated                   = "بدون امتیاز"
+        supportMessagesCount       = { n -> "$n پیام" }
+        ratingStars                = { n -> "$n ستاره" }
     }
 
     val PASHTO = AppStrings().apply {
@@ -2850,6 +2884,17 @@ object StringResources {
         notificationFilterBookings = "بکینګونه"
         notificationFilterWaitlist = "د انتظار لیست"
         notificationFilterSystem   = "سیستم"
+        supportHistory             = "پخوانۍ خبرې اترې"
+        supportHistoryEmpty        = "تر اوسه هېڅ تړل شوې خبرې اترې نشته."
+        rateConversationTitle      = "ستاسو د ملاتړ خبرې اترې څنګه وې؟"
+        rateConversationCommentHint = "نور راته ووایئ (اختیاري)"
+        submitRating               = "امتیاز ثبت کړئ"
+        notNow                     = "اوس نه"
+        ratingThanks               = "ستاسو د نظر مننه!"
+        ratingSubmitFailed         = "ستاسو امتیاز ثبت نه شو. مهرباني وکړئ بیا هڅه وکړئ."
+        notRated                   = "امتیاز نشته"
+        supportMessagesCount       = { n -> if (n == 1) "یو پیغام" else "$n پیغامونه" }
+        ratingStars                = { n -> if (n == 1) "یو ستوری" else "$n ستوري" }
     }
 
     fun forLanguage(lang: AppLanguage): AppStrings = when (lang) {

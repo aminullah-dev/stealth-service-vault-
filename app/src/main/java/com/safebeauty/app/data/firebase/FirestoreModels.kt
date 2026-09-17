@@ -372,6 +372,37 @@ data class SupportTicket(
     var unreadForAdmin: Boolean = false
 )
 
+/**
+ * One CLOSED support conversation: support_tickets/{userId}/history/{id}.
+ *
+ * Written only by the server when the admin closes a ticket. Messages are never
+ * moved — the transcript is the messages in "support_{userId}" whose timestamp
+ * falls in [openedAt, closedAt], and the "current" conversation is everything
+ * after the newest closedAt.
+ *
+ * The owner may update it exactly once, while [rating] is 0, and only
+ * rating (1–5) / ratingComment (≤500) / ratedAt. [backfilled] rows were
+ * reconstructed from threads that predate history and are never offered for
+ * rating.
+ */
+data class SupportHistoryDocument(
+    val id: String = "",
+    val userId: String = "",
+    val openedAt: Long = 0L,
+    val closedAt: Long = 0L,
+    val messageCount: Int = 0,
+    val lastMessage: String = "",
+    val rating: Int = 0,                    // 0 = not rated, else 1–5
+    val ratingComment: String = "",
+    val ratedAt: Long = 0L,
+    @get:PropertyName("backfilled") @set:PropertyName("backfilled")
+    var backfilled: Boolean = false
+)
+
+/** Whether this conversation can still be rated by its owner. (An extension, not
+ *  a member, so the Firestore mapper never sees it as a property.) */
+fun SupportHistoryDocument.canRate(): Boolean = rating == 0 && !backfilled
+
 data class ReviewDocument(
     val id: String = "",                    // Firestore document ID
     val salonId: String = "",

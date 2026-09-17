@@ -69,8 +69,11 @@ exports.archiveSupportConversation = onDocumentUpdated(
     });
     batch.set(db.doc(`notifications/support_closed_${uid}_${summary.openedAt}`), {
       recipientId: uid,
-      // CHAT_MESSAGE so both apps route a tap to the support thread they already
-      // open for a new reply — which is where the rating card is waiting.
+      // CHAT_MESSAGE with relatedId support_{uid}: Android routes that tap to
+      // the support thread, where the rating card is waiting (added with this
+      // change — before it, every Android push tap opened the notification
+      // list). iOS has no tap handler at all yet, so there a tap only opens
+      // the app; the card is still waiting in Support when she gets there.
       type:        "CHAT_MESSAGE",
       msgKey:      "SUPPORT_CLOSED",
       msgParams:   {},
