@@ -1,0 +1,31 @@
+{
+  "slug": "c-how-to-book",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece C2. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "steps",
+  "text": {
+    "fa": {
+      "sub": "چطور نوبت بگیرید",
+      "headline": "سه قدم تا نوبت‌تان",
+      "steps": [
+        "سالن و خدمتی را که می‌خواهید انتخاب کنید.",
+        "از میان وقت‌هایی که آزادند یکی را بردارید.",
+        "تأیید سالن را روی تلفن‌تان ببینید."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "نوبت څنګه ونیسئ",
+      "headline": "تر خپلې نوبتې درې ګامه",
+      "steps": [
+        "هغه سالون او خدمت وټاکئ چې غواړئ یې.",
+        "له خالي وختونو څخه یو واخلئ.",
+        "د سالون تایید په خپل ټلیفون کې وګورئ."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

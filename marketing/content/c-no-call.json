@@ -1,0 +1,25 @@
+{
+  "slug": "c-no-call",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece C1. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "stat",
+  "text": {
+    "fa": {
+      "sub": "رزرو آنلاین",
+      "stat": "۰ تماس",
+      "label": "برای گرفتن نوبت",
+      "body": "سالن را باز کنید، وقت خالی را ببینید و همان‌جا رزرو کنید.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "آنلاین بکینګ",
+      "stat": "۰ ټلیفونه",
+      "label": "د نوبت نیولو لپاره",
+      "body": "سالون پرانیزئ، خالي وخت وګورئ او همالته بکینګ وکړئ.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

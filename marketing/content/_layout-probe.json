@@ -1,0 +1,175 @@
+{
+  "//": "NOT CONTENT. A layout probe: one slide per new composition, in Dari and Pashto, so every layout can be looked at side by side after a change to generate.py. The leading underscore keeps it out of `--all` (see main() in generate.py); render it deliberately with `python3 marketing/generate.py marketing/content/_layout-probe.json`.",
+  "slug": "_layout-probe",
+  "type": "post",
+  "audience": "nobody — this is a test fixture",
+  "note": "Every line of copy here is filler chosen to have a realistic length and a realistic amount of Pashto over-run against its Dari counterpart. Nothing in it is checked against the database, nothing in it is approved, and none of it may be posted. Slide 2 is a deliberately long quote and slide 3 a deliberately long stat label, to exercise the fit_font() fallback rather than discover it on a real piece.",
+  "slides": [
+    {
+      "step": "1/8",
+      "layout": "quote",
+      "text": {
+        "fa": {
+          "sub": "چرا سیف‌بیوتی",
+          "quote": "وقت گرفتن از یک سالن باید به‌اندازهٔ فرستادن یک پیام ساده باشد.",
+          "attribution": "سیف‌بیوتی",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "ولې سیف بیوټي",
+          "quote": "له سالون څخه د وخت نیول باید د یوه پیغام لیږلو په اندازه اسانه وي.",
+          "attribution": "سیف بیوټي",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "2/8",
+      "layout": "quote",
+      "text": {
+        "fa": {
+          "sub": "چرا سیف‌بیوتی",
+          "quote": "نوبت شما فقط بین شما و سالن است؛ نه فهرستی که کسی ببیند، نه تماسی که کسی بشنود، و نه توضیحی که لازم باشد به کسی بدهید.",
+          "attribution": "از صفحهٔ حریم خصوصی",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "ولې سیف بیوټي",
+          "quote": "ستاسو نوبت یوازې ستاسو او سالون ترمنځ وي؛ نه داسې لیست چې څوک یې وګوري، نه داسې زنګ چې څوک یې واوري، او نه داسې توضیح چې چا ته یې ورکول اړین وي.",
+          "attribution": "د محرمیت له پاڼې",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "3/8",
+      "layout": "stat",
+      "text": {
+        "fa": {
+          "sub": "رزرو آنلاین سالن زیبایی",
+          "stat": "۲ دقیقه",
+          "label": "از باز کردن اپلیکیشن تا تأیید نوبت روی تلفن‌تان",
+          "body": "بدون تماس تلفنی و بدون انتظار پشت خط.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "د ښکلا سالون آنلاین بکینګ",
+          "stat": "۲ دقیقې",
+          "label": "له اپلیکیشن پرانیستلو څخه تر نوبت تاییدېدو پورې ستاسو په ټلیفون کې",
+          "body": "پرته له ټلیفوني اړیکې او پرته له انتظاره.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "4/8",
+      "layout": "stat",
+      "text": {
+        "fa": {
+          "sub": "برای سالن‌ها",
+          "stat": "۰ تماس",
+          "label": "برای پر کردن یک وقت خالی",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "سالونونو لپاره",
+          "stat": "۰ زنګه",
+          "label": "د یوه خالي وخت د ډکولو لپاره",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "5/8",
+      "layout": "steps",
+      "text": {
+        "fa": {
+          "sub": "چطور کار می‌کند",
+          "headline": "چهار قدم تا نوبت‌تان",
+          "steps": [
+            "اپلیکیشن را نصب کنید و شماره‌تان را وارد کنید.",
+            "سالن و خدمتی را که می‌خواهید انتخاب کنید.",
+            "از میان وقت‌هایی که واقعاً آزادند یکی را بردارید.",
+            "تأیید را روی تلفن‌تان ببینید — همین."
+          ],
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "څنګه کار کوي",
+          "headline": "څلور ګامه تر نوبت پورې",
+          "steps": [
+            "اپلیکیشن ډاونلوډ کړئ او خپله شمېره ولیکئ.",
+            "سالون او هغه خدمت وټاکئ چې غواړئ.",
+            "له هغو وختونو څخه یو وټاکئ چې واقعاً خالي دي.",
+            "تایید به مو په ټلیفون کې راشي — همدومره."
+          ],
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "6/8",
+      "layout": "steps",
+      "text": {
+        "fa": {
+          "sub": "برای سالن‌ها",
+          "steps": [
+            "سالون‌تان را ثبت کنید.",
+            "ساعت‌های کاری و قیمت‌ها را وارد کنید.",
+            "رزروها خودشان می‌آیند."
+          ],
+          "cta": "safebeauty.web.app/salon",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "سالونونو لپاره",
+          "steps": [
+            "خپل سالون ثبت کړئ.",
+            "د کار ساعتونه او بیې ولیکئ.",
+            "بکینګونه پخپله راځي."
+          ],
+          "cta": "safebeauty.web.app/salon",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "7/8",
+      "layout": "ornament",
+      "text": {
+        "fa": {
+          "sub": "برای سالن‌ها",
+          "headline": "نوبت‌های سالن، منظم و بی‌دردسر",
+          "body": "دفتر یادداشت جای خوبی برای نوبت‌هاست — تا روزی که گم شود.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "سالونونو لپاره",
+          "headline": "د سالون نوبتونه، منظم او بې دردسره",
+          "body": "کتابچه ښه ځای دی — تر هغې چې ورکه نه شي.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "8/8",
+      "layout": "bloom",
+      "text": {
+        "fa": {
+          "sub": "رایگان، به دری و پښتو",
+          "headline": "سیف‌بیوتی را نصب کنید",
+          "body": "رزروِ شما فقط بین شما و سالن است.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "وړیا، په دري او پښتو",
+          "headline": "سیف بیوټي ډاونلوډ کړئ",
+          "body": "ستاسو بکینګ یوازې ستاسو او سالون ترمنځ وي.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        }
+      }
+    }
+  ]
+}

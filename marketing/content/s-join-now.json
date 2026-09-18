@@ -1,0 +1,24 @@
+{
+  "slug": "s-join-now",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S12. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "bloom",
+  "seed": "s-join-now",
+  "text": {
+    "fa": {
+      "sub": "ثبت رایگان است",
+      "headline": "سالن‌تان را ثبت کنید",
+      "body": "ثبت‌نام کنید، هویت‌تان تأیید می‌شود و سالن شما در اپ دیده می‌شود.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "ثبتول وړیا دي",
+      "headline": "خپل سالون ثبت کړئ",
+      "body": "نوم لیکنه وکړئ، پېژندنه مو تاییدېږي او سالون مو په اپ کې ښکاري.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}
