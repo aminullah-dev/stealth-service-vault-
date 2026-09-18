@@ -1,0 +1,22 @@
+{
+  "slug": "s-no-showups",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S11. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere.",
+  "text": {
+    "fa": {
+      "sub": "رزرو تأییدشده",
+      "headline": "یک رزرو ثبت‌شده، نه یک قول شفاهی",
+      "body": "هر رزرو را خودتان تأیید می‌کنید و مشتری همان‌جا خبر می‌شود.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "تایید شوی بکینګ",
+      "headline": "یو ثبت شوی بکینګ، نه یوازې ژبنۍ وعده",
+      "body": "هر بکینګ پخپله تاییدوئ او پیرودونکې همالته خبرېږي.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

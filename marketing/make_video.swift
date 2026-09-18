@@ -276,7 +276,11 @@ writer.startSession(atSourceTime: .zero)
 
 // MARK: - Compositing
 
-let colorSpace = CGColorSpaceCreateDeviceRGB()
+// sRGB explicitly, NOT CGColorSpaceCreateDeviceRGB(): "device RGB" resolves to
+// the host's display profile, and on a P3 Mac drawing an sRGB PNG into it
+// colour-converts. Measured: a flat rgb(220,40,60) frame came out rgb(229,64,76)
+// before the video encoder was even involved — the brand rose, visibly wrong.
+let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
 let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
 
 /// Ease in/out so neither the zoom nor the fade starts or stops with a jerk.
@@ -384,10 +388,8 @@ while currentFrame < totalFrames {
 
     renderFrame(into: buffer)
 
-    // Tag the buffer with the same colour space the track is tagged with.
-    // Without this VideoToolbox treats the CoreGraphics bytes as one space and
-    // converts them into the other, and a flat rgb(220,40,60) test frame comes
-    // back rgb(228,64,76) — a visible drift on the brand rose.
+    // Pin the source colorimetry to match the track's tags, so VideoToolbox has
+    // nothing to guess about and inserts no conversion of its own.
     CVBufferSetAttachment(buffer, kCVImageBufferColorPrimariesKey,
                           kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
     CVBufferSetAttachment(buffer, kCVImageBufferTransferFunctionKey,

@@ -1,0 +1,15 @@
+{
+  "slug": "b-linumic",
+  "type": "post",
+  "audience": "partners",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece B4. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere. English only: this is the partners/press piece. 'Built for four cities, live in Kabul' is the exact phrasing the skill requires — this is the audience that checks.",
+  "text": {
+    "en": {
+      "sub": "Kabul, Afghanistan",
+      "headline": "Salon booking, built for women who would rather not phone ahead",
+      "body": "Three languages, identity-verified salons, server-authoritative payments. Built for four cities, live in Kabul.",
+      "cta": "linumic.com",
+      "cities": ""
+    }
+  }
+}
