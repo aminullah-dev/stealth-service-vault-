@@ -1,0 +1,125 @@
+{
+  "slug": "salons-join-2026-09",
+  "type": "post",
+  "audience": "salons",
+  "note": "September 2026: two salons live, both in Kabul, and the skill is explicit that supply is the bottleneck — marketing to customers ahead of salons sends a woman to an empty screen. So this is the first carousel: salon recruitment. No number in it is a claim about the platform's size, and no real salon is named. The phone slides are drawings, not screenshots: publishing a real salon's bookings is forbidden and staging holds no seeded demo.",
+  "slides": [
+    {
+      "step": "1/5",
+      "text": {
+        "fa": {
+          "sub": "برای صاحبان سالن",
+          "headline": "چوکی خالی، درآمد از دست‌رفته است",
+          "body": "هر ساعتی که سالن شما خالی می‌ماند، پولی است که هرگز برنمی‌گردد.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "د سالون خاوندانو لپاره",
+          "headline": "خالي چوکۍ، لاسه وتلې ګټه ده",
+          "body": "هر هغه ساعت چې ستاسو سالون خالي وي، هغه پیسې دي چې بیرته نه راځي.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "2/5",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "درخواست‌های رزرو", "headline": "رزروها خودشان می‌آیند", "cities": "کابل" },
+        "ps": { "sub": "د بکینګ غوښتنې", "headline": "بکینګونه پخپله راځي", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": {
+          "title": "درخواست‌ها",
+          "search": "جستجو در رزروها…",
+          "chips": ["همه", "امروز", "این هفته"],
+          "rows": [
+            { "initial": "ر", "name": "رزرو جدید", "meta": "امروز ۳:۰۰ عصر · رنگ مو", "price": "تأیید" },
+            { "initial": "ر", "name": "رزرو جدید", "meta": "فردا ۱۰:۳۰ · ناخن", "price": "تأیید" },
+            { "initial": "ر", "name": "تأیید شد", "meta": "پنجشنبه ۵:۰۰ · آرایش", "price": "✓" }
+          ],
+          "action": "تقویم امروز"
+        },
+        "ps": {
+          "title": "غوښتنې",
+          "search": "په بکینګونو کې لټون…",
+          "chips": ["ټول", "نن", "دا اونۍ"],
+          "rows": [
+            { "initial": "ب", "name": "نوی بکینګ", "meta": "نن ۳:۰۰ ماسپښین · د ویښتو رنګ", "price": "تایید" },
+            { "initial": "ب", "name": "نوی بکینګ", "meta": "سبا ۱۰:۳۰ · نوکان", "price": "تایید" },
+            { "initial": "ب", "name": "تایید شو", "meta": "پنجشنبه ۵:۰۰ · سینګار", "price": "✓" }
+          ],
+          "action": "د نن تقویم"
+        }
+      }
+    },
+    {
+      "step": "3/5",
+      "text": {
+        "fa": {
+          "sub": "بدون کار اداری",
+          "headline": "تقویم خودش را اداره می‌کند",
+          "body": "ساعت‌های کاری‌تان را یک بار می‌نویسید. پس از آن، اپ فقط وقت‌های آزاد را نشان می‌دهد و دو نفر روی یک چوکی نمی‌نشینند.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "پرته له اداري کاره",
+          "headline": "تقویم پخپله ځان سنبالوي",
+          "body": "خپل کاري ساعتونه یو ځل ولیکئ. له هغې وروسته اپ یوازې خالي وختونه ښیي او دوه کسان په یوه چوکۍ نه کېني.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "4/5",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "ساعت‌های کاری", "headline": "شما تصمیم می‌گیرید کی باز باشید", "cities": "کابل" },
+        "ps": { "sub": "کاري ساعتونه", "headline": "تاسو پرېکړه کوئ چې کله پرانیستی یاست", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": {
+          "title": "ساعت‌های کاری",
+          "search": "روزهای کاری سالن",
+          "chips": ["شنبه", "یکشنبه", "دوشنبه"],
+          "rows": [
+            { "initial": "۱", "name": "۹:۰۰ — ۱۸:۰۰", "meta": "باز", "price": "۲ چوکی" },
+            { "initial": "۲", "name": "۱۰:۰۰ — ۲۰:۰۰", "meta": "باز", "price": "۲ چوکی" },
+            { "initial": "۳", "name": "رخصتی", "meta": "بسته", "price": "—" }
+          ],
+          "action": "ذخیره"
+        },
+        "ps": {
+          "title": "کاري ساعتونه",
+          "search": "د سالون کاري ورځې",
+          "chips": ["شنبه", "یکشنبه", "دوشنبه"],
+          "rows": [
+            { "initial": "۱", "name": "۹:۰۰ — ۱۸:۰۰", "meta": "پرانیستی", "price": "۲ چوکۍ" },
+            { "initial": "۲", "name": "۱۰:۰۰ — ۲۰:۰۰", "meta": "پرانیستی", "price": "۲ چوکۍ" },
+            { "initial": "۳", "name": "رخصتي", "meta": "تړلی", "price": "—" }
+          ],
+          "action": "خوندي کړئ"
+        }
+      }
+    },
+    {
+      "step": "5/5",
+      "text": {
+        "fa": {
+          "sub": "ثبت سالن رایگان است",
+          "headline": "سالن‌تان را ثبت کنید",
+          "body": "ثبت‌نام کنید، هویت‌تان تأیید می‌شود و سالن شما در اپ دیده می‌شود.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "د سالون ثبتول وړیا دي",
+          "headline": "خپل سالون ثبت کړئ",
+          "body": "نوم لیکنه وکړئ، ستاسو پېژندنه تاییدېږي او سالون مو په اپ کې ښکاري.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        }
+      }
+    }
+  ]
+}
