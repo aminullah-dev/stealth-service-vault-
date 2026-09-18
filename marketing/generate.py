@@ -415,10 +415,34 @@ def layout_text(ctx):
             step_block(ctx),
             text["headline"],
             ('<div class="body">%s</div>' % body) if body else "",
-            (phone_svg_screen(ctx["source"].get("screen", {}).get(ctx["lang"], {}),
-                              ctx["lang"]) if phone else ""),
+            (phone_block(ctx["source"].get("screen", {}).get(ctx["lang"], {}),
+                         ctx["lang"]) if phone else ""),
         ),
     )
+
+
+def phone_block(screen, lang):
+    """The phone, holding either a real capture or a drawn screen.
+
+    A capture is worth more than a drawing and was not available until today:
+    the marketing rules forbid publishing a real salon or a real booking, so
+    until marketing/demo/ seeded a demo world in the staging project there was
+    nothing real to photograph. A spec that names a `shot` gets the capture; one
+    that describes rows still gets the drawing.
+    """
+    shot = screen.get("shot")
+    if not shot:
+        return phone_svg_screen(screen, lang)
+    full = shot if os.path.isabs(shot) else os.path.join(ROOT, shot)
+    if not os.path.exists(full):
+        sys.exit("phone shot not found: %s" % full)
+    with open(full, "rb") as fh:
+        data = base64.b64encode(fh.read()).decode()
+    # Filled by height and cropped horizontally: the capture is 1080x2400 and
+    # the frame is not, and a letterboxed phone inside a phone reads as a
+    # mistake rather than as a device.
+    return ('<div class="phone"><div class="screen shotscreen">'
+            '<img class="shot" src="data:image/png;base64,%s"></div></div>' % data)
 
 
 def phone_svg_screen(screen, lang):
@@ -475,6 +499,8 @@ PHONE_CSS = """
   background:{frame};padding:{bez}px;box-shadow:0 30px 70px rgba(0,0,0,.30)}}
 .screen{{width:100%;height:100%;border-radius:{sr}px;background:{screenbg};overflow:hidden;
   display:flex;flex-direction:column;padding:22px 20px;gap:14px;direction:{dir}}}
+.shotscreen{{padding:0;display:block}}
+.shot{{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}}
 .statusbar{{display:flex;justify-content:space-between;font-size:17px;font-weight:500;
   color:{muted};direction:ltr}}
 .apphead{{font-size:34px;font-weight:700;color:{ink};text-align:{align}}}

@@ -2278,7 +2278,7 @@ object StringResources {
         offerPercentHint           = "د تخفیف سلنه (اختیاري)"
         noOffersYet                = "تر اوسه وړاندیز نشته"
         offerActive                = "فعال"
-        dealsTitle                 = "تخفیف‌ها او پیشکشونه"
+        dealsTitle                 = "تخفیفونه او پیشکشونه"
         offerBadge                 = "پیشکش"
         dealsLockedTitle           = { n -> "$n ځانګړي پیشکشونه ستاسو په تمه دي" }
         dealsLockedBody            = "د ځانګړو تخفیفونو او پیشکشونو د خلاصولو لپاره خپل هویت تایید کړئ."
