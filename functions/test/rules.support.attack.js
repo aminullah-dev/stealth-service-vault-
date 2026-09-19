@@ -29,7 +29,6 @@ let env;
 const A_AUTH = "a-auth", A = "user-a";
 const B_AUTH = "b-auth", B = "user-b";
 const H_A = `support_tickets/${A}/history/c_100`;
-const H_B = `support_tickets/${B}/history/c_100`;
 
 test.before(async () => {
   env = await initializeTestEnvironment({
