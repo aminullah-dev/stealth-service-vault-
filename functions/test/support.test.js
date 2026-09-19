@@ -41,4 +41,11 @@ test("history id is stable for the same conversation", () => {
   // A retried trigger must collide, not duplicate.
   assert.strictEqual(historyId(1726560000000), historyId("1726560000000"));
   assert.notStrictEqual(historyId(1), historyId(2));
+  // Normalised, not merely interpolated. Dropping the Number() coercion leaves
+  // the line above passing — template interpolation of "1726560000000" and
+  // 1726560000000 produce the same string — so it proved nothing about the
+  // coercion it was written to protect. These do differ without it, and a
+  // second id for one conversation is a second "rate us" push.
+  assert.strictEqual(historyId("0007"), historyId(7));
+  assert.strictEqual(historyId(7.0), historyId("7"));
 });

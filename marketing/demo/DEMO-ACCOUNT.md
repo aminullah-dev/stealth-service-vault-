@@ -11,13 +11,16 @@ zero salons — so there was nothing to photograph.
 
 ## The demo customer
 
-Throwaway staging credentials. Not anyone's real account; safe to put in a
-runbook, not safe to reuse anywhere else.
+Throwaway staging credentials. Not anyone's real account — but the password
+still lives outside the tree, at `~/.config/safebeauty/demo-account.md`, the
+same place keystore.properties and play-publisher.json live. This repo does not
+hold credentials, including harmless ones: the rule is easier to keep than to
+judge case by case.
 
 | | |
 |---|---|
 | Phone (as typed on the login screen) | `0700000099` |
-| Password | `Demo-mJvKF5m785` |
+| Password | **not in this repo** — `~/.config/safebeauty/demo-account.md` |
 | Stored phone | `+93700000099` |
 | Name in the app | مهمان دیمو |
 | App uid (`users/{uid}`) | `52909aff-1165-4a95-bca7-280f0eb7a9fd` |

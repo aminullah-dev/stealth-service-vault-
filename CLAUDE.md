@@ -4,6 +4,39 @@ SafeBeauty is a beauty‑salon booking marketplace for Afghanistan (customer +
 provider + platform admin), plus a web/desktop admin console. Firebase is the
 backend for everything.
 
+## Working method
+
+The owner's standard, from `~/Desktop/working-method-prompt.md`, which exists to
+be pasted where a CLAUDE.md does not load. It loads here, so it lives here.
+Each rule is here because skipping it produced a shipped defect.
+
+- **Verify against the running system, not the documentation.** Docs are claims;
+  a test run, a CLI query and the source are evidence. Say which you did.
+- **Source is not state.** A rules file, an index or a config changes nothing
+  until it is applied. "Fixed in production" is proven against production.
+- **A test you have not seen fail proves nothing.** Break the code it covers,
+  watch it go red, restore. If the mutation does not reproduce the failure, say
+  so rather than implying the fix is proven.
+- **Never merge, deploy or close on a failing check.** A red build is a finding.
+- **Before anything destructive or outward-facing, prove it is safe first** —
+  diff live against what you are about to apply, state the check and its result,
+  then act.
+- **Report what you did not do**: unverified, deferred, blocked, impossible. A
+  summary of only successes is not a summary.
+- **Correct yourself in one sentence.** No apology, no post-mortem.
+- **Invent no numbers, names, quotes or capabilities** — hardest outside code,
+  in marketing copy and status reports. If it did not come from a file, a query
+  or a run, it does not ship.
+- **Check that a thing exists before pointing someone at it.** Open the link,
+  run the command, hit the endpoint.
+- **Attack your own work**, especially after a security fix. Assume the change
+  introduced a regression and go looking for it.
+- **Clean up, and own the mess you make** — temporary credentials, duplicated
+  output, half-finished state.
+- **Follow this repository's conventions over any external standard**, and
+  surface the conflict rather than silently picking one.
+- **Ask only when the answer changes what you would build.**
+
 ## Repository layout
 - `app/` — Android app (Kotlin, Jetpack Compose, Hilt, Firebase). Package
   `com.safebeauty.app`; **applicationId `com.security.stealthapp`** (they differ
