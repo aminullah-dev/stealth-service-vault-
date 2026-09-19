@@ -1,0 +1,44 @@
+{
+  "slug": "real-app-2026-09",
+  "type": "post",
+  "audience": "customers",
+  "note": "The first carousel built from REAL captures of the real app rather than drawings. It became possible only once marketing/demo/ seeded a fictional world in the staging project: six invented Kabul salons, invented reviews and offers, one throwaway demo account. Nothing on these screens belongs to a real salon or a real customer, and the app is the live prod-release build, so what a viewer sees is what she gets. Dari only for the screens themselves — the Pashto slides carry the Pashto captures. Facts unchanged: Kabul only, no App Store (iOS still in review), no discount claimed by the copy (the offers visible in the app are the demo salons' own).",
+  "slides": [
+    {
+      "step": "1/3",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "همین اپ، همین حالا", "headline": "سالن‌ها را ببینید و انتخاب کنید", "cities": "کابل" },
+        "ps": { "sub": "همدا اپ، همدا اوس", "headline": "سالونونه وګورئ او وټاکئ", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": { "shot": "marketing/demo/captures/01-salon-list-fa.png" },
+        "ps": { "shot": "marketing/demo/captures/01-salon-list-ps.png" }
+      }
+    },
+    {
+      "step": "2/3",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "وقت‌های واقعی", "headline": "وقت خالی را انتخاب کنید", "cities": "کابل" },
+        "ps": { "sub": "ریښتیني وختونه", "headline": "خالي وخت وټاکئ", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": { "shot": "marketing/demo/captures/04-time-slots-fa.png" },
+        "ps": { "shot": "marketing/demo/captures/04-time-slots-fa.png" }
+      }
+    },
+    {
+      "step": "3/3",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "رزروهای شما", "headline": "همهٔ نوبت‌هایتان، یک‌جا", "cta": "safebeauty.web.app/get", "cities": "کابل" },
+        "ps": { "sub": "ستاسو بکینګونه", "headline": "ستاسو ټولې نوبتې، په یوه ځای کې", "cta": "safebeauty.web.app/get", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": { "shot": "marketing/demo/captures/06-my-bookings-fa.png" },
+        "ps": { "shot": "marketing/demo/captures/06-my-bookings-fa.png" }
+      }
+    }
+  ]
+}

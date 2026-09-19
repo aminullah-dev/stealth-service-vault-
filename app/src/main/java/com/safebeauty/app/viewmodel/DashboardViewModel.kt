@@ -80,10 +80,31 @@ private val CATEGORY_KEYS = listOf("All", "Hair", "Makeup", "Nails", "Skincare",
 // recorded inside it. A salon in District 17 whose neighbourhood is Khair Khana
 // has to be findable by someone who thinks in districts and by someone who
 // thinks in neighbourhoods, because both are how people give an address here.
+/**
+ * The areas the neighbourhood picker offers for [cityKey], in the order it
+ * shows them. ONE list, read by both the screen's labels and the keys below.
+ *
+ * They used to be two, built by two different functions and matched by
+ * position: labels from `districtsIn`, keys from `filterableIn`. Those agree
+ * only where no neighbourhood has a parent recorded — true of Kabul and
+ * Jalalabad, false of Herat and Mazar. In Herat 14 of the 16 rows filtered by a
+ * different area than the one they named: picking «ناحیه دوم» queried
+ * HRT_BaghMurad. The comment above the label list warned about exactly this and
+ * it happened anyway, so the two derivations are now one.
+ *
+ * `areasIn` rather than `filterableIn`: that one reaches a neighbourhood only
+ * through its parent district, and none of Kabul's 42 has a parent, so the
+ * picker offered the 22 ناحیه and not a single محله — «خیرخانه» included, which
+ * is where one of the two live salons is. A customer who thinks in
+ * neighbourhoods, which the comment on this function has always said is half of
+ * how an address is given here, could not ask the question at all.
+ */
+internal fun neighborhoodOptionsFor(cityKey: String): List<com.safebeauty.app.util.Areas.Area> =
+    if (cityKey.isBlank()) emptyList()
+    else com.safebeauty.app.util.Areas.areasIn(cityKey)
+
 private fun neighborhoodKeysFor(cityKey: String): List<String> =
-    listOf("All Neighborhoods") +
-        (if (cityKey.isBlank()) emptyList()
-         else com.safebeauty.app.util.Areas.filterableIn(cityKey).map { it.key })
+    listOf("All Neighborhoods") + neighborhoodOptionsFor(cityKey).map { it.key }
 
 data class BookingStatusChange(
     val salonName: String,
@@ -407,6 +428,55 @@ class DashboardViewModel @Inject constructor(
         _selectedNeighborhoodIndex.value = 0
         _searchQuery.value               = ""
         _showFavoritesOnly.value         = false
+    }
+
+    // ── Reporting and blocking ───────────────────────────────────────────────
+    // The same object the feed uses, so a block made on a comment is honoured
+    // by the reviews on a salon's page. Two copies would be two answers to
+    // "has she blocked him", and she would be told the second one is a bug.
+    val moderation = ModerationState(firestoreRepository, customerId, viewModelScope)
+
+    // ── Reporting a visit ────────────────────────────────────────────────────
+    // The mirror of what a salon can already say about her. Kept here rather
+    // than in ModerationState: that one is about content, this is about what
+    // happened at an appointment, and they resolve through different queues.
+    private val _visitReport = MutableStateFlow<AppointmentDocument?>(null)
+    val visitReport: StateFlow<AppointmentDocument?> = _visitReport
+
+    private val _visitSending = MutableStateFlow(false)
+    val visitSending: StateFlow<Boolean> = _visitSending
+
+    private val _visitSent = MutableStateFlow(false)
+    val visitSent: StateFlow<Boolean> = _visitSent
+
+    private val _visitFailed = MutableStateFlow(false)
+    val visitFailed: StateFlow<Boolean> = _visitFailed
+
+    fun startVisitReport(appt: AppointmentDocument) {
+        _visitSent.value = false
+        _visitFailed.value = false
+        _visitReport.value = appt
+    }
+
+    fun cancelVisitReport() {
+        _visitReport.value = null
+        _visitSent.value = false
+        _visitFailed.value = false
+    }
+
+    fun submitVisitReport(reason: String, note: String) {
+        val appt = _visitReport.value ?: return
+        if (_visitSending.value) return
+        _visitSending.value = true
+        _visitFailed.value = false
+        viewModelScope.launch {
+            val ok = runCatching {
+                firestoreRepository.reportVisit(appt.id, reason, note)
+            }.isSuccess
+            _visitSending.value = false
+            _visitSent.value = ok
+            _visitFailed.value = !ok
+        }
     }
 
     /** The cheapest priced service at a salon (null if none priced). */

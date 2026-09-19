@@ -94,7 +94,7 @@ struct BookingSheet: View {
             if let promoNote {
                 Text(promoNote.text)
                     .font(Brand.font(12.5))
-                    .foregroundStyle(promoNote.isGood ? Color(hex: 0x1F7A5C) : Color(hex: 0xC0392B))
+                    .foregroundStyle(promoNote.isGood ? Brand.success : Brand.danger)
             }
         }
         BrandField(label: .notesOptional, text: $notes)
@@ -126,7 +126,7 @@ struct BookingSheet: View {
                 .foregroundStyle(Brand.accent)
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 14))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: After
@@ -161,7 +161,7 @@ struct BookingSheet: View {
                 row(L.total.t, "\(quote.amount)", isNumeric: true, isBold: true)
             }
             .padding(15)
-            .background(.white, in: RoundedRectangle(cornerRadius: 14))
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
 
             if !quote.checkoutUrl.isEmpty, let url = URL(string: quote.checkoutUrl) {
                 // The booking is AWAITING_PAYMENT until the webhook flips it,
@@ -251,13 +251,11 @@ struct BookingSheet: View {
                 promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
             }
         } catch let e as Callables.CallableError {
-            // The server says why — expired, used up, wrong salon — and its
-            // sentence is more use than a generic refusal.
-            if case .failedPrecondition(let m, _) = e {
-                promoNote = PromoNote(text: m, isGood: false)
-            } else {
-                promoNote = PromoNote(text: L.promoInvalid.t, isGood: false)
-            }
+            // The server says why — expired, used up, wrong salon — and that
+            // is more use than a generic refusal. It says it as a code now, so
+            // she reads it in her own language instead of in the English the
+            // sentence was written in.
+            promoNote = PromoNote(text: e.localized ?? L.promoInvalid.t, isGood: false)
         } catch {
             promoNote = PromoNote(text: L.errNetwork.t, isGood: false)
         }

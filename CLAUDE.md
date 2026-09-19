@@ -4,6 +4,39 @@ SafeBeauty is a beauty‑salon booking marketplace for Afghanistan (customer +
 provider + platform admin), plus a web/desktop admin console. Firebase is the
 backend for everything.
 
+## Working method
+
+The owner's standard, from `~/Desktop/working-method-prompt.md`, which exists to
+be pasted where a CLAUDE.md does not load. It loads here, so it lives here.
+Each rule is here because skipping it produced a shipped defect.
+
+- **Verify against the running system, not the documentation.** Docs are claims;
+  a test run, a CLI query and the source are evidence. Say which you did.
+- **Source is not state.** A rules file, an index or a config changes nothing
+  until it is applied. "Fixed in production" is proven against production.
+- **A test you have not seen fail proves nothing.** Break the code it covers,
+  watch it go red, restore. If the mutation does not reproduce the failure, say
+  so rather than implying the fix is proven.
+- **Never merge, deploy or close on a failing check.** A red build is a finding.
+- **Before anything destructive or outward-facing, prove it is safe first** —
+  diff live against what you are about to apply, state the check and its result,
+  then act.
+- **Report what you did not do**: unverified, deferred, blocked, impossible. A
+  summary of only successes is not a summary.
+- **Correct yourself in one sentence.** No apology, no post-mortem.
+- **Invent no numbers, names, quotes or capabilities** — hardest outside code,
+  in marketing copy and status reports. If it did not come from a file, a query
+  or a run, it does not ship.
+- **Check that a thing exists before pointing someone at it.** Open the link,
+  run the command, hit the endpoint.
+- **Attack your own work**, especially after a security fix. Assume the change
+  introduced a regression and go looking for it.
+- **Clean up, and own the mess you make** — temporary credentials, duplicated
+  output, half-finished state.
+- **Follow this repository's conventions over any external standard**, and
+  surface the conflict rather than silently picking one.
+- **Ask only when the answer changes what you would build.**
+
 ## Repository layout
 - `app/` — Android app (Kotlin, Jetpack Compose, Hilt, Firebase). Package
   `com.safebeauty.app`; **applicationId `com.security.stealthapp`** (they differ
@@ -145,3 +178,30 @@ silently hit "permission denied".
   declaration error.
 - Keystore files (`*.jks`, `keystore.properties`) are gitignored — never commit
   them.
+- **iOS sign-in can fail in the SIMULATOR with `securityd -34018 "Client has
+  neither application-identifier nor keychain-access-groups entitlements"`**,
+  surfaced by Firebase Auth as `FIRAuthErrorDomain 17995`. The password is not
+  the problem — the server has already verified it and Firebase Auth records a
+  successful `lastSignInTime` at the same second; only storing the session
+  fails. First seen 2026-09-06 on a Mac with zero signing identities, and the
+  original theory here was "add a real Apple ID team and it's fixed" — tested
+  that on 2026-09-08 after the project got one (`DEVELOPMENT_TEAM: 27RXPRW77S`
+  in `project.yml`) and it did **not** fix it: `xcodebuild ... -destination
+  'id=<simulator>'` still signs ad-hoc (`codesign --sign -`) with an EMPTY
+  entitlements dict regardless of the team. Forcing
+  `CODE_SIGN_IDENTITY[sdk=iphonesimulator*]` and setting
+  `AD_HOC_CODE_SIGNING_ALLOWED: NO` were both tried; the second makes the build
+  fail outright ("Ad Hoc code signing is not allowed with SDK
+  'Simulator...'"). Conclusion: Xcode's Simulator SDK requires ad-hoc signing
+  and there is no supported way around it — this is a platform limitation, not
+  a project misconfiguration, and a real team does not change it.
+  **What a real team DOES fix**: a DEVICE build or a TestFlight/App Store
+  build always merges `application-identifier` and `keychain-access-groups`
+  in from the real provisioning profile, so it cannot hit this. Test sign-in
+  on a physical iPhone or via TestFlight, not the simulator — that is the
+  correct next step now that the project has a paid Apple Developer account
+  (Team ID `27RXPRW77S`, enrolled 2026-09-07), not further simulator
+  debugging. `ios/SafeBeauty/SafeBeauty.entitlements` also explicitly declares
+  `keychain-access-groups: $(AppIdentifierPrefix)$(CFBundleIdentifier)` now,
+  which the simulator still ignores but a device build genuinely needs rather
+  than relying on profile-merge alone.

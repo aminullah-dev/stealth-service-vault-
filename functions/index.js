@@ -75,6 +75,9 @@ exports.pushOnBroadcastCreated    = notifications.pushOnBroadcastCreated;
 exports.resumeBroadcasts          = notifications.resumeBroadcasts;
 exports.sendReengagementNudges    = notifications.sendReengagementNudges;
 
+const support = require("./domains/support");
+exports.archiveSupportConversation = support.archiveSupportConversation;
+
 const admin_ = require("./domains/admin");
 exports.grantAdmin                 = admin_.grantAdmin;
 exports.revokeAdmin                = admin_.revokeAdmin;
@@ -116,6 +119,8 @@ exports.getBookedSlots             = bookings.getBookedSlots;
 exports.rescheduleAppointment      = bookings.rescheduleAppointment;
 exports.confirmAppointment         = bookings.confirmAppointment;
 exports.reportCustomer             = bookings.reportCustomer;
+exports.reportVisit          = bookings.reportVisit;
+exports.resolveVisitReport   = bookings.resolveVisitReport;
 exports.sendBookingReminders       = bookings.sendBookingReminders;
 exports.completePastAppointments   = bookings.completePastAppointments;
 exports.nudgeUnconfirmedBookings   = bookings.nudgeUnconfirmedBookings;
@@ -154,11 +159,16 @@ exports.cleanupDeletedPost   = content.cleanupDeletedPost;
 exports.adminPostForSalon    = content.adminPostForSalon;
 exports.cleanupExpiredStories = content.cleanupExpiredStories;
 exports.submitReview         = content.submitReview;
+exports.reportContent        = content.reportContent;
+exports.resolveContentReport = content.resolveContentReport;
+exports.cleanupDeletedReview = content.cleanupDeletedReview;
 exports.awardReviewPoints    = content.awardReviewPoints;
 exports.pushOfferToFavoriters = content.pushOfferToFavoriters;
 
 const maintenance = require("./domains/maintenance");
 exports.cleanupRateLimits        = maintenance.cleanupRateLimits;
+exports.purgeKycImages       = maintenance.purgeKycImages;
+exports.adminPurgeKycImages  = maintenance.adminPurgeKycImages;
 exports.scheduledFirestoreBackup = maintenance.scheduledFirestoreBackup;
 exports.verifyFirestoreBackup    = maintenance.verifyFirestoreBackup;
 exports.pruneOldBackups          = maintenance.pruneOldBackups;

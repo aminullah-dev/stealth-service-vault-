@@ -11,12 +11,13 @@ const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta, isCommissionFree } =
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
-const { enforceRateLimit } = require("./identity");
+const { enforceRateLimit } = require("../shared");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { defineSecret, defineString } = require("firebase-functions/params");
 const { HttpsError, onCall, onRequest } = require("firebase-functions/v2/https");
+const { claimDecision, claimPath } = require("../lib/idempotency");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, alertable, db, logger } = require("../shared");
 
@@ -100,10 +101,10 @@ async function resolvePromoDiscount(codeRaw, priceAfn) {
   }
   const p = snap.data();
   if (p.active === false) {
-    throw new HttpsError("failed-precondition", "This promo code is no longer active.");
+    throw new HttpsError("failed-precondition", "This promo code is no longer active.", { reason: "PROMO_INACTIVE" });
   }
   if (p.expiresAt && Number(p.expiresAt) > 0 && Date.now() > Number(p.expiresAt)) {
-    throw new HttpsError("failed-precondition", "This promo code has expired.");
+    throw new HttpsError("failed-precondition", "This promo code has expired.", { reason: "PROMO_EXPIRED" });
   }
   const maxUses  = Number(p.maxUses || 0);
   const usedCount = Number(p.usedCount || 0);
@@ -126,6 +127,22 @@ function hesabHeaders(apiKey) {
   };
 }
 
+/**
+ * Stores what a booking request produced, so the retry after a timeout gets
+ * that booking back instead of making a second one.
+ *
+ * Never throws. The booking already exists at this point — failing the call
+ * because the bookkeeping write failed would tell a customer her booking did
+ * not happen when it did, which is the one outcome worse than a duplicate.
+ * The cost of losing it is that one retry books twice, which is where this
+ * started; the cost of throwing here is guaranteed, every time.
+ */
+async function recordClaim(claimRef, result) {
+  if (!claimRef) return;
+  await claimRef.set({ result, finishedAt: Date.now() }, { merge: true })
+    .catch((e) => logger.warn("booking claim not recorded", e));
+}
+
 exports.createPaymentSession = onCall(
   { secrets: [HESAB_API_KEY], region: "us-central1" },
   async (request) => {
@@ -138,12 +155,55 @@ exports.createPaymentSession = onCall(
     // Identity must be verified before booking. The client gates this too and
     // routes to the KYC screen; this is the non-bypassable server enforcement.
     if ((appUser.kycStatus || "NONE") !== "APPROVED") {
-      throw new HttpsError("failed-precondition", "Verify your identity before booking.");
+      throw new HttpsError("failed-precondition", "Verify your identity before booking.", { reason: "KYC_REQUIRED" });
     }
     const uid     = appUser.uid;
     const user    = appUser;
-    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party } =
+    const { salonId, serviceName: serviceNameInput, serviceNames, appointmentDate, notes, email, method, promoCode, staffId, packageId, party, clientRequestId } =
       request.data || {};
+
+    // ── Idempotency ─────────────────────────────────────────────────────────
+    //
+    // This creates an appointment, a payment row and a HesabPay checkout. It
+    // was not idempotent, so a call that timed out on a bad connection could
+    // not be retried — the client could not know whether the work had already
+    // happened, and a second call would have produced two bookings and two
+    // charges. So the app did not retry, and a customer on a Kabul connection
+    // simply lost the booking.
+    //
+    // The claim is taken with `.create()`, which fails if the document exists.
+    // That is what makes it safe against two simultaneous copies of the same
+    // request rather than a read-then-write that both sides win.
+    //
+    // Optional: an older build that sends no id behaves exactly as before.
+    const requestId = String(clientRequestId || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+    let claimRef = null;
+    if (requestId) {
+      claimRef = db.doc(claimPath(uid, requestId));
+      const decision = claimDecision(
+        await claimRef.get().then((s) => (s.exists ? s.data() : null)).catch(() => null),
+        Date.now()
+      );
+      if (decision.action === "replay") return decision.result;
+      if (decision.action === "inFlight") {
+        throw new HttpsError("aborted", "That booking is already being created.",
+          { reason: "IN_FLIGHT" });
+      }
+      try {
+        // create() for a first attempt; set() to take over one that died.
+        await claimRef.create({ uid, createdAt: Date.now() });
+      } catch (e) {
+        // Lost the race to an identical request that started microseconds ago.
+        const prior = await claimRef.get().catch(() => null);
+        const again = claimDecision(prior && prior.exists ? prior.data() : null, Date.now());
+        if (again.action === "replay") return again.result;
+        if (again.action === "inFlight") {
+          throw new HttpsError("aborted", "That booking is already being created.",
+            { reason: "IN_FLIGHT" });
+        }
+        await claimRef.set({ uid, createdAt: Date.now() });
+      }
+    }
     // A wedding party is a booking for several people at once. It arrives as a
     // guest list rather than a flat service list, so the salon can see who is
     // having what — and so the slot maths can account for everyone working at
@@ -252,7 +312,7 @@ exports.createPaymentSession = onCall(
     //
     // createGiftCardSession already refuses the same shape of self-dealing.
     if (salon.providerId && salon.providerId === uid) {
-      throw new HttpsError("failed-precondition", "You can't book your own salon.");
+      throw new HttpsError("failed-precondition", "You can't book your own salon.", { reason: "OWN_SALON" });
     }
 
     // Reject bookings on a day the provider blocked off (time-off/holiday). The
@@ -274,7 +334,7 @@ exports.createPaymentSession = onCall(
     // a service into existence, and a guest having nothing done is not a guest.
     const partyGuests = isParty ? normalizeParty(party, salon.services) : [];
     if (isParty && partyGuests.length === 0) {
-      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.");
+      throw new HttpsError("failed-precondition", "No guest in the group has a bookable service.", { reason: "NO_BOOKABLE_SERVICE" });
     }
     const effectiveNames = isParty ? partyServices(partyGuests) : requestedServiceNames;
 
@@ -283,7 +343,7 @@ exports.createPaymentSession = onCall(
       throw new HttpsError("failed-precondition", `No valid price for: ${invalid.join(", ")}`);
     }
     if (services.length === 0 || total <= 0) {
-      throw new HttpsError("failed-precondition", "This service has no valid price.");
+      throw new HttpsError("failed-precondition", "This service has no valid price.", { reason: "NO_PRICE" });
     }
     const listPrice = total;
     // Combined display name so every downstream string (stored serviceName,
@@ -683,7 +743,7 @@ exports.createPaymentSession = onCall(
         throw new HttpsError("internal", "Could not create the booking. Please try again.");
       }
 
-      return {
+      const cashResult = {
         paymentId:     paymentRef.id,
         appointmentId: apptRef.id,
         checkoutUrl:   "",
@@ -694,6 +754,8 @@ exports.createPaymentSession = onCall(
         commissionAmount,
         providerNet,
       };
+      await recordClaim(claimRef, cashResult);
+      return cashResult;
     }
 
     // Create the appointment (AWAITING_PAYMENT, hidden from the provider until
@@ -844,7 +906,7 @@ exports.createPaymentSession = onCall(
 
     await paymentRef.update({ hesabSessionId: sessionId });
 
-    return {
+    const onlineResult = {
       paymentId:     paymentRef.id,
       appointmentId: apptRef.id,
       checkoutUrl:   sessionUrl,
@@ -854,6 +916,8 @@ exports.createPaymentSession = onCall(
       commissionAmount,
       providerNet,
     };
+    await recordClaim(claimRef, onlineResult);
+    return onlineResult;
   }
 );
 
@@ -869,6 +933,10 @@ exports.createGiftCardSession = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
     assertNotSuspended(buyer);
+    // Each call opens an outbound HesabPay session; unbounded, one account
+    // can open hundreds — a bill, a pile of AWAITING_PAYMENT rows, and a
+    // pattern a payment provider reads as card testing.
+    await enforceRateLimit(`gift:${buyer.uid}`, 10, 60 * 60 * 1000);
 
     const { recipientPhone, amount, message } = request.data || {};
     const gift = validateGiftAmount(amount);
@@ -976,6 +1044,10 @@ exports.createWalletTopUp = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const buyer = await resolveAppUser(request);
     assertNotSuspended(buyer);
+    // Each call opens an outbound HesabPay session; unbounded, one account
+    // can open hundreds — a bill, a pile of AWAITING_PAYMENT rows, and a
+    // pattern a payment provider reads as card testing.
+    await enforceRateLimit(`topup:${buyer.uid}`, 10, 60 * 60 * 1000);
 
     const { amount } = request.data || {};
     const top = validateGiftAmount(amount);
@@ -1043,6 +1115,7 @@ exports.createTipSession = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     const customer = await resolveAppUser(request);
     assertNotSuspended(customer);
+    await enforceRateLimit(`tip:${customer.uid}`, 10, 60 * 60 * 1000);
 
     const { appointmentId, amount } = request.data || {};
     if (!appointmentId) throw new HttpsError("invalid-argument", "appointmentId is required.");
@@ -1915,7 +1988,7 @@ exports.previewPromo = onCall({ region: "us-central1" }, async (request) => {
   if (!salonSnap.exists) throw new HttpsError("not-found", "Salon not found.");
   const { total: listPrice, invalid } = resolveServicesTotal(salonSnap.data().pricePerService, requested);
   if (invalid.length > 0 || listPrice <= 0) {
-    throw new HttpsError("failed-precondition", "This service has no valid price.");
+    throw new HttpsError("failed-precondition", "This service has no valid price.", { reason: "NO_PRICE" });
   }
   const promo = await resolvePromoDiscount(code, listPrice);
   return {

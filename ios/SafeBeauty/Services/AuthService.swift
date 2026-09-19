@@ -48,6 +48,25 @@ final class AuthService {
         /// would come back as `.phoneTaken` and read as a contradiction — she
         /// signs in with the credentials she just chose.
         case registeredButNotSignedIn
+        /// The server accepted the password and the device-side sign-in
+        /// refused it. That is not a wrong password — pinHash already matched
+        /// — it is the Firestore hash and the Firebase Auth password having
+        /// drifted apart, which only an admin reset repairs. Telling her to
+        /// check her internet, which is what happened before, sends her to
+        /// look at the one thing that is definitely fine.
+        case credentialsOutOfSync
+        /// Firebase Auth could not write its session to the iOS Keychain
+        /// (FIRAuthErrorDomain 17995, preceded in the log by SecItemAdd_ios).
+        /// Nothing about the password is wrong — the server already verified
+        /// it and the sign-in request itself succeeded; what failed is the
+        /// device storing the result. Telling her to phone support for a
+        /// password reset, which is what this used to do, sends her to have
+        /// the one thing that is definitely correct replaced.
+        case deviceKeychainUnavailable
+        /// A Firebase Auth failure this code has never seen. It carries the
+        /// numeric code so the message names something support can look up,
+        /// instead of asserting a cause nobody has established.
+        case unexpected(Int)
 
         var errorDescription: String? {
             switch self {
@@ -55,6 +74,9 @@ final class AuthService {
             case .phoneTaken: "phoneTaken"
             case .emailTaken: "emailTaken"
             case .registeredButNotSignedIn: "registeredButNotSignedIn"
+            case .credentialsOutOfSync: "credentialsOutOfSync"
+            case .deviceKeychainUnavailable: "deviceKeychainUnavailable"
+            case .unexpected(let c): "unexpected(\(c))"
             case .rateLimited(let m), .server(let m): m
             }
         }
@@ -110,6 +132,34 @@ final class AuthService {
         let firebaseEmail: String
     }
 
+    // MARK: - Browsing without an account
+
+    /// Firestore's rules gate every read on `isSignedIn()`, which used to mean
+    /// nothing was visible — not even the salon list — until she registered.
+    /// Apple rejected the app for exactly this under 5.1.1(v): browsing is not
+    /// an account-based feature, and requiring one to see it is what the
+    /// guideline forbids. This satisfies `isSignedIn()` anonymously, silently,
+    /// before she has typed anything, so nothing in the rules has to weaken —
+    /// `salons`/`reviews`/`salon_gallery` stay exactly as readable as they were
+    /// to a real account, just now also to this one.
+    ///
+    /// Never touches `session` — that stays nil until she actually signs in or
+    /// registers, and `restore()` already ignores an anonymous currentUser (it
+    /// requires an `email`, which an anonymous credential has none of). A real
+    /// sign-in replaces this outright: `Auth.auth().signIn(withEmail:password:)`
+    /// switches `currentUser` directly and needs no sign-out first.
+    func ensureBrowsingSession() async {
+        guard Auth.auth().currentUser == nil else { return }
+        do {
+            _ = try await Auth.auth().signInAnonymously()
+        } catch {
+            // Browsing degrades to the old behaviour (an empty, permission-denied
+            // list) rather than crashing. Not recorded to Crashlytics as a hard
+            // failure — a phone with no network at launch hits this every time,
+            // and that is not a bug report, it is Tuesday.
+        }
+    }
+
     // MARK: - Sign in
 
     func signIn(phone rawPhone: String, password: String) async throws {
@@ -145,8 +195,66 @@ final class AuthService {
         // server permits the sign-in for exactly this reason and Android has
         // never blocked it; the callables refuse what she may DO.
 
-        let authPassword = try PinHasher.deriveAuthPassword(password, saltBase64: salt)
-        try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        // Also outside the catch below until now, so a salt that will not decode
+        // — the other way these two stores can disagree — arrived as "check
+        // your internet" as well.
+        let authPassword: String
+        do {
+            authPassword = try PinHasher.deriveAuthPassword(password, saltBase64: salt)
+        } catch {
+            throw AuthError.credentialsOutOfSync
+        }
+        do {
+            try await Auth.auth().signIn(withEmail: firebaseEmail, password: authPassword)
+        } catch {
+            // Every failure here used to leave this function as a raw error and
+            // land in the caller's generic catch, which says "check your
+            // internet". So an account whose Firestore hash and Firebase Auth
+            // password have drifted apart — the split state updatePinHash's own
+            // comment warns about — told a woman with perfect signal to check
+            // her connection, and she would have gone on checking it forever.
+            //
+            // The server has already said the password is right by this point;
+            // it matched pinHash. So a rejection HERE is not a wrong password,
+            // it is the two stores disagreeing, and only an admin reset fixes
+            // it. Saying so is the difference between a support ticket and a
+            // woman who thinks the app is broken.
+            // Named in the log before it is classified. The first version of
+            // this classified everything unrecognised as "credentials out of
+            // sync", which was a guess dressed as a diagnosis — and it was
+            // wrong: Firebase Auth had recorded a SUCCESSFUL sign-in at the
+            // same second the app reported failure. A wrong label on an error
+            // is worse than a vague one, because it sends the next person
+            // looking in the wrong place.
+            let ns = error as NSError
+            let detail = "SB-AUTH domain=\(ns.domain) code=\(ns.code) \(ns.localizedDescription)"
+            NSLog("%@", detail)
+            Crashlytics.crashlytics().log(detail)
+            let code = AuthErrorCode(rawValue: ns.code)
+            switch code {
+            case .networkError:
+                throw AuthError.server("")
+            case .wrongPassword, .invalidCredential, .userNotFound, .invalidEmail:
+                throw AuthError.credentialsOutOfSync
+            case .userDisabled:
+                throw AuthError.wrongPhoneOrPassword
+            case .keychainError:
+                // Seen for real on 2026-09-06: the sign-in request itself
+                // succeeded — Firebase Auth recorded lastSignInTime at the same
+                // second the app showed an error — and then SecItemAdd failed,
+                // so the session could not be stored and the call threw. The
+                // build had no entitlements at all, which on iOS means no
+                // keychain access group to file the item under.
+                throw AuthError.deviceKeychainUnavailable
+            default:
+                // Deliberately NOT credentialsOutOfSync. That is a specific
+                // claim — Firestore's hash and the Firebase Auth password have
+                // drifted — and asserting it about an error nobody has looked
+                // at is how a keychain failure spent an evening being
+                // investigated as a password problem.
+                throw AuthError.unexpected(ns.code)
+            }
+        }
 
         let uid = result["uid"]?.stringValue ?? ""
         // The bridge between the Firebase Auth uid and the app-level uid. The
@@ -414,12 +522,22 @@ final class AuthService {
         PushService.shared.unbind()
         FavoritesStore.shared.unbind()
         WaitlistStore.shared.unbind()
+        // The stored credential goes with the session. Leaving it would let the
+        // next person to hold this phone sign back in as her with a face the
+        // phone already trusts — which is the one thing quick sign-in must not
+        // survive.
+        BiometricVault.disable()
         bridgePending = false
         try? Auth.auth().signOut()
         // Cleared before the in-memory copy, so a crash between the two lines
         // cannot leave a session on disk that outlives the credential.
         UserDefaults.standard.removeObject(forKey: Self.storeKey)
         session = nil
+        // Firebase Auth's signOut() leaves currentUser nil, which would fail
+        // every salon read the moment she lands back on the browse screen —
+        // re-arm the anonymous credential immediately rather than wait for
+        // some later screen to notice it is missing.
+        Task { await ensureBrowsingSession() }
     }
 
     /// Re-read her own profile after something the server changed.

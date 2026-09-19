@@ -1,0 +1,22 @@
+{
+  "slug": "s-verified",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S9. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere.",
+  "text": {
+    "fa": {
+      "sub": "نشان تأیید",
+      "headline": "مشتری به سالن تأییدشده زودتر اعتماد می‌کند",
+      "body": "پس از تأیید هویت، نشان تأیید کنار نام سالن شما دیده می‌شود.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د تایید نښه",
+      "headline": "پیرودونکې تاییدشوي سالون ته ژر باور کوي",
+      "body": "د پېژندنې له تایید وروسته، د تایید نښه ستاسو د سالون د نوم تر څنګ ښکاري.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

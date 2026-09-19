@@ -133,12 +133,16 @@ fun AppNavGraph(
     // Who is signed in right now, so a notification tapped at any moment knows
     // whose notification centre to open. Blank means nobody is past sign-in yet.
     var signedInUid by remember { mutableStateOf("") }
+    // Their display name, for a support chat opened straight from a notification
+    // (it is the senderName on anything they write there).
+    var signedInName by remember { mutableStateOf("") }
 
     // Auto-lock: when session expires after 5 min of inactivity, return to Login.
     LaunchedEffect(shouldLock) {
         if (shouldLock) {
             sessionVm.onLockHandled()
             signedInUid = ""
+            signedInName = ""
             // Drop any notification tap that was never acted on, rather than
             // letting it fire at the next sign-in as if it had just happened.
             onDeeplinkConsumed()
@@ -167,8 +171,24 @@ fun AppNavGraph(
         // arrives before sign-in is honoured the moment sign-in completes.
         LaunchedEffect(notifDeeplink, signedInUid) {
             if (notifDeeplink != null && signedInUid.isNotBlank()) {
-                navController.navigate(Screen.Notifications.build(signedInUid)) {
-                    launchSingleTop = true
+                val supportThread = "support_$signedInUid"
+                if (notifDeeplink.type == "CHAT_MESSAGE" && notifDeeplink.relatedId == supportThread) {
+                    // A support reply, or "conversation closed — rate it": open the
+                    // user's own support thread, where the reply or the rating card
+                    // is waiting, instead of the notification list.
+                    navController.navigate(
+                        Screen.Chat.build(
+                            conversationId = supportThread,
+                            myUserId       = signedInUid,
+                            myName         = signedInName,
+                            otherName      = strings.supportTitle,
+                            active         = true
+                        )
+                    ) { launchSingleTop = true }
+                } else {
+                    navController.navigate(Screen.Notifications.build(signedInUid)) {
+                        launchSingleTop = true
+                    }
                 }
                 onDeeplinkConsumed()
             }
@@ -188,6 +208,7 @@ fun AppNavGraph(
 
         val returnToLogin: () -> Unit = {
             signedInUid = ""
+            signedInName = ""
             navController.navigate(Screen.Login.route) {
                 popUpTo(Screen.Login.route) { inclusive = false }
                 launchSingleTop = true
@@ -256,6 +277,7 @@ fun AppNavGraph(
                         navController.navigate(dashboardRoute) { launchSingleTop = true }
                         // Hands the notification-tap effect above the uid it needs;
                         // it opens the notification centre if a tap is pending.
+                        signedInName = user.name
                         signedInUid = user.uid
                     },
                     onRegisterTapped  = {

@@ -1,0 +1,23 @@
+{
+  "slug": "s-quiet-hours",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S10. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "quote",
+  "text": {
+    "fa": {
+      "sub": "وعدهٔ ما",
+      "quote": "ساعت‌های خالی صبح هم می‌توانند فروخته شوند.",
+      "attribution": "— وعدهٔ سیف‌بیوتی",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "زموږ ژمنه",
+      "quote": "د سهار خالي ساعتونه هم پلورل کېدای شي.",
+      "attribution": "— د سیف بیوټي ژمنه",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

@@ -35,6 +35,18 @@ const MUST_REFUSE = [
   "createTipSession",         // moves money
   "redeemLoyaltyPoints",      // points into spendable credit
   "claimProfileReward",       // points out of nothing
+  // Reporting is a safety action, so refusing it needs a reason: a suspended
+  // account cannot reach the feed at all — RootView shows her the suspended
+  // screen instead of the app — so there is no content in front of her to
+  // report, and the only thing this admits is a suspended account filling the
+  // moderation queue, which is often what she was suspended for.
+  "reportContent",            // files a moderation report against someone
+  // The mirror of reportCustomer, which is already on this list for the same
+  // reason: it affects another party's standing and can suspend them. A
+  // suspended account cannot reach her bookings anyway — RootView shows her
+  // the suspended screen — so this admits nothing except a suspended account
+  // filing complaints about salons.
+  "reportVisit",              // affects a salon's standing, and can suspend it
 ];
 
 // Deliberately still reachable, each for a stated reason.

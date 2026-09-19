@@ -396,6 +396,29 @@ service cloud.firestore {
                  && ((ticketId == me() && request.resource.data.userId == me())
                      || isAdmin());
       allow delete: if isAdmin();
+
+      // One closed conversation each, written only by the
+      // archiveSupportConversation trigger when the ticket is closed. The user
+      // may do exactly one thing to it: rate it, once, 1–5, with an optional
+      // short comment. Not re-rateable — a rating she could keep rewriting is a
+      // rating an admin cannot act on — and nothing else on the row is hers to
+      // change, since openedAt/closedAt decide which messages the apps show as
+      // that conversation.
+      match /history/{historyId} {
+        allow read: if isSignedIn() && (ticketId == me() || isAdmin());
+        allow create, delete: if false;
+        allow update: if isSignedIn()
+                   && ticketId == me()
+                   && resource.data.get('rating', 0) == 0
+                   && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['rating', 'ratingComment', 'ratedAt'])
+                   && request.resource.data.rating is int
+                   && request.resource.data.rating >= 1
+                   && request.resource.data.rating <= 5
+                   && request.resource.data.get('ratingComment', '') is string
+                   && request.resource.data.get('ratingComment', '').size() <= 500
+                   && request.resource.data.ratedAt is int;
+      }
     }
 
     // ── reviews ────────────────────────────────────────────────────────────────
@@ -890,6 +913,104 @@ service cloud.firestore {
       allow read:  if isSignedIn()
                && (resource.data.providerId == me() || isAdmin());
       allow write: if false;
+    }
+
+    // ── visit_reports ────────────────────────────────────────────────────────────
+    // A customer saying what happened at a visit — the mirror of
+    // customer_reports, which has existed since this shipped and points the
+    // other way. Written exclusively by reportVisit.
+    //
+    // She may read her own, so the app can show her that she already reported
+    // this booking and what came of it. Admins read all, because the queue is
+    // the point. The salon reads none: it can already see the booking, and
+    // handing it the complaint before an admin has looked would put her in
+    // front of the person she is complaining about.
+    match /visit_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.customerId == me() || isAdmin());
+      allow write: if false;
+    }
+
+    // ── content_reports ──────────────────────────────────────────────────────────
+    // Somebody flagging a post, story, comment or review. Written exclusively by
+    // the reportContent callable, which is where the author of the reported
+    // content is looked up — a client that could write this row could name
+    // anybody as the author and get them suspended.
+    //
+    // The reporter may read her own reports so the app can show her that she has
+    // already reported something; admins read all, because the queue is the
+    // whole point. Nobody else, including the person reported: knowing who
+    // reported you is how reporting becomes dangerous for the reporter, and in
+    // this market that is not a theoretical concern.
+    match /content_reports/{reportId} {
+      allow read:  if isSignedIn()
+               && (resource.data.reporterId == me() || isAdmin());
+      allow write: if false;
+    }
+
+    // ── booking_claims ───────────────────────────────────────────────────────────
+    // One document per booking request the app has made, keyed
+    // {customerUid}_{clientRequestId}. createPaymentSession creates it before
+    // it does anything and writes the result into it afterwards, so a retry
+    // after a timeout gets that booking back instead of making a second one.
+    //
+    // Server-only in both directions. A client that could read these could
+    // read another customer's booking result by guessing an id; one that could
+    // write them could pre-claim an id to block her, or plant a `result` and
+    // be handed a booking that was never made.
+    match /booking_claims/{claimId} {
+      allow read, write: if false;
+    }
+
+    // ── moderation_archive ───────────────────────────────────────────────────────
+    // A copy of every piece of content an admin removed, taken the moment
+    // before it was deleted. Written only by resolveContentReport.
+    //
+    // The content itself stays deleted — this restores no visibility. What it
+    // restores is the ability to answer three questions that used to have no
+    // answer: whether a removal was a mistake, what a salon disputing one was
+    // actually accused of, and whether an account has done it before.
+    //
+    // Admins only. Not the author: handing back a copy of what was removed,
+    // to the person it was removed from, is a way to hand them the reporter's
+    // grounds as well.
+    match /moderation_archive/{archiveId} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
+    // ── blocks ───────────────────────────────────────────────────────────────────
+    // "I do not want to see this person." Client-written, because it is one
+    // customer's own preference and affects nobody else's view — the apps filter
+    // locally on it.
+    //
+    // The document id is "{blocker}_{blocked}", which makes a block written on
+    // somebody else's behalf impossible to name rather than merely refused, and
+    // makes unblocking a delete of a known id instead of a query.
+    //
+    // Read is the blocker's own only. A list of who has blocked a salon would be
+    // a reputational fact the salon could act on, and a customer's block list is
+    // a statement about people she is avoiding.
+    match /blocks/{blockId} {
+      allow read:   if isSignedIn() && resource.data.blockerId == me();
+      allow create: if isSignedIn()
+                 && request.resource.data.blockerId == me()
+                 && request.resource.data.blockedId is string
+                 && request.resource.data.blockedId.size() > 0
+                 && request.resource.data.blockedId != me()
+                 && blockId == me() + '_' + request.resource.data.blockedId
+                 && request.resource.data.keys().hasOnly(
+                      ['blockerId', 'blockedId', 'blockedKind', 'createdAt'])
+                 // Required, not merely permitted. hasOnly says which keys MAY
+                 // appear, not which must, and both apps list blocks with
+                 // orderBy(createdAt) — an orderBy returns no document missing
+                 // the field. A block written without it would filter content
+                 // silently and never appear in the list that could lift it.
+                 && request.resource.data.createdAt is number;
+      // A block is created or removed, never edited: an editable block is a way
+      // to point an existing row at a different person.
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.blockerId == me();
     }
 
     // ── rate_limits ──────────────────────────────────────────────────────────────

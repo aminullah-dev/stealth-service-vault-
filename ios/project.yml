@@ -71,12 +71,40 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.safebeauty.app
         MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "6"
         INFOPLIST_FILE: SafeBeauty/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1"          # iPhone. The salon and admin consoles are web.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
+        # Team ID 27RXPRW77S, Apple Developer Program, individual enrollment,
+        # enrolled 2026-09-07 (renews 2027-09-08). Pinned rather than left to
+        # whichever team Xcode's Automatic signing happens to pick — this Mac
+        # had zero signing identities before that, and a second Mac or a CI
+        # runner with more than one team configured would resolve differently
+        # without this.
+        #
+        # Does NOT fix the simulator keychain failure from 2026-09-06/07
+        # (SB-AUTH FIRAuthErrorDomain 17995, securityd -34018) — checked this
+        # directly rather than assume it, on 2026-09-08: even with this team
+        # pinned, `xcodebuild ... -destination 'id=<simulator>'` still signs
+        # the app ad-hoc (`codesign --sign -`) with an EMPTY entitlements
+        # dict, confirmed by reading the actual .xcent Xcode generates.
+        # Forcing CODE_SIGN_IDENTITY[sdk=iphonesimulator*] and disabling
+        # AD_HOC_CODE_SIGNING_ALLOWED were both tried and neither changed
+        # this — the latter makes the build fail outright ("Ad Hoc code
+        # signing is not allowed with SDK 'Simulator...'"), meaning Xcode's
+        # simulator SDK requires ad-hoc signing and there is no supported way
+        # around it. This is a platform limitation of the iOS Simulator, not
+        # a project misconfiguration — see CLAUDE.md's Gotchas for what this
+        # means for testing sign-in.
+        #
+        # What this team DOES fix: a real DEVICE build (and any TestFlight /
+        # App Store build) gets application-identifier and
+        # keychain-access-groups merged in from the real provisioning profile
+        # regardless of the simulator limitation above, so sign-in should be
+        # tested on a physical iPhone or via TestFlight, not the simulator.
+        DEVELOPMENT_TEAM: 27RXPRW77S
         CODE_SIGN_ENTITLEMENTS: SafeBeauty/SafeBeauty.entitlements
     info:
       path: SafeBeauty/Resources/Info.plist
@@ -100,27 +128,41 @@ targets:
         NSLocationWhenInUseUsageDescription: >-
           SafeBeauty uses your location only to sort salons by distance. It is
           never stored and never shared.
+        # Required before iOS will show a Face ID prompt at all — without it
+        # the request fails rather than asking. Touch ID needs no equivalent.
+        NSFaceIDUsageDescription: >-
+          SafeBeauty uses Face ID so you can sign in without typing your
+          password. Your password stays on this phone and is never sent
+          anywhere.
 
-  SafeBeautyTests:
-    type: bundle.unit-test
-    platform: iOS
-    sources: [SafeBeautyTests]
-    dependencies:
-      - target: SafeBeauty
-      - package: SafeBeautyCore
-        product: SafeBeautyCore
+  # No SafeBeautyTests target. There was one, declared with sources
+  # [SafeBeautyTests], and that directory was empty from the day it was added
+  # (2026-09-04) to the day it was removed. Git does not track empty
+  # directories, so on any fresh clone the directory did not exist at all and
+  # `xcodegen generate` — the setup step CLAUDE.md tells you to run — failed
+  # outright:
+  #
+  #   Spec validation error: Target "SafeBeautyTests" has a missing source
+  #   directory ".../ios/SafeBeautyTests"
+  #
+  # Nobody saw it because CI had been billing-blocked since 2026-09-06 and
+  # this Mac had the empty directory left over locally. The first run after
+  # the block lifted found it immediately.
+  #
+  # Removed rather than filled: CI runs `swift test` against SafeBeautyCore
+  # and `xcodebuild build` against the app, never `xcodebuild test`, so an
+  # app-target test would not have run either. If app-target tests are wanted,
+  # add the target back together with real tests AND the CI step that runs
+  # them — the macOS runner bills at ten times Linux, so that is a decision,
+  # not a formality.
 
 schemes:
   SafeBeauty:
     build:
       targets:
         SafeBeauty: all
-        SafeBeautyTests: [test]
     run:
       config: Debug
-    test:
-      config: Debug
-      targets: [SafeBeautyTests]
     profile:
       config: Release
     archive:

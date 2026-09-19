@@ -10,6 +10,7 @@ struct MyBookingsView: View {
     @State private var tipping: Appointment?
     @State private var waitlist = WaitlistStore.shared
     @State private var error: String?
+    @State private var reportingVisit: Appointment?
 
     var body: some View {
         NavigationStack {
@@ -24,10 +25,10 @@ struct MyBookingsView: View {
                         Label {
                             Text(repo.error == nil ? L.noBookingsYet.t : L.couldNotLoad.t)
                                 .font(Brand.font(17, .medium))
-                                .foregroundStyle(repo.error == nil ? Brand.ink : Color(hex: 0xC0392B))
+                                .foregroundStyle(repo.error == nil ? Brand.ink : Brand.danger)
                         } icon: {
                             Image(systemName: repo.error == nil ? "calendar" : "exclamationmark.triangle")
-                                .foregroundStyle(repo.error == nil ? Brand.accent : Color(hex: 0xC0392B))
+                                .foregroundStyle(repo.error == nil ? Brand.accent : Brand.danger)
                         }
                     } description: {
                         // Only on the genuinely-empty branch: telling someone
@@ -90,7 +91,12 @@ struct MyBookingsView: View {
                                         // anything else, and the whole tip goes
                                         // to the salon — no commission.
                                         canTip: booking.status == .completed,
-                                        onTip: { tipping = booking })
+                                        onTip: { tipping = booking },
+                                        // The same window the server enforces,
+                                        // so a button she can press is one the
+                                        // server will accept.
+                                        canReportVisit: VisitReportEligibility.canReport(booking),
+                                        onReportVisit: { reportingVisit = booking })
                                 }
                             }
                         }
@@ -107,7 +113,7 @@ struct MyBookingsView: View {
                             Section {
                                 Text(L.someBookingsUnreadable.t)
                                     .font(Brand.font(12.5))
-                                    .foregroundStyle(Color(hex: 0xC0392B))
+                                    .foregroundStyle(Brand.danger)
                             }
                         }
                     }
@@ -127,6 +133,7 @@ struct MyBookingsView: View {
             }
             .sheet(item: $reviewing) { ReviewSheet(booking: $0).appDirection() }
             .sheet(item: $tipping) { TipSheet(booking: $0).appDirection() }
+            .sheet(item: $reportingVisit) { ReportVisitSheet(appointment: $0).appDirection() }
             .sheet(item: $rescheduling) { booking in
                 // The list is a live snapshot, so the moved booking redraws on
                 // its own; onMoved only has to close the sheet's own state.
@@ -155,6 +162,8 @@ struct BookingRow: View {
     var onReview: () -> Void = {}
     var canTip = false
     var onTip: () -> Void = {}
+    var canReportVisit = false
+    var onReportVisit: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -226,7 +235,7 @@ struct BookingRow: View {
                 }
                 .padding(.top, 2)
             }
-            if canReview || canTip {
+            if canReview || canTip || canReportVisit {
                 HStack(spacing: 16) {
                     if canReview {
                         Button(L.writeReview.t, action: onReview)
@@ -240,12 +249,22 @@ struct BookingRow: View {
                             .foregroundStyle(Brand.deep)
                             .buttonStyle(.borderless)
                     }
+                    // Quiet and last. Most visits are fine, and a complaint
+                    // button competing with "leave a review" invites the wrong
+                    // one. But it is on the row, not buried in support, because
+                    // the salon's own button to report HER is on its row.
+                    if canReportVisit {
+                        Button(L.reportVisitAction.t, action: onReportVisit)
+                            .font(Brand.font(12.5))
+                            .foregroundStyle(Brand.textMuted)
+                            .buttonStyle(.borderless)
+                    }
                 }
                 .padding(.top, 2)
             }
         }
         .padding(.vertical, 5)
-        .listRowBackground(Color.white)
+        .listRowBackground(Brand.surface)
     }
 
     private static func when(_ date: Date) -> String {
@@ -286,7 +305,7 @@ struct StatusPill: View {
         switch status {
         case .confirmed, .completed: Brand.deep
         case .awaitingPayment, .pending: Brand.gold
-        case .cancelled, .unknown: Color(hex: 0xC0392B)
+        case .cancelled, .unknown: Brand.danger
         }
     }
 }
@@ -338,6 +357,6 @@ struct WaitlistRow: View {
             .padding(.top, 2)
         }
         .padding(.vertical, 5)
-        .listRowBackground(Color.white)
+        .listRowBackground(Brand.surface)
     }
 }

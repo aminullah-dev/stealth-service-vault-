@@ -1,0 +1,22 @@
+{
+  "slug": "s-no-notebook",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S3. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere.",
+  "text": {
+    "fa": {
+      "sub": "برای صاحبان سالن",
+      "headline": "دفترچهٔ نوبت‌ها را ببندید",
+      "body": "نوبت‌ها در اپ ثبت می‌شوند و همیشه همراه شماست — بدون قلم، بدون خط‌خوردگی.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالون خاوندانو لپاره",
+      "headline": "د نوبتونو کتابچه بنده کړئ",
+      "body": "نوبتونه په اپ کې ثبتېږي او تل درسره وي — پرته له قلمه، پرته له ککړتیا.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

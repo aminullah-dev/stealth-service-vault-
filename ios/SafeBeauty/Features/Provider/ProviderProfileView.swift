@@ -12,6 +12,8 @@ struct ProviderProfileView: View {
     @Environment(AuthService.self) private var auth
     @State private var lang = LanguageStore.shared
     @State private var showSupport = false
+    @State private var showStaff = false
+    @State private var showOffers = false
     @State private var confirmSignOut = false
     @State private var showEdit = false
     @State private var replying: Review?
@@ -40,7 +42,7 @@ struct ProviderProfileView: View {
                     }
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                     // Above support, because it is the thing she came here to
                     // do. Only offered once the salon exists.
@@ -56,10 +58,50 @@ struct ProviderProfileView: View {
                                     .font(.system(size: 12)).foregroundStyle(Brand.accent)
                             }
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                         }
                         .buttonStyle(.plain)
                     }
+
+                    // Above Support, because it is the one that changes what
+                    // the salon can sell: with no staff there is one chair, so
+                    // two customers can never be served at the same hour
+                    // however many people work here.
+                    Button { showStaff = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.2.fill").foregroundStyle(Brand.accent)
+                            Text(L.staffTitle.t)
+                                .font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+                            Spacer()
+                            // The count, so she can see at a glance whether the
+                            // salon has the chairs she thinks it has.
+                            Text(verbatim: "\(repo.salon?.staff.count ?? 0)")
+                                .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 12)).foregroundStyle(Brand.accent)
+                        }
+                        .padding(15)
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { showOffers = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "tag.fill").foregroundStyle(Brand.accent)
+                            Text(L.offers.t)
+                                .font(Brand.font(14.5, .medium)).foregroundStyle(Brand.ink)
+                            Spacer()
+                            // Live ones, not all of them: the number she cares
+                            // about is how many a customer can see.
+                            Text(verbatim: "\(repo.offers.filter { $0.isLive() }.count)")
+                                .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 12)).foregroundStyle(Brand.accent)
+                        }
+                        .padding(15)
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
 
                     Button { showSupport = true } label: {
                         HStack(spacing: 10) {
@@ -71,14 +113,13 @@ struct ProviderProfileView: View {
                                 .font(.system(size: 12)).foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
 
-                    // The editing that is genuinely better on a bigger screen —
-                    // prices, working hours, gallery, staff — stays on the
-                    // console, and this says where rather than leaving her to
-                    // hunt for it.
+                    // What is genuinely better on a bigger screen — the
+                    // gallery, packages, offers — stays on the console, and
+                    // this says where rather than leaving her to hunt.
                     Text(L.providerConsoleHint.t)
                         .font(Brand.font(12.5)).foregroundStyle(Brand.accent)
                         .multilineTextAlignment(.center)
@@ -89,7 +130,7 @@ struct ProviderProfileView: View {
                             .font(Brand.font(15, .medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
                     .padding(.bottom, 30)
                 }
@@ -99,6 +140,8 @@ struct ProviderProfileView: View {
             .navigationTitle(L.tabMyProfile.t)
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showEdit) { EditSalonSheet(repo: repo).appDirection() }
+            .sheet(isPresented: $showStaff) { EditStaffSheet(repo: repo).appDirection() }
+            .sheet(isPresented: $showOffers) { EditOffersSheet(repo: repo).appDirection() }
             .sheet(item: $replying) { review in
                 ReplyToReviewSheet(review: review, repo: repo).appDirection()
             }
@@ -150,12 +193,12 @@ struct ProviderProfileView: View {
                 // is not will wonder why nobody books.
                 Text(salon.isAvailable ? L.salonListed.t : L.salonHidden.t)
                     .font(Brand.font(11.5, .medium))
-                    .foregroundStyle(salon.isAvailable ? Color(hex: 0x1F7A5C) : Color(hex: 0xC0392B))
+                    .foregroundStyle(salon.isAvailable ? Brand.success : Brand.danger)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(14)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func servicesCard(_ salon: Salon) -> some View {
@@ -181,7 +224,7 @@ struct ProviderProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func hoursCard(_ salon: Salon) -> some View {
@@ -206,7 +249,7 @@ struct ProviderProfileView: View {
             }
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// The salon's own week, named. dayOfWeek follows Firestore's stored
@@ -282,6 +325,6 @@ struct ProviderProfileView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 }

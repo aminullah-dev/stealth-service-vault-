@@ -18,11 +18,18 @@ struct ProfileView: View {
     @State private var referralCode = ""
     @State private var phone = ""
     @State private var showKyc = false
+    @State private var showBlocked = false
+    @State private var biometryName = BiometricVault.biometryName
+    @Environment(Moderation.self) private var moderation
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var photoItem: PhotosPickerItem?
+    /// Her own bookings, for the export. Read here rather than passed in: this
+    /// screen is the only place that needs them and the list is her own.
+    @State private var bookings = BookingsRepository()
+    @State private var exportURL: URL?
     @State private var photos = ProfilePhotoService()
     @State private var photoUrl = ""
     @State private var photoNote: String?
@@ -56,7 +63,7 @@ struct ProfileView: View {
                     }
                     .padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                     // The account actions, which the profile showed the results
                     // of and gave no way to change: her name was displayed and
@@ -92,18 +99,96 @@ struct ProfileView: View {
                                 .foregroundStyle(Brand.accent)
                         }
                         .padding(15)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                     }
                     .buttonStyle(.plain)
+
+                    // Only once she has actually blocked someone. An empty
+                    // list is a row that teaches her the app has a feature she
+                    // does not need.
+                    if !moderation.blocked.isEmpty {
+                        Button { showBlocked = true } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "hand.raised.fill")
+                                    .foregroundStyle(Brand.accent)
+                                Text(L.blockedTitle.t).font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
+                                Text(verbatim: "\(moderation.blocked.count)")
+                                    .font(Brand.font(13)).foregroundStyle(Brand.textMuted)
+                                Image(systemName: "chevron.forward").font(.system(size: 12))
+                                    .foregroundStyle(Brand.accent)
+                            }
+                            .padding(15)
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Turning it off without signing out. Only shown when
+                    // there is something to turn off, so it is not a row
+                    // explaining a feature she has not used.
+                    if BiometricVault.isEnabled, biometryName != nil {
+                        Button {
+                            BiometricVault.disable()
+                            biometryName = BiometricVault.biometryName
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "faceid").foregroundStyle(Brand.accent)
+                                Text(L.biometricTurnOff.t).font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
+                            }
+                            .padding(15)
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     Button(role: .destructive) { confirmSignOut = true } label: {
                         Text(L.signOut.t)
                             .font(Brand.font(15, .medium))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 13))
                     }
                     .padding(.top, 6)
+
+                    // Her booking history as a file she can keep, which Android
+                    // has had and iOS had not. A ShareLink rather than a button
+                    // and a sheet: iOS gives her every destination she already
+                    // uses, and the file is written before the sheet opens so
+                    // there is nothing to fail once it is up.
+                    if let exportURL {
+                        ShareLink(item: exportURL) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundStyle(Brand.accent)
+                                Text(L.exportTitle.t)
+                                    .font(Brand.font(14.5, .medium))
+                                    .foregroundStyle(Brand.ink)
+                                Spacer()
+                            }
+                            .padding(15)
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+
+                    // Terms and privacy, which iOS linked from nowhere.
+                    //
+                    // Android has had them since it shipped, in Support and on
+                    // the registration screen; the pages themselves are live at
+                    // safebeauty.web.app and are the app-facing site the deploy
+                    // notes say must stay where it is. Opened in Safari rather
+                    // than in a web view: a policy shown inside the app it
+                    // describes is a policy the app could have rewritten.
+                    HStack(spacing: 0) {
+                        legalLink(L.legalTermsLabel.t, "https://safebeauty.web.app/terms")
+                        Divider().frame(height: 22).background(Brand.petal)
+                        legalLink(L.legalPrivacyLabel.t, "https://safebeauty.web.app/privacy")
+                    }
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .padding(.top, 4)
 
                     ErrorBanner(message: deleteError)
 
@@ -118,7 +203,7 @@ struct ProfileView: View {
                             Text(L.deleteAccount.t)
                                 .font(Brand.font(13.5, .medium))
                         }
-                        .foregroundStyle(Color(hex: 0xC0392B))
+                        .foregroundStyle(Brand.danger)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
                     }
@@ -131,7 +216,16 @@ struct ProfileView: View {
             }
             .background(Brand.cream.ignoresSafeArea())
             .navigationTitle(L.profile.t)
+            .task(id: auth.session?.uid) {
+                if let uid = auth.session?.uid { bookings.start(customerId: uid) }
+            }
+            .onChange(of: bookings.upcoming.count + bookings.past.count) { _, _ in
+                refreshExport()
+            }
             .sheet(isPresented: $showKyc) { KycView().appDirection() }
+            .sheet(isPresented: $showBlocked) {
+                BlockedAccountsSheet(moderation: moderation).appDirection()
+            }
             .sheet(isPresented: $showSupport) { SupportView().appDirection() }
             .sheet(isPresented: $showChangePassword) { ChangePasswordSheet().appDirection() }
             .sheet(isPresented: $showEditName) { EditNameSheet().appDirection() }
@@ -218,7 +312,7 @@ struct ProfileView: View {
             }
             if let photoNote {
                 Text(photoNote)
-                    .font(Brand.font(12.5)).foregroundStyle(Color(hex: 0x1F7A5C))
+                    .font(Brand.font(12.5)).foregroundStyle(Brand.success)
                     .multilineTextAlignment(.center)
             }
             ErrorBanner(message: photoError)
@@ -226,7 +320,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
         .padding(.horizontal, 14)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         .onChange(of: photoItem) { _, item in
             Task { await uploadPhoto(item) }
         }
@@ -294,7 +388,7 @@ struct ProfileView: View {
             }
         }
         .padding(.vertical, 15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     /// One row shape for every account action, so they read as a set rather
@@ -372,8 +466,7 @@ struct ProfileView: View {
             _ = try await Callables.call("requestAccountDeletion")
             auth.signOut()
         } catch let e as Callables.CallableError {
-            if case .failedPrecondition(let m, _) = e { deleteError = m }
-            else { deleteError = L.errNetwork.t }
+            deleteError = e.localized ?? L.errNetwork.t
         } catch {
             deleteError = L.errNetwork.t
         }
@@ -388,7 +481,7 @@ struct ProfileView: View {
                 .foregroundStyle(Brand.accent)
         }
         .padding(15)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func statTile(_ label: String, _ value: String, suffix: String?) -> some View {
@@ -431,7 +524,7 @@ struct ProfileView: View {
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white, in: RoundedRectangle(cornerRadius: 16))
+        .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
     @ViewBuilder
@@ -456,7 +549,7 @@ struct ProfileView: View {
                 }
             }
             .padding(15)
-            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
         }
         .buttonStyle(.plain)
     }
@@ -468,6 +561,35 @@ struct ProfileView: View {
         case "REJECTED": L.kycRejected.t
         default: L.kycNone.t
         }
+    }
+
+    @ViewBuilder
+    private func legalLink(_ title: String, _ url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            Text(title)
+                .font(Brand.font(13.5, .medium))
+                .foregroundStyle(Brand.accent)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+        }
+    }
+
+    /// Writes the CSV to a temp file so ShareLink has something to hand over.
+    ///
+    /// Rewritten whenever the booking list changes, because a share sheet
+    /// offering yesterday's file is worse than no button: she would not know
+    /// it was stale.
+    private func refreshExport() {
+        // Everything, newest first — the export is a record, so a booking
+        // being in the past is exactly why she wants it in the file.
+        let all = (bookings.upcoming + bookings.past)
+            .sorted { $0.appointmentDate > $1.appointmentDate }
+        let csv = BookingExport.csv(all)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(BookingExport.filename)
+        exportURL = (try? csv.write(to: url, atomically: true, encoding: .utf8)) == nil
+            ? nil : url
     }
 
     private func load() async {

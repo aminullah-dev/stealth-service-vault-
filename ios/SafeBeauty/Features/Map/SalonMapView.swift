@@ -97,7 +97,7 @@ struct SalonMapView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 14))
+                    .background(Brand.surface, in: RoundedRectangle(cornerRadius: 14))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 14)
                 }

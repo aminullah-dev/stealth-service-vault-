@@ -95,8 +95,7 @@ struct ProviderRequestsView: View {
             // The server refuses a slot taken since the list was drawn, and
             // saying so is the whole point — she would otherwise think the
             // button was broken.
-            if case .failedPrecondition(let m, _) = e { error = m }
-            else { error = L.errNetwork.t }
+            error = e.localized ?? L.errNetwork.t
         } catch {
             self.error = L.errNetwork.t
         }

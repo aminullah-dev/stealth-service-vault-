@@ -1,0 +1,23 @@
+{
+  "slug": "b-built-here",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece B2. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "quote",
+  "text": {
+    "fa": {
+      "sub": "",
+      "quote": "به زبان خودتان، در شهر خودتان، برای خودتان ساخته شده.",
+      "attribution": "— SafeBeauty",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "",
+      "quote": "په خپله ژبه، په خپل ښار کې، ستاسو لپاره جوړ شوی.",
+      "attribution": "— SafeBeauty",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

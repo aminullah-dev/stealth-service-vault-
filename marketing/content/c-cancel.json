@@ -1,0 +1,22 @@
+{
+  "slug": "c-cancel",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece C8. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere.",
+  "text": {
+    "fa": {
+      "sub": "برنامه عوض شد؟",
+      "headline": "لغو هم به یک تماس نیاز ندارد",
+      "body": "از «رزروهای من» نوبت را لغو کنید؛ سالن همان لحظه خبر می‌شود.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "پروګرام بدل شو؟",
+      "headline": "لغوه کول هم ټلیفون ته اړتیا نلري",
+      "body": "له «زما بکینګونه» څخه نوبت لغوه کړئ؛ سالون همغه شېبه خبرېږي.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

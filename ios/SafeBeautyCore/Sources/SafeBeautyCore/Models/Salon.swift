@@ -6,6 +6,17 @@ public struct StaffMember: Codable, Hashable, Sendable, Identifiable {
     public var specialty: String = ""
     public var active: Bool = true
 
+    /// A chair the salon can be booked on. The id is what a booking stores in
+    /// `staffId`, and `hasSlotConflict` treats each distinct one as its own
+    /// chair — so an id that changes when a name is edited would silently
+    /// orphan every booking already made against it.
+    public init(id: String, name: String, specialty: String = "", active: Bool = true) {
+        self.id = id
+        self.name = name
+        self.specialty = specialty
+        self.active = active
+    }
+
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? c.decodeIfPresent(String.self, forKey: .id)).flatMap { $0 } ?? ""

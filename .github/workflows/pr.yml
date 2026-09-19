@@ -13,11 +13,26 @@ name: Pull request
 # firebase` resolved locally because it was installed globally on one laptop,
 # and "could not determine executable to run" everywhere else.
 
+# Every push to a branch with an open PR fired this workflow TWICE — once as
+# `push` on claude/**, once as `pull_request` on the same commit — so all seven
+# jobs ran twice, macos-latest included, and GitHub bills macOS minutes at ten
+# times Linux. Verified on 40a76d6 and c1d5d29: three runs per commit, two of
+# them this workflow under two different events.
+#
+# The two cannot be merged with a shared concurrency group: cancelling one
+# leaves a cancelled check on the PR, and a cancelled required check blocks the
+# merge this workflow exists to gate. So the push trigger drops claude/**
+# instead. `pull_request` already covers exactly what the header below claims —
+# nothing merges without these having run — and main is still covered on push.
+#
+# What this gives up, deliberately: a claude/** branch with NO open PR gets no
+# run of this workflow until one is opened. build-apk.yml still runs on every
+# such push, so the branch is not silent.
 on:
   pull_request:
     branches: [main]
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -91,6 +106,16 @@ jobs:
       # runs the production function, not a reimplementation, so what passes
       # here is what the webhook and the manual settle path both run.
       - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:settlement:inner"
+        # The other two steps have this and this one did not, so it ran from
+        # the repo root where firebase-tools is not installed and died with
+        # "npm error could not determine executable to run" — the exact
+        # failure this file's own header describes. Invisible until CI was
+        # unblocked on 2026-09-10, because no job had started since 09-06.
+        working-directory: functions
+      # Whether .create() really lets exactly one of ten simultaneous callers
+      # through is a property of Firestore, not of our code — and it is what
+      # stops a retried booking from being charged twice.
+      - run: npx firebase emulators:exec --only firestore --project safebeauty-ci "npm run test:idempotency:inner"
         working-directory: functions
 
   android:
@@ -142,6 +167,29 @@ jobs:
           git diff --exit-code ios/SafeBeautyCore/Sources/SafeBeautyCore/Areas.swift \
             || { echo "::error::Areas.kt changed without regenerating. Run: python3 scripts/gen-areas.py"; exit 1; }
 
+      # The app target itself, which nothing here compiled.
+      #
+      # `swift test` builds SafeBeautyCore and stops. Every screen, service and
+      # view model in ios/SafeBeauty — the large majority of the iOS code — was
+      # never compiled by CI at all, so a Swift error in any of them merged
+      # green and was found only by whoever next opened a Mac. That is the same
+      # class of hole as an unrun test, and on the platform this project is
+      # about to publish.
+      #
+      # The .xcodeproj is not in git (see project.yml), so it is generated
+      # first. Simulator destination rather than a device: no signing identity
+      # exists on a runner and none is needed to prove the code compiles.
+      - name: Generate the Xcode project
+        run: brew install xcodegen && xcodegen generate --spec project.yml
+        working-directory: ios
+      - name: iOS app builds
+        run: |
+          set -o pipefail
+          xcodebuild -project SafeBeauty.xcodeproj -scheme SafeBeauty \
+            -destination 'generic/platform=iOS Simulator' \
+            -quiet CODE_SIGNING_ALLOWED=NO build
+        working-directory: ios
+
   rules:
     name: Security rules compile
     runs-on: ubuntu-latest
@@ -189,7 +237,7 @@ jobs:
 
           # Signing material and server credentials. These are the things that
           # cannot be un-published once committed — invariant I-13.
-          if git ls-files | grep -iE '\.(jks|keystore|p12|pfx)$|keystore\.properties$|service-account.*\.json$'; then
+          if git ls-files | grep -iE '\.(jks|keystore|p12|pfx|p8)$|keystore\.properties$|service-account.*\.json$'; then
             echo "::error::A signing key or service-account credential is tracked by git."
             fail=1
           fi

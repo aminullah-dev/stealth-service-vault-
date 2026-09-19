@@ -17,7 +17,7 @@ struct NotificationsView: View {
                     ContentUnavailableView {
                         Text(L.couldNotLoad.t)
                             .font(Brand.font(17, .medium))
-                            .foregroundStyle(Color(hex: 0xC0392B))
+                            .foregroundStyle(Brand.danger)
                     }
                 } else if repo.items.isEmpty && !repo.isLoading {
                     // An icon and a sentence saying what will appear here.
@@ -41,7 +41,7 @@ struct NotificationsView: View {
                 } else {
                     List(repo.items) { item in
                         NotificationRow(item: item)
-                            .listRowBackground(item.isRead ? Color.white : Brand.petal.opacity(0.16))
+                            .listRowBackground(item.isRead ? Brand.surface : Brand.petal.opacity(0.16))
                             .onAppear { Task { await repo.markRead(item) } }
                     }
                     .listStyle(.plain)
@@ -73,7 +73,7 @@ struct NotificationRow: View {
         HStack(alignment: .top, spacing: 11) {
             Image(systemName: item.type.symbolName)
                 .font(.system(size: 16))
-                .foregroundStyle(item.type.isNegative ? Color(hex: 0xC0392B) : Brand.accent)
+                .foregroundStyle(item.type.isNegative ? Brand.danger : Brand.accent)
                 .frame(width: 26)
 
             VStack(alignment: .leading, spacing: 3) {

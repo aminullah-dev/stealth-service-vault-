@@ -47,8 +47,15 @@ private struct ChipBackground: ViewModifier {
         content
             .padding(.horizontal, 13)
             .padding(.vertical, 9)
+            // Brand.chipInactive, not Color.white. Android's equivalent chip
+            // has always read ChipInactive — the same generated token, exposed
+            // on iOS via Brand for the first time here. A hardcoded white pill
+            // on a dark screen is a bright island next to everything else that
+            // actually themed itself; this is what a customer on a dark theme
+            // saw as "broken" on 2026-09-09, reported from a real TestFlight
+            // build.
             .background(isSelected ? AnyShapeStyle(Brand.gradient)
-                                   : AnyShapeStyle(Color.white))
+                                   : AnyShapeStyle(Brand.chipInactive))
             .foregroundStyle(isSelected ? Color.white : Brand.ink)
             .clipShape(Capsule())
             .overlay(Capsule().strokeBorder(

@@ -1034,6 +1034,83 @@ class FirestoreRepository @Inject constructor(
         ref.set(comment.copy(id = ref.id)).await()
     }
 
+    // ── Moderation ───────────────────────────────────────────────────────────
+    //
+    // Reporting somebody else's post, story, comment or review, and choosing
+    // not to see them again. The app carried other people's words and pictures
+    // and offered neither, which Play's user-generated-content policy asks for
+    // and which — before any policy — left a woman looking at something ugly
+    // with nothing to do about it.
+
+    /**
+     * A customer saying what happened at a visit — the mirror of
+     * reportCustomer, which has pointed the other way since this shipped.
+     */
+    suspend fun reportVisit(appointmentId: String, reason: String, note: String) {
+        functions.getHttpsCallable("reportVisit").call(
+            hashMapOf("appointmentId" to appointmentId, "reason" to reason, "note" to note)
+        ).await()
+    }
+
+    /**
+     * Files a report. Server-side because the report has to name the content's
+     * author, and that is a fact a client must not be able to invent.
+     */
+    suspend fun reportContent(targetType: String, targetId: String, reason: String, note: String) {
+        functions.getHttpsCallable("reportContent").call(
+            hashMapOf(
+                "targetType" to targetType,
+                "targetId" to targetId,
+                "reason" to reason,
+                "note" to note,
+            )
+        ).await()
+    }
+
+    /**
+     * Blocks are one customer's own preference and change nobody else's view,
+     * so they are a direct write rather than a callable. The document id is
+     * "{blocker}_{blocked}", which is what the rules check — a block written on
+     * somebody else's behalf cannot even be named.
+     */
+    suspend fun blockAccount(myUid: String, otherUid: String, kind: String) {
+        if (myUid.isBlank() || otherUid.isBlank() || myUid == otherUid) return
+        db.collection("blocks").document("${myUid}_${otherUid}").set(
+            hashMapOf(
+                "blockerId" to myUid,
+                "blockedId" to otherUid,
+                "blockedKind" to kind,
+                "createdAt" to System.currentTimeMillis(),
+            )
+        ).await()
+    }
+
+    suspend fun unblockAccount(myUid: String, otherUid: String) {
+        if (myUid.isBlank() || otherUid.isBlank()) return
+        db.collection("blocks").document("${myUid}_${otherUid}").delete().await()
+    }
+
+    /** The uids this customer has blocked, live — she blocks from a comment
+     *  thread and the feed behind it must stop showing them without a restart. */
+    fun observeBlocked(myUid: String): Flow<Set<String>> = callbackFlow {
+        if (myUid.isBlank()) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+        val listener = db.collection("blocks")
+            .whereEqualTo("blockerId", myUid)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(500)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptySet()); return@addSnapshotListener }
+                trySend(
+                    snap?.documents
+                        ?.mapNotNull { it.getString("blockedId") }
+                        ?.filter { it.isNotBlank() }
+                        ?.toSet()
+                        ?: emptySet()
+                )
+            }
+        awaitClose { listener.remove() }
+    }
+
     suspend fun deleteComment(commentId: String) {
         if (commentId.isBlank()) return
         postCommentsCol.document(commentId).delete().await()
@@ -1527,6 +1604,66 @@ class FirestoreRepository @Inject constructor(
                 unreadForAdmin = true
             )
         ).await()
+    }
+
+    /** How many closed conversations a support thread's history listener holds. */
+    private val SUPPORT_HISTORY = 50L
+    /** A closed conversation's transcript is read in one bounded page. */
+    private val SUPPORT_TRANSCRIPT = 300L
+
+    /**
+     * The user's own closed support conversations, newest first.
+     *
+     * Like every listener here, an error emits an empty list: the thread then
+     * shows in full (as it did before history existed) rather than not at all.
+     */
+    fun observeSupportHistory(userId: String): Flow<List<SupportHistoryDocument>> = callbackFlow {
+        if (userId.isBlank()) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
+        val listener = supportTicketsCol.document(userId).collection("history")
+            .orderBy("closedAt", Query.Direction.DESCENDING)
+            .limit(SUPPORT_HISTORY)
+            .addSnapshotListener { snap, err ->
+                if (err != null) { trySend(emptyList()); return@addSnapshotListener }
+                val list = snap?.documents
+                    ?.mapNotNull { it.toObject(SupportHistoryDocument::class.java)?.copy(id = it.id) }
+                    ?: emptyList()
+                trySend(list)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    /**
+     * The messages of one closed support conversation, oldest-first.
+     *
+     * Range on timestamp + orderBy timestamp DESC uses the existing
+     * (conversationId ASC, timestamp DESC) chat index — no new index needed.
+     */
+    suspend fun supportTranscript(userId: String, openedAt: Long, closedAt: Long): List<ChatMessage> =
+        chatCol
+            .whereEqualTo("conversationId", "support_$userId")
+            .whereGreaterThanOrEqualTo("timestamp", openedAt)
+            .whereLessThanOrEqualTo("timestamp", closedAt)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(SUPPORT_TRANSCRIPT)
+            .get().await()
+            .documents
+            .mapNotNull { it.toObject(ChatMessage::class.java)?.copy(id = it.id) }
+            .reversed()
+
+    /**
+     * Rates a closed support conversation. The rules allow this once, while the
+     * rating is still 0, touching only rating / ratingComment / ratedAt — all
+     * written as integers/strings, never doubles. Throws on failure.
+     */
+    suspend fun rateSupportConversation(userId: String, historyId: String, rating: Int, comment: String) {
+        supportTicketsCol.document(userId).collection("history").document(historyId)
+            .update(
+                mapOf(
+                    "rating"        to rating.coerceIn(1, 5).toLong(),
+                    "ratingComment" to comment.trim().take(500),
+                    "ratedAt"       to System.currentTimeMillis()
+                )
+            ).await()
     }
 
     /** Admin-only: live list of open support tickets, newest first. */

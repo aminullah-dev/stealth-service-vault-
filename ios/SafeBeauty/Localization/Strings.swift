@@ -40,6 +40,236 @@ extension L {
         }
     }
 
+    /// "۲ ارائه‌دهنده پیدا شد" — the line Android shows above the list and iOS
+    /// did not. Here it counts what is on screen, which is the whole matching
+    /// set: this list is one bounded read of at most 200 salons filtered on the
+    /// device, not Android's page, so there is no page size to mistake for a
+    /// total. Past 200 salons it would become a floor rather than a count, and
+    /// the repository's limit is the thing to revisit then.
+    static func providersFound(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(n) ارائه‌دهنده پیدا شد"
+        case .pashto: "\(n) چمتو کوونکي وموندل شول"
+        case .english: n == 1 ? "1 provider found" : "\(n) providers found"
+        }
+    }
+
+    /// An authentication failure this app has no specific handling for. The
+    /// number is shown on purpose: it is the only part support can act on, and
+    /// a sentence that names nothing is indistinguishable from the app being
+    /// broken. Latin digits, matching every other number in the UI.
+    static func errUnexpectedAuth(_ code: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "ورود انجام نشد. دوباره تلاش کنید؛ اگر باز هم نشد این شماره را به پشتیبانی بگویید: \(code)"
+        case .pashto: "ننوتل ونشول. بیا هڅه وکړئ؛ که بیا هم ونشول، دا شمېره ملاتړ ته ووایاست: \(code)"
+        case .english: "Sign-in did not complete. Please try again; if it keeps failing, give support this number: \(code)"
+        }
+    }
+
+    /// The max-price chips.
+    ///
+    /// Grouped like Android's `"%,d".format(p)`, but pinned to en_US rather
+    /// than the device locale: `formatted()` on a phone set to Persian would
+    /// give ۱٬۰۰۰ in Persian digits while the salon cards next to it say
+    /// "از 80 افغانی" in Latin ones. The ≤ needs no help — the Afghani word
+    /// beside it is strong RTL, so both platforms mirror the glyph the same.
+    static func priceUnder(_ price: Int) -> String {
+        let n = price.formatted(.number.grouping(.automatic)
+            .locale(Locale(identifier: "en_US")))
+        return switch AppLanguage.current {
+        case .dari: "≤ \(n) افغانی"
+        case .pashto: "≤ \(n) افغانۍ"
+        case .english: "≤ \(n) AFN"
+        }
+    }
+
+    /// The rating-floor chips: 3.0+, 4.0+, 4.5+.
+    ///
+    /// The RIGHT-TO-LEFT MARK is not decoration. "4.5+" holds no strong
+    /// character, so SwiftUI resolves it as an LTR island and draws the plus on
+    /// the right; read right-to-left that is "+4.5". Compose takes the
+    /// paragraph direction from the layout instead, and Android puts the plus
+    /// on the left — after the number, where an RTL reader looks for it. One
+    /// invisible mark gives the string the strong character it lacks, and the
+    /// two platforms then draw the same chip.
+    ///
+    /// The number is a literal rather than `formatted()` for the same reason as
+    /// above: Android's is a literal, and a Persian locale would otherwise turn
+    /// it into ۴٫۵.
+    static func ratingAtLeast(_ value: String) -> String {
+        switch AppLanguage.current {
+        case .dari, .pashto: "\u{200F}\(value)+"
+        case .english: "\(value)+"
+        }
+    }
+
+    /// "By creating an account, you agree to our Terms and Privacy Policy."
+    ///
+    /// One markdown string per language rather than Android's five concatenated
+    /// Text views. SwiftUI parses the links itself, and a sentence assembled
+    /// from prefix + label + "and" + label + suffix is exactly the shape that
+    /// reads as machine output in at least one of the three — worse in RTL,
+    /// where the fragments are laid out right to left and the punctuation ends
+    /// up on the wrong side.
+    static func registerConsent() -> AttributedString {
+        let terms = "https://safebeauty.web.app/terms"
+        let privacy = "https://safebeauty.web.app/privacy"
+        let markdown = switch AppLanguage.current {
+        case .dari:
+            "با ایجاد حساب، شما [\(legalTermsLabel.t)](\(terms)) و [\(legalPrivacyLabel.t)](\(privacy)) را می‌پذیرید."
+        case .pashto:
+            "د حساب په جوړولو سره، تاسو زموږ [\(legalTermsLabel.t)](\(terms)) او [\(legalPrivacyLabel.t)](\(privacy)) مني."
+        case .english:
+            "By creating an account, you agree to our [\(legalTermsLabel.t)](\(terms)) and [\(legalPrivacyLabel.t)](\(privacy))."
+        }
+        return (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }
+
+    /// "Sign in with Face ID" — the sensor named by the phone itself.
+    static func biometricSignIn(_ kind: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "ورود با \(kind)"
+        case .pashto: "د \(kind) سره ننوتل"
+        case .english: "Sign in with \(kind)"
+        }
+    }
+
+    /// Why the system sheet is asking. Shown by iOS, not by this app.
+    static func biometricReason(_ kind: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "برای ورود به SafeBeauty"
+        case .pashto: "SafeBeauty ته د ننوتلو لپاره"
+        case .english: "to sign in to SafeBeauty"
+        }
+    }
+
+    /// The server's machine code, said in her language.
+    ///
+    /// Eight screens used to render the raw `HttpsError` message, which is an
+    /// English sentence written for a log — so a customer whose slot had just
+    /// been taken read "That time is no longer available." in English, in an
+    /// app she had set to Dari. The sentence was accurate and unreadable.
+    ///
+    /// `details.reason` already existed and already carried SLOT_TAKEN,
+    /// SALON_CLOSED and a few others for the booking path; this is the same
+    /// mechanism extended to every refusal a customer or a salon owner can
+    /// actually cause.
+    ///
+    /// Returns nil for a code this build does not know, and the caller falls
+    /// back to the server's sentence. A newer server saying something in
+    /// English beats an older app saying nothing.
+    static func reason(_ code: String?) -> String? {
+        guard let code else { return nil }
+        switch code {
+        case "SLOT_TAKEN": return L(
+            fa: "این ساعت همین حالا رزرو شد. ساعت دیگری انتخاب کنید.",
+            ps: "دا وخت همدا اوس ونیول شو. بل وخت وټاکئ.",
+            en: "That time was just taken. Please pick another.").t
+        case "STAFF_UNAVAILABLE": return L(
+            fa: "این آرایشگر در آن ساعت آزاد نیست.",
+            ps: "دا آرایشګر په هغه وخت کې خالي نه دی.",
+            en: "That stylist is not free at that time.").t
+        case "SALON_CLOSED": return L(
+            fa: "سالن در آن روز بسته است.", ps: "سالون په هغه ورځ تړلی دی.",
+            en: "The salon is closed that day.").t
+        case "SALON_UNAVAILABLE": return L(
+            fa: "این سالن فعلاً رزرو نمی‌پذیرد.", ps: "دا سالون اوس مهال بکینګ نه اخلي.",
+            en: "This salon is not taking bookings right now.").t
+        case "CANCEL_TOO_LATE": return L(
+            fa: "برای لغو دیر شده. با سالن تماس بگیرید.",
+            ps: "د لغوه کولو لپاره ناوخته دی. له سالون سره اړیکه ونیسئ.",
+            en: "It is too late to cancel. Please contact the salon.").t
+        case "RESCHEDULE_TOO_LATE": return L(
+            fa: "برای تغییر زمان دیر شده. با سالن تماس بگیرید.",
+            ps: "د وخت بدلولو لپاره ناوخته دی. له سالون سره اړیکه ونیسئ.",
+            en: "It is too late to move this booking. Please contact the salon.").t
+        case "NOT_PENDING": return L(
+            fa: "این رزرو دیگر در انتظار تأیید نیست.",
+            ps: "دا بکینګ نور د تایید په تمه نه دی.",
+            en: "This booking is no longer waiting for a decision.").t
+        case "ALREADY_REVIEWED": return L(
+            fa: "برای این نوبت قبلاً نظر داده‌اید.",
+            ps: "تاسو د دې نوبت لپاره مخکې نظر ورکړی.",
+            en: "You have already reviewed this visit.").t
+        case "REVIEW_TOO_EARLY": return L(
+            fa: "بعد از نوبت‌تان می‌توانید نظر بدهید.",
+            ps: "د خپل نوبت وروسته کولی شئ نظر ورکړئ.",
+            en: "You can leave a review after your visit.").t
+        case "NOT_REVIEWABLE": return L(
+            fa: "این رزرو قابل نظر دادن نیست.", ps: "دې بکینګ ته نظر نه ورکول کیږي.",
+            en: "This booking cannot be reviewed.").t
+        case "PROMO_INACTIVE": return L(
+            fa: "این کد دیگر فعال نیست.", ps: "دا کوډ نور فعال نه دی.",
+            en: "This code is no longer active.").t
+        case "PROMO_EXPIRED": return L(
+            fa: "این کد منقضی شده است.", ps: "د دې کوډ نېټه تېره ده.",
+            en: "This code has expired.").t
+        case "PROMO_LIMIT": return L(
+            fa: "این کد به سقف استفاده رسیده است.",
+            ps: "دا کوډ خپلې پولې ته رسېدلی دی.",
+            en: "This code has reached its limit.").t
+        case "KYC_REQUIRED": return L(
+            fa: "پیش از رزرو، هویت‌تان را تأیید کنید.",
+            ps: "له بکینګ مخکې خپله پیژندنه تایید کړئ.",
+            en: "Verify your identity before booking.").t
+        case "KYC_PHOTOS_MISSING": return L(
+            fa: "هر دو عکس باید بارگذاری شوند.", ps: "دواړه عکسونه باید پورته شي.",
+            en: "Both photos must be uploaded first.").t
+        case "KYC_UNDER_REVIEW": return L(
+            fa: "درخواست شما در حال بررسی است.", ps: "ستاسو غوښتنه د کتنې لاندې ده.",
+            en: "Your verification is already under review.").t
+        case "KYC_VERIFIED": return L(
+            fa: "هویت شما قبلاً تأیید شده است.", ps: "ستاسو پیژندنه مخکې تایید شوې ده.",
+            en: "You are already verified.").t
+        case "OWN_SALON": return L(
+            fa: "نمی‌توانید در سالن خودتان رزرو کنید.",
+            ps: "په خپل سالون کې بکینګ نشئ کولی.",
+            en: "You cannot book your own salon.").t
+        case "OWN_CONTENT": return L(
+            fa: "می‌توانید نوشتهٔ خودتان را پاک کنید.",
+            ps: "خپله لیکنه پخپله لرې کولی شئ.",
+            en: "You can delete your own content instead.").t
+        case "NO_BOOKABLE_SERVICE": return L(
+            fa: "هیچ مهمانی خدمت قابل رزرو ندارد.",
+            ps: "هیڅ مېلمه د بکینګ وړ خدمت نه لري.",
+            en: "No guest has a bookable service.").t
+        case "NO_PRICE": return L(
+            fa: "این خدمت قیمت معتبر ندارد.", ps: "دا خدمت سمه بیه نه لري.",
+            en: "This service has no valid price.").t
+        case "NO_PASSWORD": return L(
+            fa: "این حساب رمز عبور ندارد. با پشتیبانی تماس بگیرید.",
+            ps: "دا حساب پټنوم نه لري. له ملاتړ سره اړیکه ونیسئ.",
+            en: "This account has no password. Please contact support.").t
+        case "VISIT_TOO_EARLY": return L(
+            fa: "بعد از وقت نوبت می‌توانید گزارش بدهید.",
+            ps: "د نوبت له وخته وروسته راپور ورکولی شئ.",
+            en: "You can report this after the appointment time.").t
+        case "VISIT_TOO_LATE": return L(
+            fa: "مهلت گزارش این نوبت گذشته است. با پشتیبانی تماس بگیرید.",
+            ps: "د دې نوبت د راپور موده تېره ده. له ملاتړ سره اړیکه ونیسئ.",
+            en: "It is too late to report this visit. Please contact support.").t
+        case "VISIT_ALREADY_REPORTED": return L(
+            fa: "این نوبت را قبلاً گزارش کرده‌اید.",
+            ps: "تاسو دا نوبت مخکې راپور کړی دی.",
+            en: "You have already reported this visit.").t
+        case "VISIT_NOT_REPORTABLE": return L(
+            fa: "این رزرو قابل گزارش نیست.", ps: "دې بکینګ ته راپور نه ورکول کیږي.",
+            en: "This booking cannot be reported.").t
+        case "IN_FLIGHT": return L(
+            fa: "این رزرو همین حالا در حال ثبت است. یک لحظه صبر کنید.",
+            ps: "دا بکینګ همدا اوس ثبتیږي. یوه شېبه صبر وکړئ.",
+            en: "This booking is being created. Please wait a moment.").t
+        case "FREE_USE_CASH": return L(
+            fa: "برای این رزرو رایگان، پرداخت نقدی را انتخاب کنید.",
+            ps: "د دې وړیا بکینګ لپاره نغدي تادیه وټاکئ.",
+            en: "Choose cash payment for this free booking.").t
+        case "HAS_HISTORY": return L(
+            fa: "این حساب سابقهٔ رزرو دارد.", ps: "دا حساب د بکینګ سابقه لري.",
+            en: "This account has booking history.").t
+        default: return nil
+        }
+    }
+
     static func resetSentTo(_ email: String) -> String {
         switch AppLanguage.current {
         case .dari: "لینک بازنشانی به \(email) فرستاده شد. صندوق ورودی خود را ببینید."
@@ -80,6 +310,15 @@ extension L {
         case .dari: "\(n) ستاره"
         case .pashto: "\(n) ستوري"
         case .english: n == 1 ? "1 star" : "\(n) stars"
+        }
+    }
+
+    /// The size of a past support conversation, on its history row.
+    static func supportMessagesCount(_ n: Int) -> String {
+        switch AppLanguage.current {
+        case .dari: "\(n) پیام"
+        case .pashto: n == 1 ? "1 پیغام" : "\(n) پیغامونه"
+        case .english: n == 1 ? "1 message" : "\(n) messages"
         }
     }
 
@@ -248,10 +487,27 @@ extension L {
         fa: "این نوبت گرفته نشد. ساعت یا روز دیگری را امتحان کنید.",
         ps: "دا نوبت ونه نیول شو. بل وخت یا بله ورځ وآزمویئ.",
         en: "That booking could not be made. Please try another time or day.")
+    // Not "check your internet". The server has already confirmed the password
+    // by this point; what failed is the second store, and she cannot fix that
+    // by moving nearer the window.
+    static let errCredentialsOutOfSync = L(
+        fa: "رمز شما درست است ولی ورود ممکن نشد. لطفاً با پشتیبانی تماس بگیرید تا رمزتان را بازنشانی کنند.",
+        ps: "ستاسو پټنوم سم دی خو ننوتل ونشول. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ چې پټنوم مو بیا تنظیم کړي.",
+        en: "Your password is correct but sign-in failed. Please contact support to have it reset.")
     static let errNetwork = L(
         fa: "اتصال برقرار نشد. اینترنت خود را بررسی کنید.",
         ps: "اړیکه ونه نیول شوه. خپل انټرنټ وګورئ.",
         en: "Could not connect. Please check your internet.")
+    // FIRAuthErrorDomain 17995. The password is right, the network is fine,
+    // and the sign-in request itself succeeded — the phone simply could not
+    // store the session. Restarting is the fix that works often enough to be
+    // worth naming; support cannot repair a keychain from their side, so
+    // sending her there would waste both their time.
+    static let errDeviceKeychain = L(
+        fa: "این دستگاه نتوانست ورود شما را ذخیره کند. یک بار گوشی را خاموش و روشن کنید و دوباره تلاش کنید.",
+        ps: "دې وسیلې ستاسو ننوتل ونه ساتل شول. یو ځل موبایل بند او بیا چالان کړئ او بیا هڅه وکړئ.",
+        en: "This device could not save your sign-in. Please restart the phone and try again.")
+
 
     // MARK: Validation
     static let errNameRequired = L(fa: "نام لازم است.", ps: "نوم اړین دی.", en: "Name is required.")
@@ -412,6 +668,21 @@ extension L {
         fa: "برای رزرو، اول هویت خود را تأیید کنید.",
         ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
         en: "Verify your identity before booking.")
+    /// Shown in place of `verifyToBook` when she has no account at all yet —
+    /// tapping this opens sign-in/registration, not the KYC form, which needs
+    /// a real account to submit to and would otherwise fail silently for a
+    /// browsing visitor.
+    static let signInToBook = L(
+        fa: "برای رزرو، اول وارد شوید.",
+        ps: "د بکینګ لپاره لومړی ننوځئ.",
+        en: "Sign in before booking.")
+    /// The generic version, for anything else that needs a real account while
+    /// she is browsing without one — favouriting a salon, messaging one, or
+    /// opening notifications.
+    static let signInToContinue = L(
+        fa: "برای این کار ابتدا وارد شوید.",
+        ps: "د دې کار لپاره لومړی ننوځئ.",
+        en: "Sign in to continue.")
 
     // MARK: Notifications & profile
     static let notifications = L(fa: "اعلان‌ها", ps: "خبرتیاوې", en: "Notifications")
@@ -664,10 +935,13 @@ extension L {
     static let closedDay = L(fa: "تعطیل", ps: "رخصت", en: "Closed")
     static let salonListed = L(fa: "در فهرست است", ps: "په لیست کې دی", en: "Listed")
     static let salonHidden = L(fa: "در فهرست نیست", ps: "په لیست کې نه دی", en: "Not listed")
+    // Prices, hours and staff are all editable on the phone now, so naming
+    // them here sent her to a computer for work she could already do. What is
+    // left is the photo-and-table work a phone genuinely makes worse.
     static let providerConsoleHint = L(
-        fa: "برای ویرایش قیمت‌ها، ساعات کاری، گالری و کارمندان، کنسول سالن را در کامپیوتر باز کنید: safebeauty.web.app/provider",
-        ps: "د بیو، د کار ساعتونو، ګالرۍ او کارمندانو د سمولو لپاره، په کمپیوټر کې د سالون کنسول پرانیځئ: safebeauty.web.app/provider",
-        en: "To edit prices, working hours, gallery and staff, open the salon console on a computer: safebeauty.web.app/provider")
+        fa: "برای گالری، پکیج‌ها و آفرها، کنسول سالن را در کامپیوتر باز کنید: safebeauty.web.app/provider",
+        ps: "د ګالرۍ، بستو او وړاندیزونو لپاره، په کمپیوټر کې د سالون کنسول پرانیځئ: safebeauty.web.app/provider",
+        en: "For the gallery, packages and offers, open the salon console on a computer: safebeauty.web.app/provider")
     static let noSalonYet = L(
         fa: "سالن شما هنوز ساخته نشده. پس از تأیید ادمین اینجا ظاهر می‌شود.",
         ps: "ستاسو سالون لا نه دی جوړ شوی. د اډمین له تاییده وروسته دلته ښکاري.",
@@ -797,6 +1071,13 @@ extension L {
                                    en: "Remove from favorites")
     static let allNeighbourhoods = L(fa: "همه محله‌ها", ps: "ټول ګاونډونه",
                                      en: "All neighborhoods")
+    /// The two levels an Afghan address is given at, as menu section headers.
+    /// Not from AppStrings.kt — Android's dropdown is one flat list, and one
+    /// flat list of Kabul's 64 areas is a wall. Plain plurals of the two words
+    /// already in `allNeighbourhoods` and `Areas`, so nothing new is invented.
+    static let districtsGroup = L(fa: "ناحیه‌ها", ps: "ناحیې", en: "Districts")
+    static let neighbourhoodsGroup = L(fa: "محله‌ها", ps: "ګاونډونه",
+                                       en: "Neighborhoods")
 
     // MARK: Service categories
     // The Android values verbatim. The Pashto for eyebrows is وروځې — وریځې is
@@ -811,6 +1092,203 @@ extension L {
     static let noMatches = L(fa: "چیزی پیدا نشد.", ps: "څه ونه موندل شول.", en: "Nothing found.")
     static let clearFilters = L(fa: "پاک کردن فیلترها", ps: "فلټرونه پاکول",
                                 en: "Clear filters")
+
+    // MARK: Filters & sort
+    // The Android values verbatim — AppStrings.kt filtersButton…maxPriceLabel,
+    // plus the two location sentences the Nearest sort needs. The whole sheet
+    // existed on Android and not here, so on an iPhone there was no way to sort
+    // by price, by rating or by distance at all.
+    static let filtersButton = L(fa: "فیلترها", ps: "فلټرونه", en: "Filters")
+    static let filtersTitle = L(fa: "فیلتر و مرتب‌سازی", ps: "فلټر او ترتیب",
+                                en: "Filters & sort")
+    static let filtersReset = L(fa: "بازنشانی", ps: "بیا تنظیم", en: "Reset")
+    static let sortByLabel = L(fa: "مرتب‌سازی بر اساس", ps: "ترتیب پر بنسټ",
+                               en: "Sort by")
+    static let sortRecommended = L(fa: "پیشنهادی", ps: "وړاندیز شوی",
+                                   en: "Recommended")
+    static let sortNearest = L(fa: "نزدیک‌ترین", ps: "نږدې", en: "Nearest")
+    static let sortTopRated = L(fa: "بالاترین امتیاز", ps: "لوړ امتیاز",
+                                en: "Top rated")
+    static let sortCheapest = L(fa: "ارزان‌ترین", ps: "ارزانه", en: "Cheapest")
+    static let minRatingLabel = L(fa: "حداقل امتیاز", ps: "لږ تر لږه امتیاز",
+                                  en: "Minimum rating")
+    static let maxPriceLabel = L(fa: "سقف قیمت شروع", ps: "د پیل اعظمي بیه",
+                                 en: "Max starting price")
+    static let filterAny = L(fa: "همه", ps: "ټول", en: "Any")
+    static let locationUnavailable = L(
+        fa: "موقعیت پیدا نشد. در فضای باز دوباره امتحان کنید.",
+        ps: "موقعیت ونه موندل شو. په خلاصه فضا کې بیا هڅه وکړئ.",
+        en: "Couldn't get a location fix. Try again outdoors.")
+    static let locationPermissionNeeded = L(
+        fa: "برای این کار اجازهٔ دسترسی به موقعیت لازم است.",
+        ps: "د دې کار لپاره د موقعیت اجازه اړینه ده.",
+        en: "Location permission is needed to do this.")
+    // MARK: Reporting and blocking
+    // Not from AppStrings.kt — Android has none of this either. The app carries
+    // salon photos, stories, customer comments and customer reviews and had no
+    // way to report any of it, which is an App Store rejection on its own
+    // (Guideline 1.2) and, before that, a woman with no recourse.
+    static let reportTitle = L(fa: "گزارش محتوا", ps: "د محتوا راپور",
+                               en: "Report content")
+    static let reportAction = L(fa: "گزارش", ps: "راپور", en: "Report")
+    static let reportWhy = L(fa: "مشکل چیست؟", ps: "ستونزه څه ده؟",
+                             en: "What is wrong with it?")
+    static let reportHarassment = L(fa: "آزار و توهین", ps: "ځورونه او سپکاوی",
+                                    en: "Harassment or abuse")
+    static let reportNudity = L(fa: "محتوای غیراخلاقی", ps: "غیراخلاقي محتوا",
+                                en: "Nudity or sexual content")
+    static let reportHate = L(fa: "نفرت‌پراکنی", ps: "کرکه خپرول",
+                              en: "Hate speech")
+    static let reportScam = L(fa: "کلاهبرداری", ps: "درغلي", en: "Scam or fraud")
+    static let reportSpam = L(fa: "تبلیغ ناخواسته", ps: "ناغوښتی اعلان", en: "Spam")
+    static let reportOther = L(fa: "چیز دیگر", ps: "بل څه", en: "Something else")
+    static let reportNotePlaceholder = L(
+        fa: "اگر می‌خواهید توضیح بدهید (اختیاری)",
+        ps: "که غواړئ تشریح یې کړئ (اختیاري)",
+        en: "Tell us more, if you want to (optional)")
+    static let reportSubmit = L(fa: "فرستادن گزارش", ps: "راپور لېږل",
+                                en: "Send report")
+    static let reportAlsoBlock = L(fa: "این حساب را هم مسدود کن",
+                                   ps: "دا حساب هم بند کړه",
+                                   en: "Also block this account")
+    static let reportAlsoBlockHint = L(
+        fa: "دیگر هیچ نوشته و عکسی از او نمی‌بینید.",
+        ps: "نور به یې هیڅ لیکنه او عکس ونه وینئ.",
+        en: "You will not see anything from them again.")
+    static let reportSentTitle = L(fa: "گزارش شما رسید", ps: "ستاسو راپور ورسېد",
+                                   en: "Report received")
+    // The 24-hour commitment Apple asks for, said to her and not only promised
+    // to the reviewer. It is also the honest answer to "what happens now".
+    static let reportSentBody = L(
+        fa: "تیم SafeBeauty در کمتر از ۲۴ ساعت آن را بررسی می‌کند. نام شما به کسی گفته نمی‌شود.",
+        ps: "د SafeBeauty ټیم به یې په ۲۴ ساعتونو کې وګوري. ستاسو نوم هیچا ته نه ویل کیږي.",
+        en: "The SafeBeauty team reviews it within 24 hours. Your name is never shared.")
+    static let unblockAction = L(fa: "رفع مسدودی", ps: "بند لرې کول", en: "Unblock")
+    static let blockedTitle = L(fa: "حساب‌های مسدودشده", ps: "بند شوي حسابونه",
+                                en: "Blocked accounts")
+    static let blockedEmpty = L(fa: "کسی را مسدود نکرده‌اید.",
+                                ps: "تاسو څوک نه دي بند کړي.",
+                                en: "You have not blocked anyone.")
+    static let blockedHidden = L(fa: "محتوای یک حساب مسدودشده پنهان شد.",
+                                 ps: "د یو بند شوي حساب محتوا پټه شوه.",
+                                 en: "Content from a blocked account is hidden.")
+
+    // MARK: Legal
+    // The Android values verbatim (AppStrings.kt legalTermsLabel /
+    // legalPrivacyLabel). Android has linked these from Support and from the
+    // registration screen since it shipped; iOS linked them from nowhere, and
+    // both stores expect an app that collects a phone number and a photograph
+    // of an identity document to say where its terms are.
+    static let legalTermsLabel = L(fa: "شرایط استفاده", ps: "د کارونې شرایط",
+                                   en: "Terms of Service")
+    static let legalPrivacyLabel = L(fa: "سیاست حریم خصوصی", ps: "د محرمیت تګلاره",
+                                     en: "Privacy Policy")
+
+    // MARK: Biometric sign-in
+    // Android's equivalents say "fingerprint", because that is all it offers.
+    // An iPhone naming the wrong sensor is telling her something false about
+    // her own phone, so these take the name the device reports — Face ID,
+    // Touch ID — and the brand names stay Latin, which is how they are written
+    // in Dari and Pashto anyway.
+    static let biometricEnableLabel = L(
+        fa: "دفعهٔ بعد بدون رمز وارد شوم",
+        ps: "بل ځل پرته له پټنوم ننوځم",
+        en: "Sign in without my password next time")
+    static let biometricTurnOff = L(fa: "خاموش کردن ورود سریع",
+                                    ps: "چټک ننوتل بندول",
+                                    en: "Turn off quick sign-in")
+
+    // MARK: Provider analytics
+    // "Pending" as a stat-card label, from AppStrings.kt verbatim. No
+    // tabAnalytics here: iOS keeps the numbers inside the Income tab rather
+    // than in a sixth tab, because a sixth tab is the one iOS folds into
+    // "More".
+    static let pending = L(fa: "معلق", ps: "انتظار", en: "Pending")
+
+    // MARK: Staff
+    // The Android values verbatim (AppStrings.kt staffHint…staffRemove).
+    // staffTitle has no Android counterpart — Android's section carries an
+    // icon and the hint; iOS sheets are titled.
+    static let staffTitle = L(
+        fa: "آرایشگران",
+        ps: "آرایشګران",
+        en: "Stylists")
+    static let staffHint = L(
+        fa: "آرایشگر اضافه کنید تا مشتری بتواند فرد مشخصی را رزرو کند. هر آرایشگر فعال در هر بازهٔ زمانی یک رزرو می‌پذیرد.",
+        ps: "آرایشګر اضافه کړئ ترڅو پیرودونکی یو ټاکلی کس بک کولی شي. هر فعال آرایشګر په هره وخت کې یو بکینګ اخلي.",
+        en: "Add stylists so customers can book a specific person. Each active stylist can take one booking per time slot.")
+    static let staffEmpty = L(
+        fa: "آرایشگری اضافه نشده — سالن تک‌نفره است.",
+        ps: "هیڅ کارکوونکی نه دی اضافه شوی — دا یو یو-کسیز سالون دی.",
+        en: "No staff added — this is a solo salon.")
+    static let staffNameLabel = L(
+        fa: "نام آرایشگر",
+        ps: "د آرایشګر نوم",
+        en: "Stylist name")
+    static let staffSpecialtyLabel = L(
+        fa: "تخصص (اختیاری)",
+        ps: "تخصص (اختیاري)",
+        en: "Specialty (optional)")
+    static let staffAdd = L(
+        fa: "افزودن آرایشگر",
+        ps: "آرایشګر اضافه کړئ",
+        en: "Add stylist")
+    static let staffRemove = L(
+        fa: "حذف آرایشگر",
+        ps: "آرایشګر لرې کړئ",
+        en: "Remove stylist")
+
+    // MARK: Provider offers
+    // The Android values verbatim (AppStrings.kt addOffer…offerActive).
+    // offerRemove has no Android counterpart — Android deletes from a
+    // long-press menu; this is a button and buttons need names.
+    static let addOffer = L(fa: "افزودن پیشنهاد", ps: "وړاندیز اضافه کړئ", en: "Add offer")
+    static let offerTitleHint = L(fa: "عنوان پیشنهاد (مثلاً ۲۰٪ تخفیف ناخن)", ps: "د وړاندیز سرلیک (لکه ۲۰٪ د نوکانو تخفیف)", en: "Offer title (e.g. 20% off nails)")
+    static let offerDescHint = L(fa: "توضیح (اختیاری)", ps: "تفصیل (اختیاري)", en: "Details (optional)")
+    static let offerPercentHint = L(fa: "درصد تخفیف (اختیاری)", ps: "د تخفیف سلنه (اختیاري)", en: "Discount % (optional)")
+    static let noOffersYet = L(fa: "هنوز پیشنهادی نیست", ps: "تر اوسه وړاندیز نشته", en: "No offers yet")
+    static let offerActive = L(fa: "فعال", ps: "فعال", en: "Active")
+    static let offerRemove = L(fa: "حذف پیشنهاد", ps: "وړاندیز لرې کول", en: "Remove offer")
+
+    // The Android value verbatim. Only an accessibility label here — the heart
+    // itself is the control, and a word beside it would say what the icon says.
+    static let feedLikes = L(fa: "پسندها", ps: "خوښې", en: "Likes")
+
+    // MARK: Export
+    // The Android values verbatim (AppStrings.kt exportTitle).
+    static let exportTitle = L(fa: "خروجی داده‌های من", ps: "زما معلومات صادرول",
+                               en: "Export My Data")
+
+    // MARK: Reporting a visit
+    // The mirror of what a salon can already say about a customer. No Android
+    // counterpart to copy — Android has none of this either, and gets the same
+    // values in AppStrings.kt.
+    static let reportVisitTitle = L(fa: "گزارش این نوبت", ps: "د دې نوبت راپور",
+                                    en: "Report this visit")
+    static let reportVisitAction = L(fa: "مشکلی پیش آمد؟", ps: "کومه ستونزه وشوه؟",
+                                     en: "Something went wrong?")
+    static let reportVisitWhy = L(fa: "چه اتفاقی افتاد؟", ps: "څه پېښ شول؟",
+                                  en: "What happened?")
+    static let visitNotServed = L(fa: "رفتم ولی خدمتی نگرفتم",
+                                  ps: "ورغلم خو خدمت رانه نکړ",
+                                  en: "I went and was not served")
+    static let visitTurnedAway = L(fa: "مرا نپذیرفتند", ps: "ما یې ونه منله",
+                                   en: "They turned me away")
+    static let visitDifferentService = L(fa: "خدمت دیگری به من دادند",
+                                         ps: "بل خدمت یې راکړ",
+                                         en: "I was given a different service")
+    static let visitOvercharged = L(fa: "بیشتر از قیمت توافق‌شده خواستند",
+                                    ps: "له هوکړه شوې بیې زیات یې وغوښتل",
+                                    en: "I was asked to pay more than agreed")
+    static let visitSafety = L(fa: "با من بد رفتار شد", ps: "زما سره بد چلند وشو",
+                               en: "I was treated badly")
+    static let reportVisitSentTitle = L(fa: "گزارش شما رسید", ps: "ستاسو راپور ورسېد",
+                                        en: "Report received")
+    static let reportVisitSentBody = L(
+        fa: "تیم SafeBeauty آن را بررسی می‌کند و اگر پولی برگشتنی باشد، برمی‌گردانیم. سالن نام شما را از ما نمی‌شنود.",
+        ps: "د SafeBeauty ټیم به یې وګوري او که پیسې بیرته کېدونکې وي، بیرته به یې درکړو. سالون به ستاسو نوم زموږ له خوا وا نه وري.",
+        en: "The SafeBeauty team will look into it, and refund you if money is owed back. The salon does not hear your name from us.")
+
     static let support = L(fa: "پشتیبانی", ps: "ملاتړ", en: "Support")
     static let typeMessage = L(fa: "پیام‌تان را بنویسید…", ps: "خپل پیغام ولیکئ…",
                                en: "Write your message…")
@@ -818,6 +1296,33 @@ extension L {
         fa: "هر سؤال یا مشکلی داشتید بنویسید. تیم SafeBeauty جواب می‌دهد.",
         ps: "هره پوښتنه یا ستونزه مو وه ولیکئ. د SafeBeauty ټیم ځواب درکوي.",
         en: "Write any question or problem. The SafeBeauty team will reply.")
+    // Support history: a closed ticket becomes a past conversation she can
+    // reopen read-only and rate once.
+    static let supportHistory = L(fa: "گفتگوهای قبلی", ps: "پخوانۍ خبرې اترې",
+                                  en: "Past conversations")
+    static let supportHistoryEmpty = L(
+        fa: "هنوز گفتگوی بسته‌شده‌ای ندارید.", ps: "تر اوسه تړل شوې خبرې اترې نه لرئ.",
+        en: "You have no closed conversations yet.")
+    static let supportConversation = L(fa: "گفتگو", ps: "خبرې اترې", en: "Conversation")
+    static let rateConversationTitle = L(
+        fa: "گفتگوی آخرتان با پشتیبانی چطور بود؟",
+        ps: "له ملاتړ سره مو وروستۍ خبرې اترې څنګه وې؟",
+        en: "How was your last conversation with support?")
+    static let rateThisConversation = L(
+        fa: "به این گفتگو امتیاز بدهید", ps: "دې خبرو اترو ته امتیاز ورکړئ",
+        en: "Rate this conversation")
+    static let rateConversationCommentPlaceholder = L(
+        fa: "چیزی بنویسید (اختیاری)", ps: "څه ولیکئ (اختیاري)",
+        en: "Add a comment (optional)")
+    static let submitRating = L(fa: "ثبت امتیاز", ps: "امتیاز لېږل", en: "Submit rating")
+    static let notNow = L(fa: "حالا نه", ps: "اوس نه", en: "Not now")
+    static let ratingThanks = L(fa: "ممنون از نظرتان!", ps: "د نظر لپاره مو مننه!",
+                                en: "Thank you for your feedback!")
+    static let ratingNotSaved = L(
+        fa: "امتیاز ثبت نشد. دوباره تلاش کنید.", ps: "امتیاز ثبت نه شو. بیا هڅه وکړئ.",
+        en: "Your rating was not saved. Please try again.")
+    static let notRated = L(fa: "امتیاز داده نشده", ps: "امتیاز نه دی ورکړل شوی",
+                            en: "Not rated")
 
     // MARK: Discover & map
     static let discover = L(fa: "کشف", ps: "کشف", en: "Discover")

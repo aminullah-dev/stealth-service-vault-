@@ -3,12 +3,22 @@
 // Every export here is registered by index.js re-exporting this module,
 // so the deployed function set is unchanged by the move.
 
+const { onCall } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { admin, alertable, db, logger } = require("../shared");
+const { admin, alertable, assertAdmin, db, logAdminAction, logger } = require("../shared");
 
 const { hasBookableWeek } = require("../lib/hours");
+const { shouldPurge } = require("../lib/kycretention");
+// An absolute time, not "every 24 hours".
+//
+// A relative interval is measured from the last deploy, so every
+// `firebase deploy --only functions` pushed this another day out. This project
+// deploys most days, and the scheduler agreed: last attempt 2026-09-04, next
+// run exactly 24h after a DEPLOYMENT_ROLLOUT. It had missed two days and would
+// have gone on missing them. Every other daily job here already uses a
+// wall-clock time, which is why they were all firing and these two were not.
 exports.cleanupRateLimits = onSchedule(
-  { schedule: "every 24 hours", region: "us-central1" },
+  { schedule: "every day 03:30", timeZone: "Asia/Kabul", region: "us-central1" },
   async () => {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const snap = await db.collection("rate_limits")
@@ -560,3 +570,114 @@ async function runIntegritySweep() {
 // `type` is NOT the key: several distinct messages share type "SYSTEM".
 
 exports.parseGsUri = parseGsUri;
+
+// ── purgeKycImages ────────────────────────────────────────────────────────────
+//
+// Deletes the photograph and keeps the fact.
+//
+// This app asks a woman in Afghanistan to photograph her tazkira and her own
+// face. Those two images are the most dangerous thing it holds — they are the
+// reason every safety rule in this product exists — and they were kept
+// forever. On the day this was written there were six of them in production
+// for three verified accounts, the oldest fifty-seven days old, and nothing
+// anywhere would ever have removed them.
+//
+// Nothing reads them after review. What opens a booking is `kycStatus`
+// on the user document, not the picture. So after a window the objects go and
+// `kycStatus` stays: her verification is untouched, and there is simply less
+// to lose if this project is ever breached, subpoenaed, or seized.
+//
+// Never touches PENDING. Deleting those deletes the application itself — the
+// admin would open the review and find nothing to look at.
+//
+// `dryRun` reports what it would delete and deletes nothing, because the first
+// run of an irreversible sweep should be readable before it is trusted.
+exports.purgeKycImages = onSchedule(
+  { schedule: "every day 03:00", timeZone: "Asia/Kabul", region: "us-central1" },
+  async () => { await runKycPurge({ dryRun: false }); }
+);
+
+/** The same sweep, on demand, so an admin can see what it would do first. */
+exports.adminPurgeKycImages = onCall({ region: "us-central1" }, async (request) => {
+  const me = await assertAdmin(request);
+  const result = await runKycPurge({ dryRun: request.data && request.data.dryRun === true });
+  await logAdminAction(me, "PURGE_KYC_IMAGES", result);
+  return result;
+});
+
+async function runKycPurge({ dryRun }) {
+  const bucket = admin.storage().bucket();
+  const now = Date.now();
+
+  // Bounded: the whole KYC prefix, which is two objects per account that has
+  // ever submitted. If this ever stops being small it needs paging, and the
+  // count in the return value is what will say so.
+  const [files] = await bucket.getFiles({ prefix: "kyc/", maxResults: 5000 });
+
+  // Group by the uid in kyc/{uid}/{file}.
+  const byUid = new Map();
+  for (const file of files) {
+    const uid = String(file.name).split("/")[1] || "";
+    if (!uid) continue;
+    if (!byUid.has(uid)) byUid.set(uid, []);
+    byUid.get(uid).push(file);
+  }
+
+  const purged = [];
+  const kept = {};
+  for (const [uid, objects] of byUid) {
+    const snap = await db.doc(`users/${uid}`).get().catch(() => null);
+    const user = snap && snap.exists ? snap.data() : null;
+
+    // No user document at all: the account is gone and the objects outlived
+    // it. Age them from the file itself.
+    const kycStatus = user ? String(user.kycStatus || "NONE") : "ORPHANED";
+
+    // The recorded decision, or — for accounts reviewed before that field
+    // existed — the upload time, which is no later than the review.
+    let reviewedAt = Number(user && user.kycReviewedAt) || 0;
+    if (!reviewedAt) {
+      const created = objects
+        .map((f) => Date.parse((f.metadata && f.metadata.timeCreated) || ""))
+        .filter((n) => Number.isFinite(n));
+      reviewedAt = created.length ? Math.min(...created) : 0;
+    }
+
+    const decision = shouldPurge({
+      kycStatus: kycStatus === "ORPHANED" ? "REJECTED" : kycStatus,
+      reviewedAt,
+      now,
+      hasImages: objects.length > 0,
+    });
+
+    if (!decision.purge) {
+      kept[decision.why] = (kept[decision.why] || 0) + 1;
+      continue;
+    }
+
+    if (!dryRun) {
+      for (const file of objects) {
+        await file.delete().catch((e) => logger.warn(`purgeKycImages: ${file.name}`, e));
+      }
+      if (user) {
+        // A record that the images are gone, so an admin opening the account
+        // is told rather than left wondering whether they failed to upload.
+        await db.doc(`users/${uid}`)
+          .set({ kycImagesPurgedAt: now }, { merge: true })
+          .catch(() => {});
+      }
+    }
+    purged.push({ uid, objects: objects.length, why: decision.why, ageDays: Math.round((now - reviewedAt) / 86400000) });
+  }
+
+  const result = {
+    dryRun: dryRun === true,
+    accountsScanned: byUid.size,
+    accountsPurged: purged.length,
+    objectsPurged: purged.reduce((n, p) => n + p.objects, 0),
+    kept,
+    purged,
+  };
+  logger.log(`purgeKycImages: ${JSON.stringify(result)}`);
+  return result;
+}

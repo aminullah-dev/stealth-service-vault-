@@ -12,7 +12,7 @@ const { LEGACY_AUTH_MS, authIsRecent, isHash, isSalt, rotationProblem } = requir
 // The same normaliser salons use for nameKey, so a name is searchable under one
 // spelling rather than two. See lib/categories.
 const { normalize: normalizeName } = require("../lib/categories");
-const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, enforceRateLimit, findAccountByPhone, idPage, logAdminAction, normalizePhone, pageCursor, pageEnd, pbkdf2Hash, resolveAppUser } = require("../shared");
 const crypto = require("crypto");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
@@ -274,7 +274,7 @@ exports.changePassword = onCall({ region: "us-central1" }, async (request) => {
   const oldPinHash = String(appUser.pinHash || "");
   const oldSalt    = String(appUser.salt || "");
   if (!oldPinHash || !oldSalt) {
-    throw new HttpsError("failed-precondition", "This account has no password set.");
+    throw new HttpsError("failed-precondition", "This account has no password set.", { reason: "NO_PASSWORD" });
   }
   // Defence in depth, NOT the security boundary — auth_time above is that.
   // This catches a client that derived the hash wrongly, or a stale salt,
@@ -378,14 +378,14 @@ exports.submitKyc = onCall({ region: "us-central1" }, async (request) => {
     bucket.file(selfiePhotoPath).exists().then((r) => r[0]).catch(() => false),
   ]);
   if (!tazkiraThere || !selfieThere) {
-    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.");
+    throw new HttpsError("failed-precondition", "Both photos must be uploaded first.", { reason: "KYC_PHOTOS_MISSING" });
   }
   const current = appUser.kycStatus || "NONE";
   if (current === "PENDING") {
-    throw new HttpsError("failed-precondition", "Your verification is already under review.");
+    throw new HttpsError("failed-precondition", "Your verification is already under review.", { reason: "KYC_UNDER_REVIEW" });
   }
   if (current === "APPROVED") {
-    throw new HttpsError("failed-precondition", "You are already verified.");
+    throw new HttpsError("failed-precondition", "You are already verified.", { reason: "KYC_VERIFIED" });
   }
 
   await db.doc(`users/${appUser.uid}`).update({
@@ -445,6 +445,10 @@ exports.reviewKyc = onCall({ region: "us-central1" }, async (request) => {
   await targetRef.update({
     kycStatus:          approve ? "APPROVED" : "REJECTED",
     kycRejectionReason: approve ? "" : reason,
+    // When a human decided. The photographs are kept for a window after this
+    // and then deleted — see purgeKycImages. Without this field there was no
+    // basis for a retention policy at all, which is why there was not one.
+    kycReviewedAt:      Date.now(),
   });
 
   await db.collection("notifications").doc().set({
@@ -1374,31 +1378,6 @@ exports.adminBackfillReferralCodes = onCall(
   });
 
 
-async function enforceRateLimit(key, max, windowMs) {
-  const ref = db.doc(`rate_limits/${encodeURIComponent(key)}`);
-  const now = Date.now();
-  try {
-    await db.runTransaction(async (tx) => {
-      const snap = await tx.get(ref);
-      const d = snap.exists ? snap.data() : null;
-      if (!d || now - (d.windowStart || 0) >= windowMs) {
-        tx.set(ref, { windowStart: now, count: 1, updatedAt: now });
-        return;
-      }
-      if ((d.count || 0) >= max) {
-        const retryInSec = Math.ceil((d.windowStart + windowMs - now) / 1000);
-        throw new HttpsError(
-          "resource-exhausted",
-          `Too many attempts. Please try again in ${retryInSec} second(s).`
-        );
-      }
-      tx.update(ref, { count: (d.count || 0) + 1, updatedAt: now });
-    });
-  } catch (e) {
-    if (e instanceof HttpsError) throw e;   // the limit itself — propagate
-    logger.warn("enforceRateLimit failed open", e);
-  }
-}
 
 /** Best-effort caller IP for a v2 callable. */
 

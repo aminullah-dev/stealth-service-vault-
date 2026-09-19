@@ -1,8 +1,10 @@
+import CoreLocation
 import SwiftUI
 import SafeBeautyCore
 
 struct SalonListView: View {
     @Environment(AuthService.self) private var auth
+    @Environment(SignInPrompt.self) private var signInPrompt
     @State private var repo = SalonRepository()
     @State private var search = ""
     @State private var category: String?
@@ -11,6 +13,13 @@ struct SalonListView: View {
     @State private var showMap = false
     @State private var showNotifications = false
     @State private var bookings = BookingsRepository()
+    @State private var filters = SalonFilters()
+    @State private var showFilters = false
+    @State private var location = LocationProvider()
+    /// She tapped Nearest before the phone had a fix. Held here rather than in
+    /// the sheet so closing the sheet while the system dialog is up does not
+    /// throw the request away.
+    @State private var wantsNearest = false
 
     /// Filtered on the client, not by re-querying.
     ///
@@ -29,7 +38,7 @@ struct SalonListView: View {
         let city = selectedCity
         let area = activeArea
         let category = self.category
-        return repo.salons.filter { salon in
+        let matched = repo.salons.filter { salon in
             // The categories array is written by the server from the salon's own
             // free-text service names, and it is deliberately conservative: a
             // service it cannot place confidently is left out rather than
@@ -56,6 +65,120 @@ struct SalonListView: View {
                 || salon.district.lowercased().contains(term)
                 || salon.services.contains { $0.lowercased().contains(term) }
         }
+        return ordered(narrowed(matched))
+    }
+
+    /// The rating floor and the price ceiling from the Filters sheet.
+    ///
+    /// A salon with nothing priced is excluded by a price ceiling rather than
+    /// kept — the same call Android makes. "Under 500" is a promise about what
+    /// she will pay, and a salon that has published no price cannot make it.
+    private func narrowed(_ salons: [Salon]) -> [Salon] {
+        var list = salons
+        if filters.minRating > 0 { list = list.filter { $0.rating >= filters.minRating } }
+        if filters.maxPrice > 0 {
+            list = list.filter { salon in
+                guard let price = startingPrice(salon) else { return false }
+                return price <= filters.maxPrice
+            }
+        }
+        return list
+    }
+
+    /// The chosen ordering, with a name as the tiebreak.
+    ///
+    /// Kotlin's `sortedBy` is stable, so on Android equal ratings keep the
+    /// server's order underneath. Swift's `sorted(by:)` is documented as not
+    /// stable, and an unstable sort over the many salons that share rating 0
+    /// would reshuffle the list on every keystroke. Naming the tiebreak makes
+    /// the order the same every time and matches what the repository already
+    /// does with equal `sortRating`.
+    private func ordered(_ salons: [Salon]) -> [Salon] {
+        switch filters.sort {
+        case .recommended:
+            // The repository's own order: sortRating descending, then name.
+            return salons
+        case .topRated:
+            return salons.sorted {
+                $0.rating != $1.rating ? $0.rating > $1.rating
+                                       : $0.salonName < $1.salonName
+            }
+        case .priceLow:
+            return salons.sorted {
+                let a = startingPrice($0) ?? Int.max
+                let b = startingPrice($1) ?? Int.max
+                return a != b ? a < b : $0.salonName < $1.salonName
+            }
+        case .nearest:
+            // No fix yet: leave the order alone rather than pretend to a
+            // distance. The chip only turns on once a coordinate arrives, so
+            // this is the window between the tap and the answer.
+            guard let here = location.coordinate else { return salons }
+            let origin = CLLocation(latitude: here.latitude, longitude: here.longitude)
+            return salons
+                .map { salon -> (salon: Salon, metres: Double) in
+                    guard salon.hasLocation else {
+                        // Sorted to the end, not dropped. One of the two live
+                        // salons has no coordinate at all.
+                        return (salon, .greatestFiniteMagnitude)
+                    }
+                    let there = CLLocation(latitude: salon.latitude, longitude: salon.longitude)
+                    return (salon, origin.distance(from: there))
+                }
+                .sorted {
+                    $0.metres != $1.metres ? $0.metres < $1.metres
+                                           : $0.salon.salonName < $1.salon.salonName
+                }
+                .map(\.salon)
+        }
+    }
+
+    /// The cheapest published service, or nil when nothing is priced.
+    ///
+    /// `lowestPrice` prefers the server's `minPrice` sort key and falls back to
+    /// the same prices Android's `salonMinPrice` reads; it returns 0 when there
+    /// is nothing to derive from, and zero here means unpriced, not free.
+    private func startingPrice(_ salon: Salon) -> Int? {
+        let price = salon.lowestPrice
+        return price > 0 ? price : nil
+    }
+
+    /// Nearest is the one sort that cannot simply be selected.
+    ///
+    /// Android's chip does the same: tapping it asks for permission and leaves
+    /// the sort alone, and the sort flips only once a coordinate is in hand.
+    /// A chip that lights up while the list has not moved is a lie about what
+    /// she is looking at.
+    @ViewBuilder
+    private func areaChoices(_ keys: [String]) -> some View {
+        ForEach(keys, id: \.self) { key in
+            MenuChoice(Areas.label(key), isSelected: activeArea == key) { area = key }
+        }
+    }
+
+    private func resetFilters() {
+        filters = SalonFilters()
+        wantsNearest = false
+        location.clearFailure()
+    }
+
+    private func selectSort(_ mode: SalonSort) {
+        guard mode == .nearest else {
+            filters.sort = mode
+            // The note was about Nearest; she has stopped asking for it.
+            location.clearFailure()
+            return
+        }
+        if location.coordinate != nil { filters.sort = .nearest; return }
+        wantsNearest = true
+        location.request()
+        // A phone that has already refused answers synchronously, inside that
+        // call. `onChange` cannot see it: the second tap takes `failure` from
+        // .denied to nil and back to .denied in one transaction, so the value
+        // never appears to change and the pending flag would stay on for the
+        // life of the view — waiting to overwrite whatever sort she picked
+        // next, the moment a coordinate ever arrived.
+        if location.failure != nil { wantsNearest = false }
     }
 
     /// The most specific area this salon is in, as one key.
@@ -142,9 +265,21 @@ struct SalonListView: View {
     /// a "recommendation" row that is just the salon list teaches her to
     /// ignore it.
     private var recommended: [Salon] {
-        guard search.isEmpty, category == nil, selectedCity == nil, activeArea == nil
+        guard search.isEmpty, category == nil, selectedCity == nil, activeArea == nil,
+              !filters.isActive
         else { return [] }
         return Recommendations.rank(salons: repo.salons, history: bookings.past)
+    }
+
+    /// Every recommended salon also satisfies `visible` — it is scored FROM
+    /// `repo.salons`, not filtered out of it — so it rendered a second time in
+    /// the plain list below with nothing to tell the two rows apart. A
+    /// customer with two salons total and both recommended saw four rows.
+    /// `visible.count` in "N providers found" stays the true count on
+    /// purpose; only the row list should not repeat a salon already shown
+    /// above.
+    private var recommendedIds: Set<String> {
+        Set(recommended.map(\.id))
     }
 
     /// The chosen city, but only while its chip is on screen — the same clamp
@@ -184,27 +319,47 @@ struct SalonListView: View {
         return area
     }
 
-    /// The areas of that city that a salon is actually in.
+    /// Every ناحیه of the city.
     ///
-    /// The ناحیه and محله levels both appear, because both are how an address is
-    /// given here — but only where a salon holds that key. Kabul has 64 areas
-    /// and a row of 64 chips of which two lead anywhere is a filter that hides
-    /// its own answers.
-    ///
-    /// Ordered by `areasIn`, which is Areas.kt's own order — ناحیه‌ها first,
-    /// then the محله‌ها — rather than by `filterableIn`, which walks parents and
-    /// so returns Kabul's 22 districts and none of its 42 neighbourhoods,
-    /// because Kabul's neighbourhoods have no parent recorded.
-    private var areasHere: [String] {
+    /// The whole list, not the ones a salon happens to be in. This used to be
+    /// built from the data on the argument that a row of 64 chips of which two
+    /// lead anywhere hides its own answers — which was true of a row of chips
+    /// and is not true of a menu. "No salon in ناحیه ۵ yet" is an answer, and
+    /// the empty state gives it along with Clear filters. A customer who cannot
+    /// even ask the question gets no answer at all.
+    private var districtsHere: [String] {
         guard let city = activeCity else { return [] }
+        return Areas.districtsIn(city).map(\.key)
+    }
+
+    /// Every محله and گذر of the city.
+    ///
+    /// From `areasIn` minus the districts, deliberately not from `filterableIn`
+    /// — that one reaches a neighbourhood only through its parent district, and
+    /// none of Kabul's 42 has a parent recorded, so it returns 22 districts and
+    /// nothing else. Android's dropdown is built that way and cannot offer
+    /// خیرخانه, which is where one of the two live salons is.
+    private var neighbourhoodsHere: [String] {
+        guard let city = activeCity else { return [] }
+        return Areas.areasIn(city).filter { $0.kind != .district }.map(\.key)
+    }
+
+    /// Keys a salon holds that this build has never heard of.
+    ///
+    /// Free text an older salon typed, resolved to nothing. Offered last rather
+    /// than dropped: it is where that salon says it is, and leaving it out of
+    /// the menu hides the salon.
+    private var unlistedHere: [String] {
+        guard let city = activeCity else { return [] }
+        let known = Set(Areas.areasIn(city).map(\.key))
         let present = Set(afterCategory.filter { cityOf($0) == city }
             .map(areaIdentity)
             .filter { !$0.isEmpty })
-        let known = Areas.areasIn(city).map(\.key).filter(present.contains)
-        // Free text an older salon typed sorts in after the known keys rather
-        // than being dropped: it is where that salon says it is, and hiding the
-        // chip would hide the salon.
-        return known + present.subtracting(known).sorted()
+        return present.subtracting(known).sorted()
+    }
+
+    private var areasHere: [String] {
+        districtsHere + neighbourhoodsHere + unlistedHere
     }
 
     var body: some View {
@@ -239,7 +394,12 @@ struct SalonListView: View {
                             .foregroundStyle(Brand.ink)
                     } actions: {
                         Button(L.clearFilters.t) {
+                            // Everything that could have emptied the list, not
+                            // just the chips. A customer who filtered to
+                            // "≤ 500 AFN" and got nothing would otherwise tap
+                            // Clear and still see nothing.
                             search = ""; category = nil; city = nil; area = nil
+                            resetFilters()
                         }
                             .font(Brand.font(14, .medium))
                             .foregroundStyle(Brand.accent)
@@ -268,7 +428,7 @@ struct SalonListView: View {
                                 .textCase(nil)
                             }
                         }
-                        ForEach(visible) { salon in
+                        ForEach(visible.filter { !recommendedIds.contains($0.id) }) { salon in
                             NavigationLink {
                                 SalonDetailView(salon: salon)
                             } label: {
@@ -304,36 +464,95 @@ struct SalonListView: View {
                             }
                         }
                     }
-                    if !cities.isEmpty {
-                        ChipRow {
-                            FilterChip(label: L.allCities.t, isSelected: selectedCity == nil) {
-                                city = nil; area = nil
+                    // Menus rather than chip rows, the way Android has always
+                    // had them. A chip row can only carry what fits, so it was
+                    // built from the data and offered whatever the two live
+                    // salons happened to hold; a menu carries the whole
+                    // vocabulary, which is what a customer needs to ask "is
+                    // there anyone in ناحیه ۵".
+                    if !repo.salons.isEmpty {
+                        VStack(spacing: 8) {
+                            DropdownField(icon: "building.2",
+                                          value: selectedCity.map(Areas.cityName)
+                                              ?? L.allCities.t) {
+                                MenuChoice(L.allCities.t, isSelected: selectedCity == nil) {
+                                    city = nil; area = nil
+                                }
+                                ForEach(cities, id: \.self) { c in
+                                    MenuChoice(Areas.cityName(c), isSelected: selectedCity == c) {
+                                        // Her old area belongs to the city she
+                                        // just left, so keeping it would filter
+                                        // the new city down to nothing.
+                                        if city != c { area = nil }
+                                        city = c
+                                    }
+                                }
                             }
-                            ForEach(cities, id: \.self) { c in
-                                FilterChip(label: Areas.cityName(c), isSelected: selectedCity == c) {
-                                    // Her old area belongs to the city she just
-                                    // left, so keeping it would filter the new
-                                    // city down to nothing.
-                                    if city != c { area = nil }
-                                    city = c
+                            // Second level, and only inside one city: areas are
+                            // only meaningful within a city, and «ناحیه ۱» of
+                            // Kabul beside «ناحیه ۱» of Herat is two entries
+                            // with nothing to tell them apart.
+                            if activeCity != nil {
+                                DropdownField(icon: "mappin.and.ellipse",
+                                              value: activeArea.map(Areas.label)
+                                                  ?? L.allNeighbourhoods.t) {
+                                    MenuChoice(L.allNeighbourhoods.t,
+                                               isSelected: activeArea == nil) { area = nil }
+                                    // Sectioned by level, because that is what
+                                    // the two are: «ناحیه ۱۷» is the ناحیه above
+                                    // «خیرخانه», and 64 of them in one flat list
+                                    // is a wall.
+                                    if !districtsHere.isEmpty {
+                                        Section(L.districtsGroup.t) {
+                                            areaChoices(districtsHere)
+                                        }
+                                    }
+                                    if !neighbourhoodsHere.isEmpty {
+                                        Section(L.neighbourhoodsGroup.t) {
+                                            areaChoices(neighbourhoodsHere)
+                                        }
+                                    }
+                                    if !unlistedHere.isEmpty {
+                                        Section { areaChoices(unlistedHere) }
+                                    }
                                 }
                             }
                         }
+                        .padding(.horizontal, 16).padding(.top, 2)
                     }
-                    // Second level, and only inside one city: areas are only
-                    // meaningful within a city, and «ناحیه ۱» of Kabul beside
-                    // «ناحیه ۱» of Herat is two chips with nothing to tell them
-                    // apart.
-                    if activeCity != nil && areasHere.count > 1 {
-                        ChipRow {
-                            FilterChip(label: L.allNeighbourhoods.t, isSelected: activeArea == nil) {
-                                area = nil
+                    // How many she is looking at, and the way into the sheet —
+                    // the last row of the header on Android too.
+                    if !repo.salons.isEmpty {
+                        HStack(spacing: 10) {
+                            // Nothing when nothing matches: the empty state
+                            // below already says so, in a whole sentence.
+                            Text(visible.isEmpty ? "" : L.providersFound(visible.count))
+                                .font(Brand.font(11.5))
+                                .foregroundStyle(Brand.accent)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button { showFilters = true } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .font(.system(size: 11.5, weight: .semibold))
+                                    Text(L.filtersButton.t).font(Brand.font(13, .medium))
+                                }
+                                .padding(.horizontal, 13).padding(.vertical, 7)
+                                // Brand.chipInactive, not Color.white — see FilterChip
+                                // below and Chips.swift's ChipBackground for the
+                                // same fix and why.
+                                .background(filters.isActive ? AnyShapeStyle(Brand.gradient)
+                                                             : AnyShapeStyle(Brand.chipInactive))
+                                .foregroundStyle(filters.isActive ? Color.white : Brand.ink)
+                                .clipShape(Capsule())
+                                .overlay(Capsule().strokeBorder(
+                                    filters.isActive ? .clear : Brand.petal.opacity(0.6),
+                                    lineWidth: 1))
                             }
-                            ForEach(areasHere, id: \.self) { a in
-                                FilterChip(label: Areas.label(a),
-                                         isSelected: activeArea == a) { area = a }
-                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(L.filtersButton.t)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 2).padding(.bottom, 9)
                     }
                 }
                 .background(Brand.cream)
@@ -343,6 +562,17 @@ struct SalonListView: View {
             .navigationBarTitleDisplayMode(.large)
             .searchable(text: $search, prompt: L.searchSalons.t)
             .toolbar {
+                // Browsing without an account, the one thing 5.1.1(v) requires,
+                // still needs a visible way back to signing in — otherwise the
+                // only doors are the ones gated behind an account-based action,
+                // which is not the same as being findable.
+                if auth.session == nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(L.signIn.t) { signInPrompt.request() }
+                            .font(Brand.font(14, .medium))
+                            .foregroundStyle(Brand.accent)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     // In the toolbar rather than as a sixth tab: iOS collapses
                     // anything past five into a "More" list, which buries both
@@ -359,7 +589,14 @@ struct SalonListView: View {
                     // tab to favourites. Five slots is the whole budget, and a
                     // list she opens once a week should not hold one while the
                     // salons she saved have nowhere to live.
-                    Button { showNotifications = true } label: {
+                    //
+                    // Notifications are per-account, so a browsing visitor with
+                    // no account gets the sign-in sheet instead of an empty
+                    // list that never explains why it is empty.
+                    Button {
+                        if auth.session == nil { signInPrompt.request() }
+                        else { showNotifications = true }
+                    } label: {
                         Image(systemName: "bell").foregroundStyle(Brand.accent)
                             .accessibilityLabel(L.notifications.t)
                     }
@@ -368,6 +605,19 @@ struct SalonListView: View {
             }
             .sheet(isPresented: $showMap) { SalonMapView().appDirection() }
             .sheet(isPresented: $showNotifications) { NotificationsView().appDirection() }
+            .sheet(isPresented: $showFilters) {
+                FilterSheet(filters: $filters,
+                            onSelectSort: selectSort,
+                            onReset: resetFilters,
+                            location: location)
+                    .appDirection()
+            }
+            .onChange(of: location.hasLocation) { _, has in
+                if has && wantsNearest { filters.sort = .nearest; wantsNearest = false }
+            }
+            .onChange(of: location.failure) { _, failure in
+                if failure != nil { wantsNearest = false }
+            }
         }
         .task { repo.start() }
         .task(id: auth.session?.uid) {
@@ -510,13 +760,79 @@ struct FilterChip: View {
             Text(label)
                 .font(Brand.font(13.5, .medium))
                 .padding(.horizontal, 14).padding(.vertical, 7)
+                // Brand.chipInactive, not Color.white — same fix as ChipBackground
+                // in Chips.swift.
                 .background(isSelected ? AnyShapeStyle(Brand.gradient)
-                                       : AnyShapeStyle(Color.white))
+                                       : AnyShapeStyle(Brand.chipInactive))
                 .foregroundStyle(isSelected ? Color.white : Brand.ink)
                 .clipShape(Capsule())
                 .overlay(Capsule().strokeBorder(
                     isSelected ? .clear : Brand.petal.opacity(0.6), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// A full-width control that opens a menu — Android's ExposedDropdownMenuBox.
+///
+/// The chevron and the icon sit at the two ends and `layoutDirection` swaps
+/// which end is which, so this reads the same way round as the Compose version
+/// in Dari and Pashto.
+struct DropdownField<Content: View>: View {
+    let icon: String
+    let value: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        Menu {
+            content
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Brand.accent)
+                Text(value)
+                    .font(Brand.font(14, .medium))
+                    .foregroundStyle(Brand.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Brand.accent)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .frame(maxWidth: .infinity)
+            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Brand.petal.opacity(0.7), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        // Declaration order, not "nearest the thumb first". SwiftUI's default
+        // reverses a menu that opens upward, and twenty-two districts read
+        // backwards are not a list anyone can use.
+        .menuOrder(.fixed)
+    }
+}
+
+/// One row of a `DropdownField` menu, ticked when it is the current choice.
+struct MenuChoice: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    init(_ title: String, isSelected: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.isSelected = isSelected
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            if isSelected {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 }

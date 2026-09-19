@@ -16,6 +16,16 @@
  * buys is a permanent, silent lockout — and unlike the phone-planting variant,
  * which deriveUserPhoneKey alerts on, nothing anywhere would have noticed.
  *
+ * UPDATED 2026-09-06. Commit 4975d16 closed the create rule outright — it is
+ * now `allow create: if false`, because the client-chosen document id opened
+ * four other holes besides this one and registration had already moved to the
+ * `registerAccount` callable (Admin SDK, so rules do not apply). These tests
+ * still asserted the old front door and had been failing since that commit;
+ * the CI job that runs them is "Security rules compile", which was red for it.
+ * The create-side tests below now assert the closure, and the update-side ones
+ * seed the document the way registerAccount does instead of writing it as the
+ * client, which no client may do any more.
+ *
  *   npm run test:rules
  */
 
@@ -85,13 +95,31 @@ test.after(async () => { if (env) await env.cleanup(); });
 
 const asMe = () => env.authenticatedContext(MY_AUTH, { email: MINE }).firestore();
 
-test("registration still works — a new account may claim its own email", () => {
-  // The guard against fixing the hole by breaking the front door. This is the
-  // exact shape RegisterViewModel writes, right after createAccount() has signed
-  // the user in with that same address.
-  return assertSucceeds(asMe().doc("users/my-app-uid").set(signup(MINE)));
+/**
+ * What registerAccount does: writes users/{uid} with the Admin SDK, which is
+ * not subject to rules. Every update test needs the document to exist, and
+ * since 4975d16 the client cannot be the one to create it.
+ */
+const seedMine = () => env.withSecurityRulesDisabled(
+  (ctx) => ctx.firestore().doc("users/my-app-uid").set(signup(MINE))
+);
+
+test("no client may create a users document — not even its own", async () => {
+  // This test used to assert the opposite, because registration used to be a
+  // client write. It is not: RegisterViewModel.kt:142 and AuthService.swift:400
+  // both call the registerAccount callable, which writes users/{uid} with the
+  // Admin SDK. Leaving any client create path open meant a client-chosen
+  // document id, and that id was the primitive behind a suspension escape, a
+  // permanent lockout of a named woman, referral-credit theft and stored XSS in
+  // the admin console — see 4975d16. Correct payload, own email, own uid, still
+  // refused.
+  await assertFails(asMe().doc("users/my-app-uid").set(signup(MINE)));
 });
 
+// These two now pass because create is closed to everyone rather than because
+// firebaseEmail is constrained. Kept deliberately: they are the tests that fail
+// first if anyone ever reopens create with a narrower condition, which is the
+// obvious-looking change somebody will eventually propose.
 test("a client cannot plant a document claiming somebody else's identity", async () => {
   await assertFails(asMe().doc("users/attacker-doc").set(signup(HERS)));
 });
@@ -106,7 +134,7 @@ test("a low document id does not help", async () => {
 });
 
 test("an account cannot change its own identity afterwards", async () => {
-  await assertSucceeds(asMe().doc("users/my-app-uid").set(signup(MINE)));
+  await seedMine();
   await assertFails(asMe().doc("users/my-app-uid").update({ firebaseEmail: HERS }));
 });
 
@@ -115,6 +143,8 @@ test("an account cannot rewrite somebody else's identity", async () => {
 });
 
 test("an account may still edit the things that are genuinely its own", async () => {
-  await assertSucceeds(asMe().doc("users/my-app-uid").set(signup(MINE)));
+  // The guard against fixing the hole by breaking the front door. Closing
+  // create must not also close the profile edit every customer uses.
+  await seedMine();
   await assertSucceeds(asMe().doc("users/my-app-uid").update({ name: "A New Name" }));
 });

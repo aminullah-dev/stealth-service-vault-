@@ -105,11 +105,18 @@ struct ReviewSheet: View {
 }
 
 /// Five taps, sized for a thumb.
+///
+/// Shared by the review sheet and the support-conversation rating card. Each
+/// star is a 44pt target — the icon alone was about 34pt, under Apple's
+/// minimum, and the stars sit close enough that a near miss picks a neighbour.
 struct StarPicker: View {
     @Binding var rating: Int
+    /// Centred in its row rather than hugging the leading edge.
+    var centered = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 2) {
+            if centered { Spacer(minLength: 0) }
             ForEach(1...5, id: \.self) { star in
                 Button {
                     rating = star
@@ -117,11 +124,14 @@ struct StarPicker: View {
                     Image(systemName: star <= rating ? "star.fill" : "star")
                         .font(.system(size: 30))
                         .foregroundStyle(star <= rating ? Brand.gold : Brand.petal)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L.starsLabel(star))
+                .accessibilityAddTraits(star == rating ? .isSelected : [])
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
         // Laid out left-to-right in every language: a star rating reads as a
         // filled-from-one scale everywhere, and mirroring it would put five
@@ -133,6 +143,10 @@ struct StarPicker: View {
 /// A review as it appears on a salon.
 struct ReviewRow: View {
     let review: Review
+
+    @Environment(AuthService.self) private var auth
+    @Environment(Moderation.self) private var moderation
+    @State private var showReport = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -150,6 +164,18 @@ struct ReviewRow: View {
                     .font(Brand.font(13, .medium))
                     .foregroundStyle(Brand.ink)
                 Spacer()
+                // A review is another customer's words under her own name, so
+                // it needs the same flag the feed has. Not on her own review —
+                // there is nothing to report about yourself, and the salon and
+                // the admin moderate through their own tools.
+                if review.customerId != auth.session?.uid {
+                    Button { showReport = true } label: {
+                        Image(systemName: "flag")
+                            .font(.system(size: 11)).foregroundStyle(Brand.textMuted)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L.reportAction.t)
+                }
             }
 
             if !review.comment.isEmpty {
@@ -172,5 +198,11 @@ struct ReviewRow: View {
             }
         }
         .padding(.vertical, 4)
+        .sheet(isPresented: $showReport) {
+            ReportSheet(target: .review, targetId: review.id,
+                        authorId: review.customerId, authorKind: "USER",
+                        moderation: moderation)
+                .appDirection()
+        }
     }
 }

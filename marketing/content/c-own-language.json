@@ -1,0 +1,22 @@
+{
+  "slug": "c-own-language",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece C5. Checked before writing: two salons live and both in Kabul, so no second city and no promise of choice; iOS 1.0 (6) is still in Apple review, so no App Store and no iPhone — safebeauty.web.app/get routes either phone; no promotion is running, so no discount; no real salon, customer, price or booking appears anywhere.",
+  "text": {
+    "fa": {
+      "sub": "دری و پښتو",
+      "headline": "به زبان خودتان نوبت بگیرید",
+      "body": "تمام اپ به دری و پښتو است — نه ترجمهٔ ماشینی، نه انگلیسی.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "دري او پښتو",
+      "headline": "په خپله ژبه نوبت ونیسئ",
+      "body": "ټول اپ په دري او پښتو دی — نه ماشیني ژباړه، نه انګلیسي.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

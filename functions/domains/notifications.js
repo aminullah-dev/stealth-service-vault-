@@ -6,6 +6,7 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, db, logger } = require("../shared");
+const { reopenSupportTicket } = require("./support");
 
 // Nudge lapsed customers back. A customer whose last completed visit is older
 // than 30 days gets a one-time "we miss you" notification (→ FCM via
@@ -15,8 +16,15 @@ const REENGAGE_AFTER_MS    = 30 * 24 * 60 * 60 * 1000;
 
 const REENGAGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
+// An absolute time — see cleanupRateLimits for why "every 24 hours" was not
+// running at all. This one costs more than a stale counter: a customer who has
+// not booked in a while is precisely who this product needs to hear from, and
+// nobody had heard from it since 2026-09-04.
+//
+// 09:00 Kabul rather than the small hours: it sends a push, and the other jobs
+// in that window only move data around.
 exports.sendReengagementNudges = onSchedule(
-  { schedule: "every 24 hours", region: "us-central1" },
+  { schedule: "every day 09:00", timeZone: "Asia/Kabul", region: "us-central1" },
   async () => {
     const now = Date.now();
     const lapsed = await db.collection("users")
@@ -97,7 +105,12 @@ exports.notifyOnChatMessage = onDocumentCreated(
       // The platform side is a person watching the Support tab; the USER is
       // the one with no other way to learn she has been answered.
       const userId = conv.slice("support_".length);
-      if (m.senderId === userId) return;
+      if (m.senderId === userId) {
+        // Her message must reach the admin's inbox even when the ticket was
+        // closed and nothing on her side reopened it.
+        await reopenSupportTicket(userId, m);
+        return;
+      }
       recipientId = userId;
     } else {
       // "{customerId}_{salonId}", parsed exactly as firestore.rules parses it.
@@ -531,6 +544,11 @@ const NOTIF_I18N = {
     en: { t: "New message", b: () => "You have a new message." },
     fa: { t: "پیام تازه", b: () => "یک پیام تازه دارید." },
     ps: { t: "نوی پیغام", b: () => "تاسو یو نوی پیغام لرئ." },
+  },
+  SUPPORT_CLOSED: {
+    en: { t: "Support conversation closed", b: () => "How did we do? Rate the conversation." },
+    fa: { t: "گفتگوی پشتیبانی بسته شد", b: () => "از پشتیبانی ما راضی بودید؟ به این گفتگو امتیاز بدهید." },
+    ps: { t: "د ملاتړ خبرې اترې پای ته ورسېدې", b: () => "زموږ ملاتړ څنګه و؟ دې خبرو اترو ته ستوري ورکړئ." },
   },
   BOOKING_AUTO_CANCELLED: {
     en: { t: "Booking cancelled — refund on the way", b: (p) =>

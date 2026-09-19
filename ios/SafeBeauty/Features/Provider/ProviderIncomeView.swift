@@ -57,7 +57,7 @@ struct ProviderIncomeView: View {
                                 stat(L.earnedTotal.t, "\(taken)", suffix: L.afn.t)
                             }
                             .padding(.vertical, 16)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                             if unpriced > 0 {
                                 Text(L.earnedExcludes(unpriced))
@@ -86,8 +86,8 @@ struct ProviderIncomeView: View {
                                     Text(verbatim: "\(abs(repo.owed))")
                                         .font(Brand.font(26, .bold))
                                         .environment(\.layoutDirection, .leftToRight)
-                                        .foregroundStyle(repo.owed >= 0 ? Color(hex: 0x1F7A5C)
-                                                                        : Color(hex: 0xC0392B))
+                                        .foregroundStyle(repo.owed >= 0 ? Brand.success
+                                                                        : Brand.danger)
                                     Text(L.afn.t)
                                         .font(Brand.font(14, .medium)).foregroundStyle(Brand.accent)
                                 }
@@ -96,7 +96,7 @@ struct ProviderIncomeView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(15)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
 
                             // Volume, under the money it explains. Android
                             // gives this its own tab; on four tabs it belongs
@@ -111,12 +111,21 @@ struct ProviderIncomeView: View {
                                         Divider().frame(height: 34)
                                             .overlay(Brand.petal.opacity(0.5))
                                         stat(L.analyticsConfirmed.t,
-                                             "\(count(.confirmed) + count(.completed))",
-                                             suffix: nil)
+                                             "\(analytics.confirmed)", suffix: nil)
+                                        Divider().frame(height: 34)
+                                            .overlay(Brand.petal.opacity(0.5))
+                                        // Waiting on her. Android has always
+                                        // shown this and iOS had three cards
+                                        // where Android has four — the one
+                                        // number on this screen that is a
+                                        // thing to DO rather than a thing that
+                                        // happened.
+                                        stat(L.pending.t,
+                                             "\(analytics.pending)", suffix: nil)
                                         Divider().frame(height: 34)
                                             .overlay(Brand.petal.opacity(0.5))
                                         stat(L.analyticsCancelled.t,
-                                             "\(count(.cancelled))", suffix: nil)
+                                             "\(analytics.cancelled)", suffix: nil)
                                     }
                                     if !byService.isEmpty {
                                         Text(L.analyticsByService.t)
@@ -149,7 +158,7 @@ struct ProviderIncomeView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(15)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                             }
 
                             if !completed.isEmpty {
@@ -190,7 +199,7 @@ struct ProviderIncomeView: View {
                                     }
                                 }
                                 .padding(.horizontal, 15)
-                                .background(.white, in: RoundedRectangle(cornerRadius: 16))
+                                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 16))
                             }
                             Spacer(minLength: 20)
                         }
@@ -210,27 +219,46 @@ struct ProviderIncomeView: View {
     /// counting when the tally has not been written yet.
     private var haveStats: Bool { repo.totalBookings > 0 }
 
-    private var totalBookings: Int {
-        haveStats ? repo.totalBookings : repo.appointments.count
+    /// The tally, through the shared derivation.
+    ///
+    /// Through `ProviderAnalytics` rather than reading `repo.byStatus` directly,
+    /// because the three rules it applies are the ones Android applies and are
+    /// now held by a parity test. Two of them were missing here:
+    ///
+    /// Firestore's increment leaves a key behind at zero once its last booking
+    /// moves away, and nothing filtered those out — so a service the salon had
+    /// stopped taking bookings for sat in the breakdown as a row with a bar of
+    /// no length. Android drops them.
+    ///
+    /// And the order had no tie-break, so two services with the same count
+    /// could swap places between reads for no reason a salon owner could see.
+    /// `sorted(by:)` is not stable in Swift, and a dictionary has no order to
+    /// be stable about in the first place.
+    private var analytics: ProviderAnalytics {
+        if haveStats {
+            return .from(total: repo.totalBookings,
+                         byStatus: repo.byStatus,
+                         byService: repo.byService,
+                         confirmedByService: [:])
+        }
+        // Before the trigger has written a tally: counted from the bookings
+        // that are loaded. Grouped by the name stored ON the booking rather
+        // than the salon's current list, because the history is what happened
+        // and a renamed service did not un-happen.
+        let statuses = Dictionary(grouping: repo.appointments, by: { $0.status.rawValue })
+            .mapValues(\.count)
+        let services = Dictionary(grouping: repo.appointments.filter { !$0.serviceName.isEmpty },
+                                  by: \.serviceName).mapValues(\.count)
+        return .from(total: repo.appointments.count, byStatus: statuses,
+                     byService: services, confirmedByService: [:])
     }
 
-    private func count(_ status: AppointmentStatus) -> Int {
-        if haveStats { return repo.byStatus[status.rawValue] ?? 0 }
-        return repo.appointments.filter { $0.status == status }.count
-    }
+    private var totalBookings: Int { analytics.total }
 
-    /// Bookings per service, busiest first. Grouped by the name stored on the
-    /// booking rather than the salon's current list, because the history is
-    /// what happened and a renamed service did not un-happen.
     private var byService: [(name: String, count: Int)] {
-        let source: [String: Int] = haveStats
-            ? repo.byService
-            : Dictionary(grouping: repo.appointments.filter { !$0.serviceName.isEmpty },
-                         by: \.serviceName).mapValues(\.count)
-        return source
-            .map { (name: $0.key, count: $0.value) }
-            .sorted { $0.count > $1.count }
-            .prefix(6).map { $0 }
+        // Every service, as Android shows them — a salon has a handful, and
+        // truncating at six hid the tail from the person whose salon it is.
+        analytics.serviceBreakdown.map { (name: $0.service, count: $0.count) }
     }
 
     /// The busiest service, so the bars are proportional to something real.

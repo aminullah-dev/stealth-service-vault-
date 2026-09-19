@@ -1,5 +1,43 @@
 # Release notes
 
+## v2.1.3 — versionCode 20
+
+Supersedes versionCode 19, which was built on 2026-09-06 and never uploaded —
+its AAB predated the duplicate-salon fix by three days. All three languages
+and the full change table: `play-store/release-notes-v20.md`.
+
+### en-US
+
+```
+• Report anything that shouldn't be there — a review, a photo, a post — and block anyone you don't want to see.
+• Say what really happened after a visit, even if the salon says otherwise.
+• Salons no longer appear twice in the list.
+• Blocking a salon now hides its offers too, not just its posts.
+• The neighbourhood filter picks the right area in Herat and Mazar-e-Sharif.
+• "Leave a review" no longer appears on bookings you have already reviewed.
+```
+
+
+## v2.1.2 — versionCode 19
+
+The Play Console "What's new" text. Covers versionCode 16 through 19 — no
+note was published for 16, 17 or 18, so this is everything since v2.0 (15).
+Full breakdown with the reliability/security work that has no store text:
+`play-store/release-notes-v19.md`.
+
+### en-US
+
+```
+• Salon profiles now show their own photos instead of a plain tile.
+• Sending a message to a salon now actually reaches them — it never did before.
+• Fixed a bug where changing your password could lock you out of your account.
+• Dates now display correctly in Dari and Pashto.
+• Registration is more reliable, especially on a weak connection.
+• Neighbourhood and district lists are now accurate for Kabul, Herat, Mazar and Jalalabad.
+• You can now screenshot your bookings to share with a friend.
+```
+
+
 ## v2.0 — versionCode 15
 
 The Play Console "What's new" text, in the three languages the listing carries.

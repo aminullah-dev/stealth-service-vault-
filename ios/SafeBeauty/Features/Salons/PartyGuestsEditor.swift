@@ -26,12 +26,12 @@ struct PartyGuestsEditor: View {
                         TextField(L.guestName.t, text: $guest.name)
                             .font(Brand.font(14.5))
                             .padding(.horizontal, 12).padding(.vertical, 9)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 11))
+                            .background(Brand.surface, in: RoundedRectangle(cornerRadius: 11))
                         Button {
                             guests.removeAll { $0.id == guest.id }
                         } label: {
                             Image(systemName: "trash")
-                                .font(.system(size: 13)).foregroundStyle(Color(hex: 0xC0392B))
+                                .font(.system(size: 13)).foregroundStyle(Brand.danger)
                         }
                         .buttonStyle(.plain)
                     }

@@ -61,12 +61,19 @@ struct FavoriteButton: View {
     var size: CGFloat = 17
 
     @State private var favourites = FavoritesStore.shared
+    @Environment(AuthService.self) private var auth
+    @Environment(SignInPrompt.self) private var signInPrompt
 
     private var isOn: Bool { favourites.contains(salonId) }
 
     var body: some View {
         Button {
-            favourites.toggle(salonId)
+            // Reachable while browsing without an account now that the salon
+            // list no longer forces sign-in first. `toggle` already guards an
+            // empty uid and no-ops, which used to be invisible — a tap that
+            // silently does nothing reads as a broken heart, not a locked one.
+            if auth.session == nil { signInPrompt.request() }
+            else { favourites.toggle(salonId) }
         } label: {
             Image(systemName: isOn ? "heart.fill" : "heart")
                 .font(.system(size: size))

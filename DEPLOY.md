@@ -108,7 +108,234 @@ and the demo link is public. Each flavour picks up its own
 ## Release AAB for Google Play
 1. Bump `versionCode` (and `versionName`) in `app/build.gradle.kts`.
 2. `./gradlew bundleProdRelease` (signs with the keystore in `keystore.properties`).
-3. Upload `app/build/outputs/bundle/prodRelease/app-prod-release.aab` to the Play Console.
+   Watch for `✅ Release signing key verified` — the guardrail refuses a wrong key.
+3. Upload. Either drag the AAB into Play Console, or use the API (below).
+
+**Check the AAB's age before uploading one that is already on disk.** On
+2026-09-09 the bundle sitting in `app/build/outputs` had been built three days
+earlier and predated the fix for salons appearing twice; uploading it would
+have shipped a bug that was already fixed in the tree. Compare its mtime
+against `git log -1 --format=%ad -- app/src/main`.
+
+### Uploading from the command line
+
+Set up 2026-09-10. The service account key is at
+`~/.config/safebeauty/play-publisher.json` (gitignored, outside the tree).
+
+    androidpublisher.googleapis.com   enabled on project safebeauty
+    service account                   play-publisher@safebeauty.iam.gserviceaccount.com
+
+The part that is NOT gcloud and cannot be scripted: that service account has
+to be invited inside **Play Console → Users and permissions**, with *Release
+to production…* and *Release apps to testing tracks*. IAM roles do not grant
+Play access — Play keeps its own permission list. Deliberately no financial
+or user-data access.
+
+**Those two permissions cover releases only.** Editing the store listing —
+screenshots, description, graphics — needs *Manage store presence* as well,
+under **App permissions → Store presence**, and it was not granted until
+2026-09-10. Without it the API lets you open an edit, delete images and
+upload replacements without complaint, and then fails the very last call:
+
+    POST .../edits/{id}:commit
+    403 PERMISSION_DENIED — The caller does not have permission
+
+That failure mode is survivable rather than dangerous, because an uncommitted
+edit changes nothing — the live listing still had its old screenshots
+afterwards, verified by reading them back. But every byte is uploaded before
+you find out, so grant the permission first.
+
+The flow is: open an edit → POST the bundle to the `/upload/` host → PUT the
+track → `:commit`. An edit changes nothing until committed, so opening one and
+deleting it is a safe way to read state (tracks, uploaded versionCodes)
+without touching anything.
+
+**Stage the release as `draft`, not `completed`.** Uploading is a mechanical
+step; deciding that every user in Afghanistan gets a new build today is not.
+A draft appears in Play Console ready for a human to press *Start rollout*,
+and a staged percentage rollout is the safer first move.
+
+Release notes go in the same call — `releaseNotes: [{language, text}]` with
+`en-US`, `fa-AF`, `ps-AF`, each under Play's 500 characters. They live in
+`play-store/release-notes-vNN.md`.
+
+### Replacing the store screenshots
+
+`scripts/play.py` is the whole client: it signs the service-account JWT by
+shelling out to `openssl` (this Mac has neither `google-auth` nor
+`cryptography`) and exposes `call(method, path, ...)`.
+
+    cd scripts && python3 -c "
+    import play, os
+    P = f'/androidpublisher/v3/applications/{play.PKG}/edits'
+    eid = play.call('POST', P)['id']
+    base = f'{P}/{eid}/listings/fa-AF/phoneScreenshots'
+    play.call('DELETE', base)                       # clears the whole set
+    for n in ['1-salon-list.png', '2-salon-detail.png']:
+        blob = open('../play-store/screenshots/' + n, 'rb').read()
+        play.call('POST', f'/upload{base}?uploadType=media',
+                  raw=blob, content_type='image/png')
+    play.call('POST', f'{P}/{eid}:commit')
+    "
+
+Note the `/upload` prefix on the image POST and the absence of one on
+everything else. `fa-AF` is the only locale this listing has.
+
+Then **read it back and compare hashes** rather than trusting the commit —
+the API returns a `sha1` per image, so `hashlib.sha1(open(f,'rb').read())`
+proves the bytes on the store are the bytes on disk. `play-store/screenshots/`
+holds the live set and its README explains what each one is for.
+
+
+### Resubmitting after a rejection
+
+Attach the new build to the same appStoreVersion, then on the SAME review
+submission (it sits in `UNRESOLVED_ISSUES`) mark its rejected item resolved
+before submitting — otherwise the submit is refused with the misleading
+`STATE_ERROR … Version is not ready to be submitted yet, please try again
+later`, and retrying does not help (six tries over three minutes on
+2026-09-17):
+
+    PATCH /v1/reviewSubmissionItems/{itemId}   {"attributes": {"resolved": true}}
+    PATCH /v1/reviewSubmissions/{id}           {"attributes": {"submitted": true}}
+
+The item goes REJECTED → READY_FOR_REVIEW, the submission to
+WAITING_FOR_REVIEW. This is what the "Resubmit to App Review" button does.
+Explain the fix in App Review notes (`appStoreReviewDetails.notes`) — the
+Resolution Center reply thread has no public API.
+
+## TestFlight / App Store build for iOS
+
+Nothing here existed until 2026-09-09, and rediscovering it cost most of a
+day. The whole path, in one command:
+
+1. Bump `CURRENT_PROJECT_VERSION` in `ios/project.yml` (build number — must be
+   higher than anything already uploaded; `MARKETING_VERSION` only changes for
+   a real release).
+2. `cd ios && xcodegen generate --spec project.yml`
+3. Archive, then export-and-upload in one step:
+
+```bash
+cd ios
+xcodebuild -project SafeBeauty.xcodeproj -scheme SafeBeauty \
+  -configuration Release -destination 'generic/platform=iOS' \
+  -archivePath build/archive/SafeBeauty.xcarchive \
+  -allowProvisioningUpdates archive
+
+xcodebuild -exportArchive \
+  -archivePath build/archive/SafeBeauty.xcarchive \
+  -exportPath build/upload \
+  -exportOptionsPlist build/exportOptionsUpload.plist \
+  -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8" \
+  -authenticationKeyID <KEYID> \
+  -authenticationKeyIssuerID 0e948a64-b5af-4815-bc6c-f7943bb4f637 \
+  -allowProvisioningUpdates
+```
+
+`build/exportOptionsUpload.plist` is `method: app-store-connect`,
+`teamID: 27RXPRW77S`, `signingStyle: automatic`, `uploadSymbols: true`,
+`destination: upload`. Drop the `destination` key to get an `.ipa` on disk
+instead (for Transporter).
+
+**The API key must have the Admin role, not App Manager.** On this Mac that is
+`AuthKey_489AT7M94B.p8` (verified 2026-09-17 by uploading build 5 with it).
+`DL35J6V9B7` fails with `No Accounts with App Store Connect Access`, and
+`4SKX647AH5` is the key `scripts/asc.py` uses for metadata, not signing. This is the whole
+trap. An App Manager key authenticates fine and then fails at signing:
+
+```
+error: exportArchive Cloud signing permission error
+error: exportArchive No signing certificate "iOS Distribution" found
+```
+
+because exporting needs a *distribution certificate*, Xcode's cloud signing
+mints one on demand, and minting one is certificate management — which App
+Manager does not have. Apple will not let you raise an existing key's access
+("can't be modified to access more services once created"), so make a new one:
+App Store Connect → Users and Access → Integrations → App Store Connect API →
+**+** → Access **Admin** → download the `.p8` (once only) into
+`~/.appstoreconnect/private_keys/`.
+
+Do NOT rely on the Apple ID signed into Xcode instead. It works until it
+doesn't: on 2026-09-09 the account silently emptied out of
+`com.apple.dt.Xcode.plist` mid-afternoon, three uploads into the day, and
+`xcodebuild` started answering `error: exportArchive No Accounts` while the
+Xcode GUI still showed the account present with Admin role. Signing back in
+did not restore it for the command line. The API key has no session to lose.
+
+Also worth knowing: there is no distribution certificate in the login
+keychain and there does not need to be — cloud signing fetches an ephemeral
+one per export (`Cloud Managed Apple Distribution` in
+`build/upload/DistributionSummary.plist`). An App Store provisioning profile
+for `com.safebeauty.app` does sit in `~/Library/Developer/Xcode/UserData/
+Provisioning Profiles/`; a profile alone cannot sign anything.
+
+The five `Upload Symbols Failed ... dSYM for FirebaseFirestoreInternal /
+absl / grpc / grpcpp / openssl_grpc` warnings are expected and harmless —
+those are Firebase's own binaries, with no source to symbolicate. SafeBeauty's
+own frames symbolicate normally.
+
+Apple then takes 15–60 minutes to process the build before it appears in
+TestFlight and in App Store Connect's build picker.
+
+## iOS push notifications (APNs) — set up 2026-09-09, verified working
+
+Without this the iOS app asks for notification permission and then never
+delivers anything: no booking confirmation, no cancellation, no waitlist
+opening. It was the last dead feature in the iOS build.
+
+Three pieces, and only the middle one is obvious:
+
+1. **Push capability on the App ID.** Already on — `xcodebuild ...
+   -allowProvisioningUpdates` enabled it during the first archive, after
+   failing with "Provisioning profile ... doesn't include the Push
+   Notifications capability". Verify with:
+   `GET /v1/bundleIds?filter[identifier]=com.safebeauty.app&include=bundleIdCapabilities`
+   → must list `PUSH_NOTIFICATIONS`.
+
+2. **An APNs auth key (.p8)** from developer.apple.com → Certificates,
+   Identifiers & Profiles → **Keys** → + → tick *Apple Push Notifications
+   service (APNs)*. There is no API for this; `/v1/apnsKeys`, `/v1/keys`,
+   `/v1/pushKeys` and `/v1/authKeys` are all 404. It is a portal-only step.
+
+   🔴 **The trap: the Environment dropdown defaults to `Sandbox`, and Apple
+   says on that same screen that it "can't be changed once saved".** A
+   sandbox-only key works for Xcode debug builds and silently delivers
+   nothing to TestFlight or the App Store, which are the production
+   environment — and there is no way back, only a new key. Choose
+   **Sandbox & Production**. Key Restriction `Team Scoped (All Topics)` is
+   correct and lets the same key serve the other apps on this team.
+
+   The `.p8` downloads **once**. Ours lives beside the App Store Connect keys
+   in `~/.appstoreconnect/private_keys/` (all `*.p8` are gitignored).
+
+3. **Upload it to Firebase**: console → Project settings → **Cloud
+   Messaging** → Apple app configuration → SafeBeauty (iOS) → APNs
+   Authentication Key. Needs the file, the **Key ID** (the ten characters in
+   the filename) and the **Team ID** `27RXPRW77S`.
+
+   Second trap: Firebase shows two rows, *development* and *production*, and
+   uploading once fills only **development**. Upload the same file again into
+   the production row — one auth key is valid for both environments, unlike
+   the old certificates, which is what those two rows are a holdover from. If
+   only development is filled, a TestFlight build gets nothing.
+
+**Prove it rather than assume it.** From `functions/` (so `firebase-admin`
+resolves), read the token off the user's own document and send one real push:
+
+```js
+const snap = await db.collection("users").where("phone","==","+93XXXXXXXXX").limit(1).get();
+await admin.messaging().send({ token: snap.docs[0].data().fcmToken,
+  notification: { title: "SafeBeauty", body: "test" } });
+```
+
+A returned message id means Firebase accepted it, NOT that Apple delivered
+it — the only proof is the banner appearing on the phone. Ours did, on
+2026-09-09, on the TestFlight build.
+
+If it does not arrive: the app may be in the foreground (iOS shows no banner
+then), notification permission may be off in Settings, or the stored token
+may belong to an older install — reopening the app rewrites it.
 
 ## Demo APK for the website
 `./gradlew assembleDemoRelease` → `app/build/outputs/apk/demo/release/app-demo-release.apk`.

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The three languages, and which way each one reads.
 ///
@@ -91,10 +92,43 @@ final class LanguageStore {
             // written in. Without this she changes the language, the app
             // switches, and her notifications keep arriving in the old one.
             PushService.shared.writeLanguage()
+            Self.applyUIKitDirection(current)
         }
     }
 
-    private init() { current = AppLanguage.current }
+    private init() {
+        current = AppLanguage.current
+        Self.applyUIKitDirection(current)
+    }
+
+    /// Tells UIKit which way the app reads.
+    ///
+    /// `.environment(\.layoutDirection, …)` is a SwiftUI value, and a `Menu`
+    /// is not a SwiftUI view: iOS presents it as a UIMenu in its own context,
+    /// which reads the app's UIKit direction and never sees the environment.
+    /// So the city and neighbourhood dropdowns — the two controls a customer
+    /// uses to find a salon near her — opened left-to-right in Dari and
+    /// Pashto, ticks on the wrong side and every district name flush against
+    /// the wrong edge.
+    ///
+    /// The comment this file used to carry said UIView.appearance "would fight
+    /// the deliberate left-to-right islands this app already uses for phone
+    /// numbers, prices and booking codes". That was a reasonable fear and it
+    /// is wrong, which was settled by building a throwaway app with both in
+    /// it: a forced-RTL appearance with an LTR-forced TextField and booking
+    /// code inside it leaves both islands exactly as they were, because
+    /// SwiftUI sets semanticContentAttribute per view from the environment and
+    /// a per-view value beats the appearance proxy. The proxy only reaches
+    /// what SwiftUI never touches — which is the menu, which is the bug.
+    ///
+    /// Read when a UIView is created, so this is set before any view exists
+    /// (init) and again on a language change. A menu builds its views fresh on
+    /// every presentation, so the next open is already correct without
+    /// rebuilding the tree.
+    private static func applyUIKitDirection(_ lang: AppLanguage) {
+        UIView.appearance().semanticContentAttribute =
+            lang.layoutDirection == .rightToLeft ? .forceRightToLeft : .forceLeftToRight
+    }
 }
 
 /// Re-applies the app's direction and locale.
@@ -106,9 +140,11 @@ final class LanguageStore {
 /// button sits on the wrong side, and in the chat a woman's own messages
 /// appeared on the side reserved for the person she is talking to.
 ///
-/// Applied at the root of each sheet's content rather than fixed globally with
-/// UIView.appearance, which would fight the deliberate left-to-right islands
-/// this app already uses for phone numbers, prices and booking codes.
+/// Applied at the root of each sheet's content rather than relying on
+/// `applyUIKitDirection` above: that sets the UIKit direction, which is what a
+/// UIMenu reads, but a sheet's content is SwiftUI and takes its direction from
+/// the environment — which a sheet does not inherit. The two are separate
+/// mechanisms and both are needed.
 private struct AppDirection: ViewModifier {
     @State private var lang = LanguageStore.shared
 

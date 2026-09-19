@@ -1,0 +1,31 @@
+{
+  "slug": "s-how-it-works",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S2. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "steps",
+  "text": {
+    "fa": {
+      "sub": "چطور کار می‌کند",
+      "headline": "سه قدم تا اولین رزرو",
+      "steps": [
+        "سالن‌تان را ثبت کنید و هویت‌تان تأیید شود.",
+        "ساعت‌های کاری و خدمات‌تان را وارد کنید.",
+        "رزروها می‌آیند؛ شما تأیید می‌کنید."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "څنګه کار کوي",
+      "headline": "تر لومړي بکینګ درې ګامه",
+      "steps": [
+        "خپل سالون ثبت کړئ او پېژندنه مو تایید شي.",
+        "خپل کاري ساعتونه او خدمتونه ولیکئ.",
+        "بکینګونه راځي؛ تاسو یې تاییدوئ."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

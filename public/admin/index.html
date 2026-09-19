@@ -199,6 +199,10 @@
   .chat{background:var(--card);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;
     min-height:452px;box-shadow:var(--shadow);overflow:hidden}
   .chat .msgs{flex:1;padding:18px;overflow-y:auto;max-height:472px;display:flex;flex-direction:column;gap:10px}
+  .conv-divider{align-self:stretch;text-align:center;font-size:11.5px;font-weight:700;color:var(--muted);
+    border-top:1px dashed var(--line);padding-top:7px;margin:4px 0 2px}
+  .conv-divider .stars{color:#c9a24a;letter-spacing:1px;font-size:13px}
+  .conv-divider .rc{display:block;font-weight:600;font-style:italic;margin-top:2px}
   .bubble{max-width:74%;padding:10px 14px;border-radius:16px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
   .bubble.them{align-self:flex-start;background:var(--surface);color:var(--ink);border-bottom-left-radius:5px}
   .bubble.me{align-self:flex-end;background:var(--grad);color:#fff;border-bottom-right-radius:5px;box-shadow:0 4px 12px rgba(183,110,121,.28)}
@@ -210,6 +214,13 @@
   /* ── Modal (admin actions) ─────────────────────────────────────── */
   .modal-overlay{position:fixed;inset:0;background:rgba(20,10,15,.5);backdrop-filter:blur(3px);
     display:flex;align-items:center;justify-content:center;padding:22px;z-index:50;animation:fade .18s ease}
+  /* Mirrors the entrance path (fade + 6px rise) instead of the modal just
+     vanishing — a modal that appears gently and disappears instantly reads as
+     two different objects, not one. prefers-reduced-motion already collapses
+     every animation-duration to .01ms above, so this degrades to an instant
+     cross-fade there for free. */
+  .modal-overlay.closing{animation:fadeOut .16s ease forwards}
+  @keyframes fadeOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px)}}
   .modal{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow-lg);
     width:100%;max-width:440px;max-height:88vh;overflow-y:auto;padding:24px 24px 22px}
   .modal h2{margin:0 0 3px;font-size:18px;color:var(--deep);font-weight:800}
@@ -448,6 +459,27 @@ const STR = {
   empty_noCommentsYet: {en:'No comments yet', fa:'هنوز نظری نیست', ps:'تر اوسه نظر نشته'},
   empty_noDemandYetThatNobodyCanServe: {en:'No demand yet that nobody can serve', fa:'هنوز تقاضای بی‌پاسخ وجود ندارد', ps:'تر اوسه بې‌ځوابه تقاضا نشته'},
   empty_noFlaggedReports: {en:'No flagged reports 🎉', fa:'گزارشی نیست 🎉', ps:'هیڅ راپور نشته 🎉'},
+  empty_noContentReports: {en:'No reported content 🎉', fa:'محتوای گزارش‌شده‌ای نیست 🎉', ps:'راپور شوې محتوا نشته 🎉'},
+  lbl_photoRetention: {en:'Photo retention', fa:'نگهداری عکس‌ها', ps:'د عکسونو ساتنه'},
+  hint_photoRetention: {en:'Identity photos are deleted 30 days after review. Verification is kept; the picture is not. This runs nightly — these buttons are for checking it or running it now.', fa:'عکس‌های هویتی ۳۰ روز پس از بررسی حذف می‌شوند. تأیید هویت می‌ماند، عکس نه. این هر شب اجرا می‌شود — این دکمه‌ها برای بررسی یا اجرای فوری‌اند.', ps:'د پیژندنې عکسونه د کتنې ۳۰ ورځې وروسته ړنګیږي. تاییدي پاتې کیږي، عکس نه. دا هره شپه چلیږي — دا تڼۍ د کتلو یا سمدستي چلولو لپاره دي.'},
+  btn_purgePhotos: {en:'Delete expired photos', fa:'حذف عکس‌های منقضی', ps:'د پای ته رسېدلو عکسونو ړنګول'},
+  btn_purgeDry: {en:'Show me what would go', fa:'اول نشانم بده چه می‌رود', ps:'لومړی راوښیه څه به ولاړ شي'},
+  msg_purgeResult: {en:(a0,a1)=>`${a0} account(s), ${a1} photo(s)`, fa:(a0,a1)=>`${a0} حساب، ${a1} عکس`, ps:(a0,a1)=>`${a0} حساب، ${a1} عکسونه`},
+  hint_contentReports: {en:(a0)=>`Reported content (${a0})`, fa:(a0)=>`محتوای گزارش‌شده (${a0})`, ps:(a0)=>`راپور شوې محتوا (${a0})`},
+  hint_contentSla: {en:'Reports are answered within 24 hours.', fa:'گزارش‌ها در کمتر از ۲۴ ساعت بررسی می‌شوند.', ps:'راپورونه په ۲۴ ساعتونو کې کتل کیږي.'},
+  th_content: {en:'Content', fa:'محتوا', ps:'محتوا'},
+  th_reason: {en:'Reason', fa:'دلیل', ps:'دلیل'},
+  th_reporter: {en:'Reported by', fa:'گزارش‌دهنده', ps:'راپور ورکوونکی'},
+  btn_removeContent: {en:'Remove', fa:'حذف', ps:'لرې کول'},
+  btn_removeSuspend: {en:'Remove + suspend', fa:'حذف و تعلیق', ps:'لرې او تعلیق'},
+  ask_removeContent: {en:'Delete this content permanently?', fa:'این محتوا برای همیشه حذف شود؟', ps:'دا محتوا د تل لپاره حذف شي؟'},
+  ask_removeSuspend: {en:'Delete the content and suspend its author?', fa:'محتوا حذف و حساب نویسنده تعلیق شود؟', ps:'محتوا حذف او د لیکوال حساب دې تعلیق شي؟'},
+  reason_HARASSMENT: {en:'Harassment', fa:'آزار و توهین', ps:'ځورونه'},
+  reason_NUDITY: {en:'Nudity', fa:'غیراخلاقی', ps:'غیراخلاقي'},
+  reason_HATE: {en:'Hate speech', fa:'نفرت‌پراکنی', ps:'کرکه خپرول'},
+  reason_SCAM: {en:'Scam', fa:'کلاهبرداری', ps:'درغلي'},
+  reason_SPAM: {en:'Spam', fa:'تبلیغ ناخواسته', ps:'ناغوښتی اعلان'},
+  reason_OTHER: {en:'Other', fa:'دیگر', ps:'بل'},
   empty_noIdentityChecksAwaitingReview: {en:'No identity checks awaiting review ✓', fa:'احراز هویتی در انتظار بررسی نیست ✓', ps:'د بیاکتنې په تمه د هویت تصدیق نشته ✓'},
   empty_noMatchingSalons: {en:'No matching salons', fa:'هیچ سالنی مطابقت ندارد', ps:'هیڅ سالون سمون نه خوري'},
   ask_closeTicket: {en:'Close this support ticket?', fa:'این تیکت پشتیبانی بسته شود؟', ps:'دا د ملاتړ ټکټ وتړل شي؟'},
@@ -500,6 +532,22 @@ const STR = {
   tab_kyc: {en:'KYC', fa:'KYC', ps:'KYC'},
   tab_promo: {en:'Promo', fa:'کد تخفیف', ps:'د تخفیف کوډ'},
   tab_reports: {en:'Reports', fa:'گزارش‌ها', ps:'راپورونه'},
+  tab_contentreports: {en:'Reported', fa:'گزارش محتوا', ps:'راپور شوې محتوا'},
+  tab_visitreports: {en:'Visits', fa:'شکایت از سالن', ps:'د سالون شکایت'},
+  empty_noVisitReports: {en:'No visit complaints 🎉', fa:'شکایتی از سالن نیست 🎉', ps:'د سالون شکایت نشته 🎉'},
+  hint_visitReports: {en:(a0)=>`Visit complaints (${a0})`, fa:(a0)=>`شکایت از سالن (${a0})`, ps:(a0)=>`د سالون شکایت (${a0})`},
+  hint_visitSla: {en:'A booking becomes "completed" two hours after its time whether or not she was served. These are the ones she says were not.', fa:'رزرو دو ساعت بعد از وقتش «تکمیل‌شده» می‌شود، چه خدمت گرفته باشد چه نه. این‌ها آن‌هایی است که می‌گوید نگرفته.', ps:'بکینګ د خپل وخت دوه ساعته وروسته «بشپړ» کیږي، که خدمت یې اخیستی وي که نه. دا هغه دي چې وايي یې نه دی اخیستی.'},
+  th_visitCustomer: {en:'Customer', fa:'مشتری', ps:'پیرودونکی'},
+  btn_refundHer: {en:'Refund her', fa:'پولش را برگردان', ps:'پیسې یې بیرته ورکړه'},
+  btn_refundSuspend: {en:'Refund + suspend salon', fa:'برگرداندن و تعلیق سالن', ps:'بیرته ورکړه او سالون تعلیق'},
+  ask_refundHer: {en:'Refund this customer?', fa:'پول این مشتری برگردانده شود؟', ps:'د دې پیرودونکي پیسې بیرته ورکړل شي؟'},
+  ask_refundSuspend: {en:'Refund her and suspend the salon?', fa:'پولش برگردد و سالن تعلیق شود؟', ps:'پیسې یې بیرته او سالون دې تعلیق شي؟'},
+  visit_NOT_SERVED: {en:'Not served', fa:'خدمتی نگرفت', ps:'خدمت یې وا نه خیست'},
+  visit_TURNED_AWAY: {en:'Turned away', fa:'نپذیرفتند', ps:'ونه منله'},
+  visit_DIFFERENT_SERVICE: {en:'Wrong service', fa:'خدمت دیگر', ps:'بل خدمت'},
+  visit_OVERCHARGED: {en:'Overcharged', fa:'اضافه گرفتند', ps:'زیات یې واخیستل'},
+  visit_SAFETY: {en:'Treated badly', fa:'بدرفتاری', ps:'بد چلند'},
+  visit_OTHER: {en:'Other', fa:'دیگر', ps:'بل'},
   tab_salons: {en:'Salons', fa:'سالن‌ها', ps:'سالونونه'},
   tab_stats: {en:'Statistics', fa:'آمار', ps:'احصایه'},
   tab_stuck: {en:'Stuck pay', fa:'پرداخت گیرمانده', ps:'ایسارې تادیې'},
@@ -788,7 +836,6 @@ const STR = {
   // ── Modals and the long maintenance copy ─────────────────────────────────
   // The first sweep scanned only render* functions and capped prose at 400
   // characters, so the dialogs and the longest explanations were left English.
-  btn_addDefaultReplies: {en:'＋ Add default replies', fa:'＋ افزودن پاسخ‌های پیش‌فرض', ps:'＋ اصلي ځوابونه زیاتول'},
   btn_addTemplate: {en:'Add template', fa:'افزودن قالب', ps:'کينډۍ زیاتول'},
   btn_applyBalance: {en:'Apply', fa:'اعمال', ps:'پلي کول'},
   btn_approveKyc: {en:'Approve KYC', fa:'تایید KYC', ps:'د KYC تایید'},
@@ -821,7 +868,6 @@ const STR = {
   msg_copied: {en:'Copied ✓', fa:'کاپی شد ✓', ps:'کاپي شو ✓'},
   msg_templateAdded: {en:'Added ✓', fa:'اضافه شد ✓', ps:'زیات شو ✓'},
   msg_titleBodyRequired: {en:'Title and message are required.', fa:'عنوان و متن پیام لازم است.', ps:'سرلیک او د پیغام متن اړین دي.'},
-  msg_defaultsPresent: {en:'All defaults already present.', fa:'همهٔ پاسخ‌های پیش‌فرض از قبل موجودند.', ps:'ټول اصلي ځوابونه لا دمخه شته.'},
   confirm_deleteTemplate: {en:'Delete this template?', fa:'این قالب حذف شود؟', ps:'دا کينډۍ ړنګه شي؟'},
   btn_postStory: {en:'Post story', fa:'انتشار استوری', ps:'سټوري خپرول'},
   btn_rejectKyc: {en:'Reject KYC', fa:'رد KYC', ps:'د KYC ردول'},
@@ -844,6 +890,17 @@ const STR = {
   lbl_selfie: {en:'Selfie', fa:'سلفی', ps:'سلفي'},
   lbl_tazkira: {en:'Tazkira', fa:'تذکره', ps:'تذکره'},
   lbl_templatesLoading: {en:'Loading…', fa:'در حال بارگذاری…', ps:'روانه ده…'},
+  // A line through the thread where a ticket was closed. The server archives
+  // each closed conversation (support_tickets/{uid}/history) and the apps show
+  // the user only what came after the newest one; the admin keeps seeing the
+  // whole thread, because context from last month is exactly what a reply needs.
+  lbl_convClosed: {
+    en: (d, n) => `Conversation closed · ${d} · ${n} messages`,
+    fa: (d, n) => `گفتگو بسته شد · ${d} · ${n} پیام`,
+    ps: (d, n) => `خبرې اترې وتړل شوې · ${d} · ${n} پیغامونه`,
+  },
+  lbl_notRated: {en:'Not rated', fa:'امتیاز داده نشده', ps:'ستوري نه دي ورکړل شوي'},
+  lbl_rating: {en:'Rating', fa:'امتیاز', ps:'درجه'},
 };
 
 function t(key, ...args){
@@ -929,17 +986,33 @@ const kycPill = (k) => {
 // blob URLs, today. The backdrop click and Escape call hideModal directly, so
 // per-modal close buttons are not the only exit and cannot be the only cleanup.
 let modalCleanups = [];
+// Bumped on every open/close so a close animation still in flight from a
+// modal that got reopened mid-fade can't hide the new one out from under it.
+let modalCloseToken = 0;
 function onModalClose(fn){ modalCleanups.push(fn); }
 function showModal(html){
   modalCleanups = [];
+  modalCloseToken++;
   const m = $('modal');
+  m.classList.remove('closing');
   m.innerHTML = `<div class="modal">${html}</div>`;
   m.classList.remove('hidden');
 }
 function hideModal(){
   modalCleanups.forEach((fn) => { try { fn(); } catch (_) {} });
   modalCleanups = [];
-  const m=$('modal'); m.classList.add('hidden'); m.innerHTML='';
+  const m = $('modal');
+  if (m.classList.contains('hidden')) return;
+  const token = ++modalCloseToken;
+  m.classList.add('closing');
+  const finish = () => {
+    if (token !== modalCloseToken) return; // superseded by a reopen
+    m.classList.add('hidden');
+    m.classList.remove('closing');
+    m.innerHTML = '';
+  };
+  m.addEventListener('animationend', finish, { once: true });
+  setTimeout(finish, 220); // in case the overlay's gone and no event fires
 }
 // Close when clicking the dark backdrop (but not the card).
 $('modal').addEventListener('click', e => { if(e.target === $('modal')) hideModal(); });
@@ -1080,6 +1153,8 @@ const TABS = [
   { id:'stuck',      icon:'🧯', render:renderStuck },
   { id:'promo',      icon:'🎟️', render:renderPromo },
   { id:'reports',    icon:'🚩', render:renderReports },
+  { id:'contentreports', icon:'⚠️', render:renderContentReports },
+  { id:'visitreports',   icon:'🙋', render:renderVisitReports },
   { id:'admins',     icon:'🛡️', render:renderAdmins },
   { id:'audit',      icon:'🧾', render:renderAudit },
 ];
@@ -1400,18 +1475,41 @@ function openChat(userId, name){
 
   const convId = 'support_'+userId;
   if(chatUnsub){ try{chatUnsub();}catch(_){} }
-  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
-  chatUnsub = onSnapshot(q, snap => {
-    const msgs = [];
-    snap.forEach(d => msgs.push(d.data()));
-    msgs.sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  let msgs = [], closes = [];
+  const draw = () => {
     const box = $('msgs'); if(!box) return;
-    box.innerHTML = msgs.map(m => {
-      const mine = m.senderId === admin.uid;
-      return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+    // Messages and closes on one timeline. A close sorts after every message
+    // at or before its closedAt, which is exactly the set it archived.
+    const items = msgs.map(m => ({ at: Number(m.timestamp)||0, rank: 0, m }))
+      .concat(closes.map(h => ({ at: Number(h.closedAt)||0, rank: 1, h })))
+      .sort((a,b) => (a.at - b.at) || (a.rank - b.rank));
+    box.innerHTML = items.map(it => {
+      if(it.m){
+        const m = it.m, mine = m.senderId === admin.uid;
+        return `<div class="bubble ${mine?'me':'them'}">${esc(m.content)}<span class="t">${fmtDate(m.timestamp)}</span></div>`;
+      }
+      const h = it.h, r = Number(h.rating)||0;
+      const stars = r > 0
+        ? `<span class="stars" title="${esc(t('lbl_rating'))}: ${r}/5">${'★'.repeat(r)}${'☆'.repeat(5-r)}</span>`
+        : `<span>${esc(t('lbl_notRated'))}</span>`;
+      const comment = (r > 0 && h.ratingComment) ? `<span class="rc">“${esc(h.ratingComment)}”</span>` : '';
+      return `<div class="conv-divider">${esc(t('lbl_convClosed', fmtDate(h.closedAt), Number(h.messageCount)||0))} · ${stars}${comment}</div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
+  };
+  const q = query(collection(db,'chat_messages'), where('conversationId','==',convId));
+  const unMsgs = onSnapshot(q, snap => {
+    msgs = [];
+    snap.forEach(d => msgs.push(d.data()));
+    draw();
   });
+  const hq = query(collection(db,'support_tickets',userId,'history'), orderBy('closedAt','desc'), limit(50));
+  const unCloses = onSnapshot(hq, snap => {
+    closes = [];
+    snap.forEach(d => closes.push(d.data()));
+    draw();
+  }, () => { closes = []; draw(); });
+  chatUnsub = () => { unMsgs(); unCloses(); };
   const send = async () => {
     const inp = $('cin'); const text = inp.value.trim(); if(!text) return;
     inp.value='';
@@ -1457,70 +1555,13 @@ function langName(code){
   return '';
 }
 const TEMPLATE_CATS = ['Welcome','Guidance','Booking','Payment','Provider','Closing'];
-// A ready-made trilingual (Dari / Pashto / English) library covering the real
-// support scenarios. Auto-seeded on first open of an empty collection, and
-// re-addable any time via "Add default replies" (skips ones already present).
-const DEFAULT_TEMPLATES = [
-  // Welcome / greeting
-  { category:'Welcome', title:'خوش‌آمد (دری)', body:'سلام و وقت بخیر 🌸 به پشتیبانی SafeBeauty خوش آمدید. لطفاً مشکل‌تان را بنویسید تا کمک‌تان کنم.' },
-  { category:'Welcome', title:'ښه راغلاست (پښتو)', body:'سلام او ښه راغلاست 🌸 د SafeBeauty ملاتړ ته ښه راغلاست. مهرباني وکړئ خپله ستونزه ولیکئ چې مرسته درسره وکړم.' },
-  { category:'Welcome', title:'Welcome (English)', body:'Hello and welcome to SafeBeauty support 🌸 Please describe your issue and I\'ll be glad to help.' },
-  // How to book
-  { category:'Guidance', title:'روش رزرو (دری)', body:'برای رزرو نوبت:\n۱) سالن مورد نظر را انتخاب کنید\n۲) خدمت و زمان را انتخاب کنید\n۳) پرداخت را کامل کنید.\nپس از تأیید سالن، نوبت شما قطعی می‌شود و پیام تأیید دریافت می‌کنید.' },
-  { category:'Guidance', title:'د بکینګ لار (پښتو)', body:'د نوبت لپاره:\n۱) خپل غوره سالون وټاکئ\n۲) خدمت او وخت وټاکئ\n۳) تادیه بشپړه کړئ.\nد سالون له تایید وروسته ستاسو نوبت پاخه کیږي او د تایید پیغام ترلاسه کوئ.' },
-  // Forgot password
-  { category:'Guidance', title:'فراموشی رمز (دری)', body:'اگر رمز عبور خود را فراموش کرده‌اید، از صفحه‌ی ورود روی «فراموشی رمز» بزنید. اگر باز هم مشکل داشتید، بگویید تا یک رمز موقت برای‌تان تنظیم کنیم و بعد خودتان تغییرش دهید.' },
-  { category:'Guidance', title:'پټ نوم هیرول (پښتو)', body:'که خپل پټ نوم مو هیر کړی، د ننوتلو له پاڼې «پټ نوم هیرول» کلیک کړئ. که بیا هم ستونزه درسره وه، ووایاست چې یو لنډمهاله پټ نوم درته وټاکو او بیا یې پخپله بدل کړئ.' },
-  // Cancel / reschedule
-  { category:'Booking', title:'لغو/تغییر نوبت (دری)', body:'برای لغو یا تغییر زمان نوبت، از بخش «رزروهای من» در اپ اقدام کنید. اگر نوبتِ پرداخت‌شده را لغو کنید، مبلغ طبق قوانین بازگردانده می‌شود. لطفاً شماره‌ی رزرو را بفرستید تا بررسی کنم.' },
-  { category:'Booking', title:'لغوه/بدلون (پښتو)', body:'د نوبت د لغوه یا وخت بدلولو لپاره، په اپ کې د «زما بکینګونه» برخې څخه اقدام وکړئ. که تادیه‌شوی نوبت لغوه کړئ، پیسې د مقرراتو له مخې بیرته درکول کیږي. مهرباني وکړئ د بکینګ شمېره راولېږئ.' },
-  // Booking rejected by salon
-  { category:'Booking', title:'رزرو ردشد (دری)', body:'متأسفانه سالن این نوبت را نپذیرفت (ممکن است تعطیل یا پر بوده باشد). نگران نباشید — مبلغ پرداختی شما به‌طور کامل بازگردانده می‌شود و می‌توانید سالن یا زمان دیگری انتخاب کنید. عذرخواهی می‌کنیم. 🙏' },
-  { category:'Booking', title:'بکینګ رد شو (پښتو)', body:'له بده مرغه سالون دا نوبت ونه مانه (کیدای شي تړلی یا ډک وي). اندېښنه مه کوئ — ستاسو ورکړل‌شوې پیسې په بشپړه توګه بیرته درکول کیږي او بل سالون یا وخت ټاکلی شئ. بښنه غواړو. 🙏' },
-  // Paid but not confirmed
-  { category:'Payment', title:'پرداخت‌شده اما تأییدنشده (دری)', body:'اگر مبلغ از حساب شما کم شده ولی رزرو هنوز تأیید نشده، نگران نباشید. طی چند دقیقه سیستم بررسی می‌کند؛ اگر تأیید نشد مبلغ برمی‌گردد. لطفاً شماره‌ی رزرو یا شماره‌ی تراکنش HesabPay را بفرستید.' },
-  { category:'Payment', title:'تادیه شوې خو تایید نه (پښتو)', body:'که پیسې ستاسو له حسابه کمې شوې خو بکینګ لا تایید شوی نه دی، اندېښنه مه کوئ. په څو دقیقو کې سیسټم یې ګوري؛ که تایید نشو پیسې بیرته راځي. مهرباني وکړئ د بکینګ شمېره یا د HesabPay د تراکنش شمېره راولېږئ.' },
-  // Refund timeline
-  { category:'Payment', title:'زمان بازگشت وجه (دری)', body:'درخواست بازگشت وجه شما ثبت شد. بازگرداندن مبلغ به‌صورت دستی انجام می‌شود و معمولاً طی ۱ تا ۳ روز کاری به حساب شما واریز می‌گردد. از صبر شما سپاسگزاریم. 🌷' },
-  { category:'Payment', title:'د بیرته‌ورکړې وخت (پښتو)', body:'ستاسو د پیسو بیرته‌ورکړې غوښتنه ثبت شوه. پیسې په لاسي توګه بیرته ورکول کیږي او معمولاً د ۱ تر ۳ کاري ورځو په اوږدو کې ستاسو حساب ته سپارل کیږي. ستاسو د صبر مننه. 🌷' },
-  // Become a provider
-  { category:'Provider', title:'ثبت سالن (دری)', body:'برای ثبت سالن خود در SafeBeauty، هنگام ساخت حساب گزینه‌ی «صاحب سالن» را انتخاب کنید و مدارک هویتی (تذکره) را بارگذاری کنید. پس از تأیید تیم ما، سالن شما فعال می‌شود و می‌توانید نوبت بپذیرید.' },
-  { category:'Provider', title:'د سالون ثبت (پښتو)', body:'د خپل سالون ثبتولو لپاره په SafeBeauty کې، د حساب جوړولو پر مهال د «د سالون خاوند» اختیار وټاکئ او د پیژندنې اسناد (تذکره) پورته کړئ. زموږ د ټیم له تایید وروسته ستاسو سالون فعالیږي.' },
-  // Provider approval pending
-  { category:'Provider', title:'در انتظار تأیید سالن (دری)', body:'حساب سالن شما در حال بررسی است. معمولاً بررسی طی ۲۴ تا ۴۸ ساعت انجام می‌شود. به‌محض تأیید، اطلاع‌رسانی می‌کنیم و می‌توانید نوبت بپذیرید. از شکیبایی شما ممنونیم.' },
-  { category:'Provider', title:'د تایید په تمه (پښتو)', body:'ستاسو د سالون حساب د بیاکتنې لاندې دی. معمولاً بیاکتنه د ۲۴ تر ۴۸ ساعتونو په اوږدو کې کیږي. سمدلاسه چې تایید شو، خبر درکوو او نوبتونه منلی شئ. ستاسو د صبر مننه.' },
-  // KYC / verification
-  { category:'Provider', title:'تأیید هویت (دری)', body:'برای تأیید هویت، لطفاً عکس واضح تذکره و یک عکس سلفی خود را از بخش «تأیید هویت» در اپ بارگذاری کنید. مطمئن شوید تصاویر خوانا باشند تا تأیید سریع‌تر انجام شود.' },
-  { category:'Provider', title:'د پیژندنې تایید (پښتو)', body:'د پیژندنې تایید لپاره، مهرباني وکړئ د تذکرې روښانه عکس او خپل یو سیلفي عکس د اپ د «د پیژندنې تایید» برخې څخه پورته کړئ. ډاډ ترلاسه کړئ چې عکسونه لوستل‌کیدونکي وي ترڅو تایید ژر ترسره شي.' },
-  // Report a problem
-  { category:'Guidance', title:'گزارش مشکل (دری)', body:'بابت این تجربه متأسفیم. لطفاً جزئیات (نام سالن، تاریخ نوبت و آنچه پیش آمد) را بنویسید تا بررسی کنیم و در صورت لزوم اقدام مناسب انجام دهیم. بازخورد شما برای ما مهم است.' },
-  { category:'Guidance', title:'د ستونزې راپور (پښتو)', body:'د دې تجربې لپاره بښنه غواړو. مهرباني وکړئ جزئیات (د سالون نوم، د نوبت نېټه او څه چې پېښ شول) ولیکئ چې وګورو او که اړتیا وه مناسب اقدام وکړو. ستاسو نظر زموږ لپاره مهم دی.' },
-  // Closing
-  { category:'Closing', title:'بستن گفتگو (دری)', body:'خوشحال شدیم توانستیم کمک کنیم 🌷 اگر باز هم سوالی داشتید، همیشه در خدمت‌تان هستیم. روز خوبی داشته باشید!' },
-  { category:'Closing', title:'د خبرو پای (پښتو)', body:'خوشحاله یو چې مرسته مو وکړای شوه 🌷 که بیا هم پوښتنه درسره وه، تل ستاسو په خدمت کې یو. ښه ورځ ولرئ!' },
-  { category:'Closing', title:'Closing (English)', body:'Glad we could help 🌷 If you have any more questions, we\'re always here. Have a great day!' },
-];
+// No default library ships any more. It seeded 27 canned replies into
+// support_templates on the first open of an empty collection, and the two a
+// customer saw in her own thread on 2026-09-04 — the Pashto one and the Dari
+// one, back to back — were sent from here by a click, not by anything
+// automatic. Removed at the owner's request. Templates are still supported:
+// write your own below, and only ones written on purpose exist.
 
-/** Add every default reply not already present (matched by title). Returns the
- *  number added. Used by the auto-seed and the "Add default replies" button. */
-async function addMissingDefaults(){
-  const snap = await getDocs(collection(db,'support_templates'));
-  const have = new Set(); snap.forEach(d => have.add(String(d.data().title||'').trim()));
-  let added = 0;
-  for(let i=0;i<DEFAULT_TEMPLATES.length;i++){
-    const tpl = DEFAULT_TEMPLATES[i];
-    if(have.has(tpl.title.trim())) continue;
-    await addDoc(collection(db,'support_templates'), { ...tpl, order:i, createdAt: Date.now() });
-    added++;
-  }
-  return added;
-}
-
-async function seedTemplatesIfEmpty(){
-  const snap = await getDocs(collection(db,'support_templates'));
-  if(!snap.empty) return;
-  await addMissingDefaults();
-}
 
 /** Templates panel. When [targetInputId] is set, "Insert" drops the text into
  *  that composer input; otherwise it copies to the clipboard. */
@@ -1532,7 +1573,6 @@ async function openTemplates(targetInputId, recipientLang){
     <div class="msub">${targetInputId ? t('hint_templatesInsert') : t('hint_templatesManage')}</div>
     ${matchNote}
     <div id="tpl-flash" class="mflash"></div>
-    <div style="margin-bottom:10px"><button class="btn-sm" id="tpl-defaults" style="background:var(--petal);color:var(--deep)">${t('btn_addDefaultReplies')}</button></div>
     <div id="tpl-list"><div class="meta" style="color:var(--muted)">${t('lbl_templatesLoading')}</div></div>
     <div class="mgroup">
       <div class="mglabel">${t('lbl_newTemplate')}</div>
@@ -1543,16 +1583,6 @@ async function openTemplates(targetInputId, recipientLang){
     </div>
     <button class="btn-sm mclose" id="tpl-close">${t('btn_close')}</button>`);
   $('tpl-close').onclick = hideModal;
-  $('tpl-defaults').onclick = async (e) => {
-    e.target.disabled = true;
-    try{
-      const n = await addMissingDefaults();
-      $('tpl-flash').className='mflash ok';
-      $('tpl-flash').textContent = n ? `${t('msg_templateAdded')} (${n})` : t('msg_defaultsPresent');
-      load();
-    }catch(err){ $('tpl-flash').className='mflash bad'; $('tpl-flash').textContent=err.message; }
-    finally{ e.target.disabled = false; }
-  };
 
   const load = async () => {
     const snap = await getDocs(collection(db,'support_templates'));
@@ -1612,7 +1642,6 @@ async function openTemplates(targetInputId, recipientLang){
     finally{ e.target.disabled=false; }
   };
 
-  try{ await seedTemplatesIfEmpty(); }catch(_){}
   load();
 }
 
@@ -2626,6 +2655,12 @@ async function renderHealth(){
         <button class="btn-sm" id="h-kycrevoke" style="background:var(--red)">${t('btn_revokePhotoLinks')}</button>
         <button class="btn-sm" id="h-kycdry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_countThemFirst')}</button>
         <div id="h-kycflash" class="mflash" style="margin-top:8px"></div>
+
+        <div class="mlabel" style="margin-top:18px">${t('lbl_photoRetention')}</div>
+        <div class="mhint">${t('hint_photoRetention')}</div>
+        <button class="btn-sm" id="h-purge" style="background:var(--red)">${t('btn_purgePhotos')}</button>
+        <button class="btn-sm" id="h-purgedry" style="background:var(--surface);color:var(--deep);margin-inline-start:6px">${t('btn_purgeDry')}</button>
+        <div id="h-purgeflash" class="mflash" style="margin-top:8px"></div>
       </div>
       <div class="card-pad" style="margin-top:10px">
         <div class="meta" style="color:var(--muted);margin-bottom:10px">
@@ -2805,6 +2840,28 @@ async function renderHealth(){
     };
     $('h-kycrevoke').onclick = (e) => runKycRevoke(e.target, false);
     $('h-kycdry').onclick    = (e) => runKycRevoke(e.target, true);
+
+    // The nightly job does this on its own. These exist because a callable
+    // nothing can reach is this project's recurring defect, and because the
+    // first run of an irreversible sweep should be readable before it is
+    // trusted — which is what the dry run is for.
+    const runPurge = async (btn, dryRun) => {
+      const label = btn.textContent;
+      btn.disabled = true; btn.textContent = '…';
+      try {
+        const { data } = await httpsCallable(fns,'adminPurgeKycImages')({ dryRun });
+        const lines = (data.purged || []).map(p => `${p.uid.slice(0,8)}… ${p.ageDays}d`).join(', ');
+        $('h-purgeflash').textContent =
+          (dryRun ? '· ' : '✓ ') + t('msg_purgeResult', data.accountsPurged, data.objectsPurged) +
+          (lines ? ` — ${lines}` : '');
+      } catch (e) {
+        $('h-purgeflash').textContent = e.message || 'Failed';
+      } finally {
+        btn.disabled = false; btn.textContent = label;
+      }
+    };
+    $('h-purge').onclick    = (e) => { if (confirm(t('btn_purgePhotos') + '?')) runPurge(e.target, false); };
+    $('h-purgedry').onclick = (e) => runPurge(e.target, true);
 
 
     // Writes platform_config/force_update, which the app has read since it was
@@ -3509,6 +3566,107 @@ function renderPromo(){
     el.querySelectorAll('[data-tog]').forEach(b => b.onclick = () =>
       httpsCallable(fns,'setPromoActive')({ code:b.dataset.tog, active:b.dataset.act==='1' }).catch(e=>alert(e.message)));
   }, err => { const el=$('plist'); if(el) el.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Visit complaints ───────────────────────────────────────────────────────────
+//
+// The other half of the Reports tab. That one is a salon reporting a customer;
+// this is a customer saying the visit did not happen, or did not happen as
+// agreed. Until this existed she had the support chat and nothing else, while
+// completePastAppointments quietly marked the booking completed and the
+// platform took its commission.
+//
+// Refunding here creates the same refund_requests row the finance tab pays
+// out, so a decision made in this queue is a decision the money follows.
+function renderVisitReports(){
+  unsub.push(onSnapshot(query(collection(db,'visit_reports'),
+      where('status','==','OPEN'), orderBy('createdAt','desc'), limit(200)), snap => {
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noVisitReports')}</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">${t('hint_visitReports', rows.length)}</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${t('hint_visitSla')}</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">${t('th_salon')}</th><th scope="col">${t('th_visitCustomer')}</th><th scope="col">${t('th_reason')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td style="max-width:240px">
+            <div class="name">${esc(r.salonName||r.salonId||'—')}</div>
+            <div style="color:var(--muted);font-size:11.5px">${esc(r.serviceName||'')} ${r.bookingCode?('· '+esc(r.bookingCode)):''}</div>
+            ${r.note?`<div style="font-size:11.5px;margin-top:2px;overflow-wrap:anywhere">${esc(r.note)}</div>`:''}
+          </td>
+          <td>${esc(r.customerName||r.customerId||'—')}</td>
+          <td><span class="pill bad">${t('visit_'+(r.reason||'OTHER'))||esc(r.reason||'')}</span></td>
+          <td>${fmtDate(r.appointmentDate||r.createdAt)}</td>
+          <td>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end">
+              <button class="btn-sm" style="background:var(--muted)" data-vdis="${esc(r.id)}">${t('btn_dismiss')}</button>
+              <button class="btn-sm" style="background:var(--rose)" data-vref="${esc(r.id)}">${t('btn_refundHer')}</button>
+              <button class="btn-sm" style="background:var(--red)" data-vsus="${esc(r.id)}">${t('btn_refundSuspend')}</button>
+            </div>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    const act = (id, action) =>
+      httpsCallable(fns,'resolveVisitReport')({ reportId:id, action }).catch(e=>alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-vdis]').forEach(b => b.onclick = () => act(b.dataset.vdis, 'DISMISS'));
+    $('view').querySelectorAll('[data-vref]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_refundHer'))) act(b.dataset.vref, 'REFUND');
+    });
+    $('view').querySelectorAll('[data-vsus]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_refundSuspend'))) act(b.dataset.vsus, 'REFUND_AND_SUSPEND');
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
+}
+
+// ── Content reports ────────────────────────────────────────────────────────────
+//
+// The half of Guideline 1.2 that lives outside the apps. Reporting is worth
+// nothing without somebody looking at the queue, and the apps now tell every
+// reporter it is answered within 24 hours — so this tab is a promise made on
+// their behalf, not a nicety.
+//
+// Live rather than one-shot: a report filed while this is open should appear
+// without a reload, because the person watching it is watching it for that.
+function renderContentReports(){
+  // Bounded and ordered by the server. `status == 'OPEN'` is not a bound — it
+  // is exactly the set an abuser controls, and reportContent has no rate limit
+  // beyond one report per person per item. orderBy(createdAt desc) also uses
+  // the composite index this tab is the reason for; createdAt is server-written
+  // on every report, so nothing is dropped by ordering on it.
+  unsub.push(onSnapshot(query(collection(db,'content_reports'),
+      where('status','==','OPEN'), orderBy('createdAt','desc'), limit(200)), snap => {
+    const rows = []; snap.forEach(d => rows.push({ id:d.id, ...d.data() }));
+    if(!rows.length){ $('view').innerHTML = `<div class="empty">${t('empty_noContentReports')}</div>`; return; }
+    $('view').innerHTML = `<div class="section-title">${t('hint_contentReports', rows.length)}</div>
+      <div style="color:var(--muted);font-size:12px;margin-bottom:10px">${t('hint_contentSla')}</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th scope="col">${t('th_content')}</th><th scope="col">${t('th_reason')}</th><th scope="col">${t('th_reporter')}</th><th scope="col">${t('th_date')}</th><th scope="col"></th></tr></thead>
+        <tbody>` + rows.map(r => `<tr>
+          <td style="max-width:280px">
+            <div class="name">${esc(r.targetType||'')}</div>
+            ${r.excerpt?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-style:italic;overflow-wrap:anywhere">"${esc(r.excerpt)}"</div>`:''}
+            ${r.imageUrl?`<a href="${esc(r.imageUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:11.5px">🖼️</a>`:''}
+            ${r.note?`<div style="font-size:11.5px;margin-top:2px;overflow-wrap:anywhere">${esc(r.note)}</div>`:''}
+          </td>
+          <td><span class="pill bad">${t('reason_'+(r.reason||'OTHER'))||esc(r.reason||'')}</span></td>
+          <td>${esc(r.reporterName||r.reporterId||'—')}</td>
+          <td>${fmtDate(r.createdAt)}</td>
+          <td>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end">
+              <button class="btn-sm" style="background:var(--muted)" data-cdis="${esc(r.id)}">${t('btn_dismiss')}</button>
+              <button class="btn-sm" style="background:var(--red)" data-crem="${esc(r.id)}">${t('btn_removeContent')}</button>
+              ${r.ownerUid?`<button class="btn-sm" style="background:var(--red)" data-csus="${esc(r.id)}">${t('btn_removeSuspend')}</button>`:''}
+            </div>
+          </td>
+        </tr>`).join('') + `</tbody></table></div>`;
+    const act = (id, action) =>
+      httpsCallable(fns,'resolveContentReport')({ reportId:id, action }).catch(e=>alert(e.message||'Failed'));
+    $('view').querySelectorAll('[data-cdis]').forEach(b => b.onclick = () => act(b.dataset.cdis, 'DISMISS'));
+    $('view').querySelectorAll('[data-crem]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_removeContent'))) act(b.dataset.crem, 'REMOVE');
+    });
+    $('view').querySelectorAll('[data-csus]').forEach(b => b.onclick = () => {
+      if(confirm(t('ask_removeSuspend'))) act(b.dataset.csus, 'REMOVE_AND_SUSPEND');
+    });
+  }, err => { $('view').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }));
 }
 
 // ── Reports (flagged customers) ─────────────────────────────────────────────────

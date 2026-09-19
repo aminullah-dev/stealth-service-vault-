@@ -4,6 +4,8 @@
 // so the deployed function set is unchanged by the move.
 
 const { averageRating } = require("../lib/reviews");
+const { canReport, isReason, planFor, reportId, targetSpec } = require("../lib/moderation");
+const { enforceRateLimit } = require("../shared");
 const { assertAdmin, assertDocId, assertNotSuspended, logAdminAction, resolveAppUser } = require("../shared");
 const { onDocumentCreated, onDocumentDeleted, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
@@ -141,7 +143,7 @@ exports.submitReview = onCall(
       // A review only makes sense once the salon accepted/served the visit, and
       // exactly once per booking.
       if (appt.status !== "CONFIRMED" && appt.status !== "COMPLETED") {
-        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.", { reason: "REVIEW_TOO_EARLY" });
       }
       // CONFIRMED means the salon accepted the booking, not that it happened.
       // The message above already promised "after your visit"; without this the
@@ -149,10 +151,10 @@ exports.submitReview = onCall(
       // for next week, and it counted toward the salon's average.
       const startsAt = Number(appt.appointmentDate || 0);
       if (Number.isFinite(startsAt) && startsAt > Date.now()) {
-        throw new HttpsError("failed-precondition", "You can review a booking after your visit.");
+        throw new HttpsError("failed-precondition", "You can review a booking after your visit.", { reason: "REVIEW_TOO_EARLY" });
       }
       if (appt.reviewed === true) {
-        throw new HttpsError("failed-precondition", "You've already reviewed this booking.");
+        throw new HttpsError("failed-precondition", "You've already reviewed this booking.", { reason: "ALREADY_REVIEWED" });
       }
       tx.update(apptRef, { reviewed: true });
       tx.set(reviewRef, {
@@ -373,6 +375,52 @@ exports.cleanupDeletedPost = onDocumentDeleted(
   }
 );
 
+// ── cleanupDeletedReview ──────────────────────────────────────────────────────
+//
+// A salon's stored rating is the average of its reviews, and until moderation
+// existed nothing could ever delete one — awardReviewPoints recomputes on
+// create and says so in as many words: "reviews are immutable except for a
+// provider reply, so recomputing on create covers it". That stopped being true
+// the moment an admin could remove an abusive review.
+//
+// Without this, removing a 1-star review with abusive text takes the words off
+// the page and leaves the star in the average forever: deriveSalonStats copies
+// `rating` into `sortRating`, so it skews search ranking too, and it self-heals
+// only when some other customer happens to review that salon — which for a
+// salon with three reviews may be never.
+//
+// The appointment is released as well. `reviewed: true` is what stops a second
+// review of the same booking; leaving it set after the review is gone means the
+// customer is silenced rather than moderated.
+exports.cleanupDeletedReview = onDocumentDeleted(
+  { document: "reviews/{reviewId}", region: "us-central1" },
+  async (event) => {
+    const review = event.data && event.data.data();
+    if (!review) return;
+
+    const salonId = String(review.salonId || "");
+    if (salonId) {
+      // The same recompute awardReviewPoints does, from whatever is left.
+      // averageRating returns 0 for an empty list, so the last review being
+      // removed reads as unrated rather than as NaN.
+      const snap = await db.collection("reviews").where("salonId", "==", salonId).get();
+      await db.doc(`salons/${salonId}`).set(
+        { rating: averageRating(snap.docs.map((d) => d.data())) },
+        { merge: true }
+      );
+    }
+
+    const appointmentId = String(review.appointmentId || "");
+    if (appointmentId) {
+      await db.doc(`appointments/${appointmentId}`)
+        .set({ reviewed: false }, { merge: true })
+        .catch(() => {});
+    }
+
+    logger.log(`cleanupDeletedReview: recomputed rating for ${salonId || "(no salon)"}`);
+  }
+);
+
 // ── Seeding a salon's feed on the salon's behalf ──────────────────────────────
 //
 // A new marketplace has a circular problem: a customer will not browse an empty
@@ -508,3 +556,217 @@ exports.cleanupExpiredStories = onSchedule(
     logger.log(`cleanupExpiredStories: removed ${snap.size} expired story/stories`);
   }
 );
+
+// ── reportContent ─────────────────────────────────────────────────────────────
+//
+// A customer flagging somebody else's post, story, comment or review.
+//
+// This app carries other people's words and photographs and had no way at all to
+// report any of it — not in either app, not on the server. Apple's Guideline 1.2
+// asks for exactly three things from an app like this: reporting, blocking, and
+// acting within a day. This is the first; `blocks` (client-written, rules-
+// enforced) is the second; the admin console's queue is the third.
+//
+// Server-side rather than a client write, for the same reason reviews are: the
+// report has to name the author, and the author is on a document the reporter
+// may be able to read but must not be able to lie about. It also has to exist
+// even when the content is later deleted, so the admin can see what was
+// reported and by whom.
+exports.reportContent = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const appUser = await resolveAppUser(request);
+  assertNotSuspended(appUser);
+  // The document id stops a second report of the SAME item, not one report per
+  // item across everything she can see — which is the whole feed. Twenty an
+  // hour is far above any honest use and far below flooding a human's queue.
+  await enforceRateLimit(`report:${appUser.uid}`, 20, 60 * 60 * 1000);
+
+  const d = request.data || {};
+  const targetType = String(d.targetType || "");
+  const targetId   = String(d.targetId || "");
+  const reason     = String(d.reason || "");
+  const note       = String(d.note || "").trim().slice(0, 500);
+
+  const spec = targetSpec(targetType);
+  if (!spec) throw new HttpsError("invalid-argument", "Unknown target type.");
+  assertDocId(targetId, "targetId");
+  if (!isReason(reason)) throw new HttpsError("invalid-argument", "Unknown reason.");
+
+  // The content itself, read once — both to prove it exists and to capture who
+  // wrote it and a snippet of what it said. A report that survives the content
+  // it names is the only kind worth keeping: the usual response to being
+  // reported is to delete the post.
+  const targetSnap = await db.doc(`${spec.collection}/${targetId}`).get();
+  if (!targetSnap.exists) throw new HttpsError("not-found", "That content no longer exists.");
+  const target = targetSnap.data() || {};
+  const authorId = String(target[spec.authorField] || "");
+
+  // The author field and the person are the same string for a comment or a
+  // review, and are not for a post or a story: there the field is a salonId.
+  // Both are stored — `authorId` is what a client blocks on (it is what the
+  // feed filters by), `ownerUid` is who an admin can suspend, and comparing the
+  // reporter to the wrong one let a provider report her own salon's photo while
+  // leaving the admin nobody to act against.
+  let ownerUid = authorId;
+  if (spec.authorKind === "SALON" && authorId) {
+    const salonSnap = await db.doc(`salons/${authorId}`).get();
+    ownerUid = salonSnap.exists ? String(salonSnap.data().providerId || "") : "";
+  }
+
+  const verdict = canReport({ targetType, targetId, reason, reporterUid: appUser.uid, ownerUid });
+  if (!verdict.ok) {
+    if (verdict.why === "own-content") {
+      throw new HttpsError("failed-precondition", "You can delete your own content instead.", { reason: "OWN_CONTENT" });
+    }
+    throw new HttpsError("invalid-argument", "This can't be reported.");
+  }
+
+  // A snippet, not the whole document: the admin needs enough to judge, and a
+  // report row is not a second copy of the content.
+  const excerpt = String(
+    target.caption || target.comment || target.text || target.title || ""
+  ).trim().slice(0, 300);
+  const imageUrl = String(
+    target.imageUrl || (Array.isArray(target.imageUrls) ? target.imageUrls[0] : "") || ""
+  );
+
+  const id = reportId(targetType, targetId, appUser.uid);
+  await db.doc(`content_reports/${id}`).set({
+    targetType,
+    targetId,
+    targetCollection: spec.collection,
+    authorKind: spec.authorKind,
+    authorId,
+    ownerUid,
+    excerpt,
+    imageUrl,
+    reason,
+    note,
+    reporterId: appUser.uid,
+    reporterName: appUser.name || "",
+    status: "OPEN",
+    createdAt: Date.now(),
+  });
+
+  return { ok: true, reportId: id };
+});
+
+// ── resolveContentReport (admin) ──────────────────────────────────────────────
+//
+// The other half of Guideline 1.2: the queue has to be actionable, and acting
+// has to be one decision rather than three manual Firestore edits.
+//
+// Every open report against the same piece of content closes together. They are
+// separate documents only so that one person cannot report twice; they are one
+// decision, and leaving the others OPEN would show the admin a queue of items
+// already dealt with.
+exports.resolveContentReport = onCall({ region: "us-central1" }, async (request) => {
+  const appUser = await assertAdmin(request);
+
+  const d = request.data || {};
+  const id     = String(d.reportId || "");
+  const action = String(d.action || "");
+  if (!id) throw new HttpsError("invalid-argument", "reportId is required.");
+  const plan = planFor(action);
+  if (!plan) throw new HttpsError("invalid-argument", "Unknown action.");
+
+  const reportRef = db.doc(`content_reports/${id}`);
+  const snap = await reportRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Report not found.");
+  const report = snap.data();
+
+  // Already dealt with. Without this, anyone holding the id — a second console
+  // tab whose snapshot has not caught up, a retried call — could re-apply
+  // REMOVE_AND_SUSPEND after another admin had lifted that suspension, and two
+  // admins clicking the same row produced two audit rows for one decision.
+  if (report.status !== "OPEN") {
+    throw new HttpsError("failed-precondition", "This report was already resolved.");
+  }
+
+  if (plan.deleteTarget && report.targetCollection && report.targetId) {
+    const targetRef = db.doc(`${report.targetCollection}/${report.targetId}`);
+
+    // Copied before it is destroyed.
+    //
+    // Still deleted rather than flagged hidden: a hidden row is one forgetful
+    // client away from being visible again, and this content is small and
+    // replaceable. But deleting it and keeping nothing meant an admin mis-click
+    // was unrecoverable, a salon disputing a removal had nothing to be shown,
+    // and a second offence by the same account looked like a first one. The
+    // archive is server-written and admin-read-only, so it restores none of the
+    // visibility and all of the evidence.
+    const snap = await targetRef.get().catch(() => null);
+    if (snap && snap.exists) {
+      await db.doc(`moderation_archive/${id}`).set({
+        reportId: id,
+        targetType: report.targetType || "",
+        targetCollection: report.targetCollection,
+        targetId: report.targetId,
+        authorId: report.authorId || "",
+        ownerUid: report.ownerUid || "",
+        reason: report.reason || "",
+        actionTaken: action,
+        removedBy: appUser.uid,
+        removedAt: Date.now(),
+        // The document as it stood. Firestore caps a document at 1 MiB and
+        // these carry text and URLs, never image bytes.
+        content: snap.data(),
+      }).catch((e) => logger.warn("moderation archive failed", e));
+    }
+
+    await targetRef.delete().catch(() => {});
+  }
+
+  const ownerUid = String(report.ownerUid || (report.authorKind === "USER" ? report.authorId : ""));
+  if (plan.suspendAuthor && ownerUid) {
+    // The shape resolveCustomerReport writes, so a suspension decided here is
+    // the same suspension the Manage modal can see and lift. `status` alone was
+    // once written here-adjacent and the callables never read it, which let a
+    // suspended customer keep booking.
+    await db.doc(`users/${ownerUid}`).set(
+      {
+        status:          "SUSPENDED",
+        suspended:       true,
+        suspendedReason: `Content report ${id}: ${String(report.reason || "")}`.slice(0, 300),
+        suspendedAt:     Date.now(),
+        suspendedBy:     appUser.uid,
+      },
+      { merge: true }
+    );
+    await logAdminAction(appUser, "SUSPEND_USER", {
+      targetUid: ownerUid,
+      reason: `content report ${id}`,
+    });
+  }
+
+  // Close this report and every other one filed against the same content.
+  const siblings = await db
+    .collection("content_reports")
+    .where("targetType", "==", report.targetType)
+    .where("targetId", "==", report.targetId)
+    .where("status", "==", "OPEN")
+    .limit(200)
+    .get();
+
+  const batch = db.batch();
+  const closed = {
+    status: "REVIEWED",
+    actionTaken: action,
+    resolvedBy: appUser.uid,
+    resolvedAt: Date.now(),
+  };
+  batch.set(reportRef, closed, { merge: true });
+  for (const doc of siblings.docs) {
+    if (doc.id !== id) batch.set(doc.ref, closed, { merge: true });
+  }
+  await batch.commit();
+
+  await logAdminAction(appUser, "RESOLVE_CONTENT_REPORT", {
+    reportId: id,
+    action,
+    targetType: report.targetType,
+    targetId: report.targetId,
+  });
+
+  return { ok: true, closed: siblings.size || 1 };
+});

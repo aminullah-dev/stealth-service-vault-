@@ -42,6 +42,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -215,6 +216,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoLibrary
 import com.safebeauty.app.ui.components.SwipeHint
 import kotlin.math.abs
+import com.safebeauty.app.viewmodel.ReportTarget
 
 // Avatar colors cycle through the brand palette based on name's first character
 // Brand-harmonious avatar palette: every pair stays in the rose/gold/plum
@@ -333,6 +335,7 @@ fun CustomerDashboardScreen(
     val maxPrice                  by viewModel.maxPrice.collectAsStateWithLifecycle()
     val customerLoc               by viewModel.customerLoc.collectAsStateWithLifecycle()
     var showFilterSheet           by remember { mutableStateOf(false) }
+    var showBlocked               by remember { mutableStateOf(false) }
     val filtersActive = sortMode != SalonSort.RECOMMENDED || minRating > 0.0 || maxPrice > 0
     val myAppointments            by viewModel.myAppointments.collectAsStateWithLifecycle()
     val myWaitlist                by viewModel.myWaitlist.collectAsStateWithLifecycle()
@@ -343,9 +346,22 @@ fun CustomerDashboardScreen(
     val referralCredit            by viewModel.referralCredit.collectAsStateWithLifecycle()
     val recommendedSalons         by viewModel.recommendedSalons.collectAsStateWithLifecycle()
     val reviewsForSalon           by viewModel.reviewsForSalon.collectAsStateWithLifecycle()
+    val blocked                   by viewModel.moderation.blocked.collectAsStateWithLifecycle()
+    val reporting                 by viewModel.moderation.reporting.collectAsStateWithLifecycle()
+    val reportSending             by viewModel.moderation.sending.collectAsStateWithLifecycle()
+    val reportSent                by viewModel.moderation.sent.collectAsStateWithLifecycle()
+    val reportFailed              by viewModel.moderation.failed.collectAsStateWithLifecycle()
+    val visitReport               by viewModel.visitReport.collectAsStateWithLifecycle()
+    val visitSending              by viewModel.visitSending.collectAsStateWithLifecycle()
+    val visitSent                 by viewModel.visitSent.collectAsStateWithLifecycle()
+    val visitFailed               by viewModel.visitFailed.collectAsStateWithLifecycle()
     val galleryForSalon           by viewModel.galleryForSalon.collectAsStateWithLifecycle()
     val offersForSalon            by viewModel.offersForSalon.collectAsStateWithLifecycle()
-    val activeOffers              by viewModel.activeOffers.collectAsStateWithLifecycle()
+    // Blocked salons' deals leave the strip too. The post and the story go and
+    // the same salon's offer stays one row up, immediately after the app said
+    // "you will not see anything from them again".
+    val allActiveOffers           by viewModel.activeOffers.collectAsStateWithLifecycle()
+    val activeOffers = allActiveOffers.filter { it.salonId !in blocked }
     val offerSalonIds             by viewModel.offerSalonIds.collectAsStateWithLifecycle()
     // Identity gate: deals & special offers are a verified-customer perk, shown
     // only once KYC is APPROVED. While the status is still loading (null) we lock
@@ -374,14 +390,17 @@ fun CustomerDashboardScreen(
         strings.categoryAll, strings.categoryHair, strings.categoryMakeup,
         strings.categoryNails, strings.categorySkincare, strings.categoryEyebrows
     )
-    // "All neighborhoods" + the districts of the selected city, localized.
-    // Must stay index-parallel with the ViewModel's neighborhoodKeysFor — the
-    // filter is chosen by position, so a labels list built from a different set
-    // than the keys list would silently filter by the wrong district.
+    // "All neighborhoods" + every area of the selected city, localized.
+    //
+    // Index-parallel with the ViewModel's neighborhoodKeysFor because both now
+    // read neighborhoodOptionsFor — they used to read two different functions
+    // and the old comment here warned that a labels list built from a different
+    // set would silently filter by the wrong district. It did, in Herat and
+    // Mazar. See neighborhoodOptionsFor for what that cost.
     val selectedCity by viewModel.selectedCity.collectAsStateWithLifecycle()
     val neighborhoodLabels = remember(strings.language, selectedCity) {
         listOf(strings.neighborhoodAll) +
-            com.safebeauty.app.util.Areas.districtsIn(selectedCity)
+            com.safebeauty.app.viewmodel.neighborhoodOptionsFor(selectedCity)
                 .map { com.safebeauty.app.util.Areas.labelFor(it, strings.language) }
     }
 
@@ -533,6 +552,14 @@ fun CustomerDashboardScreen(
                                     strings.exportTitle,
                                     enabled = exportVm.phase != ExportPhase.WORKING
                                 ) { exportVm.export() }
+                                // Only once she has blocked somebody. An empty
+                                // list is a menu row teaching her about a
+                                // feature she has not used.
+                                if (blocked.isNotEmpty()) {
+                                    item(Icons.Default.Block, strings.blockedTitle) {
+                                        showBlocked = true
+                                    }
+                                }
                                 HorizontalDivider()
                                 item(Icons.AutoMirrored.Filled.Logout, strings.signOut) {
                                     viewModel.signOut()
@@ -887,6 +914,22 @@ fun CustomerDashboardScreen(
                         onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                     )
                 } else {
+                    // Every recommended salon also satisfies filteredSalons — it is
+                    // scored FROM the same paged set, not filtered out of it — so it
+                    // rendered again below with nothing to tell the two rows apart.
+                    // A customer with two salons total and both recommended saw four
+                    // rows. Guarded the same way the "recommended" item() above is
+                    // (searchQuery blank): once she is searching, the recommended
+                    // section itself is hidden and nothing needs excluding.
+                    // matchingCount / filteredSalons.size in the sticky header stays
+                    // the true count on purpose — only the row list should not
+                    // repeat a salon already shown above.
+                    val recommendedIdsAll = remember(recommendedSalons) {
+                        recommendedSalons.map { it.id }.toSet()
+                    }
+                    val recommendedIds = if (searchQuery.isBlank()) recommendedIdsAll else emptySet()
+                    val remainingSalons = if (recommendedIds.isEmpty()) filteredSalons
+                        else filteredSalons.filter { it.id !in recommendedIds }
                     val listState = rememberLazyListState()
                     val feedScope = rememberCoroutineScope()
                     // Show a jump-to-top pill once the user has scrolled a few
@@ -949,7 +992,13 @@ fun CustomerDashboardScreen(
                                     onClearFilters = if (narrowing) ({ viewModel.clearAllFilters() }) else null
                                 )
                             }
-                        } else {
+                        } else if (remainingSalons.isNotEmpty()) {
+                            // Distinct from filteredSalons.isEmpty(): there ARE
+                            // matches, they are just all already shown in the
+                            // Recommended section above. Skipping straight past
+                            // this branch avoids an "All salons" header sitting
+                            // over nothing — the exact shape two salons, both
+                            // recommended, produces.
                             // Sticky section bar: the count + "All salons" label stay
                             // pinned at the top of the list while the cards scroll, so
                             // the user always knows how many salons there are.
@@ -983,13 +1032,13 @@ fun CustomerDashboardScreen(
                                     }
                                 }
                             }
-                            itemsIndexed(filteredSalons, key = { _, s -> s.id }) { index, salon ->
+                            itemsIndexed(remainingSalons, key = { _, s -> s.id }) { index, salon ->
                                 // Fetch the next page a few cards before the end,
                                 // so scrolling does not stop to wait. loadMore
                                 // ignores the call while one is in flight or the
                                 // end is reached, so this cannot stampede.
-                                if (index >= filteredSalons.size - 4) {
-                                    LaunchedEffect(filteredSalons.size, index) {
+                                if (index >= remainingSalons.size - 4) {
+                                    LaunchedEffect(remainingSalons.size, index) {
                                         viewModel.loadMoreSalons()
                                     }
                                 }
@@ -2215,6 +2264,60 @@ fun CustomerDashboardScreen(
         // ── Admin announcement popup (one-time per broadcast) ─────────────────
         com.safebeauty.app.ui.components.AnnouncementPopup(broadcasts)
 
+        // ── Report a visit ────────────────────────────────────────────────────
+        visitReport?.let { appt ->
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.cancelVisitReport() },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.ReportVisitSheetContent(
+                    salonName = appt.salonName,
+                    whenLabel = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
+                        .format(Date(appt.appointmentDate)),
+                    sending   = visitSending,
+                    sent      = visitSent,
+                    error     = if (visitFailed) strings.actionFailedTitle else "",
+                    onSubmit  = { reason, note -> viewModel.submitVisitReport(reason, note) }
+                )
+            }
+        }
+
+        // ── Report sheet ──────────────────────────────────────────────────────
+        // Hosted here rather than inside the salon sheet: a ModalBottomSheet
+        // opened from inside another one is a sheet on top of a sheet, and
+        // dismissing the inner one takes the outer with it.
+        reporting?.let { target ->
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.moderation.cancel() },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.ReportSheetContent(
+                    authorId = target.authorId,
+                    sending  = reportSending,
+                    sent     = reportSent,
+                    error    = if (reportFailed) strings.actionFailedTitle else "",
+                    onSubmit = { reason, note, alsoBlock ->
+                        viewModel.moderation.submit(reason, note, alsoBlock)
+                    }
+                )
+            }
+        }
+
+        // ── Blocked accounts ──────────────────────────────────────────────────
+        // A block she could make and never lift is a mis-tap that lasts
+        // forever: it lives on the server, so reinstalling does not clear it.
+        if (showBlocked) {
+            ModalBottomSheet(
+                onDismissRequest = { showBlocked = false },
+                containerColor   = ElegantCream
+            ) {
+                com.safebeauty.app.ui.components.BlockedAccountsSheetContent(
+                    blocked   = blocked,
+                    onUnblock = { viewModel.moderation.unblock(it) }
+                )
+            }
+        }
+
         // ── Filter / sort sheet ───────────────────────────────────────────────
         if (showFilterSheet) {
             ModalBottomSheet(
@@ -2314,6 +2417,7 @@ fun CustomerDashboardScreen(
                             showServiceDialog = true
                         }
                     },
+                    onReportVisitClick = { appt -> viewModel.startVisitReport(appt) },
                     onTipClick        = { appt ->
                         showBookingsSheet = false
                         tipTarget         = appt
@@ -2505,6 +2609,12 @@ fun CustomerDashboardScreen(
                     // Special offers are a verified-customer perk (see deals gate).
                     offers           = if (dealsUnlocked) offersForSalon else emptyList(),
                     isFavorite       = favoriteIds.contains(salon.id),
+                    blocked          = blocked,
+                    onReportReview   = { r ->
+                        viewModel.moderation.start(
+                            ReportTarget("REVIEW", r.id, r.customerId, "USER")
+                        )
+                    },
                     onToggleFavorite = { viewModel.toggleFavorite(salon.id) },
                     onBook = {
                         if (viewModel.needsKycBeforeBooking()) {

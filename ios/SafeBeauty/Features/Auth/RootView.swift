@@ -13,6 +13,16 @@ struct RootView: View {
     @State private var lang = LanguageStore.shared
     @State private var theme = ThemeStore.shared
     @State private var showOnboarding = !OnboardingState.seen
+    /// Owned at the root so one block list serves the feed, the comment threads
+    /// and a salon's reviews — three screens that must agree about who she has
+    /// blocked, and would each hold a different answer if each read its own.
+    @State private var moderation = Moderation()
+    /// Owned here for the same reason: booking, favouriting, messaging a
+    /// salon and the notifications bell all live under `BrowsingRootView`,
+    /// several screens deep in different tabs, and each needs to raise the
+    /// same sheet rather than four independent ones with four independent
+    /// dismiss states.
+    @State private var signInPrompt = SignInPrompt()
     @Environment(\.colorScheme) private var systemScheme
     @Environment(\.scenePhase) private var scenePhase
 
@@ -27,12 +37,34 @@ struct RootView: View {
                     showOnboarding = false
                 }
             } else if auth.session == nil {
-                // The picker lives here and only here. Someone who cannot read
-                // the interface cannot navigate into it to change the language,
-                // so it has to be on the first screen — and once she is signed
-                // in it moves to her account, because pinned to the bottom of a
-                // TabView it sat on top of the tab bar and hid it.
-                SignInView()
+                // Apple rejected 1.0 build 4 under 5.1.1(v): the app forced
+                // registration before showing anything, including the salon
+                // list, which is not an account-based feature. She now lands
+                // on the same browsing a signed-in customer gets — the salons
+                // tab, search, filters, a salon's page — and is asked to sign
+                // in only where an account is actually needed: booking,
+                // favouriting, messaging a salon, or notifications. Those all
+                // route through `signInPrompt` rather than each gating itself.
+                //
+                // Still not a navigation stack she could push past a signed-in
+                // state to reach — the concern the old comment here named is
+                // about a shared phone leaking a PREVIOUS person's account,
+                // and that is untouched: signing out still clears `session`
+                // and lands back here, at a screen with no one's data on it.
+                BrowsingRootView()
+                    // Rebuilt on a language change, exactly as SignedInView's
+                    // tab bar is. Build 5 shipped without this and a TestFlight
+                    // user switched to English on 2026-09-17: the chips stayed
+                    // Dari and every salon row rendered MIRRORED — glyphs
+                    // reversed. The List's cells are UIKit, created while
+                    // UIView.appearance() said forceRightToLeft; appearance
+                    // only reaches views created after it changes, so those
+                    // cells kept RTL while the SwiftUI environment went LTR,
+                    // and SwiftUI flipped their contents to reconcile the two.
+                    // A fresh tree gets fresh cells under the new direction.
+                    // Applied before the picker's inset so the picker itself
+                    // is not torn down mid-tap.
+                    .id(lang.current)
                     .safeAreaInset(edge: .bottom) {
                         @Bindable var lang = lang
                         Picker("", selection: $lang.current) {
@@ -48,6 +80,16 @@ struct RootView: View {
             }
         }
         .environment(auth)
+        .environment(moderation)
+        .environment(signInPrompt)
+        // Fires once, independent of the branches above — a browsing visitor
+        // needs `isSignedIn()` satisfied before her very first salon-list
+        // read, not only after she opens the sign-in sheet.
+        .task { await auth.ensureBrowsingSession() }
+        .task(id: auth.session?.uid) {
+            if let uid = auth.session?.uid { moderation.start(uid: uid) }
+            else { moderation.stop() }
+        }
         // The whole tree is rebuilt when the look changes. Brand.* are static
         // lookups, not observable properties, so nothing would re-render on
         // its own — the same reason the tab bar needed this for language.
@@ -67,6 +109,28 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await auth.refresh() } }
         }
+    }
+}
+
+/// What a customer with no account sees: the same salon list a signed-in one
+/// gets, plus a way to sign in, either from the toolbar or from wherever she
+/// hits something that needs an account.
+///
+/// Deliberately just the one screen rather than the five-tab bar
+/// `SignedInView` shows. Favourites, My bookings and Profile have nothing to
+/// display for her yet, and a tab bar with three tabs that open a sign-in
+/// prompt on tap is worse than not offering them until she has a reason to —
+/// browsing salons is the one thing Apple's 5.1.1(v) requires working without
+/// an account, not the whole app's navigation shape.
+struct BrowsingRootView: View {
+    @Environment(SignInPrompt.self) private var signInPrompt
+
+    var body: some View {
+        @Bindable var signInPrompt = signInPrompt
+        SalonListView()
+            .sheet(isPresented: $signInPrompt.isPresented) {
+                SignInView().appDirection()
+            }
     }
 }
 
@@ -148,7 +212,7 @@ struct SuspendedView: View {
             Spacer()
             Image(systemName: "exclamationmark.shield")
                 .font(.system(size: 42))
-                .foregroundStyle(Color(hex: 0xC0392B))
+                .foregroundStyle(Brand.danger)
             Text(auth.session?.name ?? "")
                 .font(Brand.font(22, .bold))
                 .foregroundStyle(Brand.ink)

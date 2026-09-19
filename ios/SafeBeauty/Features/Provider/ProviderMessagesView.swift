@@ -58,7 +58,7 @@ struct ProviderMessagesView: View {
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
-                        .listRowBackground(Color.white)
+                        .listRowBackground(Brand.surface)
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden)
@@ -167,7 +167,7 @@ struct ProviderThreadView: View {
                 .font(Brand.font(15)).foregroundStyle(Brand.ink)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(.white, in: RoundedRectangle(cornerRadius: 20))
+                .background(Brand.surface, in: RoundedRectangle(cornerRadius: 20))
             Button { Task { await send() } } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 30))

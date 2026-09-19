@@ -1,5 +1,6 @@
 package com.safebeauty.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,7 +39,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,6 +78,18 @@ fun ChatScreen(
     val strings   = LocalStrings.current
     val messages  by viewModel.messages.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    // Support-thread extras — all inert unless this is the user's own support chat.
+    val supportHistory by viewModel.supportHistory.collectAsStateWithLifecycle()
+    val pendingRating  by viewModel.pendingRating.collectAsStateWithLifecycle()
+    val ratingStates   by viewModel.ratingStates.collectAsStateWithLifecycle()
+    val transcript     by viewModel.transcript.collectAsStateWithLifecycle()
+    var showHistory    by rememberSaveable { mutableStateOf(false) }
+    val transcriptDateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
+    // Read the entry from the live list so a rating saved from the transcript
+    // shows as given rather than as still open.
+    val transcriptEntry = transcript?.let { t -> supportHistory?.firstOrNull { it.id == t.historyId } }
+
+    BackHandler(enabled = transcript != null) { viewModel.closeTranscript() }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -84,15 +101,33 @@ fun ChatScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            viewModel.otherName,
-                            fontWeight = FontWeight.Bold,
-                            fontSize   = 18.sp,
-                            color      = DeepRose
-                        )
+                        if (transcript != null) {
+                            Column {
+                                Text(
+                                    strings.supportHistory,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize   = 18.sp,
+                                    color      = DeepRose
+                                )
+                                transcriptEntry?.let {
+                                    Text(
+                                        transcriptDateFmt.formatIsolated(Date(it.closedAt)),
+                                        fontSize = 12.sp,
+                                        color    = TextFaint
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                viewModel.otherName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize   = 18.sp,
+                                color      = DeepRose
+                            )
+                        }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onBack) {
+                        IconButton(onClick = { if (transcript != null) viewModel.closeTranscript() else onBack() }) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = null,
@@ -100,11 +135,24 @@ fun ChatScreen(
                             )
                         }
                     },
+                    actions = {
+                        if (viewModel.isSupportOwner && transcript == null) {
+                            IconButton(onClick = { showHistory = true }) {
+                                Icon(
+                                    Icons.Filled.History,
+                                    contentDescription = strings.supportHistory,
+                                    tint               = DeepRose
+                                )
+                            }
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = ElegantCream)
                 )
             },
             bottomBar = {
-                if (viewModel.readOnly) {
+                if (transcript != null) {
+                    // A closed conversation is read-only; no composer, no notice.
+                } else if (viewModel.readOnly) {
                     // Booking has ended — the thread is a read-only archive.
                     Row(
                         horizontalArrangement = Arrangement.Center,
@@ -130,30 +178,66 @@ fun ChatScreen(
                 }
             }
         ) { padding ->
-            LazyColumn(
-                state               = listState,
-                contentPadding      = PaddingValues(
-                    start  = 16.dp,
-                    end    = 16.dp,
-                    top    = padding.calculateTopPadding() + 8.dp,
-                    bottom = padding.calculateBottomPadding() + 8.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier            = Modifier.fillMaxSize()
-            ) {
-                items(messages, key = { it.id.ifBlank { it.timestamp.toString() } }) { msg ->
-                    ChatBubble(
-                        message = msg,
-                        isMine  = msg.senderId == viewModel.myUserId
-                    )
+            val contentPadding = PaddingValues(
+                start  = 16.dp,
+                end    = 16.dp,
+                top    = padding.calculateTopPadding() + 8.dp,
+                bottom = padding.calculateBottomPadding() + 8.dp
+            )
+            val openTranscript = transcript
+            if (openTranscript != null) {
+                SupportTranscriptContent(
+                    entry          = transcriptEntry,
+                    transcript     = openTranscript,
+                    ratingState    = ratingStates[openTranscript.historyId],
+                    myUserId       = viewModel.myUserId,
+                    contentPadding = contentPadding,
+                    onSubmitRating = viewModel::submitRating
+                )
+            } else {
+                LazyColumn(
+                    state               = listState,
+                    contentPadding      = contentPadding,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier            = Modifier.fillMaxSize()
+                ) {
+                    items(messages, key = { it.id.ifBlank { it.timestamp.toString() } }) { msg ->
+                        ChatBubble(
+                            message = msg,
+                            isMine  = msg.senderId == viewModel.myUserId
+                        )
+                    }
+                    // The conversation just closed and nothing new has been said:
+                    // ask how it went. The composer below stays usable.
+                    pendingRating?.let { entry ->
+                        item(key = "rating_${entry.id}") {
+                            SupportRatingCard(
+                                entry    = entry,
+                                state    = ratingStates[entry.id],
+                                onSubmit = { stars, comment -> viewModel.submitRating(entry.id, stars, comment) },
+                                onNotNow = { viewModel.dismissRating(entry.id) }
+                            )
+                        }
+                    }
                 }
             }
+        }
+
+        if (showHistory && viewModel.isSupportOwner) {
+            SupportHistorySheet(
+                history   = supportHistory,
+                onDismiss = { showHistory = false },
+                onOpen    = { entry ->
+                    showHistory = false
+                    viewModel.openTranscript(entry)
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun ChatBubble(message: ChatMessage, isMine: Boolean) {
+internal fun ChatBubble(message: ChatMessage, isMine: Boolean) {
     val timeFmt   = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val bg        = if (isMine) RoseGold else DashboardSurface
     val fg        = if (isMine) Color.White else DeepRose

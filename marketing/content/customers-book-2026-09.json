@@ -1,0 +1,108 @@
+{
+  "slug": "customers-book-2026-09",
+  "type": "post",
+  "audience": "customers",
+  "note": "September 2026: the customer-facing half, kept deliberately smaller than the salon carousel because there are two salons live and both are in Kabul. No city list beyond Kabul, no promise of choice the catalogue cannot keep, and every salon shown is invented — the rules forbid naming a real one or showing a real booking. The App Store is not mentioned: iOS 1.0 is still in review, and Android is what someone can actually install today.",
+  "slides": [
+    {
+      "step": "1/4",
+      "text": {
+        "fa": {
+          "sub": "رزرو آنلاین سالن زیبایی",
+          "headline": "نوبت‌تان را بدون یک تماس تلفنی بگیرید",
+          "body": "سالن را انتخاب کنید، وقت‌های خالی را ببینید و همان‌جا رزرو کنید.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "د ښکلا سالون آنلاین بکینګ",
+          "headline": "خپله نوبت پرته له یوه ټلیفونه ونیسئ",
+          "body": "سالون وټاکئ، خالي وختونه وګورئ او همالته بکینګ وکړئ.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "2/4",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "سالن‌ها", "headline": "سالن‌ها را ببینید و مقایسه کنید", "cities": "کابل" },
+        "ps": { "sub": "سالونونه", "headline": "سالونونه وګورئ او پرتله یې کړئ", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": {
+          "title": "سالن‌ها",
+          "search": "جستجوی سالون…",
+          "chips": ["همه", "مو", "ناخن", "آرایش"],
+          "rows": [
+            { "initial": "گ", "name": "سالن گل سرخ", "meta": "ناحیه ۳ · ۴٫۸ ★", "price": "از ۳۵۰" },
+            { "initial": "ن", "name": "آرایشگاه نسترن", "meta": "ناحیه ۱۰ · ۴٫۹ ★", "price": "از ۲۵۰" },
+            { "initial": "ب", "name": "سالن بنفشه", "meta": "ناحیه ۶ · ۵٫۰ ★", "price": "از ۴۰۰" }
+          ],
+          "action": "رزرو"
+        },
+        "ps": {
+          "title": "سالونونه",
+          "search": "د سالون لټون…",
+          "chips": ["ټول", "ویښتان", "نوکان", "سینګار"],
+          "rows": [
+            { "initial": "ګ", "name": "د ګل سالون", "meta": "۳ ناحیه · ۴٫۸ ★", "price": "له ۳۵۰" },
+            { "initial": "ن", "name": "د نسترن سالون", "meta": "۱۰ ناحیه · ۴٫۹ ★", "price": "له ۲۵۰" },
+            { "initial": "ب", "name": "د بنفشې سالون", "meta": "۶ ناحیه · ۵٫۰ ★", "price": "له ۴۰۰" }
+          ],
+          "action": "بکینګ"
+        }
+      }
+    },
+    {
+      "step": "3/4",
+      "layout": "phone",
+      "text": {
+        "fa": { "sub": "انتخاب وقت", "headline": "فقط وقت‌هایی که واقعاً آزادند", "cities": "کابل" },
+        "ps": { "sub": "د وخت ټاکل", "headline": "یوازې هغه وختونه چې واقعاً خالي دي", "cities": "کابل" }
+      },
+      "screen": {
+        "fa": {
+          "title": "وقت را انتخاب کنید",
+          "search": "پنجشنبه، ۲۵ سنبله",
+          "chips": ["امروز", "فردا", "پنجشنبه"],
+          "rows": [
+            { "initial": "۱", "name": "۹:۰۰ صبح", "meta": "آزاد", "price": "۴۵ دقیقه" },
+            { "initial": "۲", "name": "۱۰:۳۰ صبح", "meta": "آزاد", "price": "۴۵ دقیقه" },
+            { "initial": "۳", "name": "۳:۰۰ عصر", "meta": "آزاد", "price": "۴۵ دقیقه" }
+          ],
+          "action": "ادامه"
+        },
+        "ps": {
+          "title": "وخت وټاکئ",
+          "search": "پنجشنبه، ۲۵ وږی",
+          "chips": ["نن", "سبا", "پنجشنبه"],
+          "rows": [
+            { "initial": "۱", "name": "۹:۰۰ سهار", "meta": "خالي", "price": "۴۵ دقیقې" },
+            { "initial": "۲", "name": "۱۰:۳۰ سهار", "meta": "خالي", "price": "۴۵ دقیقې" },
+            { "initial": "۳", "name": "۳:۰۰ ماسپښین", "meta": "خالي", "price": "۴۵ دقیقې" }
+          ],
+          "action": "دوام"
+        }
+      }
+    },
+    {
+      "step": "4/4",
+      "text": {
+        "fa": {
+          "sub": "رایگان، به دری و پښتو",
+          "headline": "سیف‌بیوتی را نصب کنید",
+          "body": "رزروِ شما فقط بین شما و سالن است.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "وړیا، په دري او پښتو",
+          "headline": "سیف بیوټي ډاونلوډ کړئ",
+          "body": "ستاسو بکینګ یوازې ستاسو او سالون ترمنځ وي.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        }
+      }
+    }
+  ]
+}

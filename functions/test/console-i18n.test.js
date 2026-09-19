@@ -79,4 +79,51 @@ for (const rel of CONSOLES) {
     }
     assert.deepStrictEqual(incomplete, [], `missing a language: ${incomplete}`);
   });
+
+  test(`${rel}: no STR key is defined twice`, () => {
+    // A duplicate key in an object literal is legal JavaScript: the later one
+    // silently wins. Adding tab_content for a new tab therefore overwrote the
+    // existing Content tab's translations and changed its Pashto from
+    // منځپانګه to محتوا — a string nobody would re-read, in a language most
+    // reviewers cannot check, with no error anywhere.
+    const start = src.indexOf("const STR = {");
+    const block = src.slice(start, src.indexOf("\n};", start));
+    const seen = new Set(), duplicated = [];
+    for (const m of block.matchAll(/^\s{2}([A-Za-z0-9_]+)\s*:/gm)) {
+      if (seen.has(m[1])) duplicated.push(m[1]);
+      seen.add(m[1]);
+    }
+    assert.deepStrictEqual(duplicated, [], `defined twice: ${duplicated}`);
+  });
 }
+
+/**
+ * Two tabs cannot share an id or an icon.
+ *
+ * A duplicate id highlighted both tabs at once and made the sidebar read as if
+ * the console had two Content sections; a duplicate icon made the new one
+ * indistinguishable from Admins. Found by the owner looking at his own
+ * sidebar, which is the only thing that has ever tested this file.
+ */
+test("public/admin/index.html: every tab has its own id and icon", () => {
+  const src = fs.readFileSync(path.join(ROOT, "public/admin/index.html"), "utf8");
+  const start = src.indexOf("const TABS = [");
+  assert.ok(start > 0, "could not find the TABS array");
+  const block = src.slice(start, src.indexOf("\n];", start));
+
+  const ids = [...block.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1]);
+  const icons = [...block.matchAll(/icon:\s*'([^']+)'/g)].map((m) => m[1]);
+  assert.ok(ids.length > 10, `read only ${ids.length} tabs — the check would pass vacuously`);
+
+  const dupes = (xs) => xs.filter((x, i) => xs.indexOf(x) !== i);
+  assert.deepStrictEqual(dupes(ids), [], `duplicate tab ids: ${dupes(ids)}`);
+  assert.deepStrictEqual(dupes(icons), [], `duplicate tab icons: ${dupes(icons)}`);
+
+  // And every tab's label must exist, or the sidebar renders the raw key.
+  const defined = new Set();
+  const strStart = src.indexOf("const STR = {");
+  const strBlock = src.slice(strStart, src.indexOf("\n};", strStart));
+  for (const m of strBlock.matchAll(/^\s{2}([A-Za-z0-9_]+)\s*:/gm)) defined.add(m[1]);
+  const unlabelled = ids.filter((id) => !defined.has(`tab_${id}`));
+  assert.deepStrictEqual(unlabelled, [], `tabs with no tab_<id> string: ${unlabelled}`);
+});

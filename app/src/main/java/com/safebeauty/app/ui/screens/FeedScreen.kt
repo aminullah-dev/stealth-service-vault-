@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -84,6 +85,8 @@ import com.safebeauty.app.viewmodel.FeedViewModel
 import java.util.Locale
 import java.util.Date
 import java.text.SimpleDateFormat
+import com.safebeauty.app.ui.components.ReportSheetContent
+import com.safebeauty.app.viewmodel.ReportTarget
 
 /**
  * Discover — a photo grid of what salons are actually producing.
@@ -111,6 +114,11 @@ fun FeedScreen(
     val likedIds by viewModel.likedPostIds.collectAsStateWithLifecycle()
     val comments by viewModel.comments.collectAsStateWithLifecycle()
     val commentFailed by viewModel.commentFailed.collectAsStateWithLifecycle()
+    val blocked by viewModel.moderation.blocked.collectAsStateWithLifecycle()
+    val reporting by viewModel.moderation.reporting.collectAsStateWithLifecycle()
+    val reportSending by viewModel.moderation.sending.collectAsStateWithLifecycle()
+    val reportSent by viewModel.moderation.sent.collectAsStateWithLifecycle()
+    val reportError by viewModel.moderation.failed.collectAsStateWithLifecycle()
     var opened by remember { mutableStateOf<SalonPostDocument?>(null) }
     var openStory by remember { mutableStateOf<StoryDocument?>(null) }
 
@@ -194,12 +202,19 @@ fun FeedScreen(
                     // Today's availability sits above the portfolio grid: a free
                     // chair this afternoon is worth more to both sides than a photo
                     // from last month, and it expires on its own.
-                    if (stories.isNotEmpty()) {
+                    // A blocked salon's work disappears, which is the whole
+                    // point of blocking one. Filtered here rather than in the
+                    // query: the block list is small and local, and a Firestore
+                    // not-in is capped at ten values and would silently start
+                    // dropping the wrong salons at eleven.
+                    val visibleStories = stories.filter { it.salonId !in blocked }
+                    val visiblePosts   = posts.filter { it.salonId !in blocked }
+                    if (visibleStories.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            StoryRow(stories = stories, onOpen = { openStory = it })
+                            StoryRow(stories = visibleStories, onOpen = { openStory = it })
                         }
                     }
-                    items(posts, key = { it.id }) { post ->
+                    items(visiblePosts, key = { it.id }) { post ->
                         AsyncImage(
                             model              = post.imageUrl,
                             contentDescription = post.salonName,
@@ -249,7 +264,22 @@ fun FeedScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(story.text, fontSize = 15.sp, color = TextStrong)
                         Spacer(Modifier.height(8.dp))
-                        Text(strings.storyExpires(hoursLeft), fontSize = 11.sp, color = TextMuted)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(strings.storyExpires(hoursLeft), fontSize = 11.sp, color = TextMuted)
+                            Spacer(Modifier.weight(1f))
+                            IconButton(onClick = {
+                                viewModel.moderation.start(
+                                    ReportTarget("STORY", story.id, story.salonId, "SALON")
+                                )
+                            }) {
+                                Icon(
+                                    Icons.Outlined.Flag,
+                                    contentDescription = strings.reportAction,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(16.dp))
                         Button(
                             onClick = {
@@ -263,6 +293,24 @@ fun FeedScreen(
                         ) { Text(strings.viewSalon, color = Color.White, fontWeight = FontWeight.Bold) }
                     }
                 }
+            }
+        }
+
+        reporting?.let { target ->
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.moderation.cancel() },
+                sheetState       = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor   = ElegantCream
+            ) {
+                ReportSheetContent(
+                    authorId = target.authorId,
+                    sending  = reportSending,
+                    sent     = reportSent,
+                    error    = if (reportError) strings.actionFailedTitle else "",
+                    onSubmit = { reason, note, alsoBlock ->
+                        viewModel.moderation.submit(reason, note, alsoBlock)
+                    }
+                )
             }
         }
 
@@ -333,6 +381,23 @@ fun FeedScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text("${post.commentCount}", fontSize = 13.sp, color = TextStrong)
+                            Spacer(Modifier.weight(1f))
+                            // The one control Play asks for by name. On the
+                            // opened photo rather than on the grid tile: a flag
+                            // on every thumbnail is noise, and this is where
+                            // she is actually looking at the thing.
+                            IconButton(onClick = {
+                                viewModel.moderation.start(
+                                    ReportTarget("POST", post.id, post.salonId, "SALON")
+                                )
+                            }) {
+                                Icon(
+                                    Icons.Outlined.Flag,
+                                    contentDescription = strings.reportAction,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
                         }
 
                         Spacer(Modifier.height(10.dp))
@@ -359,10 +424,15 @@ fun FeedScreen(
                         )
                         Spacer(Modifier.height(10.dp))
 
-                        if (comments.isEmpty()) {
+                        // A blocked person's comments are gone, not greyed out:
+                        // "you blocked this person" under each one is still
+                        // their words on the screen, which is what she asked
+                        // not to see.
+                        val visibleComments = comments.filter { it.userId !in blocked }
+                        if (visibleComments.isEmpty()) {
                             Text(strings.feedNoComments, fontSize = 13.sp, color = TextMuted)
                         } else {
-                            comments.forEach { c ->
+                            visibleComments.forEach { c ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                                     verticalAlignment = Alignment.Top
@@ -392,6 +462,25 @@ fun FeedScreen(
                                                 contentDescription = strings.feedCommentDelete,
                                                 tint = TextMuted,
                                                 modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    } else {
+                                        // Somebody else's words, which is the
+                                        // only case where reporting means
+                                        // anything.
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.moderation.start(
+                                                    ReportTarget("COMMENT", c.id, c.userId, "USER")
+                                                )
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Flag,
+                                                contentDescription = strings.reportAction,
+                                                tint = TextMuted,
+                                                modifier = Modifier.size(15.dp)
                                             )
                                         }
                                     }

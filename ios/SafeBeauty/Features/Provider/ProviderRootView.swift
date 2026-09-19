@@ -167,6 +167,6 @@ struct ProviderBookingRow: View {
             }
         }
         .padding(.vertical, 6)
-        .listRowBackground(Color.white)
+        .listRowBackground(Brand.surface)
     }
 }

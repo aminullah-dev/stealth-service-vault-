@@ -96,8 +96,7 @@ struct ReportCustomerSheet: View {
                                   comment: comment.trimmingCharacters(in: .whitespaces))
             done = true
         } catch let e as Callables.CallableError {
-            if case .failedPrecondition(let m, _) = e { error = m }
-            else { error = L.errNetwork.t }
+            error = e.localized ?? L.errNetwork.t
         } catch {
             self.error = L.errNetwork.t
         }

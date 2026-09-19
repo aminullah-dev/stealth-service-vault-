@@ -1,0 +1,31 @@
+{
+  "slug": "b-for-salons-and-women",
+  "type": "post",
+  "audience": "customers",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece B3. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "steps",
+  "text": {
+    "fa": {
+      "sub": "دو طرف، یک اپ",
+      "headline": "برای مشتری و برای سالن",
+      "steps": [
+        "مشتری وقت خالی را می‌بیند و رزرو می‌کند.",
+        "سالن رزرو را تأیید می‌کند.",
+        "هر دو طرف همان لحظه خبر می‌شوند."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "دوه اړخه، یو اپ",
+      "headline": "د پیرودونکې او د سالون لپاره",
+      "steps": [
+        "پیرودونکې خالي وخت ویني او بکینګ کوي.",
+        "سالون بکینګ تاییدوي.",
+        "دواړه اړخونه همغه شېبه خبرېږي."
+      ],
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

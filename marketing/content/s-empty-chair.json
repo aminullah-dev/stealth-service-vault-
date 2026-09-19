@@ -1,0 +1,25 @@
+{
+  "slug": "s-empty-chair",
+  "type": "post",
+  "audience": "salons",
+  "note": "Autumn 2026 plan (marketing/content/PLAN-2026-Q4.md), piece S1. Facts checked before writing: two salons live, both Kabul — no second city, no promise of choice; iOS 1.0 (6) still in Apple review — no App Store, no iPhone, and safebeauty.web.app/get is the one link (safebeauty.web.app/salon is the view-a-salon deep link, NOT a signup page); no promotion running — no discount; nothing real named or shown.",
+  "layout": "stat",
+  "text": {
+    "fa": {
+      "sub": "برای صاحبان سالن",
+      "stat": "۰ افغانی",
+      "label": "درآمد یک چوکی خالی، در یک ساعت",
+      "body": "ساعت‌هایی که کسی رزرو نکرده، تنها چیزی است که هیچ سالنی پس نمی‌گیرد.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالون خاوندانو لپاره",
+      "stat": "۰ افغانۍ",
+      "label": "د یوې خالي چوکۍ ګټه، په یوه ساعت کې",
+      "body": "هغه ساعتونه چې چا بکینګ نه دی کړی، هغه څه دي چې هیڅ سالون یې بیرته نه شي اخیستی.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}
