@@ -31,6 +31,20 @@ everything between the app and our servers travels encrypted (TLS)" — and NOT
 to `authenticateWithPassword` to be checked. Screenshots: capture the demo
 world (`marketing/demo/`), where every salon is invented.
 
+**Also for 1.0.1 — the icon.** `ios/SafeBeauty/Resources/Assets.xcassets/
+AppIcon.appiconset/icon-1024.png` is a placeholder: white "SB" on the rose
+gradient. Android's launcher, the Play listing and every marketing image use the
+flower (`app/src/main/res/drawable/`, rendered by `bloom_svg()` in
+marketing/generate.py). A customer who sees the flower in an Instagram post
+looks for the flower on the App Store and finds two letters. The icon ships in
+the binary, so it needs a new build, not a metadata edit.
+
+1.0 went live on the Afghanistan storefront on 2026-09-21 — availability had
+never been set at all (no appAvailabilities resource existed; the listing read
+"Removed from App Store" right after Release), now AFG only by the owner's
+choice. Public lookup `itunes.apple.com/lookup?id=6810050614&country=af`
+returned 1 result the same afternoon.
+
 "women-only" / "female-only" is kept out as well until someone confirms the
 platform actually restricts salons to women; nothing in onboarding checks it.
 
