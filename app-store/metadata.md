@@ -11,6 +11,29 @@ confirmed working via TestFlight on a real device 2026-09-09.
 
 ---
 
+## Must change in 1.0.1 — found 2026-09-21, after 1.0 (6) was approved
+
+1.0 was approved with three claims that are not true, and all three were
+checked, not assumed. Promotional text is editable without review and was
+corrected live the same day (read back from the API); the other two are locked
+to the approved version and ship corrected in 1.0.1.
+
+| Field | Claim on the approved listing | What is true | Evidence |
+|---|---|---|---|
+| Description (all three languages) | "Kabul, Herat, Mazar-e-Sharif and Jalalabad" | Two salons, both in Kabul | Production `salons`, 2026-09-18 |
+| Description, PRIVATE & SECURE | "on-device data is encrypted with SQLCipher (AES-256)" | **False on iOS.** SQLCipher is the Android Room database (`app/build.gradle.kts`, `AppDatabase.kt`); `ios/` contains no SQLCipher and no SQLite at all — it persists to UserDefaults and the Keychain | `grep -ri sqlcipher ios/` → nothing |
+| Screenshots | The live Play-era captures: two REAL salons by name with real prices and review counts, and a "TestFlight" back-label in the status bar | The marketing skill requires a salon owner's written agreement to name her salon | The uploaded images themselves |
+
+Replacements that are true: say "Kabul" and nothing about other cities; say
+"Sign in with your password, or Face ID / Touch ID once you turn it on;
+everything between the app and our servers travels encrypted (TLS)" — and NOT
+"your password never leaves your phone", which is also false: sign-in sends it
+to `authenticateWithPassword` to be checked. Screenshots: capture the demo
+world (`marketing/demo/`), where every salon is invented.
+
+"women-only" / "female-only" is kept out as well until someone confirms the
+platform actually restricts salons to women; nothing in onboarding checks it.
+
 ## What is already filed — 2026-09-09
 
 All of this was written to App Store Connect through the API
@@ -85,13 +108,13 @@ Private Salon Booking
 ## PROMOTIONAL TEXT  (170 chars max — the only field editable without a new build)
 
 ### English
-Book trusted, women-only beauty salons across Kabul, Herat, Mazar-e-Sharif and Jalalabad — private, in seconds, with real-time slots.
+Book beauty salons in Kabul: see the times that are really free and reserve without a phone call. In Dari, Pashto and English.
 
 ### دری (Dari)
-سالن‌های زیبایی زنانه و مورد اعتماد را در کابل، هرات، مزار شریف و جلال‌آباد رزرو کنید — خصوصی، در چند ثانیه، با وقت آنی.
+سالن‌های زیبایی کابل را رزرو کنید: وقت‌هایی را که واقعاً خالی‌اند ببینید و بدون تماس تلفنی نوبت بگیرید. به دری، پښتو و انگلیسی.
 
 ### پښتو (Pashto)
-د کابل، هرات، مزار شریف او جلال‌آباد باوروړي، یوازې د ښځو سالونونه بکه کړئ — شخصي، په څو ثانیو کې، له سمدستي وختونو سره.
+د کابل د ښکلا سالونونه بک کړئ: هغه وختونه وګورئ چې واقعاً خالي دي او پرته له ټلیفونه نوبت ونیسئ. په دري، پښتو او انګلیسي.
 
 
 ---
