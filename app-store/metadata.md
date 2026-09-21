@@ -153,45 +153,43 @@ appearing inline inside the English paragraph ("دری", "پښتو") — replace
 em dash with a plain hyphen, or spell the language names in Latin script
 only ("Dari", "Pashto") if that happens.
 
-### English
+### English  (1.0.1 — every claim checked against the code, 2026-09-21)
 
 ```
-SafeBeauty is a private booking platform designed for women in Afghanistan —
-Kabul, Herat, Mazar-e-Sharif and Jalalabad. It connects women with trusted,
-female-only beauty salons — quickly, safely, and respectfully.
+SafeBeauty is a booking app for beauty salons in Kabul, made for women in Afghanistan. Browse salons, see the times that are really free, and book without a phone call.
+
+BOOK WITHOUT A PHONE CALL
+Browse without an account. Filter by neighbourhood and by service (Hair, Makeup, Nails, Skincare, Eyebrows), pick a stylist, and choose a free time. You sign in only when you book.
 
 PRIVATE & SECURE
-Sign in with your own password or fingerprint. Your account and activity are
-protected, all data is encrypted in transit (TLS), and on-device data is
-encrypted with SQLCipher (AES-256).
-
-BOOK IN SECONDS
-Browse salons across every neighborhood, filter by service (Hair, Makeup,
-Nails, Skincare, Eyebrows), pick a specific stylist, and book a real-time
-slot — no calls, no waiting.
+Sign in with your password, or with Face ID or Touch ID once you turn it on. Everything between the app and our servers travels encrypted (TLS). Your bookings are visible to you and your salon, not to other customers.
 
 EASY PAYMENT
-Pay securely online with HesabPay, or choose cash at the salon.
+Pay online with HesabPay, or choose cash at the salon.
 
 LOYALTY & OFFERS
-Earn loyalty points on every confirmed booking, and enjoy last-minute deals,
-promo codes, and salon offers.
+Earn 10 loyalty points for every booking a salon confirms, and use last-minute deals, promo codes and salon offers where salons run them.
 
-TRANSPARENT REVIEWS
-Read real reviews from verified customers and see how salons respond before
-you book.
+HONEST REVIEWS
+Reviews come only from customers who had the appointment, and salons can reply.
 
-SMART WAITLIST & NOTIFICATIONS
-Fully booked? Join the waitlist and get notified the moment a slot opens.
+WAITLIST & NOTIFICATIONS
+Fully booked? Join the waitlist and get notified the moment a time opens.
+
+SUPPORT INSIDE THE APP
+Message our team from the app. Past conversations are kept, and you can rate each one when it closes.
 
 THREE LANGUAGES + DARK MODE
-Full support for English, Dari, and Pashto, including right-to-left layout,
-plus a comfortable dark mode.
+English, Dari and Pashto, with full right-to-left layout, plus dark mode.
 
 FOR SALON OWNERS
-Manage bookings, availability and working hours, service prices, staff,
-gallery photos, offers, and income analytics — all from a dedicated
-dashboard, in the app or on the web.
+Manage bookings, working hours, service prices, staff, gallery photos, offers and income — in the app or on the web.
+
+— — —
+
+به زبان دری و پښتو نیز در دسترس است. زبان را از پایین صفحهٔ سالن‌ها یا از بخش «حساب من» انتخاب کنید. تمام برنامه، شامل چیدمان راست‌به‌چپ، به هر سه زبان کار می‌کند.
+
+په دري او پښتو کې هم شتون لري. ژبه د سالونونو د پاڼې له لاندې برخې یا د «زما حساب» له برخې وټاکئ. ټول اپ، د ښي‌څخه‌کیڼ لوري جوړښت په ګډون، په دریو ژبو کار کوي.
 ```
 
 ### دری (Dari)
