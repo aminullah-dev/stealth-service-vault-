@@ -62,19 +62,16 @@ struct RootView: View {
                     // cells kept RTL while the SwiftUI environment went LTR,
                     // and SwiftUI flipped their contents to reconcile the two.
                     // A fresh tree gets fresh cells under the new direction.
-                    // Applied before the picker's inset so the picker itself
-                    // is not torn down mid-tap.
                     .id(lang.current)
-                    .safeAreaInset(edge: .bottom) {
-                        @Bindable var lang = lang
-                        Picker("", selection: $lang.current) {
-                            ForEach(AppLanguage.allCases) { Text(verbatim: $0.endonym).tag($0) }
-                        }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 26)
-                        .padding(.bottom, 10)
-                        .background(Brand.cream)
-                    }
+                    // No language bar pinned to the bottom any more. It was
+                    // there from 1.0 (6), carried over from the sign-in screen,
+                    // and on a salon page it sat directly over the pinned Book
+                    // button — found while capturing the 1.0.1 App Store
+                    // screenshots. The choice now lives behind a globe in the
+                    // salon list's toolbar (SalonListView), which is still the
+                    // first screen, so someone who cannot read the interface
+                    // can still find it: a globe is the one symbol for
+                    // "language" that needs no reading.
             } else {
                 SignedInView()
             }

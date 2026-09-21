@@ -572,6 +572,27 @@ struct SalonListView: View {
                             .font(Brand.font(14, .medium))
                             .foregroundStyle(Brand.accent)
                     }
+                    // The language choice for someone with no account yet. A
+                    // signed-in customer changes it in her account; before that
+                    // this is the only place, so it has to be on this screen.
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            ForEach(AppLanguage.allCases) { choice in
+                                Button {
+                                    LanguageStore.shared.current = choice
+                                } label: {
+                                    if choice == AppLanguage.current {
+                                        Label(choice.endonym, systemImage: "checkmark")
+                                    } else {
+                                        Text(verbatim: choice.endonym)
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "globe").foregroundStyle(Brand.accent)
+                        }
+                        .accessibilityLabel(AppLanguage.allCases.map(\.endonym).joined(separator: " · "))
+                    }
                 }
                 ToolbarItem(placement: .primaryAction) {
                     // In the toolbar rather than as a sixth tab: iOS collapses
