@@ -115,7 +115,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -160,6 +159,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -182,10 +182,7 @@ import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -691,7 +688,6 @@ internal fun SalonDetailSheetContent(
 @Composable
 private fun ReviewCard(review: ReviewDocument, onReport: () -> Unit = {}) {
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
     Card(
         shape    = RoundedCornerShape(12.dp),
         colors   = CardDefaults.cardColors(containerColor = DashboardSurface),
@@ -749,7 +745,7 @@ private fun ReviewCard(review: ReviewDocument, onReport: () -> Unit = {}) {
             }
             Spacer(Modifier.height(5.dp))
             Text(
-                text     = dateFmt.formatIsolated(Date(review.createdAt)),
+                text     = strings.language.formatDate(review.createdAt, "d MMM yyyy"),
                 fontSize = 10.sp,
                 color    = TextFaint
             )

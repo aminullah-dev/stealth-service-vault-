@@ -60,14 +60,11 @@ import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.ChipInactive
 import com.safebeauty.app.ui.theme.TextFaint
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.ChatViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,7 +81,6 @@ fun ChatScreen(
     val ratingStates   by viewModel.ratingStates.collectAsStateWithLifecycle()
     val transcript     by viewModel.transcript.collectAsStateWithLifecycle()
     var showHistory    by rememberSaveable { mutableStateOf(false) }
-    val transcriptDateFmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
     // Read the entry from the live list so a rating saved from the transcript
     // shows as given rather than as still open.
     val transcriptEntry = transcript?.let { t -> supportHistory?.firstOrNull { it.id == t.historyId } }
@@ -111,7 +107,7 @@ fun ChatScreen(
                                 )
                                 transcriptEntry?.let {
                                     Text(
-                                        transcriptDateFmt.formatIsolated(Date(it.closedAt)),
+                                        strings.language.formatDate(it.closedAt, "d MMM yyyy"),
                                         fontSize = 12.sp,
                                         color    = TextFaint
                                     )
@@ -238,7 +234,7 @@ fun ChatScreen(
 
 @Composable
 internal fun ChatBubble(message: ChatMessage, isMine: Boolean) {
-    val timeFmt   = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+    val lang      = LocalStrings.current.language
     val bg        = if (isMine) RoseGold else DashboardSurface
     val fg        = if (isMine) Color.White else DeepRose
     val timeColor = if (isMine) Color.White.copy(alpha = 0.7f) else TextFaint
@@ -286,7 +282,7 @@ internal fun ChatBubble(message: ChatMessage, isMine: Boolean) {
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                timeFmt.formatIsolated(Date(message.timestamp)),
+                lang.formatDate(message.timestamp, "h:mm a"),
                 fontSize = 10.sp,
                 color    = timeColor
             )

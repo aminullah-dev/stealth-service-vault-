@@ -168,9 +168,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

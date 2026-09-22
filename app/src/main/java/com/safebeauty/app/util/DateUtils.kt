@@ -1,6 +1,6 @@
 package com.safebeauty.app.util
 
-import java.text.DateFormat
+import com.safebeauty.app.ui.theme.AppLanguage
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -23,23 +23,43 @@ object DateUtils {
 }
 
 /**
- * A formatted date, isolated so right-to-left text cannot take it apart.
+ * The ICU locale that decides which calendar and which month names a displayed
+ * date uses. This is what makes a Dari date read "۴ میزان ۱۴۰۵" (Afghan
+ * Solar-Hijri month names) rather than the Iranian "۴ مهر" or a Gregorian
+ * "26 Sep" — and it mirrors the iOS fix that switched to Locale "fa_AF".
  *
- * "9 Sep, 5:00 AM" inside a Dari screen rendered as "Sep, 5:00 AM 9": the
- * bidirectional algorithm resolves the leading day number as its own run and the
- * paragraph's right-to-left order puts it after the month. Confirmed by running
- * java.text.Bidi on the exact string — the visual order of
- * "📅 9 Sep, 5:00 AM" under an RTL paragraph is "Sep, 5:00 AM 9📅", which is what
- * a customer saw on every booking card.
+ *  - DARI    → fa_AF on the persian (Solar-Hijri) calendar, Afghan month names.
+ *  - PASHTO  → ps_AF on the persian calendar, Pashto month names.
+ *  - ENGLISH → gregorian, unchanged.
  *
- * The isolate characters — U+2066 LEFT-TO-RIGHT ISOLATE and U+2069 POP
- * DIRECTIONAL ISOLATE — say "this run is left-to-right and its direction does
- * not leak either way". A plain LRM would not do: the problem is not the
- * surrounding text's direction but the date being split into runs at all.
- *
- * Wrapping the whole date rather than each number is deliberate. A date is one
- * thing to read, and the pieces that make it up have no meaning apart.
+ * `android.icu` (ICU4J) is used, not `java.text` — minSdk is 26, so it is
+ * available, and `java.text.SimpleDateFormat` cannot render the persian
+ * calendar at all.
  */
-fun DateFormat.formatIsolated(date: Date): String = "\u2066" + format(date) + "\u2069"
+fun AppLanguage.icuLocale(): android.icu.util.ULocale = when (this) {
+    AppLanguage.DARI    -> android.icu.util.ULocale("fa_AF@calendar=persian")
+    AppLanguage.PASHTO  -> android.icu.util.ULocale("ps_AF@calendar=persian")
+    AppLanguage.ENGLISH -> android.icu.util.ULocale("en@calendar=gregorian")
+}
 
-fun DateFormat.formatIsolated(epochMs: Long): String = formatIsolated(Date(epochMs))
+/**
+ * Formats [epochMs] in Kabul time with [pattern], in this language's calendar
+ * and month names, wrapped in a First-Strong Isolate (U+2068 … U+2069).
+ *
+ * Why First-Strong and not the plain LTR isolate the old `formatIsolated` used:
+ * that helper wrapped dates in U+2066 (LEFT-TO-RIGHT ISOLATE) because the dates
+ * were English and always LTR. A native Dari date ("۴ میزان ۱۴۰۵") is RTL, so
+ * forcing LTR would reorder it wrongly. U+2068 FIRST STRONG ISOLATE auto-detects
+ * the run's direction from its first strong character, so an English date stays
+ * LTR and a Dari date stays RTL, each rendered as one indivisible unit inside a
+ * paragraph of the opposite direction. U+2069 POP DIRECTIONAL ISOLATE closes it.
+ *
+ * The timezone is pinned to Asia/Kabul rather than the device timezone: this is
+ * an Afghanistan-only product, and pinning it also fixes displayed slot times
+ * drifting when a device is set to another zone.
+ */
+fun AppLanguage.formatDate(epochMs: Long, pattern: String): String {
+    val fmt = android.icu.text.SimpleDateFormat(pattern, icuLocale())
+    fmt.timeZone = android.icu.util.TimeZone.getTimeZone("Asia/Kabul")
+    return "⁨" + fmt.format(Date(epochMs)) + "⁩"
+}

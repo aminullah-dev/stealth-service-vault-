@@ -135,6 +135,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
@@ -143,7 +144,6 @@ import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.PetalPink
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -162,7 +162,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
-import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
@@ -352,7 +351,7 @@ internal fun CalendarTab(
 
 @Composable
 private fun CalendarAppointmentRow(appt: AppointmentDocument) {
-    val timeFmt = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
+    val lang    = LocalStrings.current.language
     val context = LocalContext.current
 
     ElevatedCard(
@@ -373,7 +372,7 @@ private fun CalendarAppointmentRow(appt: AppointmentDocument) {
                     .background(BlushPink)
             ) {
                 Text(
-                    text       = timeFmt.formatIsolated(java.util.Date(appt.appointmentDate)),
+                    text       = lang.formatDate(appt.appointmentDate, "h:mm a"),
                     fontSize   = 11.sp,
                     color      = DeepRose,
                     fontWeight = FontWeight.Bold,
@@ -509,9 +508,8 @@ private fun ProviderReviewCard(
 ) {
     val strings = LocalStrings.current
     var draftReply by remember(review.id) { mutableStateOf(review.providerReply) }
-    val dateStr = remember(review.createdAt) {
-        java.text.SimpleDateFormat("d MMM yyyy", java.util.Locale.getDefault())
-            .format(java.util.Date(review.createdAt))
+    val dateStr = remember(review.createdAt, strings.language) {
+        strings.language.formatDate(review.createdAt, "d MMM yyyy")
     }
 
     Card(

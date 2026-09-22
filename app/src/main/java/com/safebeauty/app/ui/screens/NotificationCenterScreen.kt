@@ -72,6 +72,7 @@ import com.safebeauty.app.ui.theme.DashboardTheme
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.ui.theme.TextStrong
@@ -79,9 +80,6 @@ import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.PetalPink
 import com.safebeauty.app.ui.theme.AdminPurple
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private enum class NotifFilter { ALL, UNREAD, BOOKINGS, WAITLIST, SYSTEM }
 
@@ -365,6 +363,6 @@ private fun formatNotifTime(epochMs: Long): String {
         mins  < 60  -> strings.timeMinsAgo(mins.toInt())
         hours < 24  -> strings.timeHoursAgo(hours.toInt())
         days  == 1L -> strings.timeYesterday
-        else        -> SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(epochMs))
+        else        -> strings.language.formatDate(epochMs, "dd MMM")
     }
 }

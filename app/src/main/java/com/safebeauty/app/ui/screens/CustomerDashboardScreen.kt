@@ -122,7 +122,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -175,6 +174,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.motionTween
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
@@ -202,9 +202,6 @@ import com.safebeauty.app.viewmodel.ExportViewModel
 import androidx.compose.material.icons.filled.Palette
 import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -286,8 +283,7 @@ fun CustomerDashboardScreen(
         viewModel.bookingStatusChange.collect { change ->
             val title = latestStrings.bookingUpdatedTitle
             val body  = if (change.newStatus == "CONFIRMED") {
-                val dateFmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
-                "${change.serviceName} at ${change.salonName}\n${dateFmt.formatIsolated(Date(change.appointmentDate))}"
+                "${change.serviceName} at ${change.salonName}\n${latestStrings.language.formatDate(change.appointmentDate, "dd MMM, HH:mm")}"
             } else {
                 latestStrings.bookingDeclinedText(change.salonName)
             }
@@ -1804,7 +1800,6 @@ fun CustomerDashboardScreen(
                                 }
                             }
                             else -> {
-                                val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
                                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     items(viewModel.availableSlots) { slotMs ->
                                         Button(
@@ -1817,7 +1812,7 @@ fun CustomerDashboardScreen(
                                             shape = RoundedCornerShape(12.dp),
                                             colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
                                         ) {
-                                            Text(timeFmt.formatIsolated(Date(slotMs)), color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                                            Text(strings.language.formatDate(slotMs, "h:mm a"), color = DeepRose, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                                         }
                                     }
                                 }
@@ -1839,7 +1834,6 @@ fun CustomerDashboardScreen(
         // ── Step 4: Booking notes dialog ─────────────────────────────────────
         if (showNotesDialog && bookingIntent != null) {
             val intent  = bookingIntent!!
-            val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
             AlertDialog(
                 onDismissRequest = {
                     showNotesDialog = false
@@ -1868,7 +1862,7 @@ fun CustomerDashboardScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text     = dateFmt.formatIsolated(Date(pendingSlotMs)),
+                            text     = strings.language.formatDate(pendingSlotMs, "dd MMM yyyy, HH:mm"),
                             fontSize = 13.sp,
                             color    = RoseGold
                         )
@@ -2272,8 +2266,7 @@ fun CustomerDashboardScreen(
             ) {
                 com.safebeauty.app.ui.components.ReportVisitSheetContent(
                     salonName = appt.salonName,
-                    whenLabel = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault())
-                        .format(Date(appt.appointmentDate)),
+                    whenLabel = strings.language.formatDate(appt.appointmentDate, "d MMM yyyy, HH:mm"),
                     sending   = visitSending,
                     sent      = visitSent,
                     error     = if (visitFailed) strings.actionFailedTitle else "",
@@ -2525,7 +2518,6 @@ fun CustomerDashboardScreen(
                                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
                             )
                             else -> {
-                                val timeFmt = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
                                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     items(viewModel.availableSlots) { slotMs ->
                                         Button(
@@ -2542,7 +2534,7 @@ fun CustomerDashboardScreen(
                                             colors = ButtonDefaults.buttonColors(containerColor = BlushPink)
                                         ) {
                                             Text(
-                                                timeFmt.formatIsolated(Date(slotMs)),
+                                                strings.language.formatDate(slotMs, "h:mm a"),
                                                 color = DeepRose,
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 15.sp,
@@ -3226,7 +3218,6 @@ private fun SalonCard(
 private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
     val context = LocalContext.current
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
     // Track swiped-away ids in state so the banner disappears immediately; seed
     // from prefs so a dismissed announcement stays gone across restarts. Showing
     // only the single newest un-dismissed one keeps the top of the screen clean.
@@ -3286,7 +3277,7 @@ private fun BroadcastBanner(broadcasts: List<BroadcastDocument>) {
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text     = dateFmt.formatIsolated(Date(newest.createdAt)),
+                            text     = strings.language.formatDate(newest.createdAt, "d MMM"),
                             fontSize = 11.sp,
                             color    = RoseGold
                         )

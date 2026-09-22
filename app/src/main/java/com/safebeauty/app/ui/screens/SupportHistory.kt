@@ -67,15 +67,13 @@ import com.safebeauty.app.ui.theme.DashboardSurface
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextStrong
 import com.safebeauty.app.ui.theme.WarmGold
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.ChatViewModel
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 private const val RATING_COMMENT_MAX = 500
 
@@ -247,7 +245,6 @@ fun SupportHistorySheet(
 ) {
     val strings    = LocalStrings.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val dateFmt    = remember { SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -282,7 +279,7 @@ fun SupportHistorySheet(
                     items(history, key = { it.id }) { entry ->
                         SupportHistoryRow(
                             entry   = entry,
-                            dateStr = dateFmt.formatIsolated(entry.closedAt),
+                            dateStr = strings.language.formatDate(entry.closedAt, "d MMM yyyy, h:mm a"),
                             onClick = { onOpen(entry) }
                         )
                     }

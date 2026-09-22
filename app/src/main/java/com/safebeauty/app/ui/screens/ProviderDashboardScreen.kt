@@ -135,6 +135,7 @@ import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.components.SwipeHint
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
@@ -143,7 +144,6 @@ import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
 import com.safebeauty.app.ui.theme.WarningOrange
 import androidx.compose.material.icons.filled.Palette
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.ThemeViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
@@ -163,7 +163,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
-import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
@@ -633,7 +632,7 @@ private fun RateCustomerDialog(
 @Composable
 private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
     val context = LocalContext.current
-    val dateFmt = remember { java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault()) }
+    val lang    = LocalStrings.current.language
     // Only the newest un-dismissed announcement, swipeable away (and remembered).
     var dismissed by remember { mutableStateOf(AnnouncementPrefs.dismissedIds(context)) }
     val newest = broadcasts
@@ -690,7 +689,7 @@ private fun ProviderBroadcastBanner(broadcasts: List<BroadcastDocument>) {
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            text     = dateFmt.formatIsolated(java.util.Date(newest.createdAt)),
+                            text     = lang.formatDate(newest.createdAt, "d MMM"),
                             fontSize = 11.sp,
                             color    = RoseGold
                         )

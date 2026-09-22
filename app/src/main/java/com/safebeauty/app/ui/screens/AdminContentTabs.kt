@@ -112,18 +112,15 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.ui.theme.WarningOrange
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 internal fun StatsTab(stats: SystemStats, isLoaded: Boolean) {
@@ -364,7 +361,6 @@ internal fun BroadcastTab(
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
-    val fmt     = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
 
     LazyColumn(
         contentPadding      = PaddingValues(16.dp),
@@ -419,7 +415,7 @@ internal fun BroadcastTab(
             }
         } else {
             items(broadcasts, key = { it.id }) { broadcast ->
-                BroadcastCard(broadcast, fmt.formatIsolated(Date(broadcast.createdAt)))
+                BroadcastCard(broadcast, strings.language.formatDate(broadcast.createdAt, "MMM d, HH:mm"))
             }
         }
     }

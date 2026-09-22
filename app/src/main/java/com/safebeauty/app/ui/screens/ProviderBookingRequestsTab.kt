@@ -136,13 +136,13 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
 import com.safebeauty.app.ui.theme.TextMuted
 import com.safebeauty.app.ui.theme.TextFaint
 import com.safebeauty.app.ui.theme.DangerRed
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.ProviderAnalytics
 import com.safebeauty.app.viewmodel.ProviderViewModel
@@ -161,8 +161,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.safebeauty.app.viewmodel.ChangePinViewModel
 import com.safebeauty.app.viewmodel.NotificationCenterViewModel
 import androidx.compose.material.icons.filled.Notifications
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -322,7 +320,6 @@ private fun BookingRequestCard(
     onSupport: () -> Unit = {}
 ) {
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
 
     ElevatedCard(
         shape     = RoundedCornerShape(16.dp),
@@ -479,7 +476,7 @@ private fun BookingRequestCard(
                 Spacer(Modifier.height(8.dp))
 
                 Text(
-                    text     = "${strings.requestedAt} ${dateFmt.formatIsolated(Date(appointment.appointmentDate))}",
+                    text     = "${strings.requestedAt} ${strings.language.formatDate(appointment.appointmentDate, "d MMM, h:mm a")}",
                     fontSize = 12.sp,
                     color    = TextMuted
                 )

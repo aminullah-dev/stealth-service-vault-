@@ -111,17 +111,14 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 internal fun ApprovalsTab(
@@ -478,7 +475,6 @@ private fun ReportRow(
     onSuspend: () -> Unit
 ) {
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
     ElevatedCard(
         shape     = RoundedCornerShape(16.dp),
         colors    = CardDefaults.elevatedCardColors(containerColor = DashboardSurface),
@@ -520,7 +516,7 @@ private fun ReportRow(
                 )
             }
             Spacer(Modifier.height(4.dp))
-            Text(dateFmt.formatIsolated(Date(report.createdAt)), fontSize = 11.sp, color = NeutralGrey)
+            Text(strings.language.formatDate(report.createdAt, "d MMM, h:mm a"), fontSize = 11.sp, color = NeutralGrey)
             Spacer(Modifier.height(10.dp))
             if (inProgress) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -558,7 +554,6 @@ internal fun SupportTab(
     onNavigate: (String) -> Unit
 ) {
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
     if (tickets.isEmpty()) {
         Box(
             contentAlignment = Alignment.Center,
@@ -593,7 +588,7 @@ internal fun SupportTab(
                             Text(ticket.userName.ifBlank { ticket.userId }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepRose)
                             Text(ticket.userRole, fontSize = 11.sp, color = RoseGold)
                         }
-                        Text(dateFmt.formatIsolated(Date(ticket.updatedAt)), fontSize = 11.sp, color = NeutralGrey)
+                        Text(strings.language.formatDate(ticket.updatedAt, "d MMM, h:mm a"), fontSize = 11.sp, color = NeutralGrey)
                     }
                     if (ticket.relatedInfo.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))

@@ -115,7 +115,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -157,6 +156,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -175,10 +175,7 @@ import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -207,7 +204,6 @@ internal fun BookingsSheetContent(
     onDismissWaitlistSlot: (String) -> Unit = {}
 ) {
     val strings = LocalStrings.current
-    val dateFmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
     var cancelTarget by remember { mutableStateOf<AppointmentDocument?>(null) }
     Column(
         modifier = Modifier
@@ -268,7 +264,7 @@ internal fun BookingsSheetContent(
                 }
                 upcoming.forEach { appt ->
                     SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
-                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
+                        BookingCard(appt, "d MMM, h:mm a", onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
                     }
                 }
             }
@@ -287,7 +283,7 @@ internal fun BookingsSheetContent(
                 // there and doing nothing.
                 past.forEach { appt ->
                     SwipeToCancel(appt, onRequestCancel = { cancelTarget = appt }) {
-                        BookingCard(appt, dateFmt, onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
+                        BookingCard(appt, "d MMM, h:mm a", onChatClick, onRescheduleClick, onReviewClick, { cancelTarget = appt }, onSupportClick, onRebookClick, onTipClick, onReportVisitClick, refundStatusByAppointment[appt.id])
                     }
                 }
             }
@@ -303,11 +299,10 @@ internal fun BookingsSheetContent(
                 Spacer(Modifier.width(8.dp))
                 Text(strings.waitlistTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepRose)
             }
-            val dateFmtShort = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
             waitlistEntries.forEach { entry ->
                 WaitlistCard(
                     entry             = entry,
-                    dateFmt           = dateFmtShort,
+                    datePattern       = "d MMM",
                     onLeave           = { onLeaveWaitlist(entry.id) },
                     onDismissSlot     = { onDismissWaitlistSlot(entry.id) }
                 )
@@ -412,7 +407,7 @@ private fun SwipeToCancel(
 @Composable
 private fun BookingCard(
     appt: AppointmentDocument,
-    dateFmt: SimpleDateFormat,
+    datePattern: String,
     onChatClick: (AppointmentDocument) -> Unit,
     onRescheduleClick: (AppointmentDocument) -> Unit,
     onReviewClick: (AppointmentDocument) -> Unit,
@@ -479,7 +474,7 @@ private fun BookingCard(
                         Text(appt.salonName, fontSize = 12.sp, color = RoseGold)
                     }
                     Text(
-                        "📅 ${dateFmt.formatIsolated(Date(appt.appointmentDate))}",
+                        "📅 ${strings.language.formatDate(appt.appointmentDate, datePattern)}",
                         fontSize = 11.sp,
                         color    = TextFaint
                     )
@@ -725,7 +720,7 @@ private fun StatusChip(status: String) {
 @Composable
 private fun WaitlistCard(
     entry: WaitlistEntry,
-    dateFmt: SimpleDateFormat,
+    datePattern: String,
     onLeave: () -> Unit,
     onDismissSlot: () -> Unit
 ) {
@@ -753,7 +748,7 @@ private fun WaitlistCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(entry.salonName, fontWeight = FontWeight.SemiBold, color = DeepRose, fontSize = 13.sp)
                 Text(
-                    "📅 ${dateFmt.formatIsolated(Date(entry.requestedDate))}",
+                    "📅 ${strings.language.formatDate(entry.requestedDate, datePattern)}",
                     fontSize = 11.sp, color = TextFaint
                 )
                 if (isSlotAvail) {

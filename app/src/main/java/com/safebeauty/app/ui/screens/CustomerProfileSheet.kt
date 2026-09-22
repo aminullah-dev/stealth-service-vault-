@@ -118,7 +118,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import com.safebeauty.app.util.formatIsolated
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -161,6 +160,7 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.RosePetal
 import com.safebeauty.app.ui.theme.UnavailableGrey
@@ -178,10 +178,7 @@ import com.safebeauty.app.viewmodel.DashboardViewModel
 import com.safebeauty.app.viewmodel.ExportPhase
 import com.safebeauty.app.viewmodel.ExportViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
-import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -330,7 +327,6 @@ internal fun CustomerProfileSheetContent(
                 .take(10)
         }
         if (historyItems.isNotEmpty()) {
-            val dateFmt = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
             Spacer(Modifier.height(4.dp))
             // Folded away by default.
             //
@@ -407,7 +403,7 @@ internal fun CustomerProfileSheetContent(
                             Text(appt.salonName, fontSize = 11.sp, color = RoseGold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
-                            dateFmt.formatIsolated(Date(appt.appointmentDate)),
+                            strings.language.formatDate(appt.appointmentDate, "dd MMM yyyy, HH:mm"),
                             fontSize = 10.sp,
                             color    = TextFaint
                         )

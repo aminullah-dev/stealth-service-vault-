@@ -112,17 +112,14 @@ import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.ElegantCream
 import com.safebeauty.app.ui.theme.Gradients
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.formatDate
 import com.safebeauty.app.ui.theme.NeutralGrey
 import com.safebeauty.app.ui.theme.RoseGold
 import com.safebeauty.app.ui.theme.UnavailableGrey
 import com.safebeauty.app.ui.theme.WarmGold
-import com.safebeauty.app.util.formatIsolated
 import com.safebeauty.app.viewmodel.AdminViewModel
 import com.safebeauty.app.viewmodel.LanguageViewModel
 import com.safebeauty.app.viewmodel.SystemStats
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,7 +131,6 @@ internal fun FinanceTab(
     viewModel: AdminViewModel
 ) {
     val strings = LocalStrings.current
-    val payoutFmt = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
     var confirmPayout by remember { mutableStateOf<ProviderBalance?>(null) }
     var confirmRefund by remember { mutableStateOf<com.safebeauty.app.data.firebase.RefundRequestDocument?>(null) }
 
@@ -285,7 +281,7 @@ internal fun FinanceTab(
                 )
             }
             items(payouts, key = { it.id }) { payout ->
-                PayoutHistoryRow(payout, payoutFmt.formatIsolated(Date(payout.createdAt)))
+                PayoutHistoryRow(payout, strings.language.formatDate(payout.createdAt, "MMM d, HH:mm"))
             }
         }
 
