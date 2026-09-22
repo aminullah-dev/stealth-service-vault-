@@ -35,7 +35,22 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
     }
 
-    var locale: Locale { Locale(identifier: rawValue) }
+    /// The REGION matters, not just the language. `Locale(identifier: "fa")`
+    /// is Iran, and its Persian-calendar month names are the Iranian set —
+    /// مهر, آبان, آذر… A booking on شنبه ۴ میزان rendered as "۴ مهر" to a
+    /// customer in Kabul, which is not her calendar; it is the neighbouring
+    /// country's. `fa_AF` keeps the Persian (Solar Hijri) calendar but uses the
+    /// Afghan month names — حمل, ثور … میزان. Pashto is Afghan already, so
+    /// `ps` and `ps_AF` are identical (verified), but pinned for symmetry.
+    /// rawValue stays "fa"/"ps" for the string catalogues; only date and number
+    /// formatting reads this.
+    var locale: Locale {
+        switch self {
+        case .dari: Locale(identifier: "fa_AF")
+        case .pashto: Locale(identifier: "ps_AF")
+        case .english: Locale(identifier: "en")
+        }
+    }
 
     /// Whether tracking may be applied to text in this language.
     ///
