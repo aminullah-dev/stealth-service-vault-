@@ -48,6 +48,16 @@ returned 1 result the same afternoon.
 "women-only" / "female-only" is kept out as well until someone confirms the
 platform actually restricts salons to women; nothing in onboarding checks it.
 
+## 1.0.1 is released — 2026-09-22
+
+The corrections above shipped. 1.0.1 was submitted, approved by Apple, and sat
+in `PENDING_DEVELOPER_RELEASE`; released the same day by the owner's decision
+via a developer release request (`POST /v1/appStoreVersionReleaseRequests`,
+`scripts/asc.py`). Read back from the API immediately after: version 1.0.1 →
+**`READY_FOR_SALE`** (1.0 also still `READY_FOR_SALE` during the storefront
+switchover). CDN propagation to every device can lag a few hours; the release
+authorisation itself is done, not pending.
+
 ## What is already filed — 2026-09-09
 
 All of this was written to App Store Connect through the API

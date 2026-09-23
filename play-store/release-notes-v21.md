@@ -1,9 +1,11 @@
 # Release notes — versionCode 21 (2.1.4)
 
-Staged as a draft on Play on 2026-09-22. What changed since v20 (2.1.3), the
-three Android-affecting commits: 8237e0c (support), bcd9f38 (Pashto deals
-label), a62c6b5 (Afghan calendar). Each Play language field is capped at 500
-characters.
+Staged as a draft on Play on 2026-09-22, then rolled out the same day —
+production track read back from the API as release **21 (2.1.4), status
+`completed`, no userFraction** (i.e. 100% of users), superseding the live
+20 (2.1.3). What changed since v20 (2.1.3), the three Android-affecting
+commits: 8237e0c (support), bcd9f38 (Pashto deals label), a62c6b5 (Afghan
+calendar). Each Play language field is capped at 500 characters.
 
 ## en-US
 
