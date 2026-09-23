@@ -1,7 +1,5 @@
 package com.safebeauty.app.ui.components
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -11,13 +9,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import com.safebeauty.app.ui.theme.LocalStrings
+import com.safebeauty.app.util.launchUpdate
 
 /**
  * Non-dismissible dialog shown when the installed app version is below
  * the minimum required version stored in Firestore.
  *
  * The dialog has no cancel/dismiss button so the user cannot bypass it.
- * Tapping "Update Now" opens the updateUrl in the device browser.
+ * Tapping "Update Now" opens the Play Store listing via [launchUpdate], which
+ * falls back to a browser and then to a visible message rather than crashing
+ * if nothing can handle the link.
  */
 @Composable
 fun ForceUpdateDialog(
@@ -43,10 +44,7 @@ fun ForceUpdateDialog(
             Button(
                 modifier  = Modifier.fillMaxWidth(),
                 onClick   = {
-                    if (updateUrl.isNotBlank()) {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateUrl))
-                        context.startActivity(intent)
-                    }
+                    launchUpdate(context, updateUrl, strings.updateOpenFailed)
                 },
             ) {
                 Text(strings.forceUpdateButton)

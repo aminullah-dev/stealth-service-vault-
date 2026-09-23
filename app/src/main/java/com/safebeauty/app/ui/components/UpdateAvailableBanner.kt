@@ -1,7 +1,5 @@
 package com.safebeauty.app.ui.components
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,6 +29,7 @@ import com.safebeauty.app.ui.theme.BlushPink
 import com.safebeauty.app.ui.theme.DeepRose
 import com.safebeauty.app.ui.theme.LocalStrings
 import com.safebeauty.app.ui.theme.RoseGold
+import com.safebeauty.app.util.launchUpdate
 import com.safebeauty.app.viewmodel.ForceUpdateViewModel
 
 /**
@@ -82,12 +81,7 @@ fun UpdateAvailableBanner(
         }
         if (info.updateUrl.isNotBlank()) {
             TextButton(onClick = {
-                runCatching {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(info.updateUrl))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }
+                launchUpdate(context, info.updateUrl, strings.updateOpenFailed)
             }) {
                 Text(strings.updateNow, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = RoseGold)
             }
