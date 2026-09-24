@@ -1,0 +1,31 @@
+{
+  "slug": "a-now-on-iphone",
+  "type": "post",
+  "audience": "customers",
+  "note": "Single-image iPhone announcement, for the feed and the WhatsApp channel. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "خبر تازه",
+      "headline": "حالا روی آیفون هم",
+      "body": "سیف‌بیوتی در App Store و Google Play است — رایگان، به دری و پښتو.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "نوی خبر",
+      "headline": "اوس په آیفون کې هم",
+      "body": "سیف بیوټي په App Store او Google Play کې دی — وړیا، په دري او پښتو.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "shot": "marketing/app-store-ios/01-salon-list.png"
+    },
+    "ps": {
+      "shot": "marketing/app-store-ios/01-salon-list.png"
+    }
+  }
+}

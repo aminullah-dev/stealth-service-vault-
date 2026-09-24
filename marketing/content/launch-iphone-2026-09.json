@@ -1,0 +1,97 @@
+{
+  "slug": "launch-iphone-2026-09",
+  "type": "post",
+  "audience": "customers",
+  "note": "The iPhone launch. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real. The iPhone captures are Dari; the Pashto slides reuse them, as real-app-2026-09 did, because the iOS demo world was only captured in Dari.",
+  "slides": [
+    {
+      "step": "1/4",
+      "layout": "bloom",
+      "seed": "launch-iphone",
+      "text": {
+        "fa": {
+          "sub": "خبر تازه",
+          "headline": "سیف‌بیوتی حالا روی آیفون هم هست",
+          "body": "همان اپ، حالا هم در App Store و هم در Google Play.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "نوی خبر",
+          "headline": "سیف بیوټي اوس په آیفون کې هم شته",
+          "body": "همغه اپ، اوس په App Store او Google Play دواړو کې.",
+          "cities": "کابل"
+        }
+      }
+    },
+    {
+      "step": "2/4",
+      "layout": "phone",
+      "text": {
+        "fa": {
+          "sub": "روی آیفون",
+          "headline": "سالن‌های کابل، در یک فهرست",
+          "body": "امتیاز، محله و قیمت هر سالن را پیش از رزرو ببینید.",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "په آیفون کې",
+          "headline": "د کابل سالونونه، په یوه لست کې",
+          "body": "د هر سالون نمرې، سیمه او بیه له بکینګ مخکې وګورئ.",
+          "cities": "کابل"
+        }
+      },
+      "screen": {
+        "fa": {
+          "shot": "marketing/app-store-ios/01-salon-list.png"
+        },
+        "ps": {
+          "shot": "marketing/app-store-ios/01-salon-list.png"
+        }
+      }
+    },
+    {
+      "step": "3/4",
+      "layout": "phone",
+      "text": {
+        "fa": {
+          "sub": "روی آیفون",
+          "headline": "نزدیک‌ترین سالن را روی نقشه پیدا کنید",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "په آیفون کې",
+          "headline": "تر ټولو نږدې سالون په نقشه کې ومومئ",
+          "cities": "کابل"
+        }
+      },
+      "screen": {
+        "fa": {
+          "shot": "marketing/app-store-ios/05-map.png"
+        },
+        "ps": {
+          "shot": "marketing/app-store-ios/05-map.png"
+        }
+      }
+    },
+    {
+      "step": "4/4",
+      "layout": "text",
+      "text": {
+        "fa": {
+          "sub": "رایگان",
+          "headline": "آیفون یا اندروید، فرقی نمی‌کند",
+          "body": "لینک زیر شما را به فروشگاه درست گوشی‌تان می‌برد.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        },
+        "ps": {
+          "sub": "وړیا",
+          "headline": "آیفون وي که اندروید، توپیر نه کوي",
+          "body": "لاندې لینک تاسو د خپل موبایل سم پلورنځي ته بیايي.",
+          "cta": "safebeauty.web.app/get",
+          "cities": "کابل"
+        }
+      }
+    }
+  ]
+}

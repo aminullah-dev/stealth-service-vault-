@@ -1,0 +1,23 @@
+{
+  "slug": "s-iphone-too",
+  "type": "post",
+  "audience": "salons",
+  "note": "Salon-side iPhone news. The iOS app carries the salon screens (ios/SafeBeauty/Features/Provider: requests with accept/decline, calendar, income, messages). Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "ornament",
+  "text": {
+    "fa": {
+      "sub": "برای صاحبان سالن",
+      "headline": "سالن‌تان را از آیفون هم اداره کنید",
+      "body": "درخواست‌ها، تقویم و پیام‌ها — در App Store و Google Play، هر دو.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالون خاوندانو لپاره",
+      "headline": "خپل سالون له آیفون څخه هم اداره کړئ",
+      "body": "غوښتنې، تقویم او پیغامونه — په App Store او Google Play دواړو کې.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  }
+}

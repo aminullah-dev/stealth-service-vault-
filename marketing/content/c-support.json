@@ -1,0 +1,31 @@
+{
+  "slug": "c-support",
+  "type": "post",
+  "audience": "customers",
+  "note": "In-app support: conversation, history and rating, as captured in marketing/demo/captures/08-10 and video/app-support-history.mp4. Dari capture reused for Pashto. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "پشتیبانی",
+      "headline": "سؤال دارید؟ از داخل اپ بپرسید",
+      "body": "گفتگو با پشتیبانی، تاریخچهٔ پیام‌ها و امتیازدادن — همه داخل اپ.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "ملاتړ",
+      "headline": "پوښتنه لرئ؟ له اپ دننه یې وپوښتئ",
+      "body": "له ملاتړ سره خبرې، د پیغامونو تاریخچه او ستوري ورکول — ټول په اپ کې.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "shot": "marketing/demo/captures/08-support-conversation-fa.png"
+    },
+    "ps": {
+      "shot": "marketing/demo/captures/08-support-conversation-fa.png"
+    }
+  }
+}

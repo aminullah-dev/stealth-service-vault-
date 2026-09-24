@@ -1,0 +1,85 @@
+{
+  "slug": "s-phone-calendar",
+  "type": "post",
+  "audience": "salons",
+  "note": "Plan piece S5. The calendar is real on both apps (ProviderCalendarView on iOS). Drawn screen, invented entries. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "برای صاحبان سالن",
+      "headline": "تقویم امروزتان، در جیب‌تان",
+      "body": "رزروهای امروز را روی موبایل‌تان ببینید — آیفون یا اندروید.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالون خاوندانو لپاره",
+      "headline": "ستاسو د نن تقویم، ستاسو په جیب کې",
+      "body": "د نن بکینګونه په خپل موبایل کې وګورئ — آیفون یا اندروید.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "clock": "۹:۴۱",
+      "title": "تقویم امروز",
+      "search": "سه‌شنبه",
+      "chips": [
+        "چوکی ۱",
+        "چوکی ۲"
+      ],
+      "rows": [
+        {
+          "initial": "۹",
+          "name": "کوتاهی مو",
+          "meta": "۹:۰۰ تا ۹:۴۵",
+          "price": "تأیید"
+        },
+        {
+          "initial": "۱۱",
+          "name": "آرایش",
+          "meta": "۱۱:۰۰ تا ۱۲:۳۰",
+          "price": "تأیید"
+        },
+        {
+          "initial": "۲",
+          "name": "ناخن",
+          "meta": "۱۴:۰۰ تا ۱۵:۰۰",
+          "price": "تأیید"
+        }
+      ],
+      "action": "روز بعد"
+    },
+    "ps": {
+      "clock": "۹:۴۱",
+      "title": "د نن تقویم",
+      "search": "درېنۍ",
+      "chips": [
+        "چوکۍ ۱",
+        "چوکۍ ۲"
+      ],
+      "rows": [
+        {
+          "initial": "۹",
+          "name": "د ویښتو لنډول",
+          "meta": "۹:۰۰ تر ۹:۴۵",
+          "price": "تایید"
+        },
+        {
+          "initial": "۱۱",
+          "name": "آرایش",
+          "meta": "۱۱:۰۰ تر ۱۲:۳۰",
+          "price": "تایید"
+        },
+        {
+          "initial": "۲",
+          "name": "نوکان",
+          "meta": "۱۴:۰۰ تر ۱۵:۰۰",
+          "price": "تایید"
+        }
+      ],
+      "action": "بله ورځ"
+    }
+  }
+}
