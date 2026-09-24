@@ -100,10 +100,16 @@
     <button class="copy" id="cbtn"></button>
   </div>
 
-  <a class="dl" id="play" href="#">
-    <span class="ic">▶</span>
-    <span class="lbl" id="playlbl"></span>
-  </a>
+  <div id="stores">
+    <a class="dl" id="ios" href="#">
+      <span class="ic"><svg width="20" height="22" viewBox="0 0 20 28" aria-hidden="true"><rect x="1.5" y="1.5" width="17" height="25" rx="4" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="7" y="21" width="6" height="2" rx="1" fill="currentColor"/></svg></span>
+      <span class="lbl" id="ioslbl"></span>
+    </a>
+    <a class="dl" id="play" href="#">
+      <span class="ic">▶</span>
+      <span class="lbl" id="playlbl"></span>
+    </a>
+  </div>
 
   <div class="fine" id="unk" style="margin-top:10px"></div>
 
@@ -126,10 +132,17 @@
   // Published 2026-08-28; the listing returns 200. The button is back on the
   // store, and the APK below stays as the fallback for a phone with no Play.
   const PLAY_LIVE = true;
+
+  // The App Store listing, live since 2026-09-21 on the Afghanistan storefront
+  // only (app-store/metadata.md) — so the link names the storefront. The /us/
+  // form returns 404, and a storefront-neutral link resolves to the visitor's
+  // own country, where the app is not sold.
+  const IOS = 'https://apps.apple.com/af/app/safebeauty/id6810050614';
   const APK = 'https://github.com/aminullah-dev/stealth-service-vault-/releases/download/android-app/SafeBeauty.apk';
 
   const T = {
-    sub:  {fa:'اپ اندروید', ps:'اندروید اپ', en:'Android App'},
+    sub:  {fa:'اپ آیفون و اندروید', ps:'د آیفون او اندروید اپ', en:'iPhone & Android App'},
+    ios:  {fa:'دریافت از App Store', ps:'له App Store ترلاسه کړئ', en:'Download on the App Store'},
     tag:  {fa:'سالن‌های زیبایی معتبر کابل را ببین، ساعت خالی‌شان را همان لحظه رزرو کن، و امن پرداخت کن.',
            ps:'د کابل د باور وړ ښکلا سالونونه وګورئ، خالي وخت یې همدا شېبه بک کړئ، او په خوندي ډول ورکړه وکړئ.',
            en:'Browse trusted beauty salons in Kabul, book a free slot the moment you see it, and pay safely.'},
@@ -147,10 +160,10 @@
     copy: {fa:'کپی کد', ps:'کوډ کاپي کړئ', en:'Copy code'},
     done: {fa:'کپی شد ✓', ps:'کاپي شو ✓', en:'Copied ✓'},
     salon:{fa:'صاحب سالن هستی؟ کنسول سالن →', ps:'د سالون خاوند یاست؟ د سالون کنسول →', en:'Own a salon? Salon console →'},
-    hs:   {fa:'آیفون دارم / Google Play ندارم', ps:'آیفون لرم / Google Play نه لرم', en:"I have an iPhone / no Google Play"},
-    hn:   {fa:'اپ فعلاً فقط برای اندروید است. اگر آیفون داری یا Google Play روی گوشی‌ات نیست، می‌توانی از دوستت بخواهی برایت رزرو کند، یا با سالن مستقیم تماس بگیری. نسخه‌ی وب در راه است.',
-           ps:'اپ اوس مهال یوازې د اندروید لپاره دی. که آیفون لرئ یا Google Play نه لرئ، له ملګري وغواړئ چې بک وکړي، یا مستقیم له سالون سره اړیکه ونیسئ. ویب نسخه په لاره ده.',
-           en:'The app is Android-only for now. If you have an iPhone, or no Google Play on your phone, a friend can book for you or you can contact the salon directly. A web version is on the way.'},
+    hs:   {fa:'اپ را در فروشگاه پیدا نمی‌کنم', ps:'اپ په پلورنځي کې نه مومم', en:"I can't find the app in my store"},
+    hn:   {fa:'نسخهٔ آیفون فعلاً فقط در App Store افغانستان است؛ اگر Apple ID شما مال کشور دیگری باشد، آن را نمی‌بینید. نسخهٔ اندروید در Google Play است.',
+           ps:'د آیفون نسخه اوس مهال یوازې د افغانستان په App Store کې ده؛ که ستاسو Apple ID د بل هېواد وي، هغه به ونه وینئ. د اندروید نسخه په Google Play کې ده.',
+           en:'The iPhone version is on the Afghanistan App Store only for now; an Apple ID from another country will not see it. The Android version is on Google Play.'},
     fine: {fa:'با نصب اپ، شرایط و سیاست حریم خصوصی را می‌پذیری.',
            ps:'د اپ په نصبولو سره، شرایط او د محرمیت تګلاره منئ.',
            en:'By installing the app you accept the Terms and Privacy Policy.'},
@@ -175,6 +188,7 @@
     $('hn').textContent       = T.hn[l];
     $('fine').textContent     = T.fine[l];
     $('playlbl').textContent  = PLAY_LIVE ? T.play[l] : T.apk[l];
+    $('ioslbl').textContent   = T.ios[l];
     $('unk').textContent      = PLAY_LIVE ? '' : T.unk[l];
     document.querySelectorAll('.langpick button')
       .forEach(b => b.classList.toggle('on', b.dataset.l === l));
@@ -194,6 +208,17 @@
   // this page for her to type, which is the path that actually works; wiring
   // the Install Referrer API would make the automatic one real.
   $('play').href = PLAY_LIVE ? PLAY : APK;
+  $('ios').href  = IOS;
+
+  // The phone's own store first and the other one quieter underneath; a
+  // desktop visitor gets both at full strength. iPadOS reports itself as a
+  // Mac, hence the touch-points check.
+  const UA = navigator.userAgent;
+  const onIOS = /iPhone|iPad|iPod/.test(UA) ||
+                (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+  const onAndroid = /Android/.test(UA);
+  if (onIOS) $('play').classList.add('ghost');
+  if (onAndroid) { $('ios').classList.add('ghost'); $('stores').appendChild($('ios')); }
   if (!PLAY_LIVE) $('play').setAttribute('download', 'SafeBeauty.apk');
 
   if (CODE) {
