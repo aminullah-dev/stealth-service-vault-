@@ -190,56 +190,62 @@ def palette(lang):
     # Built by concatenation, not %-formatting: a CSS gradient is mostly percent
     # signs and every one of them would have to be doubled.
     if dark:
-        bg = ("radial-gradient(130% 120% at 22% 12%, " + DEEP_ROSE
-              + " 0%, " + DEEPER_ROSE + " 58%, #5C1F2A 100%)")
+        bg = ("radial-gradient(120% 95% at 78% 8%, " + DEEP_ROSE
+              + " 0%, " + DEEPER_ROSE + " 46%, #561B27 78%, #43131D 100%)")
     else:
-        bg = "radial-gradient(130% 120% at 22% 12%, #FFFDFB 0%, #FDEAF3 52%, #F3E6F5 100%)"
+        bg = ("radial-gradient(120% 95% at 78% 8%, #FFFDFB 0%, #FFF3F8 38%, "
+              "#FCE6F0 72%, #F4E3F4 100%)")
     return {
         "dark": dark,
         "bg": bg,
-        "ink": CREAM if dark else DEEP_ROSE,
-        "sub": "rgba(255,247,251,.82)" if dark else "rgba(139,58,71,.74)",
-        "halo": "rgba(255,247,251,.05)" if dark else "rgba(183,110,121,.055)",
-        "card": "rgba(255,247,251,.10)" if dark else "#FFFFFF",
-        "cardshadow": ("0 24px 60px rgba(0,0,0,.28)" if dark
-                       else "0 24px 60px rgba(139,58,71,.13)"),
+        # The headline stays brand ink. The body used to be that same ink at
+        # 74% alpha, which on the blush page measured about 3.5:1 — below the
+        # 4.5:1 floor for body text, and it is what made every post read as
+        # washed out. Solid colours now, both above 7:1 on their page.
+        "ink": CREAM if dark else DEEPER_ROSE,
+        "sub": "#F6E4EA" if dark else "#5E4650",
+        "muted": "rgba(255,247,251,.78)" if dark else "#7D5F69",
+        "halo": "rgba(255,247,251,.045)" if dark else "rgba(183,110,121,.05)",
+        "card": "rgba(255,247,251,.12)" if dark else "#FFFFFF",
+        "cardshadow": ("0 18px 44px rgba(0,0,0,.30)" if dark
+                       else "0 18px 44px rgba(139,58,71,.16)"),
+        "line": "rgba(255,247,251,.22)" if dark else "rgba(139,58,71,.16)",
+        "pill": "rgba(255,247,251,.12)" if dark else "#FFFFFF",
+        "pillink": CREAM if dark else DEEPER_ROSE,
+        "pillborder": "rgba(255,247,251,.30)" if dark else "rgba(139,58,71,.22)",
         # The mid-tone of the page gradient, as bare rgb components, for the
         # scrims that hold ornament back from the text. A scrim has to be
         # mixable with alpha, so it cannot be a hex constant.
-        "scrim": "122,47,61" if dark else "253,234,243",
+        "scrim": "110,40,54" if dark else "253,236,244",
     }
 
 
-# How large the wordmark block is, relative to the default, on each layout. On
-# every layout but the default the wordmark is a signature rather than an
-# opening line: the device, the pattern, the number or the quote is the subject
-# and a 190px badge above it competes for the eye.
-MARK_SCALE = {"text": 1.0, "phone": 0.62, "quote": 0.58, "stat": 0.55,
-              "steps": 0.60, "ornament": 0.64, "bloom": 0.72}
-
-
+# The wordmark block is one size on every layout now. It used to scale per
+# layout (190px on `text`, ~105px on `stat`), so two slides of one carousel
+# opened with differently sized logos and the set looked assembled rather than
+# designed. The subject of a slide is made big by the layout, not by shrinking
+# the signature.
 def metrics(kind, layout):
     """The sizes the shared shell needs. Story is taller: the same content
     wants more air, not bigger type."""
     post = kind == "post"
     m = {
-        "pad": 96 if post else 110,
-        "mark": 190 if post else 210,
-        "h1": 74 if post else 80,
-        "bodysz": 33 if post else 36,
+        "pad": 84 if post else 100,
+        "mark": 104 if post else 118,
+        "h1": 80 if post else 88,
+        "bodysz": 37 if post else 40,
     }
     if layout == "phone":
         # The device is the subject on these; the words introduce it.
-        m["h1"] = 48 if post else 54
-        m["bodysz"] = 27 if post else 30
+        m["h1"] = 60 if post else 68
+        m["bodysz"] = 32 if post else 36
     elif layout == "steps":
         # The headline is a label over the list, not the message itself.
-        m["h1"] = 50 if post else 56
-        m["bodysz"] = 30 if post else 33
+        m["h1"] = 60 if post else 66
+        m["bodysz"] = 32 if post else 35
     elif layout in ("ornament", "bloom"):
-        m["h1"] = 62 if post else 70
-        m["bodysz"] = 31 if post else 34
-    m["mark"] = int(m["mark"] * MARK_SCALE[layout])
+        m["h1"] = 72 if post else 80
+        m["bodysz"] = 35 if post else 38
     return m
 
 
@@ -278,47 +284,110 @@ def need(ctx, field):
 
 
 def step_block(ctx):
-    """The "2/4" counter, shared by every layout so a mixed carousel numbers
-    consistently."""
-    step = ctx["source"].get("step")
-    return ('<div class="step">%s</div>' % step) if step else ""
+    """Kept for the layouts' call sites. The "2/4" counter is drawn by the
+    shell's header now (see step_pill), so a layout no longer places it."""
+    return ""
+
+
+def step_pill(source, lang):
+    """The "2/4" counter as a pill in the header, in the language's own digits.
+
+    It used to float in the corner of .mid in Latin digits, which on a Dari
+    carousel is the same tell as a step badge numbered 1, 2, 3.
+    """
+    step = source.get("step")
+    if not step:
+        return ""
+    if DIR[lang] == "rtl":
+        step = "".join(EASTERN_DIGITS[int(c)] if c.isdigit() else c for c in step)
+    return '<div class="step">%s</div>' % step
+
+
+# Where the app is. Both stores went live in Afghanistan in September 2026:
+# Google Play since 2026-08-28, the App Store (AFG storefront) since
+# 2026-09-21 — see app-store/metadata.md. Printed by the shell on every slide
+# that carries a call to action, so a store claim is decided here once and
+# never retyped (or forgotten) in forty specs.
+STORES = ("App Store", "Google Play")
+STORES_LABEL = {"fa": "دانلود رایگان", "ps": "وړیا ډاونلوډ", "en": "Free on"}
+
+PIN_SVG = ('<svg viewBox="0 0 24 24" width="{s}" height="{s}"><path fill="{c}" '
+           'd="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 '
+           '9.6A2.6 2.6 0 1 1 12 6.4a2.6 2.6 0 0 1 0 5.2z"/></svg>')
+
+
+def footer_block(text, lang, pal, kind):
+    """The footer: the link and the city on one side, the two stores on the
+    other. A slide without a `cta` gets the city alone, so the middle of a
+    carousel does not repeat the download pitch on every swipe."""
+    cta = text.get("cta", "")
+    city = text.get("cities", "")
+    pin = PIN_SVG.format(s=24 if kind == "post" else 26, c=pal["muted"])
+    city_html = ('<div class="city">%s<span>%s</span></div>' % (pin, city)) if city else ""
+    if not cta:
+        return '<div class="foot solo">%s</div>' % city_html
+    stores = "".join('<span class="store" dir="ltr">%s</span>' % n for n in STORES)
+    return (
+        '<div class="foot">'
+        '<div class="fline"></div>'
+        '<div class="frow">'
+        '<div class="fmain"><div class="cta" dir="ltr">%s</div>%s</div>'
+        '<div class="fstores"><div class="slabel2">%s</div>'
+        '<div class="stores">%s</div></div>'
+        '</div></div>'
+    ) % (cta, city_html, STORES_LABEL[lang], stores)
 
 
 SHELL = """<!doctype html><meta charset="utf-8">
 <style>
 @font-face {{ font-family:V; src:url(data:font/ttf;base64,{reg}); font-weight:400 }}
 @font-face {{ font-family:V; src:url(data:font/ttf;base64,{med}); font-weight:500 }}
+@font-face {{ font-family:V; src:url(data:font/ttf;base64,{semi}); font-weight:600 }}
 @font-face {{ font-family:V; src:url(data:font/ttf;base64,{bold}); font-weight:700 }}
 *{{margin:0;padding:0;box-sizing:border-box}}
 html,body{{width:{w}px;height:{h}px;overflow:hidden}}
 body{{
   font-family:V,system-ui,sans-serif; background:{bg}; color:{ink};
-  direction:{dir}; padding:{pad}px; position:relative;
+  direction:{dir}; padding:{pad}px {pad}px {padb}px; position:relative;
   display:flex; flex-direction:column;
 }}
 .halo{{position:absolute;border-radius:50%;background:{halo};pointer-events:none}}
-.h1{{width:{hw}px;height:{hw}px;right:-18%;top:-12%}}
-.h2{{width:{hw2}px;height:{hw2}px;left:-22%;bottom:-14%}}
-.top{{display:flex;align-items:center;gap:26px;position:relative;flex:none}}
+.h1{{width:{hw}px;height:{hw}px;{farside}:-24%;top:-16%}}
+.h2{{width:{hw2}px;height:{hw2}px;{nearside}:-26%;bottom:-18%}}
+.top{{display:flex;align-items:center;gap:22px;position:relative;flex:none}}
 .mark{{width:{mark}px;height:{mark}px;flex:none;border-radius:{markr}px;
   background:{card};box-shadow:{cardshadow};display:flex;align-items:center;
   justify-content:center}}
 .mark img{{width:{marki}px;height:{marki}px}}
-.brand{{font-size:44px;font-weight:700;letter-spacing:-.5px;direction:ltr;
-  text-align:{align}}}
-.brandsub{{font-size:24px;font-weight:500;color:{sub};margin-top:6px}}
-.mid{{position:relative;flex:1;display:flex;flex-direction:column;
-  justify-content:center;padding-bottom:40px}}
-h1{{font-size:{h1}px;font-weight:700;line-height:1.28;text-align:{align}}}
-.body{{font-size:{bodysz}px;font-weight:400;line-height:1.62;color:{sub};
-  margin-top:34px;text-align:{align};max-width:{maxw}px}}
-.rule{{width:220px;height:5px;background:{gold};border-radius:3px;margin-top:38px;
-  margin-{marginside}:0}}
-.foot{{position:relative;text-align:{align};flex:none}}
-.cta{{font-size:34px;font-weight:700;color:{ink}}}
-.cities{{font-size:26px;font-weight:500;color:{sub};margin-top:16px;white-space:nowrap}}
-.step{{position:absolute;top:0;{stepside}:0;font-size:26px;font-weight:700;color:{sub};
+.brand{{font-size:{brandsz}px;font-weight:700;letter-spacing:-.5px;direction:ltr;
+  text-align:{align};line-height:1.1}}
+.brandsub{{font-size:{brandsub}px;font-weight:600;color:{muted};margin-top:6px}}
+.step{{margin-{marginauto}:auto;font-size:26px;font-weight:700;color:{muted};
+  border:2px solid {pillborder};border-radius:999px;padding:6px 20px 4px;
   direction:ltr}}
+.mid{{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;
+  justify-content:center;padding:28px 0}}
+h1{{font-size:{h1}px;font-weight:700;line-height:1.32;text-align:{align};
+  text-wrap:balance}}
+.body{{font-size:{bodysz}px;font-weight:400;line-height:1.7;color:{sub};
+  margin-top:30px;text-align:{align};max-width:{maxw}px;text-wrap:pretty}}
+.rule{{width:132px;height:6px;background:{gold};border-radius:3px;margin-top:40px;
+  margin-{marginside}:0}}
+.foot{{position:relative;flex:none}}
+.foot.solo{{display:flex}}
+.fline{{height:2px;background:{line};margin-bottom:{fgap}px}}
+.frow{{display:flex;align-items:flex-end;justify-content:space-between;gap:24px}}
+.cta{{font-size:{ctasz}px;font-weight:700;color:{ink};text-align:{align};
+  white-space:nowrap}}
+.city{{display:flex;align-items:center;gap:8px;font-size:{citysz}px;font-weight:500;
+  color:{muted};margin-top:10px}}
+.foot.solo .city{{margin-top:0}}
+.fstores{{display:flex;flex-direction:column;align-items:{storealign};gap:12px;flex:none}}
+.slabel2{{font-size:{citysz}px;font-weight:600;color:{muted}}}
+.stores{{display:flex;gap:12px}}
+.store{{font-size:{storesz}px;font-weight:700;color:{pillink};background:{pill};
+  border:2px solid {pillborder};border-radius:16px;padding:10px 20px 8px;
+  white-space:nowrap;letter-spacing:-.2px}}
 .art{{position:absolute;inset:0;pointer-events:none;overflow:hidden}}
 .art svg{{display:block;width:100%;height:100%}}
 {layoutcss}
@@ -330,14 +399,31 @@ h1{{font-size:{h1}px;font-weight:700;line-height:1.28;text-align:{align}}}
     <div class="brand">SafeBeauty</div>
     <div class="brandsub">{sub_line}</div>
   </div>
+  {step}
 </div>
 <div class="mid">
 {mid}
 </div>
-<div class="foot">
-  {cta_block}
-  <div class="cities">{cities}</div>
-</div>"""
+{foot}"""
+
+
+# A run of Latin inside Dari or Pashto: "App Store", "Google Play", "SafeBeauty".
+LATIN_RUN = re.compile(r"[A-Za-z][A-Za-z0-9.+&' ]*[A-Za-z0-9]|[A-Za-z]")
+
+
+def isolate_latin(value):
+    """Wrap each Latin run of an RTL string in <bdi>.
+
+    Without the isolate, a neutral right after a Latin run — the full stop in
+    "…در Google Play." or the comma in "Google Play، هر دو" — takes the
+    Latin run's direction and is drawn on the wrong side of it, so the
+    sentence appears to start with a full stop.
+    """
+    if isinstance(value, list):
+        return [isolate_latin(v) for v in value]
+    if not isinstance(value, str):
+        return value
+    return LATIN_RUN.sub(lambda m: "<bdi>%s</bdi>" % m.group(0), value)
 
 
 def build_html(spec, lang, kind, slide=None, index=0):
@@ -351,6 +437,9 @@ def build_html(spec, lang, kind, slide=None, index=0):
     w, h = SIZES[kind]
     source = slide if slide is not None else spec
     text = source["text"][lang]
+    if DIR[lang] == "rtl":
+        # cta is the link and is laid out LTR as a whole already.
+        text = {k: (v if k == "cta" else isolate_latin(v)) for k, v in text.items()}
     layout = source.get("layout", "text")
     if layout not in LAYOUTS:
         sys.exit("%s: unknown layout %r (have: %s)"
@@ -359,6 +448,7 @@ def build_html(spec, lang, kind, slide=None, index=0):
     pal = palette(lang)
     m = metrics(kind, layout)
     rtl = DIR[lang] == "rtl"
+    post = kind == "post"
     ctx = dict(pal, **m)
     ctx.update({
         "spec": spec, "source": source, "text": text, "lang": lang, "kind": kind,
@@ -367,22 +457,30 @@ def build_html(spec, lang, kind, slide=None, index=0):
     })
 
     layout_css, art, mid = LAYOUTS[layout](ctx)
-    cta = text.get("cta", "")
 
     return SHELL.format(
-        reg=font_b64("regular"), med=font_b64("medium"), bold=font_b64("bold"),
+        reg=font_b64("regular"), med=font_b64("medium"), semi=font_b64("semibold"),
+        bold=font_b64("bold"),
         icon=base64.b64encode(bloom_svg().encode()).decode(),
-        w=w, h=h, bg=pal["bg"], ink=pal["ink"], sub=pal["sub"], halo=pal["halo"],
-        card=pal["card"], cardshadow=pal["cardshadow"],
-        pad=m["pad"], mark=m["mark"], marki=int(m["mark"] * 0.86),
-        markr=int(m["mark"] * 0.24), h1=m["h1"], bodysz=m["bodysz"], gold=GOLD,
+        w=w, h=h, bg=pal["bg"], ink=pal["ink"], sub=pal["sub"], muted=pal["muted"],
+        halo=pal["halo"], card=pal["card"], cardshadow=pal["cardshadow"],
+        line=pal["line"], pill=pal["pill"], pillink=pal["pillink"],
+        pillborder=pal["pillborder"],
+        pad=m["pad"], padb=m["pad"] - (12 if post else 0),
+        mark=m["mark"], marki=int(m["mark"] * 0.84), markr=int(m["mark"] * 0.26),
+        brandsz=42 if post else 46, brandsub=25 if post else 28,
+        h1=m["h1"], bodysz=m["bodysz"], gold=GOLD,
         dir=DIR[lang], align=ctx["align"], marginside=("right" if rtl else "left"),
-        maxw=w - m["pad"] * 2, hw=int(w * 0.85), hw2=int(w * 0.7),
-        stepside=("left" if rtl else "right"),
+        marginauto=("right" if rtl else "left"),
+        farside=("left" if rtl else "right"), nearside=("right" if rtl else "left"),
+        storealign="flex-end",
+        maxw=w - m["pad"] * 2, hw=int(w * 0.95), hw2=int(w * 0.8),
+        fgap=26 if post else 32, ctasz=34 if post else 38,
+        citysz=25 if post else 28, storesz=27 if post else 30,
         layoutcss=layout_css, art=art, mid=mid,
         sub_line=text.get("sub", ""),
-        cta_block=('<div class="cta">%s</div>' % cta) if cta else "",
-        cities=text.get("cities", ""),
+        step=step_pill(source, lang),
+        foot=footer_block(text, lang, pal, kind),
     )
 
 
@@ -400,25 +498,46 @@ def layout_text(ctx):
         sub        small line under the wordmark          optional
         headline   the one thing the slide says           REQUIRED
         body       two sentences at most                  optional
-        cta        what she does next                     optional
+        cta        the link; also switches on the footer's store row   optional
         cities     the footer line                        optional
     Slide fields: "step" ("2/4"), and for layout "phone", "screen".<lang> with
-    title / search / clock / chips[] / rows[{initial,name,meta,price}] / action.
+    either shot (a capture's path) or title / search / clock / chips[] /
+    rows[{initial,name,meta,price}] / action for a drawn screen.
+
+    On a post the phone stands beside the words; on a story, under them. It
+    used to be stacked on both, and a 1020px phone under a two-line headline
+    does not fit in 1350px: the device slid up over the headline on every
+    phone slide that shipped.
     """
     text = ctx["text"]
-    phone = ctx["layout"] == "phone"
     body = text.get("body", "")
+    words = '<h1>%s</h1>\n  %s\n  <div class="rule"></div>' % (
+        text["headline"], ('<div class="body">%s</div>' % body) if body else "")
+    if ctx["layout"] != "phone":
+        # A large, faint flower in the lower corner. A text slide is mostly
+        # air by design, and bare air on a flat gradient read as unfinished.
+        return TEXT_CSS.format(wo=".10" if ctx["dark"] else ".09"), \
+            '<div class="art wm">%s</div>' % bloom_watermark(), "  " + words
+    screen = phone_block(ctx["source"].get("screen", {}).get(ctx["lang"], {}),
+                         ctx["lang"])
     return (
-        phone_css(ctx["kind"], ctx["dark"], ctx["lang"]) if phone else "",
+        phone_css(ctx["kind"], ctx["dark"], ctx["lang"]),
         "",
-        '  %s\n  <h1>%s</h1>\n  %s\n  %s\n  <div class="rule"></div>' % (
-            step_block(ctx),
-            text["headline"],
-            ('<div class="body">%s</div>' % body) if body else "",
-            (phone_block(ctx["source"].get("screen", {}).get(ctx["lang"], {}),
-                         ctx["lang"]) if phone else ""),
-        ),
+        '  <div class="pwrap"><div class="pwords">%s</div>'
+        '<div class="pcol">%s</div></div>' % (words, screen),
     )
+
+
+TEXT_CSS = """
+.wm{{opacity:{wo}}}
+.wm svg{{position:absolute;width:68%;height:auto;bottom:-9%;left:-17%;
+  transform:rotate(-14deg)}}
+"""
+
+
+def bloom_watermark():
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="16 16 76 76">'
+            + bloom_paths(petals_only=True) + "</svg>")
 
 
 def phone_block(screen, lang):
@@ -495,50 +614,73 @@ def phone_svg_screen(screen, lang):
 
 
 PHONE_CSS = """
-.phone{{position:relative;margin:0 auto;width:{pw}px;height:{ph}px;border-radius:{pr}px;
-  background:{frame};padding:{bez}px;box-shadow:0 30px 70px rgba(0,0,0,.30)}}
+.mid{{justify-content:stretch;padding:{midpad}px 0}}
+.pwrap{{flex:1;min-height:0;display:flex;flex-direction:{pdir};gap:{pgap}px;
+  align-items:center}}
+.pwords{{flex:{wflex};min-width:0;{wextra}}}
+.pcol{{flex:{pflex};min-height:0;height:100%;display:flex;justify-content:center;
+  align-items:center;{pextra}}}
+.phone{{position:relative;height:100%;max-height:{pmax}px;aspect-ratio:{pratio};
+  border-radius:{pr}px;background:{frame};padding:{bez}px;
+  box-shadow:0 34px 80px rgba(60,10,25,{shadow}),0 0 0 2px {rim}}}
 .screen{{width:100%;height:100%;border-radius:{sr}px;background:{screenbg};overflow:hidden;
-  display:flex;flex-direction:column;padding:22px 20px;gap:14px;direction:{dir}}}
+  display:flex;flex-direction:column;padding:20px 16px;gap:12px;direction:{dir}}}
 .shotscreen{{padding:0;display:block}}
 .shot{{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}}
-.statusbar{{display:flex;justify-content:space-between;font-size:17px;font-weight:500;
+.statusbar{{display:flex;justify-content:space-between;font-size:15px;font-weight:600;
   color:{muted};direction:ltr}}
-.apphead{{font-size:34px;font-weight:700;color:{ink};text-align:{align}}}
-.search{{font-size:21px;font-weight:400;color:{muted};background:{field};
-  border-radius:16px;padding:14px 18px;text-align:{align}}}
-.chips{{display:flex;gap:9px;flex-wrap:nowrap;overflow:hidden}}
-.chip{{font-size:19px;font-weight:500;color:{ink};background:{field};
-  border-radius:999px;padding:9px 16px;white-space:nowrap}}
+.apphead{{font-size:28px;font-weight:700;color:{ink};text-align:{align}}}
+.search{{font-size:18px;font-weight:400;color:{muted};background:{field};
+  border-radius:14px;padding:12px 16px;text-align:{align}}}
+.chips{{display:flex;gap:8px;flex-wrap:nowrap;overflow:hidden}}
+.chip{{font-size:17px;font-weight:600;color:{ink};background:{field};
+  border-radius:999px;padding:7px 14px;white-space:nowrap}}
 .chip.on{{background:{accent};color:#fff}}
-.card{{display:flex;align-items:center;gap:14px;background:{cardbg};border-radius:20px;
-  padding:16px 18px;box-shadow:0 6px 18px rgba(139,58,71,.08)}}
-.avatar{{width:64px;height:64px;border-radius:18px;flex:none;display:flex;
-  align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#fff;
+.card{{display:flex;align-items:center;gap:12px;background:{cardbg};border-radius:18px;
+  padding:14px 14px;box-shadow:0 6px 18px rgba(139,58,71,.08)}}
+.avatar{{width:54px;height:54px;border-radius:16px;flex:none;display:flex;
+  align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;
   background:linear-gradient(135deg,{petal},{deep})}}
 .cardtext{{flex:1;min-width:0;text-align:{align}}}
-.cname{{font-size:24px;font-weight:700;color:{ink}}}
-.cmeta{{font-size:19px;font-weight:400;color:{muted};margin-top:4px}}
-.cprice{{font-size:21px;font-weight:700;color:{accent};white-space:nowrap;direction:ltr}}
-.cta-pill{{margin-top:auto;text-align:center;font-size:24px;font-weight:700;color:#fff;
-  background:linear-gradient(135deg,{petal},{deep});border-radius:18px;padding:16px}}
+.cname{{font-size:21px;font-weight:700;color:{ink}}}
+.cmeta{{font-size:16px;font-weight:400;color:{muted};margin-top:3px}}
+.cprice{{font-size:18px;font-weight:700;color:{accent};white-space:nowrap;direction:ltr}}
+.cta-pill{{margin-top:auto;text-align:center;font-size:21px;font-weight:700;color:#fff;
+  background:linear-gradient(135deg,{petal},{deep});border-radius:16px;padding:14px}}
 """
 
 
 def phone_css(kind, dark, lang):
-    w, h = SIZES[kind]
-    ph = 1020 if kind == "post" else 1240
-    pw = int(ph * 0.49)
+    post = kind == "post"
+    rtl = DIR[lang] == "rtl"
+    # The frame's proportion matches the captures (1080x2400 Android, 1320x2868
+    # iPhone, both ~0.45-0.46 wide-to-tall) once the bezel is added, so a
+    # capture fills it without a crop anybody would notice.
     return PHONE_CSS.format(
-        pw=pw, ph=ph, pr=int(pw * 0.11), sr=int(pw * 0.095), bez=14,
-        frame="rgba(255,247,251,.22)" if dark else "#FFFFFF",
+        midpad=26 if post else 34,
+        pdir="row" if post else "column",
+        pgap=44 if post else 54,
+        wflex="1" if post else "none",
+        wextra="" if post else "width:100%;",
+        pflex="none" if post else "1",
+        # On a story the column's height comes from flex, not from the
+        # percentage: height:100% there resolved against the row it shares
+        # with the words and left the phone half the height it had room for.
+        pextra="width:430px;" if post else "width:100%;height:auto;flex-basis:0;",
+        pmax=940 if post else 1180,
+        pratio="0.475",
+        pr=58 if post else 66, sr=46 if post else 54, bez=12,
+        frame="#1D1216",
+        rim="rgba(255,247,251,.18)" if dark else "rgba(139,58,71,.10)",
+        shadow=".45" if dark else ".22",
         screenbg="#2A1119" if dark else CREAM,
         cardbg="rgba(255,247,251,.10)" if dark else "#FFFFFF",
         field="rgba(255,247,251,.12)" if dark else "#FDEEF3",
         ink=CREAM if dark else DEEP_ROSE,
-        muted="rgba(255,247,251,.66)" if dark else "rgba(139,58,71,.62)",
+        muted="rgba(255,247,251,.70)" if dark else "rgba(139,58,71,.66)",
         accent=ROSE_PETAL if dark else ROSE_GOLD,
         petal=ROSE_PETAL, deep=DEEPER_ROSE,
-        dir=DIR[lang], align=("right" if DIR[lang] == "rtl" else "left"),
+        dir=DIR[lang], align=("right" if rtl else "left"),
     )
 
 
@@ -547,7 +689,7 @@ QUOTE_CSS = """
 .qmark{{font-size:{qm}px;line-height:.66;font-weight:700;color:{gold};opacity:{qo};
   direction:ltr;align-self:flex-start;margin-bottom:{qmb}px}}
 .quote{{font-size:{qs}px;font-weight:500;line-height:1.5;text-align:center;
-  max-width:{qw}px}}
+  max-width:{qw}px;text-wrap:balance}}
 .qrule{{width:92px;height:4px;background:{gold};border-radius:2px;margin:44px 0 28px}}
 .qattr{{font-size:{qa}px;font-weight:500;color:{sub};text-align:center;
   max-width:{qw}px}}
@@ -610,7 +752,8 @@ STAT_CSS = """
   background:linear-gradient(135deg,{g1},{g2} 34%,{g3});
   -webkit-background-clip:text;background-clip:text;color:transparent}}
 .srule{{width:96px;height:5px;background:{gold};border-radius:3px;margin:{srm}px auto 0}}
-.slabel{{font-size:{sl}px;font-weight:500;color:{ink};margin-top:32px;line-height:1.35}}
+.slabel{{font-size:{sl}px;font-weight:600;color:{ink};margin-top:32px;line-height:1.4;
+  text-wrap:balance}}
 .snote{{font-size:{bodysz}px;font-weight:400;color:{sub};line-height:1.6;
   margin:22px auto 0;max-width:{snw}px}}
 """
@@ -953,9 +1096,15 @@ def find_chrome():
     sys.exit("No Chrome or Chromium found. Add its path to CHROME_CANDIDATES.")
 
 
+# Set by `--as story|post`: render a spec at a size other than its own. The
+# plan's stories are "the story-size render of whichever piece went out that
+# day", and a second spec per piece would be forty copies waiting to drift.
+KIND_OVERRIDE = None
+
+
 def render(spec, path):
     slug = spec["slug"]
-    kind = spec.get("type", "post")
+    kind = KIND_OVERRIDE or spec.get("type", "post")
     if kind not in SIZES:
         sys.exit("%s: type must be 'post' or 'story', not %r" % (path, kind))
     w, h = SIZES[kind]
@@ -1004,7 +1153,7 @@ def render_carousel(spec, path):
     slide 10 sorting between 1 and 2 is how a carousel ships scrambled.
     """
     slug = spec["slug"]
-    kind = spec.get("type", "post")
+    kind = KIND_OVERRIDE or spec.get("type", "post")
     if kind not in SIZES:
         sys.exit("%s: type must be 'post' or 'story', not %r" % (path, kind))
     w, h = SIZES[kind]
@@ -1048,7 +1197,12 @@ def render_carousel(spec, path):
 
 
 def main():
+    global KIND_OVERRIDE
     args = sys.argv[1:]
+    if len(args) >= 2 and args[0] == "--as":
+        if args[1] not in SIZES:
+            sys.exit("--as takes post or story, not %r" % args[1])
+        KIND_OVERRIDE, args = args[1], args[2:]
     if not args:
         sys.exit(__doc__.strip().split("\n\n")[1])
     if args[0] == "--all":

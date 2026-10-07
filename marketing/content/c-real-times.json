@@ -1,0 +1,31 @@
+{
+  "slug": "c-real-times",
+  "type": "post",
+  "audience": "customers",
+  "note": "Plan piece C3, from a real capture of the time picker in the demo world (Dari; the Pashto post reuses it). Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "وقت‌های واقعی",
+      "headline": "فقط وقت‌هایی که واقعاً آزادند",
+      "body": "اپ فقط وقت‌هایی را نشان می‌دهد که هنوز کسی رزرو نکرده.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "ریښتیني وختونه",
+      "headline": "یوازې هغه وختونه چې واقعاً خالي دي",
+      "body": "اپ یوازې هغه وختونه ښیي چې تر اوسه چا نه دي نیولي.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "shot": "marketing/demo/captures/04-time-slots-fa.png"
+    },
+    "ps": {
+      "shot": "marketing/demo/captures/04-time-slots-fa.png"
+    }
+  }
+}

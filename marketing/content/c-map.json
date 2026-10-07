@@ -1,0 +1,31 @@
+{
+  "slug": "c-map",
+  "type": "post",
+  "audience": "customers",
+  "note": "The salon map (SalonMapScreen on Android, Features/Map on iOS), from the iPhone capture of the demo world: invented salons on the real Kabul map. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "نقشهٔ سالن‌ها",
+      "headline": "سالن‌های نزدیک، روی نقشه",
+      "body": "سالن‌ها را روی نقشهٔ کابل ببینید و نزدیک‌ترین را انتخاب کنید.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالونونو نقشه",
+      "headline": "نږدې سالونونه، په نقشه کې",
+      "body": "سالونونه د کابل په نقشه کې وګورئ او تر ټولو نږدې یې وټاکئ.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "shot": "marketing/app-store-ios/05-map.png"
+    },
+    "ps": {
+      "shot": "marketing/app-store-ios/05-map.png"
+    }
+  }
+}

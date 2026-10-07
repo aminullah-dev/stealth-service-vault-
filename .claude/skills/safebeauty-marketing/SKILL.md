@@ -175,6 +175,18 @@ Rules the generator enforces so you do not have to remember them:
 - `post` is 1080×1350, `story` is 1080×1920, asserted after rendering. Play and
   Instagram reject off-size images with unhelpful errors.
 
+Also enforced, since 2026-09-24:
+
+- Every slide with a `cta` gets a footer with the link, the city and
+  **App Store · Google Play**. The store claim lives in `STORES` in
+  `generate.py`, not in specs. iOS is sold on the **Afghanistan storefront
+  only**; never print an App Store URL (`/us/` returns 404) — print
+  `safebeauty.web.app/get`, which routes each phone to its store.
+- Latin runs inside Dari/Pashto text are wrapped in `<bdi>`, so punctuation
+  after "Google Play" stays on the right side.
+- `--as story` renders any spec at 1080×1920; `export.py <folder>` copies the
+  set into the owner's posting folder and writes the captions.
+
 Output lands in `marketing/out/`. **Look at every image before it goes out** —
 the generator guarantees size and brand, not that a headline wrapped well or
 that a long Pashto word did not overflow.

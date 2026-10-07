@@ -129,6 +129,10 @@ jobs:
           java-version: "17"
           cache: gradle
       - uses: android-actions/setup-android@v3
+        # The action's default list still names the SDK package 'tools', which the
+        # runner's sdkmanager 16 no longer has, so the step failed before any test ran.
+        with:
+          packages: platform-tools
       - run: chmod +x ./gradlew
       # A debug build needs a Maps key placeholder; local.properties is
       # gitignored, so CI supplies an obviously-fake one. Nothing here calls Maps.

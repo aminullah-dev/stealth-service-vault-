@@ -1,0 +1,87 @@
+{
+  "slug": "s-confirm",
+  "type": "post",
+  "audience": "salons",
+  "note": "Plan piece S6. Accept/decline is real on both apps (ProviderRequestsView on iOS; a booking is written PENDING until the salon accepts, CLAUDE.md). The screen is drawn, with invented names. Facts checked 2026-09-24: iOS live on the App Store (Afghanistan storefront only, since 2026-09-21, app-store/metadata.md) and Android on Google Play (since 2026-08-28) — the generator prints both store names in the footer; safebeauty.web.app/get stays the one printed link and sends each phone to its own store. Salons are in Kabul only — no second city, no count. No promotion running. Every salon, name, price and time on a screen is the invented demo world from marketing/demo/ — nothing real.",
+  "layout": "phone",
+  "text": {
+    "fa": {
+      "sub": "برای صاحبان سالن",
+      "headline": "شما تصمیم می‌گیرید کدام رزرو را قبول کنید",
+      "body": "هر رزرو اول به شما می‌رسد. قبول یا رد، با شماست.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    },
+    "ps": {
+      "sub": "د سالون خاوندانو لپاره",
+      "headline": "تاسو پرېکړه کوئ کوم بکینګ ومنئ",
+      "body": "هر بکینګ لومړی تاسو ته راځي. منل یا ردول ستاسو په لاس کې دي.",
+      "cta": "safebeauty.web.app/get",
+      "cities": "کابل"
+    }
+  },
+  "screen": {
+    "fa": {
+      "clock": "۹:۴۱",
+      "title": "درخواست‌ها",
+      "search": "جستجو در رزروها…",
+      "chips": [
+        "همه",
+        "امروز",
+        "فردا"
+      ],
+      "rows": [
+        {
+          "initial": "م",
+          "name": "رزرو جدید · مو",
+          "meta": "امروز ۱۰:۳۰",
+          "price": "قبول"
+        },
+        {
+          "initial": "آ",
+          "name": "رزرو جدید · آرایش",
+          "meta": "امروز ۱۴:۰۰",
+          "price": "قبول"
+        },
+        {
+          "initial": "ن",
+          "name": "رزرو جدید · ناخن",
+          "meta": "فردا ۱۱:۰۰",
+          "price": "قبول"
+        }
+      ],
+      "action": "تقویم امروز"
+    },
+    "ps": {
+      "clock": "۹:۴۱",
+      "title": "غوښتنې",
+      "search": "په بکینګونو کې لټون…",
+      "chips": [
+        "ټول",
+        "نن",
+        "سبا"
+      ],
+      "rows": [
+        {
+          "initial": "و",
+          "name": "نوی بکینګ · ویښتان",
+          "meta": "نن ۱۰:۳۰",
+          "price": "منل"
+        },
+        {
+          "initial": "آ",
+          "name": "نوی بکینګ · آرایش",
+          "meta": "نن ۱۴:۰۰",
+          "price": "منل"
+        },
+        {
+          "initial": "ن",
+          "name": "نوی بکینګ · نوکان",
+          "meta": "سبا ۱۱:۰۰",
+          "price": "منل"
+        }
+      ],
+      "action": "د نن تقویم"
+    }
+  }
+}
