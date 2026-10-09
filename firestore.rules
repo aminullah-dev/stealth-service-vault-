@@ -48,6 +48,19 @@ service cloud.firestore {
           && myData().get('suspended', false) == false;
     }
 
+    // A salon owner who may OPERATE: an approved account, not suspended, and an
+    // identity an admin has verified. Two approvals in two fields — `status` is
+    // the salon application, `kycStatus` is her tazkira and selfie — and the
+    // privacy policy promises the second before a salon goes live. Until this
+    // existed only the Android app checked it, at sign-in; the web console and
+    // iOS checked `status` alone, and so did these rules, so a provider whose
+    // documents nobody had seen could open her salon, post offers and publish
+    // to the feed from any client but one. See functions/lib/kyc.js.
+    function isOperatingProvider() {
+      return isProvider() && isApproved()
+          && myData().get('kycStatus', 'NONE') == 'APPROVED';
+    }
+
     function ownsDoc(uid) {
       return isSignedIn() && me() == uid;
     }
@@ -292,7 +305,7 @@ service cloud.firestore {
       // granted only by an admin (setSalonVerified). Without this guard a provider
       // could self-award the badge to look legitimate.
       allow update: if isAdmin()
-                 || (isProvider() && isApproved()
+                 || (isOperatingProvider()
                      && resource.data.providerId == me()
                      && request.resource.data.providerId == resource.data.providerId
                      && request.resource.data.isVerified  == resource.data.isVerified
@@ -465,7 +478,7 @@ service cloud.firestore {
     match /salon_gallery/{imageId} {
       allow read: if isSignedIn();
 
-      allow create: if isProvider() && isApproved()
+      allow create: if isOperatingProvider()
                  && ownsThisSalon(request.resource.data.salonId)
                  && ownsStoragePath('salon_gallery', request.resource.data.salonId, imageId);
 
@@ -483,10 +496,10 @@ service cloud.firestore {
     match /salon_offers/{offerId} {
       allow read: if isSignedIn();
 
-      allow create: if isProvider() && isApproved()
+      allow create: if isOperatingProvider()
                  && ownsThisSalon(request.resource.data.salonId);
 
-      allow update: if isProvider() && isApproved()
+      allow update: if isOperatingProvider()
                  && ownsThisSalon(resource.data.salonId)
                  && request.resource.data.salonId == resource.data.salonId;
 
@@ -502,7 +515,7 @@ service cloud.firestore {
     match /salon_posts/{postId} {
       allow read: if isSignedIn();
 
-      allow create: if isProvider() && isApproved()
+      allow create: if isOperatingProvider()
                  && ownsThisSalon(request.resource.data.salonId)
                  && ownsStoragePath('salon_posts', request.resource.data.salonId, postId);
 
@@ -521,7 +534,7 @@ service cloud.firestore {
     match /salon_stories/{storyId} {
       allow read: if isSignedIn();
 
-      allow create: if isProvider() && isApproved()
+      allow create: if isOperatingProvider()
                  && ownsThisSalon(request.resource.data.salonId)
                  && ownsStoragePath('salon_stories', request.resource.data.salonId, storyId);
 

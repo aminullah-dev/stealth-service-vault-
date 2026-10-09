@@ -10,7 +10,7 @@ const { expandBooked, hasSlotConflict } = require("../lib/slots");
 const { slotConflictWindow } = require("../lib/reservation");
 const { UNCONFIRMED_NUDGE_AFTER_MS, isAdminDue, isNudgeDue, unconfirmedDeadline } = require("../lib/unconfirmed");
 const { isValidDocId } = require("../lib/validate");
-const { assertAdmin, assertDocId, assertNotSuspended, enforceRateLimit, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
+const { assertAdmin, assertDocId, assertNotSuspended, assertProviderVerified, enforceRateLimit, idPage, logAdminAction, logAppointmentEvent, pageCursor, pageEnd, refundReservation, reserveBookingCode, resolveAppUser, writeAppointmentEvent } = require("../shared");
 const { averageRating } = require("../lib/reviews");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
 const { canReportVisit, isVisitReason, visitPlan } = require("../lib/visitreport");
@@ -485,6 +485,10 @@ exports.confirmAppointment = onCall({ region: "us-central1" }, async (request) =
   }
   const appUser = await resolveAppUser(request);
   assertNotSuspended(appUser);
+  // Accepting work is what operating a salon means. A provider whose identity
+  // has not been verified could do it from any client but Android until this
+  // line existed — see lib/kyc.js. Declining stays open (it refunds her).
+  assertProviderVerified(appUser);
   const apptRef = db.doc(`appointments/${appointmentId}`);
 
   await db.runTransaction(async (tx) => {

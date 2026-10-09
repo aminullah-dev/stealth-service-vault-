@@ -308,7 +308,8 @@ struct SalonDetailView: View {
                 }
                 BrandButton(title: .book,
                             isEnabled: !selectedServices.isEmpty && selectedSlot != nil
-                                       && auth.session?.kycStatus == "APPROVED") {
+                                       && AccountGate.customerMayBook(
+                                           kycStatus: auth.session?.kycStatus ?? "NONE")) {
                     showBooking = true
                 }
             }

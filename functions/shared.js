@@ -16,6 +16,7 @@ const { logger } = require("firebase-functions");
 const { isValidDocId } = require("./lib/validate");
 const { phoneKey } = require("./lib/phone");
 const { bookingCodeFromBytes } = require("./lib/booking");
+const { providerKycSatisfied } = require("./lib/kyc");
 const crypto = require("crypto");
 const admin = require("firebase-admin");
 
@@ -198,6 +199,22 @@ function assertNotSuspended(appUser) {
     throw new HttpsError(
       "permission-denied",
       "This account is suspended. Please contact support."
+    );
+  }
+}
+
+/**
+ * Refuse a salon owner who has not passed identity verification.
+ *
+ * The same reason code createPaymentSession uses for an unverified customer,
+ * so every client already translates it. See lib/kyc.js for why this exists.
+ */
+function assertProviderVerified(appUser) {
+  if (!providerKycSatisfied(appUser)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Verify your identity before your salon can take bookings.",
+      { reason: "KYC_REQUIRED" }
     );
   }
 }
@@ -466,7 +483,7 @@ module.exports = {
   admin, db, logger, alertable,
   assertDocId, resolveAppUser, cleanPhone,
   normalizeAfghanPhone, normalizePhone, assertAdmin,
-  assertNotSuspended, logAdminAction, appointmentEvent,
+  assertNotSuspended, assertProviderVerified, logAdminAction, appointmentEvent,
   writeAppointmentEvent, logAppointmentEvent,
   idPage, pageEnd, pageCursor,
 };

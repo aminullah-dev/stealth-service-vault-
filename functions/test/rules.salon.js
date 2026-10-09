@@ -50,7 +50,10 @@ test.beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await db.doc(`uid_map/${PROV_AUTH}`).set({ appUid: PROV_APP });
-    await db.doc(`users/${PROV_APP}`).set({ role: "PROVIDER", status: "APPROVED" });
+    // Identity-verified: an unverified provider may write nothing here at
+    // all (rules.kyc.js), and these tests are about which FIELDS a salon that
+    // may operate can touch.
+    await db.doc(`users/${PROV_APP}`).set({ role: "PROVIDER", status: "APPROVED", kycStatus: "APPROVED" });
     await db.doc(`salons/${SALON}`).set({
       providerId: PROV_APP,
       salonName: "Test Salon",

@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import FirebaseFirestore
 import FirebaseStorage
 import SafeBeautyCore
 
@@ -132,12 +133,58 @@ final class KycService {
                 "tazkiraExpiryDate": .string(expiryDate),
             ])
         } catch let e as Callables.CallableError {
-            if case .failedPrecondition(let message, _) = e {
+            if case .failedPrecondition(let message, let reason) = e {
+                // The reason code first — it is what submitKyc actually sends —
+                // and the English sentence only for a server older than that.
                 let m = message.lowercased()
-                if m.contains("already verified") { throw KycError.alreadyVerified }
-                if m.contains("under review") { throw KycError.alreadyUnderReview }
+                if reason == "KYC_VERIFIED" || m.contains("already verified") { throw KycError.alreadyVerified }
+                if reason == "KYC_UNDER_REVIEW" || m.contains("under review") { throw KycError.alreadyUnderReview }
+                if reason == "KYC_PHOTOS_MISSING" { throw KycError.uploadDenied }
             }
             throw KycError.network
         }
+    }
+}
+
+/// Her verification state, live.
+///
+/// Android's KycScreen observes the user document (`observeUser`) so that the
+/// moment an admin approves or rejects, the screen changes under her. iOS read
+/// `kycStatus` once, at sign-in, from the session — so a salon owner sitting on
+/// the "under review" screen would never see it lift, and a rejection reason
+/// was never shown at all.
+///
+/// One document, her own: `allow get: if ownsDoc(uid)` already permits it.
+@MainActor
+@Observable
+final class KycStatusWatcher {
+    /// nil until the first snapshot arrives. Not "NONE": a read that has not
+    /// happened yet must not be shown as "you have never submitted".
+    private(set) var status: String?
+    private(set) var rejectionReason = ""
+    private var listener: ListenerRegistration?
+    private var watching = ""
+
+    func start(uid: String) {
+        guard !uid.isEmpty, uid != watching else { return }
+        stop()
+        watching = uid
+        listener = Firestore.firestore().document("users/\(uid)")
+            .addSnapshotListener { [weak self] snapshot, _ in
+                // A failed read keeps whatever was last known rather than
+                // flipping her to an empty form — the same reasoning as
+                // DashboardViewModel.kycStatus on Android, which treats an
+                // unreadable document as "unknown", not as "NONE".
+                guard let self, let data = snapshot?.data() else { return }
+                self.status = (data["kycStatus"] as? String) ?? "NONE"
+                self.rejectionReason = (data["kycRejectionReason"] as? String) ?? ""
+            }
+    }
+
+    // No deinit, for the reason PaymentWatcher gives. The view calls stop().
+    func stop() {
+        listener?.remove()
+        listener = nil
+        watching = ""
     }
 }
