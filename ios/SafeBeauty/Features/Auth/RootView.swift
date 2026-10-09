@@ -146,24 +146,57 @@ struct SignedInView: View {
     /// simulator: "My account" in English above five Dari tabs.
     @State private var lang = LanguageStore.shared
 
+    /// Decided in one place, from the same three fields Android's sign-in gate
+    /// reads, and the same on a fresh sign-in and on a launch that restored a
+    /// saved session — both render whatever this returns.
+    private var destination: AccountGate.Destination {
+        AccountGate.destination(role: auth.session?.role ?? "",
+                                status: auth.session?.status ?? "",
+                                kycStatus: auth.session?.kycStatus ?? "NONE")
+    }
+
     var body: some View {
-        if auth.session?.status == "SUSPENDED" {
+        content
+            // The session on disk is what she was at her LAST sign-in. A launch
+            // that restores it must not trust it: an admin may have approved
+            // her identity since — or rejected it — and the gate above is only
+            // as right as these fields. RootView's foreground refresh does not
+            // fire on a cold start, because scenePhase is already .active by
+            // the time anything observes it.
+            .task(id: auth.session?.uid) { await auth.refresh() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch destination {
+        case .suspended:
             SuspendedView()
-        } else if auth.session?.role == "PROVIDER" && auth.session?.status == "APPROVED" {
+        case .providerApp:
             // The salon owner's own app, where a card telling her to open a
             // laptop used to be.
             ProviderRootView()
-        } else if auth.session?.role == "PROVIDER" {
-            // iOS has no provider side. Without this branch an approved salon
-            // owner landed in the CUSTOMER tabs — able to browse salons and
-            // book appointments, with no way to see her own booking requests,
-            // her calendar or her income. Registration still works, so she can
-            // sign up here and her salon is created; she is told where to
-            // manage it rather than handed the wrong app in silence.
-            ProviderElsewhereView()
-        } else if auth.session?.status == "PENDING" {
+        case .providerVerification:
+            // Her salon application is accepted; her identity is not verified.
+            // Android sends this account to the KYC screen at sign-in. iOS
+            // checked `status` alone and handed her the whole salon app — so
+            // the one platform she happened to use decided whether a salon
+            // owner nobody had verified could take bookings.
+            KycView(presentation: .gate)
+        case .providerPendingApproval:
+            // Waiting on her application. This used to be the card below,
+            // which tells her that her account "is active" — the opposite of
+            // the truth for an account no admin has looked at yet.
             PendingApprovalView()
-        } else {
+        case .providerOther:
+            // A declined application, or a status this build does not know.
+            // Kept on the card it always had rather than the salon app or the
+            // customer tabs. Known gap, not addressed here: that card says the
+            // account "is active", and Android shows a declined owner the
+            // reason instead (AccountStatusScreen).
+            ProviderElsewhereView()
+        case .pendingApproval:
+            PendingApprovalView()
+        case .customerApp:
             TabView {
                 SalonListView()
                     .tabItem { Label(L.salons.t, systemImage: "scissors") }

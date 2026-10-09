@@ -66,6 +66,17 @@ extension L {
         }
     }
 
+    /// The admin's reason for rejecting a verification, as Android shows it
+    /// (`kycRejectedReason`). An admin cannot reject without one — reviewKyc
+    /// refuses — so an empty reason is a legacy document, and says nothing.
+    static func kycRejectedReason(_ reason: String) -> String {
+        switch AppLanguage.current {
+        case .dari: "دلیل: \(reason)"
+        case .pashto: "دلیل: \(reason)"
+        case .english: "Reason: \(reason)"
+        }
+    }
+
     /// The max-price chips.
     ///
     /// Grouped like Android's `"%,d".format(p)`, but pinned to en_US rather
@@ -664,6 +675,49 @@ extension L {
     static let kycErrMissing = L(
         fa: "شماره تذکره و آدرس لازم است.", ps: "د تذکرې شمېره او پته اړینې دي.",
         en: "The tazkira number and address are required.")
+    // The provider's version of kycWhy. Hers is not about a booking: it is the
+    // step between an approved salon application and a salon customers can find.
+    static let kycWhyProvider = L(
+        fa: "پیش از آنکه سالن شما فعال شود، هویت شما باید تأیید شود. عکس تذکره و عکس خودتان را فقط تیم SafeBeauty می‌بیند — نه مشتریان.",
+        ps: "مخکې له دې چې ستاسو سالون فعال شي، باید ستاسو پېژندنه تایید شي. د تذکرې انځور او ستاسو انځور یوازې د SafeBeauty ټیم ګوري — نه پیرودونکي.",
+        en: "Before your salon goes live, your identity has to be verified. Your tazkira photo and a photo of you are seen only by the SafeBeauty team — not by customers.")
+    // The three optional identity fields Android has always sent and iOS never
+    // asked for. Same wording as AppStrings.kt.
+    static let kycBirthYear = L(fa: "سال تولد", ps: "د زیږون کال", en: "Year of birth")
+    static let kycIssueDate = L(fa: "تاریخ صدور تذکره", ps: "د تذکرې د صادرېدو نېټه",
+                                en: "Tazkira issue date")
+    static let kycExpiryDate = L(fa: "تاریخ انقضای تذکره", ps: "د تذکرې د پای نېټه",
+                                 en: "Tazkira expiry date")
+    static let kycTakeSelfie = L(fa: "گرفتن سلفی", ps: "سلفي اخیستل", en: "Take selfie")
+    static let kycPendingTitle = L(fa: "در حال بررسی", ps: "د بیاکتنې لاندې", en: "Under review")
+    static let kycPendingText = L(
+        fa: "اسناد شما در حال بررسی است. پس از تأیید به شما اطلاع می‌دهیم.",
+        ps: "ستاسو اسناد د بیاکتنې لاندې دي. د تصدیق وروسته به تاسو خبر کړو.",
+        en: "Your documents are being reviewed. We'll notify you once verified.")
+    static let kycApprovedTitle = L(fa: "تأیید شد", ps: "تصدیق شو", en: "Verified")
+    static let kycApprovedText = L(
+        fa: "هویت شما تأیید شد. همه‌چیز آماده است.",
+        ps: "ستاسو هویت تصدیق شو. هرڅه چمتو دي.",
+        en: "Your identity has been verified. You're all set.")
+    static let kycRejectedTitle = L(fa: "تأیید رد شد", ps: "تصدیق رد شو", en: "Verification rejected")
+    static let kycResubmit = L(fa: "ارسال دوباره", ps: "بیا لېږل", en: "Resubmit")
+    static let kycContinue = L(fa: "ادامه", ps: "دوام", en: "Continue")
+    static let kycErrTazkiraNumber = L(fa: "شماره تذکرهٔ خود را وارد کنید.",
+                                       ps: "د خپلې تذکرې شمېره ولیکئ.",
+                                       en: "Enter your tazkira number.")
+    static let kycErrProvince = L(fa: "ولایت خود را وارد کنید.", ps: "خپل ولایت ولیکئ.",
+                                  en: "Enter your province.")
+    static let kycErrAddress = L(fa: "آدرس کامل خود را وارد کنید.", ps: "خپله بشپړه پته ولیکئ.",
+                                 en: "Enter your full address.")
+    static let kycErrTazkiraPhoto = L(fa: "عکس تذکرهٔ خود را اضافه کنید.",
+                                      ps: "د خپلې تذکرې عکس ورزیات کړئ.",
+                                      en: "Add a photo of your tazkira.")
+    static let kycErrPhotoUnreadable = L(
+        fa: "این عکس خوانده نشد. عکس دیگری انتخاب کنید.",
+        ps: "دا عکس ونه لوستل شو. بل عکس وټاکئ.",
+        en: "That photo could not be read. Choose a different one.")
+    static let kycErrSelfie = L(fa: "یک عکس از خودتان بگیرید.", ps: "د خپل ځان یو انځور واخلئ.",
+                                en: "Take a photo of yourself.")
     static let verifyToBook = L(
         fa: "برای رزرو، اول هویت خود را تأیید کنید.",
         ps: "د بکینګ لپاره لومړی خپله پېژندنه تایید کړئ.",
