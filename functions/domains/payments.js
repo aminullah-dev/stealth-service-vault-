@@ -11,6 +11,7 @@ const { LEDGER_VERSION, cashLedgerDelta, onlineLedgerDelta, isCommissionFree } =
 const { slotFit } = require("../lib/hours");
 const { normalizeParty, partyServices, partySpan } = require("../lib/party");
 const { isValidDocId } = require("../lib/validate");
+const { salonOwnerMayTakeBookings } = require("../lib/kyc");
 const { enforceRateLimit } = require("../shared");
 const { isFailSignal, isPaidSignal, isUnderpaid } = require("../lib/webhook");
 const { assertAdmin, assertDocId, assertNotSuspended, findAccountByPhone, logAdminAction, logAppointmentEvent, normalizePhone, refundReservation, reserveBookingCode, resolveAppUser } = require("../shared");
@@ -290,6 +291,22 @@ exports.createPaymentSession = onCall(
     if (salon.isAvailable !== true) {
       throw new HttpsError("failed-precondition", "This salon is not taking bookings.",
         { reason: "SALON_UNAVAILABLE" });
+    }
+
+    // And its owner has to be a verified person. The policy says a salon goes
+    // live only after its owner's identity is checked; until now only the
+    // Android app held to that, so a provider whose account was approved but
+    // whose tazkira nobody had seen could open her salon from the web console
+    // or iOS and take a woman's booking and money. isAvailable cannot carry
+    // this on its own: a salon opened before the rules refused it is still
+    // marked available. Same reason code as a closed salon — to the customer
+    // the answer is identical, and every client already translates it.
+    if (salon.providerId && isValidDocId(salon.providerId)) {
+      const ownerSnap = await db.doc(`users/${salon.providerId}`).get();
+      if (!salonOwnerMayTakeBookings(ownerSnap.exists ? ownerSnap.data() : null)) {
+        throw new HttpsError("failed-precondition", "This salon is not taking bookings.",
+          { reason: "SALON_UNAVAILABLE" });
+      }
     }
 
     // A provider may not book her own salon.
