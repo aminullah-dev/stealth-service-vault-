@@ -94,6 +94,33 @@
   .langpick button:active{transform:scale(.96)}
   .langpick button.on{background:var(--grad);color:#fff;box-shadow:0 4px 12px rgba(183,110,121,.32)}
 
+  /* ── Identity verification (KYC gate) ──────────────────────────── */
+  /* Shown instead of the dashboard to a salon owner whose identity is not yet
+     verified — the same gate Android applies at sign-in. Built from the login
+     card's pieces so it reads as part of signing in, not as a new product. */
+  #kyc{min-height:100%;display:flex;justify-content:center;padding:24px}
+  #kyc .card{width:100%;max-width:560px;padding:28px 30px 30px;position:relative;overflow:hidden;align-self:flex-start}
+  #kyc .card::before{content:"";position:absolute;inset:0 0 auto 0;height:5px;background:var(--grad)}
+  .kyc-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+  .kyc-top h2{margin:0;font-size:19px;color:var(--deep);font-weight:800}
+  .kyc-top .acts{display:flex;gap:8px}
+  .kyc-top .acts button{padding:7px 12px;border-radius:10px;font-size:12px;font-weight:700;background:var(--petal);color:var(--deep)}
+  .kyc-why{background:var(--surface);border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;color:var(--ink);margin-bottom:14px}
+  .kyc-state{text-align:center;padding:26px 10px 8px}
+  .kyc-state .dot{width:46px;height:46px;border-radius:50%;margin:0 auto 12px;border:4px solid var(--gold);background:var(--surface)}
+  .kyc-state .dot.ok{border-color:var(--green);background:rgba(63,161,74,.16)}
+  .kyc-state h3{margin:0 0 8px;font-size:17px;color:var(--deep)}
+  .kyc-state p{margin:0 0 18px;color:var(--muted);font-size:13.5px;line-height:1.6;font-weight:600}
+  .kyc-photo{position:relative;display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);border-radius:13px;padding:10px 12px;margin-bottom:11px;background:var(--panel-solid)}
+  .kyc-photo .pv{width:64px;height:64px;border-radius:10px;background:var(--surface);flex-shrink:0;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px}
+  .kyc-photo .pv img{width:100%;height:100%;object-fit:cover;display:block}
+  .kyc-photo .lbl{flex:1;font-weight:700;color:var(--deep);font-size:13px}
+  .kyc-photo .lbl small{display:block;color:var(--ok-ink);font-weight:700;margin-top:3px}
+  .kyc-photo label.btn-sm{background:var(--rose);cursor:pointer}
+  .kyc-photo input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .kyc-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 11px}
+  @media(max-width:520px){ .kyc-grid{grid-template-columns:1fr} #kyc .card{padding:24px 18px} }
+
   /* ── Shell ─────────────────────────────────────────────────────── */
   #app{height:100vh;display:flex;overflow:hidden}
   .sidebar{width:224px;flex-shrink:0;background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
@@ -354,6 +381,11 @@
   </div>
 </div>
 
+<!-- ── Identity verification ─────────────────────────────────────────────── -->
+<!-- Filled by renderKyc(). Hidden unless a signed-in provider's kycStatus is
+     anything but APPROVED. -->
+<div id="kyc" class="hidden"><div class="card" id="kycCard"></div></div>
+
 <!-- ── App ───────────────────────────────────────────────────────────────── -->
 <div id="app" class="hidden">
   <aside class="sidebar">
@@ -422,6 +454,45 @@ const STR = {
   errRejected:{en:'Your salon application was declined. Please contact support.', fa:'درخواست سالن شما رد شده است. با پشتیبانی تماس بگیرید.', ps:'ستاسو د سالون غوښتنه رد شوه. مهرباني وکړئ له ملاتړ سره اړیکه ونیسئ.'},
   errFailed:{en:'Sign-in failed.', fa:'ورود ناموفق بود.', ps:'ننوتل ناکام شو.'},
   getApp:{en:'⬇ Get the desktop app', fa:'⬇ دریافت اپ دسکتاپ (مک/ویندوز)', ps:'⬇ د ډیسکټاپ اپ ترلاسه کول (مک/وینډوز)'},
+  // Identity verification (KYC). Wording follows Android's AppStrings.kt.
+  kycTitle:{en:'Identity verification', fa:'احراز هویت', ps:'د هویت تصدیق'},
+  kycWhyProvider:{en:'Before your salon goes live, your identity has to be verified. Your tazkira photo and a photo of you are seen only by the SafeBeauty team — not by customers.',
+                  fa:'پیش از آنکه سالن شما فعال شود، هویت شما باید تأیید شود. عکس تذکره و عکس خودتان را فقط تیم SafeBeauty می‌بیند — نه مشتریان.',
+                  ps:'مخکې له دې چې ستاسو سالون فعال شي، باید ستاسو پېژندنه تایید شي. د تذکرې انځور او ستاسو انځور یوازې د SafeBeauty ټیم ګوري — نه پیرودونکي.'},
+  kycTazkiraNumber:{en:'Tazkira (National ID) number', fa:'شماره تذکره', ps:'د تذکرې شمېره'},
+  kycBirthYear:{en:'Year of birth', fa:'سال تولد', ps:'د زیږون کال'},
+  kycIssueDate:{en:'Tazkira issue date', fa:'تاریخ صدور تذکره', ps:'د تذکرې د صادرېدو نېټه'},
+  kycExpiryDate:{en:'Tazkira expiry date', fa:'تاریخ انقضای تذکره', ps:'د تذکرې د پای نېټه'},
+  kycProvince:{en:'Province', fa:'ولایت', ps:'ولایت'},
+  kycAddressDetail:{en:'Full address (district, area, street)', fa:'آدرس کامل (ناحیه، منطقه، سرک)', ps:'بشپړ آدرس (ولسوالۍ، سیمه، سړک)'},
+  kycTazkiraPhoto:{en:'Tazkira photo', fa:'عکس تذکره', ps:'د تذکرې عکس'},
+  kycSelfie:{en:'Selfie', fa:'سلفی', ps:'سلفي'},
+  kycPickPhoto:{en:'Upload photo', fa:'بارگذاری عکس', ps:'عکس پورته کول'},
+  kycTakeSelfie:{en:'Take selfie', fa:'گرفتن سلفی', ps:'سلفي اخیستل'},
+  kycPhotoReady:{en:'Photo ready', fa:'عکس آماده شد', ps:'عکس چمتو دی'},
+  kycNoPhoto:{en:'None yet', fa:'هنوز نیست', ps:'لا نشته'},
+  kycSubmit:{en:'Submit for verification', fa:'ارسال برای تأیید', ps:'د تصدیق لپاره لېږل'},
+  kycSubmitting:{en:'Submitting…', fa:'در حال ارسال…', ps:'لېږل کیږي…'},
+  kycPreparing:{en:'Preparing photo…', fa:'آماده‌سازی عکس…', ps:'د انځور چمتو کول…'},
+  kycPendingTitle:{en:'Under review', fa:'در حال بررسی', ps:'د بیاکتنې لاندې'},
+  kycPendingText:{en:"Your documents are being reviewed. We'll notify you once verified.", fa:'اسناد شما در حال بررسی است. پس از تأیید به شما اطلاع می‌دهیم.', ps:'ستاسو اسناد د بیاکتنې لاندې دي. د تصدیق وروسته به تاسو خبر کړو.'},
+  kycApprovedTitle:{en:'Verified', fa:'تأیید شد', ps:'تصدیق شو'},
+  kycApprovedText:{en:"Your identity has been verified. You're all set.", fa:'هویت شما تأیید شد. همه‌چیز آماده است.', ps:'ستاسو هویت تصدیق شو. هرڅه چمتو دي.'},
+  kycRejectedTitle:{en:'Verification rejected', fa:'تأیید رد شد', ps:'تصدیق رد شو'},
+  kycRejectedReason:{en:(r)=>`Reason: ${r}`, fa:(r)=>`دلیل: ${r}`, ps:(r)=>`دلیل: ${r}`},
+  kycResubmit:{en:'Resubmit', fa:'ارسال دوباره', ps:'بیا لېږل'},
+  kycContinue:{en:'Continue', fa:'ادامه', ps:'دوام'},
+  kycErrTazkiraNumber:{en:'Enter your tazkira number.', fa:'شماره تذکرهٔ خود را وارد کنید.', ps:'د خپلې تذکرې شمېره ولیکئ.'},
+  kycErrProvince:{en:'Enter your province.', fa:'ولایت خود را وارد کنید.', ps:'خپل ولایت ولیکئ.'},
+  kycErrAddress:{en:'Enter your full address.', fa:'آدرس کامل خود را وارد کنید.', ps:'خپله بشپړه پته ولیکئ.'},
+  kycErrTazkiraPhoto:{en:'Add a photo of your tazkira.', fa:'عکس تذکرهٔ خود را اضافه کنید.', ps:'د خپلې تذکرې عکس ورزیات کړئ.'},
+  kycErrSelfie:{en:'Take a selfie.', fa:'یک عکس سلفی بگیرید.', ps:'یو سیلفي واخلئ.'},
+  kycErrPhotoTooLarge:{en:'That photo is too large. Try one taken at a lower quality.', fa:'این عکس خیلی بزرگ است. عکسی با کیفیت پایین‌تر انتخاب کنید.', ps:'دا عکس ډېر لوی دی. د ټیټ کیفیت عکس وټاکئ.'},
+  kycErrPhotoUnreadable:{en:'That photo could not be read. Choose a different one.', fa:'این عکس خوانده نشد. عکس دیگری انتخاب کنید.', ps:'دا عکس ونه لوستل شو. بل عکس وټاکئ.'},
+  kycErrNoConnection:{en:'No internet connection. Check your connection and try again.', fa:'اتصال اینترنت نیست. اتصال‌تان را بررسی کنید و دوباره امتحان کنید.', ps:'د انټرنټ اتصال نشته. خپل اتصال وګورئ او بیا هڅه وکړئ.'},
+  kycErrUploadFailed:{en:'It could not be sent. Try again in a moment.', fa:'ارسال نشد. لحظه‌ای بعد دوباره امتحان کنید.', ps:'ولېږل نشو. یوه شېبه وروسته بیا هڅه وکړئ.'},
+  kycErrUnderReview:{en:'Your documents are already submitted and under review.', fa:'مدارک شما قبلاً ارسال شده و در حال بررسی است.', ps:'ستاسو اسناد لا دمخه لېږل شوي او تر کتنې لاندې دي.'},
+  kycErrAlreadyVerified:{en:'Your identity is already verified.', fa:'هویت شما از قبل تأیید شده است.', ps:'ستاسو پېژندنه لا دمخه تایید شوې.'},
   // Shell
   signedInAs:{en:(n)=>`Signed in as ${n}`, fa:(n)=>`واردشده به‌عنوان ${n}`, ps:(n)=>`د ${n} په توګه ننوتلی`},
   signOut:{en:'Sign out', fa:'خروج', ps:'وتل'},
@@ -697,6 +768,7 @@ function setLang(next){
   try{ localStorage.setItem('sb-lang', next); }catch(_){}
   applyLangDir();
   paintStatic();
+  if(!$('kyc').classList.contains('hidden')) renderKyc(true);
   if(!$('app').classList.contains('hidden')){
     buildNav();
     selectTab(activeTab);   // re-render the current view in the new language
@@ -762,7 +834,15 @@ async function doLogin(){
       try { await window.electronBiometric.save(phone, pw); } catch(_){}
     }
     provider = { uid: m.uid, name: m.name || 'Salon', status: m.status || '' };
-    await enterApp();
+    // Identity verification comes before the dashboard, exactly as on Android
+    // (AppNavGraph: a PROVIDER whose kycStatus is not APPROVED goes to the KYC
+    // screen). This console used to check `status` alone, so a salon owner
+    // whose application was accepted but whose tazkira nobody had seen got the
+    // whole dashboard here. The server now refuses her writes as well
+    // (firestore.rules isOperatingProvider, confirmAppointment), so without
+    // this screen she would meet a wall of permission errors instead.
+    if((m.kycStatus || 'NONE') !== 'APPROVED'){ enterKyc(m.kycStatus || 'NONE'); }
+    else { await enterApp(); }
   }catch(e){
     $('lerr').textContent = (e && e.message) ? e.message : t('errFailed');
   }finally{
@@ -770,10 +850,231 @@ async function doLogin(){
   }
 }
 
-$('logout').addEventListener('click', async () => {
+async function doSignOut(){
   if(salonUnsub){ try{salonUnsub();}catch(_){} }
+  if(kycUnsub){ try{kycUnsub();}catch(_){} }
   await signOut(auth); location.reload();
-});
+}
+$('logout').addEventListener('click', doSignOut);
+
+// ── Identity verification (KYC gate) ────────────────────────────────────────
+// Mirrors Android's KycScreen + KycViewModel field for field, so the admin's
+// Verification tab reviews a console submission exactly as it reviews one from
+// the phone: the same two Storage paths (kyc/{uid}/tazkira.jpg and selfie.jpg,
+// which submitKyc derives itself and checks exist), the same submitKyc payload,
+// and the same states read live from her own users document.
+let kycUnsub = null;
+const kyc = {
+  status: null,          // live kycStatus; null until the first snapshot
+  reason: '',            // kycRejectionReason
+  submitted: false,      // set on success until the snapshot says PENDING
+  busy: false,
+  error: '',
+  painted: '',           // which state the card currently shows
+  form: { tazkiraNumber:'', birthYear:'', tazkiraIssueDate:'', tazkiraExpiryDate:'', addressProvince:'', addressDetail:'' },
+  tazkira: null,         // compressed JPEG Blob
+  selfie: null,
+  tazkiraUrl: '', selfieUrl: '',   // object URLs for the previews
+};
+
+// The same sizing as Android's ImageUtils: longest edge 1024 px, JPEG at 70%,
+// and refused past 900 000 bytes. A tazkira at that size is legible to the
+// reviewer, comfortably inside storage.rules' 2 MB, and quick to send on a
+// slow connection.
+const KYC_MAX_EDGE = 1024, KYC_JPEG_Q = 0.7, KYC_MAX_BYTES = 900000;
+// A camera original past this is not something a browser should be asked to
+// decode on a modest machine; Android never sees one this size either.
+const KYC_MAX_INPUT = 25 * 1024 * 1024;
+
+async function compressForKyc(file){
+  if(!file || !/^image\//.test(file.type || '')) return { error:'kycErrPhotoUnreadable' };
+  if(file.size > KYC_MAX_INPUT) return { error:'kycErrPhotoTooLarge' };
+  let bmp;
+  try{
+    // from-image applies the EXIF rotation, as ImageUtils.applyExifRotation does.
+    bmp = await createImageBitmap(file, { imageOrientation:'from-image' });
+  }catch(_){ return { error:'kycErrPhotoUnreadable' }; }
+  const scale = Math.min(1, KYC_MAX_EDGE / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+  if(bmp.close) bmp.close();
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', KYC_JPEG_Q));
+  if(!blob || !blob.size) return { error:'kycErrPhotoUnreadable' };
+  if(blob.size > KYC_MAX_BYTES) return { error:'kycErrPhotoTooLarge' };
+  return { blob };
+}
+
+function kycState(){
+  if(kyc.submitted && kyc.status !== 'APPROVED') return 'PENDING';
+  return kyc.status || 'NONE';
+}
+
+function enterKyc(initialStatus){
+  // What sign-in just reported, until the listener speaks — so a provider
+  // already under review never sees an empty form flash first.
+  kyc.status = initialStatus || 'NONE';
+  $('login').classList.add('hidden');
+  $('app').classList.add('hidden');
+  $('kyc').classList.remove('hidden');
+  kyc.painted = '';
+  renderKyc();
+  if(kycUnsub){ try{kycUnsub();}catch(_){} }
+  // Her own document — `allow get: if ownsDoc(uid)` — so an admin's decision
+  // reaches this screen while it is open, as it does on Android.
+  kycUnsub = onSnapshot(doc(db,'users',provider.uid), (snap) => {
+    if(!snap.exists()) return;
+    const d = snap.data();
+    kyc.status = d.kycStatus || 'NONE';
+    kyc.reason = d.kycRejectionReason || '';
+    if(kyc.status === 'PENDING') kyc.submitted = false;
+    renderKyc();
+  }, () => { /* keep what is shown; a failed read is not "never submitted" */ });
+}
+
+function leaveKycForApp(){
+  if(kycUnsub){ try{kycUnsub();}catch(_){} kycUnsub = null; }
+  $('kyc').classList.add('hidden');
+  enterApp();
+}
+
+/** Repaint the card. `force` re-renders the form too (a language change). */
+function renderKyc(force){
+  const state = kycState();
+  const key = state + '|' + (state === 'REJECTED' ? kyc.reason : '');
+  if(!force && key === kyc.painted && state !== 'APPROVED'){ paintKycStatus(); return; }
+  kyc.painted = key;
+  const top = `<div class="kyc-top"><h2>${esc(t('kycTitle'))}</h2>
+      <div class="acts"><button type="button" id="kycLang">${esc(LANG_NAME[lang])}</button>
+      <button type="button" id="kycOut">${esc(t('signOut'))}</button></div></div>`;
+  let body = '';
+  if(state === 'PENDING'){
+    body = `<div class="kyc-state"><div class="dot"></div><h3>${esc(t('kycPendingTitle'))}</h3>
+      <p>${esc(t('kycPendingText'))}</p></div>`;
+  } else if(state === 'APPROVED'){
+    body = `<div class="kyc-state"><div class="dot ok"></div><h3>${esc(t('kycApprovedTitle'))}</h3>
+      <p>${esc(t('kycApprovedText'))}</p><button class="btn" id="kycGo">${esc(t('kycContinue'))}</button></div>`;
+  } else {
+    const f = kyc.form;
+    const field = (id, label, extra) => `<label class="fl" for="kf_${id}">${esc(t(label))}</label>
+      <input class="field" id="kf_${id}" data-k="${id}" value="${esc(f[id])}" ${extra||''} />`;
+    const photo = (which, label, btnLabel, accept, capture) => {
+      const url = kyc[which + 'Url'];
+      return `<div class="kyc-photo">
+        <div class="pv">${url ? `<img alt="" src="${esc(url)}">` : esc(t('kycNoPhoto'))}</div>
+        <div class="lbl">${esc(t(label))}${url ? `<small>${esc(t('kycPhotoReady'))}</small>` : ''}</div>
+        <label class="btn-sm" for="kp_${which}">${esc(t(btnLabel))}</label>
+        <input type="file" id="kp_${which}" accept="${accept}" ${capture ? `capture="${capture}"` : ''} data-photo="${which}" />
+      </div>`;
+    };
+    body = `<div class="kyc-why">${esc(t('kycWhyProvider'))}</div>` +
+      (state === 'REJECTED'
+        ? `<div class="flash bad"><div>${esc(t('kycRejectedTitle'))}</div>${kyc.reason ? `<div style="font-weight:600;margin-top:4px">${esc(t('kycRejectedReason', kyc.reason))}</div>` : ''}</div>`
+        : '') +
+      field('tazkiraNumber', 'kycTazkiraNumber', 'autocomplete="off"') +
+      `<div class="kyc-grid"><div>${field('birthYear', 'kycBirthYear', 'inputmode="numeric" autocomplete="off"')}</div>
+        <div>${field('addressProvince', 'kycProvince', 'autocomplete="off"')}</div>
+        <div>${field('tazkiraIssueDate', 'kycIssueDate', 'autocomplete="off"')}</div>
+        <div>${field('tazkiraExpiryDate', 'kycExpiryDate', 'autocomplete="off"')}</div></div>` +
+      `<label class="fl" for="kf_addressDetail">${esc(t('kycAddressDetail'))}</label>
+       <textarea class="field" id="kf_addressDetail" data-k="addressDetail" style="min-height:64px">${esc(f.addressDetail)}</textarea>` +
+      // The tazkira from a file, the selfie from the camera — as Android does
+      // it (GetContent / TakePicturePreview). capture="user" opens the front
+      // camera on a phone; a desktop browser and the Electron app ignore it and
+      // show the file chooser, which is the only camera-free path there is.
+      photo('tazkira', 'kycTazkiraPhoto', 'kycPickPhoto', 'image/jpeg,image/png,image/webp,image/heic,image/heif', '') +
+      photo('selfie', 'kycSelfie', 'kycTakeSelfie', 'image/*', 'user') +
+      `<div class="err" id="kycErr"></div>
+       <button class="btn" id="kycSubmit" style="margin-top:6px">${esc(t(state === 'REJECTED' ? 'kycResubmit' : 'kycSubmit'))}</button>`;
+  }
+  $('kycCard').innerHTML = top + body;
+  $('kycOut').onclick = doSignOut;
+  $('kycLang').onclick = () => { const i = LANGS.indexOf(lang); setLang(LANGS[(i+1) % LANGS.length]); };
+  if(state === 'APPROVED'){ $('kycGo').onclick = leaveKycForApp; return; }
+  if(state === 'PENDING') return;
+  $('kycCard').querySelectorAll('[data-k]').forEach(el =>
+    el.addEventListener('input', () => { kyc.form[el.dataset.k] = el.value; }));
+  $('kycCard').querySelectorAll('[data-photo]').forEach(el =>
+    el.addEventListener('change', () => pickKycPhoto(el.dataset.photo, el.files && el.files[0])));
+  $('kycSubmit').onclick = submitKycForm;
+  paintKycStatus();
+}
+
+/** The error line and the button's busy state, without rebuilding the form. */
+function paintKycStatus(){
+  const err = $('kycErr'), btn = $('kycSubmit');
+  if(err) err.textContent = kyc.error ? t(kyc.error) : '';
+  if(btn){
+    btn.disabled = kyc.busy;
+    if(kyc.busy) btn.textContent = t('kycSubmitting');
+    else btn.textContent = t(kycState() === 'REJECTED' ? 'kycResubmit' : 'kycSubmit');
+  }
+}
+
+async function pickKycPhoto(which, file){
+  if(!file) return;
+  kyc.error = ''; paintKycStatus();
+  const r = await compressForKyc(file);
+  if(r.error){
+    // Said, not swallowed: a photo refused in silence leaves the row looking
+    // untouched and she picks the same one again (the bug Android fixed).
+    kyc.error = r.error; paintKycStatus(); return;
+  }
+  if(kyc[which + 'Url']) URL.revokeObjectURL(kyc[which + 'Url']);
+  kyc[which] = r.blob;
+  kyc[which + 'Url'] = URL.createObjectURL(r.blob);
+  renderKyc(true);
+}
+
+/** Android's KycViewModel.validate, in its order. */
+function kycProblem(){
+  const f = kyc.form, blank = (v) => !String(v || '').trim();
+  if(blank(f.tazkiraNumber))   return 'kycErrTazkiraNumber';
+  if(blank(f.addressProvince)) return 'kycErrProvince';
+  if(blank(f.addressDetail))   return 'kycErrAddress';
+  if(!kyc.tazkira)             return 'kycErrTazkiraPhoto';
+  if(!kyc.selfie)              return 'kycErrSelfie';
+  return '';
+}
+
+async function submitKycForm(){
+  if(kyc.busy) return;
+  kyc.error = kycProblem();
+  if(kyc.error){ paintKycStatus(); return; }
+  kyc.busy = true; paintKycStatus();
+  const meta = { contentType:'image/jpeg' };
+  try{
+    // Upload first, then tell the server — the order Android uses. Neither
+    // path is sent: submitKyc composes kyc/{uid}/… from the caller's own uid
+    // and checks both objects exist before recording anything.
+    await uploadBytes(sref(storage, `kyc/${provider.uid}/tazkira.jpg`), kyc.tazkira, meta);
+    await uploadBytes(sref(storage, `kyc/${provider.uid}/selfie.jpg`), kyc.selfie, meta);
+    const f = kyc.form, trim = (v) => String(v || '').trim();
+    await httpsCallable(fns, 'submitKyc')({
+      tazkiraNumber:     trim(f.tazkiraNumber),
+      birthYear:         trim(f.birthYear),
+      tazkiraIssueDate:  trim(f.tazkiraIssueDate),
+      tazkiraExpiryDate: trim(f.tazkiraExpiryDate),
+      addressProvince:   trim(f.addressProvince),
+      addressDetail:     trim(f.addressDetail),
+    });
+    ['tazkira','selfie'].forEach(w => { if(kyc[w+'Url']) URL.revokeObjectURL(kyc[w+'Url']); kyc[w] = null; kyc[w+'Url'] = ''; });
+    kyc.submitted = true;
+    kyc.busy = false;
+    renderKyc(true);
+  }catch(e){
+    kyc.busy = false;
+    const code = String((e && e.code) || '');
+    const reason = (e && e.details && e.details.reason) || '';
+    if(reason === 'KYC_UNDER_REVIEW') kyc.error = 'kycErrUnderReview';
+    else if(reason === 'KYC_VERIFIED') kyc.error = 'kycErrAlreadyVerified';
+    else if(!navigator.onLine || /unavailable|deadline-exceeded|retry-limit-exceeded|network-request-failed/.test(code))
+      kyc.error = 'kycErrNoConnection';
+    else kyc.error = 'kycErrUploadFailed';
+    paintKycStatus();
+  }
+}
 
 // ── Touch ID (desktop app only) ────────────────────────────────────────────────
 (async function setupBiometric(){
